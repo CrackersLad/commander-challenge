@@ -36,7 +36,7 @@ jobs:
           if [[ "${{ github.event.head_commit.message }}" == *"[major]"* ]]; then
             cd functions && npm run build:major && cd ..
           else
-            cd functions && npm run build:minor && cd ..
+            cd functions && npm run build && cd ..
           fi
           
           firebase deploy --project commander-challenge --force
