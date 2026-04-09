@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <!-- Arcane Outer Rings (Drafting Pool) -->
+    <circle cx="256" cy="256" r="220" fill="none" stroke="#6a0dad" stroke-width="12" opacity="0.6" stroke-dasharray="30 15"/>
+    <circle cx="256" cy="256" r="195" fill="none" stroke="#6a0dad" stroke-width="4" opacity="0.4"/>
+    
+    <!-- Card Fan Group -->
+    <g transform="translate(0, 15)">
+        
+        <!-- Left Card (Reroll Option) -->
+        <g transform="translate(256, 350) rotate(-20) translate(-256, -350)">
+            <rect x="166" y="130" width="180" height="260" rx="12" fill="#151515" stroke="#e67e22" stroke-width="6"/>
+        </g>
+        
+        <!-- Right Card (Passed Option) -->
+        <g transform="translate(256, 350) rotate(20) translate(-256, -350)">
+            <rect x="166" y="130" width="180" height="260" rx="12" fill="#151515" stroke="#6a0dad" stroke-width="6"/>
+        </g>
+        
+        <!-- Center Commander Card -->
+        <g transform="translate(256, 350) rotate(0) translate(-256, -350)">
+            <!-- Legendary Border Base -->
+            <path d="M 166 160
+                     L 166 380
+                     A 12 12 0 0 0 178 392
+                     L 334 392
+                     A 12 12 0 0 0 346 380
+                     L 346 160
+                     L 310 130
+                     L 256 110
+                     L 202 130
+                     Z" fill="#0d0d0d" stroke="#d4af37" stroke-width="10" stroke-linejoin="round"/>
+            
+            <!-- Card Art Window -->
+            <rect x="182" y="165" width="148" height="115" rx="6" fill="#1a1a1a" stroke="#d4af37" stroke-width="4"/>
+            
+            <!-- Crown inside Art -->
+            <path d="M 206 250 L 226 200 L 256 230 L 286 200 L 306 250 Z" fill="#d4af37" stroke="#000" stroke-width="3" stroke-linejoin="round"/>
+            <circle cx="226" cy="190" r="5" fill="#e67e22"/>
+            <circle cx="256" cy="216" r="5" fill="#e67e22"/>
+            <circle cx="286" cy="190" r="5" fill="#e67e22"/>
+            
+            <!-- Text Box -->
+            <rect x="182" y="295" width="148" height="80" rx="6" fill="#151515" stroke="#444" stroke-width="4"/>
+            
+            <!-- Card Text Lines -->
+            <rect x="198" y="310" width="116" height="8" rx="4" fill="#d4af37"/>
+            <rect x="198" y="330" width="85" height="6" rx="3" fill="#6a0dad"/>
+            <rect x="198" y="346" width="100" height="6" rx="3" fill="#6a0dad"/>
+            <rect x="198" y="362" width="60" height="6" rx="3" fill="#6a0dad"/>
+        </g>
+    </g>
+</svg>

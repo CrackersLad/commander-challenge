@@ -1,0 +1,28 @@
+{
+  "name": "functions",
+  "version": "19.1",
+  "description": "Cloud Functions for Firebase",
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "npm run build && firebase deploy",
+    "logs": "firebase functions:log",
+    "build": "node build.js",
+    "build:major": "node build.js major",
+    "deploy:major": "npm run build:major && firebase deploy"
+  },
+  "engines": {
+    "node": "24"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^11.8.0",
+    "firebase-functions": "^4.3.1",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "firebase-functions-test": "^3.4.1"
+  },
+  "private": true
+}

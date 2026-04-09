@@ -1,0 +1,33 @@
+{
+  "rules": {
+    "global_archives": {
+      ".read": true,
+      ".write": false
+    },
+    "rooms": {
+      ".read": true,
+      "$roomId": {
+         ".write": "auth != null"
+      }
+    },
+    "webhooks": {
+      ".read": false,
+      "$roomId": {
+        ".write": "auth != null"
+      }
+    },
+    "stats": {
+      ".read": true
+    },
+    "hall_of_fame": {
+      ".read": true,
+      ".write": false
+    },
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid"
+      }
+    }
+  }
+}

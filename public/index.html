@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commander Draft Challenge</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d0d0d">
+    <link rel="apple-touch-icon" href="icon.svg">
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    
+    <!-- Open Graph / Social Media Meta Tags -->
+    <meta property="og:title" content="Commander Draft Challenge">
+    <meta property="og:description" content="A free, interactive Commander/EDH draft simulator. Roll commanders, enforce budgets & brackets, lock in deck prices, run blind drafts, track player profiles, and get Discord webhook alerts with your playgroup!">
+    <meta property="og:url" content="https://edhchallenge.com/">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary">
+    <script>
+        // Redirect old Firebase domains to the primary custom domain
+        (function() {
+            var currentHost = window.location.hostname;
+            var primaryDomain = 'edhchallenge.com';
+            // If the host is not the primary domain (and not a local testing environment), redirect.
+            if (currentHost !== primaryDomain && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
+                // This handles www.edhchallenge.com, commander-challenge.web.app, etc.
+                window.location.replace('https://' + primaryDomain + window.location.pathname + window.location.search);
+            }
+        })();
+    </script>
+    <style>
+        :root { --gold: #d4af37; --arcane: #6a0dad; --obsidian: #0d0d0d; --card-bg: rgba(26, 26, 26, 0.75); --reroll: #e67e22; }
+        body { background: var(--obsidian); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 20px; background-image: radial-gradient(circle at top, #1e1e2f 0%, #0d0d0d 100%); min-height: 100vh; -webkit-user-select: none; user-select: none; cursor: default; }
+        h1, h2, h3 { font-family: 'Cinzel', serif; color: var(--gold); letter-spacing: 1px; margin: 0; text-shadow: 0 0 15px rgba(212, 175, 55, 0.4);}
+        /* MAIN BANNER: THE ARCANE PLAYMAT */
+        .css-banner {
+            width: 100%; max-width: 900px; height: 180px; margin: 20px auto 40px auto; border-radius: 12px;
+            box-shadow: 0 0 35px rgba(106, 13, 173, 0.4), inset 0 0 60px rgba(0,0,0,0.9);
+            border: 2px solid rgba(212, 175, 55, 0.5);
+            display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+            background-color: var(--obsidian);
+            background-image:
+                radial-gradient(circle at 0 0, rgba(212, 175, 55, 0.4) 1px, transparent 2px),
+                linear-gradient(to bottom, rgba(212, 175, 55, 0.05) 1px, transparent 1px),
+                linear-gradient(to right, rgba(212, 175, 55, 0.05) 1px, transparent 1px),
+                radial-gradient(circle at 15% 50%, rgba(106, 13, 173, 0.4) 0%, transparent 60%),
+                radial-gradient(circle at 85% 50%, rgba(106, 13, 173, 0.4) 0%, transparent 60%);
+            background-size: 30px 30px, 30px 30px, 30px 30px, 100% 100%, 100% 100%;
+            animation: gridScroll 10s linear infinite, bannerPulse 4s ease-in-out infinite;
+        }
+        .css-banner::after {
+            content: ''; position: absolute; top: 6px; right: 6px; bottom: 6px; left: 6px;
+            border: 1px solid rgba(212, 175, 55, 0.2); border-radius: 6px; pointer-events: none;
+        }
+        .css-banner-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to right, rgba(13,13,13,0.8) 0%, rgba(13,13,13,0.1) 30%, rgba(13,13,13,0.1) 70%, rgba(13,13,13,0.8) 100%);
+        }
+        .css-banner-text {
+            position: relative; z-index: 2; font-size: 3rem; color: var(--gold); font-weight: 700;
+            text-shadow: 0 4px 10px #000, 0 0 20px var(--arcane), 0 0 40px var(--arcane), 0 0 8px rgba(212, 175, 55, 0.4);
+            margin: 0; padding: 0 20px; text-transform: uppercase; letter-spacing: 3px;
+            animation: textGlow 4s ease-in-out infinite;
+        }
+        @keyframes gridScroll { 0% { background-position: 0 0, 0 0, 0 0, center, center; } 100% { background-position: 30px 30px, 0 30px, 30px 0, center, center; } }
+        @keyframes bannerPulse { 0%, 100% { box-shadow: 0 0 35px rgba(106, 13, 173, 0.4), inset 0 0 60px rgba(0,0,0,0.9); border-color: rgba(212, 175, 55, 0.5); } 50% { box-shadow: 0 0 60px rgba(106, 13, 173, 0.8), inset 0 0 40px rgba(0,0,0,0.8); border-color: rgba(212, 175, 55, 0.9); } }
+        @keyframes textGlow { 0%, 100% { text-shadow: 0 4px 10px #000, 0 0 20px var(--arcane), 0 0 40px var(--arcane), 0 0 8px rgba(212, 175, 55, 0.4); } 50% { text-shadow: 0 4px 10px #000, 0 0 30px var(--arcane), 0 0 60px var(--arcane), 0 0 15px rgba(212, 175, 55, 0.8); } }
+
+        .view-section { display: none; animation: fadeIn 0.4s ease forwards; }
+        .view-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        input[type="text"], input[type="number"], input[type="datetime-local"], select { padding: 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.6); color: white; margin: 10px 0; outline: none; font-family: inherit; font-size: 1rem; text-align: center; transition: 0.3s ease; }
+        input[type="text"]:focus, input[type="number"]:focus, input[type="datetime-local"]:focus, select:focus { border-color: var(--gold); box-shadow: 0 0 15px rgba(212, 175, 55, 0.4); transform: translateY(-1px); background: rgba(0,0,0,0.8); }
+        button { border: none; padding: 15px 30px; cursor: pointer; border-radius: 6px; font-weight: bold; font-family: 'Cinzel', serif; text-transform: uppercase; transition: 0.3s; }
+        button:disabled { opacity: 0.5; cursor: not-allowed !important; transform: none !important; box-shadow: none !important; }
+        .select-btn { background: linear-gradient(135deg, var(--gold) 0%, #ffe699 50%, var(--gold) 100%); background-size: 200% auto; animation: goldShimmer 3s linear infinite; color: #000; box-shadow: 0 4px 0 #967b28; margin: 5px; text-shadow: 0 1px 2px rgba(255,255,255,0.4); }
+        @keyframes goldShimmer { 0% { background-position: 0% center; } 100% { background-position: 200% center; } }
+        .select-btn:hover:not(:disabled) { background: #fff; box-shadow: 0 0 20px var(--gold); transform: translateY(-2px); }
+        .secondary-btn { background: transparent; color: var(--gold); border: 2px solid var(--gold); }
+        .secondary-btn:hover:not(:disabled) { background: var(--gold); color: #000; }
+        .auth-sm-btn { background: transparent; border: 1px solid; padding: 6px 15px; font-size: 0.85rem; border-radius: 4px; cursor: pointer; transition: 0.3s; font-family: 'Segoe UI', sans-serif; font-weight: 600; width: auto !important; margin: 0; box-shadow: none; }
+        .auth-sm-btn:hover { background: #222; transform: translateY(-1px); box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+        a { color: var(--gold); text-decoration: none; font-weight: bold; font-family: 'Cinzel', serif; transition: 0.3s; cursor: pointer; }
+        a:hover { color: #fff; text-shadow: 0 0 10px var(--gold); }
+        .dashboard { 
+            display: flex; 
+            gap: 30px; 
+            flex-wrap: nowrap; 
+            margin-top: 30px; 
+            overflow-x: auto; 
+            padding: 10px 30px 20px 30px; /* Add top padding to prevent cutoff on hover */
+            cursor: grab;
+        }
+        .dashboard .card:first-child { margin-left: auto; }
+        .dashboard .card:last-child { margin-right: auto; }
+        .card { background: var(--card-bg); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); border-top: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 25px; width: 280px; box-shadow: 0 15px 35px rgba(0,0,0,0.8), inset 0 0 20px rgba(0,0,0,0.5); transition: transform 0.3s, border-color 0.3s; position: relative; flex-shrink: 0; -webkit-user-select: none; user-select: none; }
+        .card:hover { border-color: var(--gold); transform: translateY(-5px); }
+        
+        .saltiest-deck { border-color: rgba(57, 255, 20, 0.6) !important; box-shadow: 0 15px 35px rgba(0,0,0,0.8), 0 0 30px rgba(57, 255, 20, 0.3), inset 0 0 20px rgba(57, 255, 20, 0.15) !important; }
+        .saltiest-deck:hover { border-color: rgba(57, 255, 20, 1) !important; box-shadow: 0 15px 35px rgba(0,0,0,0.8), 0 0 40px rgba(57, 255, 20, 0.5), inset 0 0 30px rgba(57, 255, 20, 0.3) !important; transform: translateY(-5px); }
+
+        .most-expensive-deck { border-color: rgba(212, 175, 55, 0.6) !important; box-shadow: 0 15px 35px rgba(0,0,0,0.8), 0 0 30px rgba(212, 175, 55, 0.3), inset 0 0 20px rgba(212, 175, 55, 0.15) !important; }
+        .most-expensive-deck:hover { border-color: rgba(212, 175, 55, 1) !important; box-shadow: 0 15px 35px rgba(0,0,0,0.8), 0 0 40px rgba(212, 175, 55, 0.5), inset 0 0 30px rgba(212, 175, 55, 0.3) !important; transform: translateY(-5px); }
+
+        .saltiest-and-expensive-deck { border-color: rgba(135, 215, 37, 0.8) !important; box-shadow: 0 15px 35px rgba(0,0,0,0.8), -15px -15px 30px rgba(57, 255, 20, 0.3), 15px 15px 30px rgba(212, 175, 55, 0.3), inset -10px -10px 20px rgba(57, 255, 20, 0.15), inset 10px 10px 20px rgba(212, 175, 55, 0.15) !important; }
+        .saltiest-and-expensive-deck:hover { border-color: rgba(135, 215, 37, 1) !important; box-shadow: 0 15px 35px rgba(0,0,0,0.8), -20px -20px 40px rgba(57, 255, 20, 0.5), 20px 20px 40px rgba(212, 175, 55, 0.5), inset -15px -15px 30px rgba(57, 255, 20, 0.3), inset 15px 15px 30px rgba(212, 175, 55, 0.3) !important; transform: translateY(-5px); }
+
+        /* Dropdown Menu for Actions */
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-content {
+            display: none; position: absolute; background-color: #1a1a1a;
+            min-width: 180px; box-shadow: 0 8px 16px rgba(0,0,0,0.8);
+            z-index: 10; border-radius: 6px; border: 1px solid #444;
+            right: 0; /* Align to the right of the button */
+            overflow: hidden; /* To respect border-radius on children */
+        }
+        .dropdown-content a {
+            color: #ccc; padding: 12px 16px; text-decoration: none;
+            display: block; text-align: left; font-family: 'Segoe UI', sans-serif;
+            font-size: 0.9rem; font-weight: 600;
+        }
+        .dropdown-content a:hover { background-color: #333; color: white; }
+        .dropdown-content a.danger-link { color: #ff9999; }
+        .dropdown-content a.danger-link:hover { background-color: #441111; }
+        .dropdown.show .dropdown-content { display: block; animation: fadeIn 0.2s ease; }
+        #moreActionsBtn {
+            padding: 8px 12px !important; font-size: 1.2rem !important;
+            font-family: 'Segoe UI', sans-serif; font-weight: bold; line-height: 1;
+        }
+
+        .commander-img { width: 100%; border-radius: 8px; margin-top: 15px; border: 1px solid #444; transition: 0.4s ease; }
+        .commander-img:hover { box-shadow: 0 0 25px var(--arcane); border-color: var(--gold); }
+        #content { display: flex; flex-wrap: wrap; justify-content: center; gap: 30px; margin-top: 40px; }
+        .option-card { background: var(--card-bg); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); padding: 25px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); border-top: 1px solid rgba(255,255,255,0.2); width: 320px; box-shadow: 0 15px 35px rgba(0,0,0,0.8), inset 0 0 20px rgba(0,0,0,0.5); opacity: 0; transform: translateY(20px); transition: opacity 0.5s ease, transform 0.5s ease, box-shadow 0.3s ease, border-color 0.3s ease; }
+        .option-card.revealed { opacity: 1; transform: translateY(0); }        
+        .option-card.revealed:active {
+            transform: scale(0.97); /* Immediate feedback on tap for mobile */
+        }
+        @media (hover: hover) {
+            .option-card.revealed:hover {
+                transform: translateY(-10px); border-color: var(--gold); box-shadow: 0 0 20px var(--arcane);
+            }
+        }
+        .option-card.fading-out { opacity: 0; transform: scale(0.95); pointer-events: none; }
+        .reroll-btn { background: transparent; color: var(--reroll); width: 100%; border: 2px solid var(--reroll); margin-top: 15px; font-size: 0.8rem; }
+        .price-tag { color: #2ecc71; font-weight: bold; font-size: 1.5rem; margin-bottom: 5px; }
+        .rank-tag { color: #aaa; font-size: 0.9rem; margin-top: 0; margin-bottom: 5px; font-family: 'Segoe UI'; }
+        .lobby-container { max-width: 600px; margin: 0 auto; background: var(--card-bg); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); padding: 40px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); border-top: 1px solid rgba(255,255,255,0.2); box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        .player-list { list-style: none; padding: 0; font-size: 1.2rem; margin: 20px 0; }
+        .player-list li { padding: 10px; border-bottom: 1px solid #333; color: #aaa; display: flex; justify-content: center; align-items: center; gap: 10px;}
+        .room-code { font-size: 3rem; color: var(--arcane); letter-spacing: 5px; text-shadow: 0 0 20px rgba(106, 13, 173, 0.8); margin: 10px 0; cursor: pointer; transition: 0.3s; }
+        .room-code:hover { color: #fff; text-shadow: 0 0 30px var(--arcane); transform: scale(1.05); }
+        .host-settings { background: #111; padding: 20px; border-radius: 8px; margin-top: 20px; border: 1px solid #333; display: none; }
+        .toast { visibility: hidden; min-width: 250px; background-color: #1a1a1a; color: #fff; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 1000; left: 50%; top: 20px; transform: translateX(-50%); box-shadow: 0 5px 25px rgba(0,0,0,0.9); font-family: 'Cinzel', serif; font-weight: bold; opacity: 0; transition: opacity 0.3s, top 0.3s; border: 1px solid var(--gold); }
+        .toast.show { visibility: visible; opacity: 1; top: 40px; }
+        .toast.error { background-color: #441111; border-color: #ff4444; color: #ff9999; }
+        .toast.success { background-color: #003311; border-color: #2ecc71; color: #2ecc71; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; }
+        .modal-overlay.show { display: flex; opacity: 1; }
+        .modal-content { background: var(--card-bg); -webkit-backdrop-filter: blur(15px); backdrop-filter: blur(15px); border: 1px solid var(--gold); border-top: 2px solid var(--gold); padding: 30px; border-radius: 10px; max-width: 400px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.9), 0 0 30px rgba(106, 13, 173, 0.5); transform: translateY(-20px); transition: transform 0.3s; }
+        .modal-overlay.show .modal-content { transform: translateY(0); }
+        
+        /* Availability Calendar Styles */
+        .avail-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; max-height: 65vh; overflow-y: auto; text-align: center; padding-right: 5px; }
+        @media (max-width: 768px) { .avail-grid { grid-template-columns: repeat(5, 1fr); } }
+        @media (max-width: 500px) { .avail-grid { grid-template-columns: repeat(3, 1fr); } }
+        .avail-day-card { background: #151515; border: 1px solid #333; border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 6px; align-items: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .avail-date-header { font-family: 'Segoe UI'; font-size: 0.85rem; color: #ccc; white-space: nowrap; font-weight: bold; }
+        .avail-date-header .day-name { color: var(--gold); font-family: 'Cinzel'; display: block; font-size: 0.9rem; margin-bottom: 2px; }
+        .avail-slot { 
+            background: #222; border: 1px solid #444; border-radius: 4px; padding: 6px 0; cursor: pointer; text-align: center; width: 100%; transition: 0.2s; position: relative; box-sizing: border-box;
+        }
+        .avail-slot:hover { border-color: #888; }
+        .avail-slot.selected { background: #004400; border-color: #2ecc71; color: #fff; box-shadow: 0 0 5px #2ecc71; }
+        .avail-slot.consensus { border: 1px solid var(--gold); box-shadow: 0 0 8px var(--gold); animation: pulseGold 2s infinite; }
+        @keyframes pulseGold { 0% { box-shadow: 0 0 5px var(--gold); } 50% { box-shadow: 0 0 15px var(--gold); } 100% { box-shadow: 0 0 5px var(--gold); } }
+        .avail-count { font-size: 0.65rem; color: #aaa; margin-top: 2px; display: block; }
+        .avail-slot.selected .avail-count { color: #8f8; }
+        .perfect-match-btn { width:100%; margin-top:5px; padding:8px; font-size:0.75rem; background:var(--gold); color:black; border:none; border-radius:4px; font-weight:bold; cursor:pointer; }
+
+        /* Battle Info Card */
+        .battle-info { background: linear-gradient(135deg, #1a0b00 0%, #332200 100%); border: 2px solid var(--gold); border-radius: 8px; padding: 20px; max-width: 600px; margin: 0 auto 20px auto; text-align: center; box-shadow: 0 0 20px rgba(212, 175, 55, 0.2); animation: fadeIn 0.5s ease; }
+
+        .btn-cancel { background: transparent; border: 1px solid #ff4444; color: #ff9999; padding: 10px 20px; cursor: pointer; transition: 0.3s;}
+        .btn-cancel:hover:not(:disabled) { background: #441111; color: white; box-shadow: 0 0 10px #ff4444; }
+        .btn-confirm { background: var(--gold); color: black; border: none; padding: 10px 20px; cursor: pointer; transition: 0.3s;}
+        .btn-confirm:hover:not(:disabled) { background: #fff; box-shadow: 0 0 15px var(--gold); transform: translateY(-2px); }
+        .host-action-btn { background: transparent; border: 1px solid #444; color: #aaa; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; font-family: 'Cinzel', serif; cursor: pointer; transition: 0.3s;}
+        .host-action-btn.clear:hover { border-color: var(--gold); color: var(--gold); background: #332200; }
+        .host-action-btn.kick:hover { border-color: #ff4444; color: #ff9999; background: #441111; }
+        .tooltip { position: relative; display: inline-block; cursor: help; background: #333; color: var(--gold); border-radius: 50%; width: 18px; height: 18px; text-align: center; font-size: 13px; font-weight: bold; line-height: 18px; margin-left: 5px; border: 1px solid var(--gold); }
+        .tooltip .tooltiptext { visibility: hidden; width: 240px; background-color: #0d0d0d; color: #e0e0e0; text-align: left; border-radius: 6px; padding: 12px; position: absolute; z-index: 1; bottom: 130%; left: 50%; margin-left: -120px; border: 1px solid var(--gold); opacity: 0; transition: opacity 0.3s; font-family: 'Segoe UI', sans-serif; font-size: 0.85rem; font-weight: normal; box-shadow: 0 5px 15px rgba(0,0,0,0.9); }
+        .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
+        .status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; margin-bottom: 12px; font-family: 'Segoe UI'; letter-spacing: 0.5px; border: 1px solid transparent;}
+        .status-waiting { background: #222; color: #aaa; border-color: #444;}
+        .status-drafting { background: #332200; color: #ffcc00; border-color: #ffcc00;}
+        .status-chosen { background: #002244; color: #66b3ff; border-color: #66b3ff;}
+        .status-sealed { background: #003311; color: #2ecc71; border-color: #2ecc71;}
+        .mana-container { margin-bottom: 15px; }
+        .mana-badge { display: inline-block; width: 18px; height: 18px; border-radius: 50%; text-align: center; line-height: 18px; font-size: 11px; font-weight: bold; margin: 0 3px; box-shadow: 0 2px 5px rgba(0,0,0,0.8); }
+        .mana-W { background: #f8e7b9; color: black; }
+        .mana-U { background: #0e68ab; color: white; }
+        .mana-B { background: #150b00; color: white; }
+        .mana-R { background: #d3202a; color: white; }
+        .mana-G { background: #00733e; color: white; }
+        .mana-C { background: #ccc; color: black; }
+        .flip-btn { background: #222; color: #aaa; border: 1px solid #555; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; transition: 0.3s; margin-top: 10px; font-family: 'Segoe UI'; }
+        .flip-btn:hover { background: #333; color: white; border-color: var(--gold); }
+
+        /* Custom Scrollbar for Dark Theme Immersion */
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: var(--obsidian); }
+        ::-webkit-scrollbar-thumb { background: #333; border: 1px solid #555; border-radius: 5px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444; border-color: var(--gold); }
+
+        /* Host Settings Responsive Layout */
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .settings-full { width: 100%; margin-bottom: 15px; }
+        .settings-input-group { display: flex; flex-direction: column; }
+        .settings-input-group label { margin-bottom: 5px; color: #aaa; font-size: 0.9rem; }
+        .settings-input-group input { width: 100%; box-sizing: border-box; }
+        .rank-inputs { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 8px; }
+        .rank-inputs label { margin: 0; }
+        .rank-inputs input { width: 80px; margin: 0; }
+        @media (max-width: 600px) { .settings-grid { grid-template-columns: 1fr; gap: 10px; } .rank-inputs { justify-content: space-between; } .rank-inputs input { width: 40%; } }
+
+        /* Dashboard Actions Responsive */
+        .dashboard-actions { display: flex; gap: 10px; margin-top: 10px; margin-bottom: 20px; justify-content: center; }
+        @media (max-width: 600px) { .dashboard-actions { display: grid; grid-template-columns: 1fr; gap: 10px; width: 100%; } .dashboard-actions button { width: 100%; padding: 12px !important; } }
+
+        /* Scroll Indicators (Mobile Only) */
+        .scroll-hint {
+            position: fixed; top: 50%; transform: translateY(-50%);
+            font-size: 3rem; color: var(--gold); z-index: 90;
+            opacity: 0; transition: opacity 0.3s; pointer-events: none;
+            text-shadow: 0 0 15px rgba(0,0,0,0.9); display: none;
+        }
+        @media (max-width: 768px) { .scroll-hint { display: block; } }
+        .scroll-hint.left { left: 5px; animation: bounceLeft 1.5s infinite; }
+        .scroll-hint.right { right: 5px; animation: bounceRight 1.5s infinite; }
+
+        @keyframes bounceLeft { 0%, 100% { transform: translateY(-50%) translateX(0); } 50% { transform: translateY(-50%) translateX(-8px); } }
+        @keyframes bounceRight { 0%, 100% { transform: translateY(-50%) translateX(0); } 50% { transform: translateY(-50%) translateX(8px); } }
+
+        /* Mobile View Enhancements & Restorations */
+        @media (max-width: 768px) {
+            /* Prevent top absolute buttons from overlapping main banners */
+            .css-banner { height: 120px; margin-top: 70px !important; margin-bottom: 20px !important; }
+            .css-banner-text { font-size: 1.8rem; letter-spacing: 1px; padding: 0 10px; }
+            #view-dashboard .css-banner { height: 100px; }
+            #view-dashboard .css-banner-text { font-size: 1.4rem !important; }
+            
+            /* Expand interactive elements inside containers to utilize available width */
+            .lobby-container { padding: 20px 15px; width: 100%; box-sizing: border-box; }
+            .lobby-container input[type="text"], .lobby-container input[type="number"], .lobby-container button { 
+                width: 100% !important; box-sizing: border-box; margin: 10px 0; 
+            }
+            .auth-sm-btn, #saveNicknameBtn, .host-action-btn, .flip-btn { width: auto !important; margin: 5px auto; }
+            
+            /* Stats container class defined for dynamic script.js application */
+            .mobile-stats-container {
+                position: relative !important; bottom: auto !important; left: auto !important;
+                margin: 20px auto 0 auto !important; width: 100%; box-sizing: border-box;
+            }
+            
+            /* Horizontal Carousel & Scroll Snapping for Dashboard & Selection */
+            .dashboard { padding: 20px 0 !important; gap: 20px !important; scroll-snap-type: x mandatory; box-sizing: border-box !important; width: 100% !important; }
+            .dashboard > .card { box-sizing: border-box !important; width: 85vw !important; max-width: 320px !important; padding: 20px 15px !important; scroll-snap-align: center; margin: 0 !important; flex-shrink: 0 !important; }
+            .dashboard > .card:first-child { margin-left: calc(50% - min(42.5vw, 160px)) !important; }
+            .dashboard > .card:last-child { margin-right: calc(50% - min(42.5vw, 160px)) !important; }
+            
+            #content { padding: 20px 0 40px 0 !important; gap: 20px !important; scroll-snap-type: x mandatory; flex-wrap: nowrap !important; overflow-x: auto !important; justify-content: flex-start !important; box-sizing: border-box !important; width: 100% !important; }
+            .option-card { box-sizing: border-box !important; width: 85vw !important; max-width: 320px !important; padding: 20px 15px !important; scroll-snap-align: center; margin: 0 auto 15px auto !important; flex-shrink: 0 !important; }
+            #content > .option-card { margin: 0 !important; }
+            #content > .option-card:first-child { margin-left: calc(50% - min(42.5vw, 160px)) !important; }
+            #content > .option-card:last-child { margin-right: calc(50% - min(42.5vw, 160px)) !important; }
+            
+            .room-code { font-size: 2.2rem; letter-spacing: 2px; }
+            .modal-content { padding: 20px 15px; }
+        }
+
+        /* 3D Flip */
+        .scene { perspective: 1000px; width: 100%; margin-top: 15px; }
+        .card-3d { width: 100%; position: relative; transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1); transform-style: preserve-3d; }
+        .card-3d.is-flipped { transform: rotateY(180deg); }
+        .card-face { width: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; display: block; margin-top: 0 !important; }
+        .card-face-back { position: absolute; top: 0; left: 0; transform: rotateY(180deg); }
+        
+        /* Loading Spinner */
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .mana-spinner {
+            display: inline-block; width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.3); border-top-color: var(--gold);
+            border-radius: 50%; animation: spin 1s linear infinite;
+            vertical-align: middle; margin-right: 8px;
+        }
+
+        /* Pool Gallery Hover Expansion */
+        .pool-card-wrapper {
+            width: 48px; display: inline-block; position: relative; z-index: 1; cursor: pointer;
+        }
+        .pool-card-img {
+            width: 100%; border-radius: 3px; display: block;
+            transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+            pointer-events: none; /* Allows the mouse to "click through" the expanded card */
+        }
+        @media (hover: hover) {
+            .pool-card-wrapper:hover { z-index: 100; }
+            .pool-card-wrapper:hover .pool-card-img {
+                transform: scale(4.5); box-shadow: 0 0 25px rgba(0,0,0,1); border: 1px solid var(--gold);
+            }
+        }
+    </style>
+    <style>
+        .playgroup-rejoin-btn {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1a1a1a !important;
+            border: 1px solid #333 !important;
+            box-shadow: none !important;
+            color: #fff !important;
+            transition: 0.3s;
+        }
+        .playgroup-rejoin-btn:hover {
+            border-color: var(--gold) !important;
+            transform: translateY(-2px);
+            background: #222 !important;
+        }
+        .playgroup-rejoin-btn-code {
+            font-family: 'Cinzel', serif;
+            font-weight:bold;
+            color:var(--gold);
+            font-size:1.2rem;
+            letter-spacing: 2px;
+        }
+        .playgroup-rejoin-btn-details { text-align: right; }
+        .playgroup-rejoin-btn-details .host { font-family:'Segoe UI'; font-size: 0.8rem; color:#aaa; }
+        .playgroup-rejoin-btn-details .host span { color:#eee; }
+        .playgroup-rejoin-btn-details .status { font-size:0.75rem; font-weight:bold; margin-top:3px; }
+
+        @media (max-width: 420px) {
+            .playgroup-rejoin-btn {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            .playgroup-rejoin-btn-details {
+                width: 100%; display: flex; justify-content: space-between; align-items: center; text-align: left;
+            }
+        }
+
+        /* Burn Draft Elimination Effect */
+        @keyframes tearAndBurn {
+            0% { transform: scale(1) rotate(0deg); filter: grayscale(0) brightness(1); opacity: 1; }
+            20% { transform: scale(1.05) rotate(-3deg) skewX(-2deg); filter: sepia(1) hue-rotate(-50deg) saturate(300%); box-shadow: 0 0 20px #ff4e50; }
+            40% { transform: scale(1.05) rotate(3deg) skewX(2deg); filter: sepia(1) hue-rotate(-50deg) saturate(500%); box-shadow: 0 0 40px #ff4e50; opacity: 1; }
+            100% { transform: scale(0.5) rotate(-15deg) translateY(200px) skewX(-15deg); filter: sepia(1) hue-rotate(-50deg) saturate(800%) brightness(0.2); opacity: 0; box-shadow: 0 0 10px #ff0000; }
+        }
+        .card-burn-effect {
+            animation: tearAndBurn 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+            pointer-events: none;
+            z-index: 100;
+            position: relative;
+        }
+
+        /* Snake Draft Pick Effect */
+        @keyframes pickAndGlow {
+            0% { transform: scale(1); opacity: 1; filter: brightness(1); }
+            40% { transform: scale(1.05) translateY(-15px); box-shadow: 0 0 40px var(--gold); opacity: 1; filter: brightness(1.2); }
+            100% { transform: scale(0.5) translateY(-50px); box-shadow: 0 0 10px var(--gold); opacity: 0; filter: brightness(1.5); }
+        }
+        .card-pick-effect {
+            animation: pickAndGlow 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+            pointer-events: none;
+            z-index: 100;
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div id="toast-container" class="toast"></div>
+
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="modalTitle" style="margin-top: 0;">Confirm</h2>
+            <p id="modalText" style="color: #e0e0e0; font-size: 1.1rem;"></p>
+            <div style="display: flex; gap: 20px; justify-content: center; margin-top: 25px;">
+                <button id="modalCancel" class="btn-cancel" style="border-radius:6px; font-family: 'Cinzel', serif; font-weight:bold;">Cancel</button>
+                <button id="modalConfirm" class="btn-confirm" style="border-radius:6px; font-family: 'Cinzel', serif; font-weight:bold;">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="availabilityModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 800px; width: 95%;">
+            <h2 style="color:var(--gold); margin-top:0;">Meetup Availability</h2>
+            <p style="color:#aaa; font-size:0.9rem; margin-bottom:20px;">Mark your free slots (AM/PM).<br>Host will see when everyone is ready.</p>
+            
+            <div id="availGrid" class="avail-grid"></div>
+            
+            <button id="availCloseBtn" class="btn-cancel" style="margin-top:20px; width:100%;">Close</button>
+        </div>
+    </div>
+
+    <div id="battleModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 500px; text-align: left;">
+            <h2 style="text-align:center; color:var(--gold); margin-top:0;">Setup the Finale</h2>
+            <label style="color:#aaa;">Date & Time:</label>
+            <input type="datetime-local" id="battleDate" style="width:100%; box-sizing:border-box;">
+            
+            <label style="color:#aaa; display:block; margin-top:15px;">Format:</label>
+            <select id="battleFormat" style="width:100%; box-sizing:border-box; background:#222; color:white; border:1px solid #444; padding:10px;">
+                <option value="Free-for-All">Free-for-All (Standard)</option>
+                <option value="1v1 Tournament">1v1 Tournament</option>
+                <option value="Best of 3">Best of 3 Match</option>
+                <option value="Two-Headed Giant">Two-Headed Giant</option>
+                <option value="Custom">Custom</option>
+            </select>
+            <input type="text" id="battleFormatCustom" placeholder="Enter custom format..." style="width:100%; box-sizing:border-box; display:none; margin-top:5px;">
+
+            <label style="color:#aaa; display:block; margin-top:15px;">Victor's Prize:</label>
+            <input type="text" id="battlePrize" placeholder="e.g. A Booster Box, Bragging Rights..." style="width:100%; box-sizing:border-box;">
+
+            <div style="display: flex; gap: 20px; justify-content: center; margin-top: 25px;">
+                <button id="battleCancel" class="btn-cancel" style="border-radius:6px; font-family: 'Cinzel', serif; font-weight:bold;">Cancel</button>
+                <button id="battleConfirm" class="btn-confirm" style="border-radius:6px; font-family: 'Cinzel', serif; font-weight:bold;">Announce Battle</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="winnerModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 400px; width: 95%;">
+            <h2 style="color:var(--gold); margin-top:0;">Declare Winner</h2>
+            <p style="color:#aaa; font-size:0.9rem;">Who emerged victorious?</p>
+            <div id="winnerList" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;"></div>
+            <button class="btn-cancel" onclick="document.getElementById('winnerModal').classList.remove('show'); setTimeout(()=>document.getElementById('winnerModal').style.display='none', 300);" style="margin-top:20px; width:100%;">Cancel</button>
+        </div>
+    </div>
+
+    <div id="rulesModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 400px; width: 95%; text-align: left;">
+            <h2 style="text-align:center; color:var(--gold); margin-top:0;">Challenge Rules</h2>
+            <div id="rulesList" style="color: #ccc; font-size: 0.95rem; line-height: 1.6; margin-top: 15px; font-family: 'Segoe UI';">
+                Loading...
+            </div>
+            <button class="btn-cancel" onclick="document.getElementById('rulesModal').classList.remove('show'); setTimeout(()=>document.getElementById('rulesModal').style.display='none', 300);" style="margin-top:20px; width:100%;">Close</button>
+        </div>
+    </div>
+
+    <div id="accountModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 350px; width: 90%;">
+            <h2 style="color:var(--gold); margin-top:0;">Player Identity</h2>
+            
+            <div id="loggedOutUI">
+                <p style="color: #888; font-size: 0.85rem; margin-bottom: 20px; font-family: 'Segoe UI', sans-serif;">You are playing as a Guest.<br>Sign in to track stats and save your identity!</p>
+                <div style="display: flex; flex-direction: column; gap: 10px; justify-content: center;">
+                    <button id="loginGoogleBtn" class="select-btn" style="background: white; color: black; font-family: 'Segoe UI'; font-size: 0.9rem;">Sign in with Google</button>
+                    <button id="loginDiscordBtn" class="select-btn" style="background: #5865F2; color: white; border: none; font-family: 'Segoe UI'; font-size: 0.9rem; box-shadow: 0 4px 0 #4752C4;">Sign in with Discord</button>
+                </div>
+            </div>
+            
+            <div id="loggedInUI" style="display: none; font-size: 0.9rem; font-family: 'Segoe UI', sans-serif;">
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px; margin-bottom: 20px;">
+                    <img id="authAvatar" src="" alt="Player Avatar" style="width: 60px; height: 60px; border-radius: 50%; display: none; border: 2px solid var(--gold); object-fit: cover;">
+                    <span style="color: #2ecc71; font-size: 1.1rem;">✓ Linked to <span id="authProviderName" style="color: #fff; font-weight: bold;">Account</span></span>
+                    <div style="width: 100%; text-align: left; background: #111; padding: 10px; border-radius: 6px; border: 1px solid #333; box-sizing: border-box;">
+                        <label style="color: #aaa; font-size: 0.8rem; margin-bottom: 5px; display: block; font-family: 'Cinzel', serif;">Display Name</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="customNicknameInput" maxlength="15" style="width: 100%; margin: 0; padding: 8px; font-size: 1rem;">
+                            <button id="saveNicknameBtn" class="select-btn" style="width: auto; padding: 8px 15px; margin: 0; font-size: 0.9rem;">Save</button>
+                        </div>
+                    </div>
+                </div>
+                <button id="myProfileBtn" class="secondary-btn" style="width: 100%; border-radius: 6px; font-family: 'Cinzel', serif; font-weight: bold; margin-bottom: 10px;">My Profile</button>
+                <button id="enableNotificationsBtn" class="secondary-btn" style="width: 100%; border-radius: 6px; font-family: 'Cinzel', serif; font-weight: bold; margin-bottom: 10px; display: none;">🔔 Enable Push Notifications</button>
+                <button id="logoutBtn" class="btn-cancel" style="width: 100%; border-radius: 6px; font-family: 'Cinzel', serif; font-weight: bold;">Sign Out</button>
+            </div>
+
+            <button class="secondary-btn" onclick="document.getElementById('accountModal').classList.remove('show'); setTimeout(()=>document.getElementById('accountModal').style.display='none', 300);" style="margin-top:20px; width:100%;">Close</button>
+        </div>
+    </div>
+
+    <audio id="sfx-click" preload="metadata"><source src="click.mp3" type="audio/mpeg"></audio>
+    <audio id="sfx-choose" preload="metadata"><source src="choose.mp3" type="audio/mpeg"></audio>
+    <audio id="sfx-reveal" preload="metadata"><source src="reveal.mp3" type="audio/mpeg"></audio>
+
+    <div id="audioContainer" style="position: absolute; top: 15px; right: 20px; z-index: 50; display:flex; flex-direction: column; align-items: flex-end;">
+        <button id="mobileSettingsToggle" style="display:none; background: #111; border: 1px solid var(--gold); color: var(--gold); padding: 8px; border-radius: 50%; width: 40px; height: 40px; font-size: 1.2rem; cursor: pointer; box-shadow: 0 0 10px rgba(0,0,0,0.5); z-index: 51;">⚙️</button>
+        <div id="audioControls" style="display:flex; gap: 10px; align-items:center; transition: 0.3s;">
+            <button id="sfxToggle" style="background: #111; border: 1px solid var(--gold); color: var(--gold); padding: 8px 12px; border-radius: 4px; font-size: 11px; font-family: 'Cinzel', serif; font-weight:bold; cursor:pointer;">🔊 SFX</button>
+        </div>
+    </div>
+
+    <div id="globalAccountBtn" onclick="window.openAccountModal()" style="position: absolute; top: 15px; left: 20px; z-index: 50; display:flex; align-items:center; gap:10px; background: rgba(13,13,13,0.9); border: 1px solid var(--gold); padding: 5px 15px; border-radius: 25px; cursor: pointer; transition: 0.3s; box-shadow: 0 0 10px rgba(0,0,0,0.5);">
+        <img id="globalAvatar" src="" alt="Global Avatar" style="width: 24px; height: 24px; border-radius: 50%; display: none; border: 1px solid var(--gold); object-fit: cover;">
+        <span id="globalAccountName" style="color: var(--gold); font-family: 'Cinzel', serif; font-weight: bold; font-size: 0.85rem;">Guest</span>
+    </div>
+
+    <div id="view-landing" class="view-section active">
+        <div class="css-banner"><div class="css-banner-overlay"></div><h1 class="css-banner-text">Commander Draft Challenge</h1></div>
+        <div class="lobby-container">
+            <h2>Enter the Archives</h2>
+            
+            <button class="secondary-btn" onclick="window.openAccountModal()" style="width: 80%; margin-bottom: 20px; padding: 10px; font-size: 0.9rem;">👤 Manage Player Identity</button>
+
+            <input type="text" id="playerNameInput" placeholder="Enter Your Name" maxlength="15" style="width: 80%;"><br><br>
+            <div style="padding: 20px; background: #111; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="font-size: 1.2rem; margin-bottom: 10px;">Join a Playgroup</h3>
+                <input type="text" id="roomCodeInput" placeholder="4-Letter Code" maxlength="4" style="text-transform: uppercase; width: 60%; font-size: 1.2rem;"><br>
+                <button class="select-btn" id="joinBtn" style="width: 65%;">Join Playgroup</button>
+            </div>
+            <h3 style="margin: 15px 0;">— OR —</h3>
+            <button class="secondary-btn" id="createBtn" style="width: 70%;">Create New Playgroup</button>
+            
+
+            <div id="myPlaygroupsContainer" style="display: none; margin-top: 35px; background: #111; border-radius: 8px; padding: 20px;">
+                <h3 style="font-size: 1.2rem; margin-bottom: 15px; color: var(--gold); font-family: 'Cinzel', serif; border-bottom: 1px solid #333; padding-bottom: 10px;">My Active Playgroups</h3>
+                <div id="myPlaygroupsList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+            </div>
+        </div>
+        <div style="position: fixed; bottom: 20px; left: 20px; background: rgba(13, 13, 13, 0.95); border: 1px solid var(--gold); padding: 12px 18px; border-radius: 8px; text-align: left; box-shadow: 0 5px 15px rgba(0,0,0,0.8); z-index: 100;">
+            <div style="color: var(--gold); font-family: 'Cinzel', serif; font-weight: bold; margin-bottom: 8px; font-size: 1rem; border-bottom: 1px solid #333; padding-bottom: 5px;">Global Stats</div>
+            <div style="color: #aaa; font-family: 'Segoe UI'; font-size: 0.85rem; margin-bottom: 4px;">Challengers: <span id="stat-players" style="color: #fff; font-weight: bold; float: right; margin-left: 20px;">--</span></div>
+            <div style="color: #aaa; font-family: 'Segoe UI'; font-size: 0.85rem; margin-bottom: 4px;">Active Rooms: <span id="stat-rooms" style="color: #fff; font-weight: bold; float: right; margin-left: 20px;">--</span></div>
+            <div style="color: #aaa; font-family: 'Segoe UI'; font-size: 0.85rem;">Cmdrs Rolled: <span id="stat-rolled" style="color: var(--reroll); font-weight: bold; float: right; margin-left: 20px;">--</span></div>
+        </div>
+    </div>
+
+    <div id="view-lobby" class="view-section">
+        <div style="text-align: left; width: 100%; max-width: 600px; margin: 0 auto -20px auto; position: relative; z-index: 10;">
+            <button class="secondary-btn" onclick="window.goToMainMenu()" style="padding: 5px 15px; font-size: 0.8rem; border-radius: 4px; border: none; text-decoration: underline; background: transparent;"><span style="font-size: 1.2rem; vertical-align: middle;">🏠</span> Return to Hub</button>
+        </div>
+        <div class="lobby-container" style="margin-top: 50px;">
+            <h2>Playgroup Code</h2>
+            <div class="room-code" id="displayRoomCode" onclick="window.copyRoomCode()" title="Click to copy invite link">----</div>
+            <p style="color:#aaa; font-size: 0.8rem; margin-top:-10px;">(Click code to copy invite link)</p>
+            <p id="lobbyCreatedTime" style="color:#555; font-size: 0.75rem; margin-top: 5px; font-family:'Segoe UI';"></p>
+            <h3 id="playerCountDisplay" style="margin-bottom: 10px;">Players Assembled (1/6):</h3>
+            <ul class="player-list" id="lobbyPlayerList"></ul>
+
+            <details style="background: #111; border: 1px solid #444; border-radius: 8px; padding: 15px; text-align: left; margin-bottom: 25px;">
+                <summary style="color: var(--gold); cursor: pointer; font-family: 'Cinzel', serif; font-weight: bold; font-size: 1.1rem; outline: none;">📜 How to Play & Features</summary>
+                <div style="color: #ccc; font-size: 0.95rem; line-height: 1.6; margin-top: 15px; font-family: 'Segoe UI'; border-top: 1px solid #333; padding-top: 10px;">
+                    <p><strong style="color: var(--gold);">1. Setup & Rules:</strong> The Host sets the budget limits (Cmdr & Deck), EDHREC Rank limits, Max Bracket, and Format (Independent vs Pass & Pick). You can also add a Discord Webhook for automated alerts!</p>
+                    <p><strong style="color: var(--gold);">2. Draft Your Commander:</strong> Roll random options, use your allowed Rerolls, or Manual Search for a legal commander. Turn on <strong>Blind Draft</strong> to keep picks secret until everyone locks in!</p>
+                    <p><strong style="color: var(--gold);">3. Build & Seal:</strong> Brew on <strong>Archidekt</strong> or <strong>Moxfield</strong> and submit your link. We automatically verify Legality (100 cards), Price, Salt Score, and Bracket. Lock in your price once you're Battle Ready.</p>
+                    <p><strong style="color: var(--gold);">4. Schedule the Match:</strong> Use the <strong>Availability Calendar</strong> to mark your free days. The Host can lock in a date, format, and prize, sending out Push/Discord notifications.</p>
+                    <p><strong style="color: var(--gold);">5. Crown the Victor:</strong> After the game, the Host clicks <strong>Declare Winner</strong>. This records the victory on the champion's Player Profile, tracks lifetime wins, and resets the lobby for your next draft!</p>
+                </div>
+            </details>
+
+            <div id="hostSettingsUI" class="host-settings" style="display: none;">
+                <h3 style="color: #fff; border-bottom: 1px solid #444; padding-bottom: 10px; margin-bottom: 15px;">Host Settings</h3>
+                
+                <div id="draftFormatContainer" class="settings-full" style="padding-bottom: 15px; border-bottom: 1px solid #333; margin-bottom: 15px;">
+                    <label style="display:block; color:#aaa; margin-bottom:5px; font-size:0.9rem;">
+                        Drafting Format:
+                        <span class="tooltip">?<span class="tooltiptext">Independent: Roll alone. Async: Pass packs at your own pace. Snake: Pick face-up from a shared pool. Burn: Secretly eliminate options.</span></span>
+                    </label>
+                    <select id="settingDraftFormat" style="width:100%; padding:8px; background:#222; color:white; border:1px solid #444; border-radius:4px;">
+                        <option value="independent">Independent (Everyone rolls their own)</option>
+                        <option value="async_draft">Asynchronous Booster Draft (Pass Packs)</option>
+                        <option value="snake_draft">Face-Up Snake Draft (Shared Pool)</option>
+                        <option value="burn_draft">Blind Elimination Draft (Burn Cards)</option>
+                    </select>
+                </div>
+
+                <div id="selectionModeContainer" class="settings-full" style="padding-bottom: 15px; border-bottom: 1px solid #333;">
+                    <label style="display:block; color:#aaa; margin-bottom:5px; font-size:0.9rem;">
+                        Commander Selection Mode:
+                        <span class="tooltip">?<span class="tooltiptext">Random: Forces players to roll from the archives. Manual: Forces players to search for a specific commander. Both: Allows either method.</span></span>
+                    </label>
+                    <select id="settingSelectionMode" style="width:100%; padding:8px; background:#222; color:white; border:1px solid #444; border-radius:4px;">
+                        <option value="both">Both (Random & Manual)</option>
+                        <option value="random">Random Only</option>
+                        <option value="manual">Manual Only</option>
+                    </select>
+                </div>
+
+                <div class="settings-full">
+                    <label style="display:block; color:#aaa; margin-bottom:5px; font-size:0.9rem;">Currency (for all budgets):</label>
+                    <select id="settingCurrency" style="width:100%; padding:8px; background:#222; color:white; border:1px solid #444; border-radius:4px;">
+                        <option value="eur">EUR (€)</option>
+                        <option value="usd">USD ($)</option>
+                    </select>
+                </div>
+
+                <div class="settings-full" style="margin-bottom: 15px;">
+                    <label style="display:block; color:#aaa; margin-bottom:5px; font-size:0.9rem;">
+                        Discord Webhook URL (Optional):
+                    <span class="tooltip">?<span class="tooltiptext">In Discord: Edit Channel ⚙️ > Integrations > Webhooks > New Webhook. Copy the URL and paste it here to get automated draft announcements!</span></span>
+                    </label>
+                    <input type="text" id="settingDiscordWebhook" placeholder="https://discord.com/api/webhooks/..." style="width:100%; box-sizing:border-box; padding:8px; background:#222; color:white; border:1px solid #444; border-radius:4px;">
+                </div>
+
+                <div class="settings-grid">
+                    <div class="settings-input-group">
+                        <label style="display: flex; align-items: center; gap: 5px;"><input type="checkbox" id="toggleCmdrBudget" checked style="accent-color: var(--gold); transform: scale(1.1); margin: 0;"> Commander Value:</label>
+                        <input type="number" id="settingBudget" value="10">
+                    </div>
+                    <div class="settings-input-group">
+                        <label style="display: flex; align-items: center; gap: 5px;"><input type="checkbox" id="toggleDeckBudget" checked style="accent-color: var(--gold); transform: scale(1.1); margin: 0;"> Deck Budget Limit:</label>
+                        <input type="number" id="settingDeckBudget" value="50">
+                    </div>
+                </div>
+
+                <label style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; cursor:pointer; margin-bottom: 20px; background: #151515; padding: 10px; border-radius: 6px; border: 1px solid #333;">
+                    <input type="checkbox" id="settingIncludeCmdr" checked style="accent-color: var(--gold); transform: scale(1.2);">
+                    <span style="color: #ccc; font-size: 0.9rem;">Include Commander Cost in Deck Budget</span>
+                </label>
+
+                <div class="settings-full" style="margin-bottom: 15px;">
+                    <label style="display:block; color:#aaa; margin-bottom:5px; font-size:0.9rem;">
+                        Max Bracket (1-5):
+                    <span class="tooltip">?<span class="tooltiptext">Sets the maximum allowed bracket for imported decks. This is for informational purposes only and does not restrict Battle Ready status.</span></span>
+                    </label>
+                    <select id="settingMaxBracket" style="width:100%; box-sizing:border-box; padding:8px; background:#222; color:white; border:1px solid #444; border-radius:4px;">
+                        <option value="1">Bracket 1</option>
+                        <option value="2">Bracket 2</option>
+                        <option value="3">Bracket 3</option>
+                        <option value="4">Bracket 4</option>
+                        <option value="5" selected>Bracket 5 (Highest)</option>
+                    </select>
+                </div>
+                
+                <label style="border-top: 1px solid #333; padding-top: 15px; display:block;">
+                    <input type="checkbox" id="toggleRank" checked style="accent-color: var(--gold); transform: scale(1.1); margin: 0 5px 0 0; vertical-align: middle;">
+                    EDHREC Rank Range
+                    <span id="rankRangeInfo" style="color: #888; font-size: 0.8rem; margin-left: 5px;"></span><span class="tooltip">?<span class="tooltiptext">Filter by popularity. #1 is the most popular. Higher rank = less popular.</span></span>
+                </label>
+                <div class="rank-inputs">
+                    <label>Top (1):</label> <input type="number" id="settingMin" value="1" title="Most popular (e.g., 1)">
+                    <label>Bottom:</label> <input type="number" id="settingMax" value="500" title="Least popular (e.g., 500)">
+                </div>
+                
+                <div id="randomSettingsContainer" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
+                    <div class="settings-grid">
+                        <div class="settings-input-group">
+                            <label id="numOptionsLabel">Options (1-5):</label> 
+                            <select id="settingNumOptions" style="width:100%; box-sizing:border-box; padding:8px; background:#222; color:white; border:1px solid #444; border-radius:4px;">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3" selected>3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                        <div id="rerollsContainer" class="settings-input-group">
+                            <label>
+                                Slot Rerolls:
+                                <span class="tooltip">?<span class="tooltiptext">Number of times a player can reroll a specific commander slot to get a new random option.</span></span>
+                            </label> 
+                            <select id="settingMaxRerolls" style="width:100%; box-sizing:border-box; padding:8px; background:#222; color:white; border:1px solid #444; border-radius:4px;">
+                                <option value="0">0</option>
+                                <option value="1" selected>1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="9">9</option>
+                                <option value="10">10</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 15px; margin-bottom: 20px; background: #151515; border: 1px solid #333; padding: 15px; border-radius: 6px; text-align: left;">
+                    <h4 style="color: #aaa; margin-top: 0; margin-bottom: 12px; font-size: 0.9rem; font-family: 'Cinzel', serif;">Game Modifiers</h4>
+                    <label style="display: flex; align-items: center; gap: 10px; cursor:pointer; margin-bottom: 12px;">
+                        <input type="checkbox" id="settingNoPartner" checked style="accent-color: var(--gold); transform: scale(1.2);">
+                        <span style="color: #ccc; font-size: 0.9rem;">Exclude "Partner" Commanders</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 10px; cursor:pointer;">
+                        <input type="checkbox" id="settingBlindDraft" style="accent-color: var(--gold); transform: scale(1.2);">
+                        <span style="color: #ccc; font-size: 0.9rem;">Blind Draft <span style="color: #888; font-size: 0.8rem;">(Hide picks until everyone locks in)</span></span>
+                    </label>
+                </div>
+
+                <button class="select-btn" id="startDraftBtn" style="width: 100%;">Start Draft</button>
+            </div>
+            <p id="waitingMessage" style="display:none; color:var(--gold); font-family: 'Cinzel', serif;">Waiting for Host to Start...</p>
+        </div>
+    </div>
+
+    <div id="view-dashboard" class="view-section">
+        <div class="css-banner" style="height: 140px; margin-bottom: 20px;"><div class="css-banner-overlay"></div><h1 class="css-banner-text" style="font-size: 2.2rem;">Commander Draft Challenge</h1></div>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <h2 id="dashRoomHeader" style="margin: 0 0 5px 0; cursor: pointer;" onclick="window.copyRoomCode()" title="Click to copy invite link">Playgroup: <span id="dashRoomCode" style="color:var(--arcane);"></span></h2>
+            <p id="dashCreatedTime" style="color:#555; font-size: 0.75rem; margin-top: 0; margin-bottom: 10px; font-family:'Segoe UI';"></p>
+            <div id="battleInfoDisplay"></div>
+            <div class="dashboard-actions" style="align-items: center;">
+                <button class="secondary-btn" onclick="window.copyMatchSummary()" style="padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold;">📋 Summary</button>
+                <button class="secondary-btn" onclick="window.openRulesModal()" style="padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold; border-color:#6a0dad; color:#e0b0ff;">📜 Rules</button>
+                <button class="secondary-btn" onclick="window.openAvailability()" style="padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold; border-color:#2ecc71; color:#2ecc71;">📅 Availability</button>
+                <div class="dropdown">
+                    <button id="moreActionsBtn" class="secondary-btn" style="border-color: #888; color: #ccc;">•••</button>
+                    <div id="moreActionsDropdown" class="dropdown-content">
+                        <a href="#" onclick="window.goToMainMenu(); return false;">🏠 Return to Hub</a>
+                        <a href="#" id="resetLobbyDropdownBtn" onclick="window.resetToLobby(); return false;" style="display: none;">🔄 Reset Lobby</a>
+                        <a href="#" onclick="window.leaveChallenge(); return false;" class="danger-link">🚪 Leave Playgroup</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="dash-scroll-left" class="scroll-hint left">‹</div>
+        <div id="dash-scroll-right" class="scroll-hint right">›</div>
+        <div class="dashboard" id="dynamicDashboard"></div>
+    </div>
+
+    <div id="view-admin" class="view-section">
+        <div class="lobby-container" style="max-width: 900px;">
+            <h2>Admin Console</h2>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div id="adminStats" style="text-align: left; color: #ccc; font-size: 0.9rem; background: #111; padding: 10px; border-radius: 6px; border: 1px solid #333; flex: 1;">Loading stats...</div>
+                <div style="display: flex; gap: 10px;">
+                    <button id="syncArchivesBtn" class="secondary-btn" onclick="window.adminSyncArchives()" style="padding: 8px 15px; font-size: 0.9rem;" title="Force update Scryfall/EDHREC data">Sync Archives</button>
+                    <button class="secondary-btn" onclick="window.adminPruneRooms()" style="padding: 8px 15px; font-size: 0.9rem; border-color: #ff4444; color: #ff9999;" title="Delete empty or 30+ day old rooms">Prune Rooms</button>
+                    <button class="secondary-btn" onclick="window.location.reload()" style="padding: 8px 15px; font-size: 0.9rem;">Exit Admin</button>
+                </div>
+            </div>
+            <div id="adminRoomList" style="text-align: center; color: #aaa;">Loading Archives...</div>
+        </div>
+    </div>
+
+    <div id="view-profile" class="view-section">
+        <!-- Content will be generated by profile.js -->
+    </div>
+
+    <div id="view-hall-of-fame" class="view-section">
+        <!-- Content will be generated by profile.js -->
+    </div>
+
+    <div id="view-player" class="view-section">
+        <h1 id="playerTitle">Challenge</h1>
+        <div id="player-scroll-left" class="scroll-hint left">‹</div>
+        <div id="player-scroll-right" class="scroll-hint right">›</div>
+        <div id="content">Gathering Card Data...</div>
+        <a class="secondary-btn" style="display:inline-block; padding: 10px 20px; border-radius: 6px; margin-top: 50px;" onclick="window.closePlayerView()">← Return to Dashboard</a>
+    </div>
+
+    <div style="margin-top: 50px; color: #555; font-size: 0.75rem; max-width: 800px; margin-left: auto; margin-right: auto; line-height: 1.5; padding-bottom: 30px;">
+        Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
+    </div>
+
+    <div style="position: fixed; bottom: 5px; right: 10px; color: #444; font-size: 0.7rem; font-family: 'Segoe UI', sans-serif; cursor: pointer; opacity: 0.5;" onclick="window.enterAdminMode()" title="Admin Access">v19.1</div>
+    <script type="module" src="./script.js?v=19.1"></script>
+</body>
+</html>

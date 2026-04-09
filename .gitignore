@@ -1,0 +1,15 @@
+# Node dependencies
+node_modules/
+functions/node_modules/
+
+# Firebase
+.firebase/
+firebase-debug.log*
+firebase-export-*
+
+# Environment variables (Keep secrets out of version control)
+.env
+
+# OS generated files
+.DS_Store
+Thumbs.db
