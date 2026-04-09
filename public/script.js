@@ -1,5 +1,9 @@
 import { db, auth, functions } from './firebase-setup.js?v=19.11';
 import { fetchDeckPriceLocal } from './deck-parser.js?v=19.11';
+import { getArchives } from './data-service.js?v=19.11';
+import { initDeckActionsModule } from './deck-actions.js?v=19.11';
+import { initRoomActionsModule } from './room-actions.js?v=19.11';
+import { initPlayerViewModule } from './player-view.js?v=19.11';
 import { initAdminModule } from './admin.js?v=19.11';
 import { initCalendarModule } from './calendar.js?v=19.11';
 import { initAuthModule } from './auth.js?v=19.11';
@@ -61,6 +65,11 @@ function sanitizeHTML(str) {
     return str.replace(/[&<>'"]/g, 
         tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
     );
+}
+
+function getColorBadges(colors) {
+    if (!colors || colors.length === 0) return `<span class="mana-badge mana-C">C</span>`;
+    return colors.map(c => `<span class="mana-badge mana-${c}">${c}</span>`).join('');
 }
 
 function getRoomCreationTime(data) {
@@ -1210,7 +1219,7 @@ function makeDraggable(slider) {
 // Make the dashboard draggable
 makeDraggable(document.getElementById('dynamicDashboard'));
 
-const utils = { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, getColorBadges, clearSession, attachScrollListener, getArchives };
+const utils = { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, clearSession, attachScrollListener, getArchives, getColorBadges };
 const state = {
     get currentRoom() { return currentRoom; },
     set currentRoom(v) { currentRoom = v; },

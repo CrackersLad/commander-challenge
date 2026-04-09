@@ -12,6 +12,7 @@ export function initHubModule(utils, state, coreUi) {
         if (state.activeRoomListener) { state.activeRoomListener(); state.activeRoomListener = null; }
         if (state.activePlayerListener) { state.activePlayerListener(); state.activePlayerListener = null; }
         switchView('view-landing');
+        window.history.pushState({}, '', '/');
         window.loadMyPlaygroups();
     };
 
