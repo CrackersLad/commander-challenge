@@ -51,4 +51,43 @@ export function initDeckActionsModule(utils, state) {
             showToast("Deck price locked!", false, 3000, true);
         });
     };
+
+    window.refreshAllPrices = async () => {
+        playSound('sfx-click');
+        if (!state.isHost) return showToast("Only the Host can bulk refresh decks.", true);
+
+        const roomSnap = await get(ref(db, `rooms/${state.currentRoom}`));
+        const roomData = roomSnap.val();
+        if (!roomData || !roomData.players) return showToast("No players found.", true);
+
+        const settings = roomData.settings;
+        const updates = {};
+        
+        showToast("Recalculating all decks... This may take a moment.", false, 0);
+        let updatedCount = 0;
+
+        for (const [pId, pData] of Object.entries(roomData.players)) {
+            if (pData.deck && pData.selected) {
+                try {
+                    const res = await fetchDeckPriceLocal(pData.deck, settings.currency || 'eur', settings.includeCmdr !== false, pData.selected);
+                    if (res && !res.error) {
+                        updates[`rooms/${state.currentRoom}/players/${pId}/deckPrice`] = res.total || 0;
+                        updates[`rooms/${state.currentRoom}/players/${pId}/isLegal`] = res.isLegal;
+                        updates[`rooms/${state.currentRoom}/players/${pId}/deckSize`] = res.deckSize;
+                        updates[`rooms/${state.currentRoom}/players/${pId}/deckSalt`] = res.deckSalt;
+                        if (res.commanderArt) updates[`rooms/${state.currentRoom}/players/${pId}/image`] = res.commanderArt;
+
+                        const maxDeckBudget = settings.deckBudget !== undefined ? parseFloat(settings.deckBudget) : 50;
+                        const isNowReady = res.isLegal && (maxDeckBudget === 0 || (res.total || 0) <= maxDeckBudget);
+                        if (isNowReady && pData.lockedDeckPrice === undefined) updates[`rooms/${state.currentRoom}/players/${pId}/lockedDeckPrice`] = res.total || 0;
+                        
+                        updatedCount++;
+                    }
+                } catch (err) { console.error("Failed to refresh for", pData.name, err); }
+            }
+        }
+
+        if (Object.keys(updates).length > 0) { await update(ref(db), updates); showToast(`Successfully refreshed ${updatedCount} deck(s)!`, false, 3000, true); } 
+        else { showToast("No valid decks found to refresh.", true); }
+    };
 }

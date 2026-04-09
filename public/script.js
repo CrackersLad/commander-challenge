@@ -846,6 +846,9 @@ function initDashboard() {
         const resetLobbyDropdownBtn = document.getElementById('resetLobbyDropdownBtn');
         if (resetLobbyDropdownBtn) resetLobbyDropdownBtn.style.display = isHost ? 'block' : 'none';
 
+        const refreshAllDropdownBtn = document.getElementById('refreshAllDropdownBtn');
+        if (refreshAllDropdownBtn) refreshAllDropdownBtn.style.display = isHost ? 'block' : 'none';
+
         const dropdown = document.getElementById('moreActionsDropdown');
         const existingBtn = document.getElementById('updateWebhookBtn');
 
@@ -984,10 +987,21 @@ function initDashboard() {
             if (h.winnerId) winCounts[h.winnerId] = (winCounts[h.winnerId] || 0) + 1;
         });
 
-        // Sort: Host first, then Alphabetical
+        // Smart Sort: Action Required First -> Host -> Alphabetical
+        const getStatusWeight = (p) => {
+            if (!p.selected) return 0; // Drafting / Waiting
+            if (!p.deck) return 1; // Commander Chosen
+            let maxBudget = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
+            let checkPrice = p.lockedDeckPrice !== undefined ? p.lockedDeckPrice : (p.deckPrice || 0);
+            let isReady = p.isLegal === true && (maxBudget === 0 || checkPrice <= maxBudget);
+            return isReady ? 3 : 2; // Ready (3) vs Deck Sealed (2)
+        };
+
         const sortedIds = Object.keys(players).sort((a,b) => {
-            if(players[a].isHost) return -1;
-            if(players[b].isHost) return 1;
+            const weightA = getStatusWeight(players[a]);
+            const weightB = getStatusWeight(players[b]);
+            if (weightA !== weightB) return weightA - weightB;
+            if (players[a].isHost !== players[b].isHost) return players[a].isHost ? -1 : 1;
             return (players[a].name || "").localeCompare(players[b].name || "");
         });
 
