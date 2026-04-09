@@ -1,0 +1,46 @@
+name: Deploy to Firebase
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install Functions Dependencies
+        working-directory: ./functions
+        run: npm install
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.FIREBASE_CREDENTIALS }}'
+
+      - name: Build, Deploy & Commit Version
+        run: |
+          npm install -g firebase-tools
+          
+          if [[ "${{ github.event.head_commit.message }}" == *"[major]"* ]]; then
+            cd functions && npm run build:major && cd ..
+          else
+            cd functions && npm run build:minor && cd ..
+          fi
+          
+          firebase deploy --project commander-challenge --force
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: auto-bump version [skip ci]" || echo "No changes to commit"
+          git push

@@ -617,15 +617,27 @@ exports.notifyPlayerProgress = onValueUpdated({ ref: "/rooms/{roomId}/players/{p
     const roomData = roomSnap.val();
     if (!roomData) return;
 
+    const isBlind = roomData.settings?.blindDraft === true;
+    const players = roomData.players || {};
+    const allLocked = Object.values(players).every(p => p.selected);
+    const hideInfo = isBlind && !allLocked;
+
     if (!before.selected && after.selected) {
-        const isBlind = roomData.settings?.blindDraft;
         title = "Commander Locked In! 🔒";
-        body = isBlind ? `${after.name} has locked in a mysterious Commander!` : `${after.name} has chosen ${after.selected}!`;
+        body = hideInfo ? `${after.name} has locked in a mysterious Commander!` : `${after.name} has chosen ${after.selected}!`;
         
         const edhrecSlug = after.selected.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
-        const discordMsg = isBlind ? `🔒 **${after.name}** has locked in a mysterious Commander!` : `🔒 **${after.name}** has chosen **${after.selected}**!\n${edhrecLink}`;
+        const discordMsg = hideInfo ? `🔒 **${after.name}** has locked in a mysterious Commander!` : `🔒 **${after.name}** has chosen **${after.selected}**!\n${edhrecLink}`;
         await sendDiscordWebhook(event.params.roomId, discordMsg);
+
+        if (allLocked) {
+            const revealMsg = `🎉 **${isBlind ? 'All Commanders Revealed!' : 'All Commanders Locked In!'}** 🎉\n${isBlind ? 'The Blind Draft is complete! The board is now revealed.' : 'Everyone has chosen their commanders. Time to brew!'}\nhttps://edhchallenge.com/?room=${event.params.roomId}`;
+            await sendDiscordWebhook(event.params.roomId, revealMsg);
+            
+            title = isBlind ? "All Commanders Revealed! 🎭" : "Draft Phase Complete! 🎉";
+            body = isBlind ? "The Blind Draft is over! Check the board to see the matchups." : "Everyone has locked in their commanders.";
+        }
     } else if (after.deck) {
         const maxBudget = roomData.settings?.deckBudget !== undefined ? parseFloat(roomData.settings?.deckBudget) : 50;
         
@@ -635,14 +647,16 @@ exports.notifyPlayerProgress = onValueUpdated({ ref: "/rooms/{roomId}/players/{p
         const wasReady = before.deck && before.isLegal && (maxBudget === 0 || beforePrice <= maxBudget);
         const isReady = after.isLegal && (maxBudget === 0 || afterPrice <= maxBudget);
 
+        const deckLinkDisplay = hideInfo ? "*(Deck link hidden until all players lock in their commanders!)*" : after.deck;
+
         if (!wasReady && isReady) {
             title = "Ready for Battle! ✅";
             body = `${after.name}'s deck is fully legal and under budget!`;
-            await sendDiscordWebhook(event.params.roomId, `✅ **${after.name}**'s deck is fully legal, under budget, and **Ready for Battle**!\n${after.deck}`);
+            await sendDiscordWebhook(event.params.roomId, `✅ **${after.name}**'s deck is fully legal, under budget, and **Ready for Battle**!\n${deckLinkDisplay}`);
         } else if (!before.deck && after.deck && !isReady) {
             title = "Deck Sealed! 🛡️";
             body = `${after.name} has submitted a deck link.`;
-            await sendDiscordWebhook(event.params.roomId, `🛡️ **${after.name}** has sealed their deck!\n${after.deck}`);
+            await sendDiscordWebhook(event.params.roomId, `🛡️ **${after.name}** has sealed their deck!\n${deckLinkDisplay}`);
         }
     }
 

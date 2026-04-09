@@ -1,10 +1,10 @@
-import { db, auth, functions } from './firebase-setup.js?v=19.1';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=19.1';
-import { initAdminModule } from './admin.js?v=19.1';
-import { initCalendarModule } from './calendar.js?v=19.1';
-import { initAuthModule } from './auth.js?v=19.1';
-import { initHubModule } from './hub.js?v=19.1';
-import { initProfileModule } from './profile.js?v=19.1';
+import { db, auth, functions } from './firebase-setup.js?v=19.8';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=19.8';
+import { initAdminModule } from './admin.js?v=19.8';
+import { initCalendarModule } from './calendar.js?v=19.8';
+import { initAuthModule } from './auth.js?v=19.8';
+import { initHubModule } from './hub.js?v=19.8';
+import { initProfileModule } from './profile.js?v=19.8';
 import { ref, set, get, onValue, update, remove, increment, runTransaction } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -471,17 +471,25 @@ window.copyMatchSummary = async () => {
         return (players[a].name || "").localeCompare(players[b].name || "");
     });
 
+    const isBlind = data.settings?.blindDraft === true;
+    const allLocked = Object.values(players).every(p => p.selected);
+
     sortedIds.forEach(id => {
         const p = players[id];
+        const hideInfo = isBlind && !allLocked && id !== currentPlayerId;
         let roleIcon = p.isHost ? '👑' : '👤';
         let trophyIcon = winCounts[id] ? ` ${'🏆'.repeat(winCounts[id])}` : '';
         let nameLabel = `${roleIcon}${trophyIcon} ${p.name}`;
 
         if (p.selected) {
-            let curr = data.settings?.currency === 'usd' ? '$' : '€';
-            let priceText = p.lockedDeckPrice !== undefined ? `(🔒 ${curr}${p.lockedDeckPrice.toFixed(2)})` : (p.deckPrice ? `(${curr}${p.deckPrice.toFixed(2)})` : '');
-            let saltText = p.deckSalt !== undefined ? ` [☣️ Salt: ${Number(p.deckSalt).toFixed(1)}]` : '';
-            text += `${nameLabel}: ${p.selected} ${priceText}${saltText}\n   🔗 ${p.deck || 'No Link'}\n\n`;
+            if (hideInfo) {
+                text += `${nameLabel}: ??? (Mysterious Commander)\n   🔗 (Link hidden)\n\n`;
+            } else {
+                let curr = data.settings?.currency === 'usd' ? '$' : '€';
+                let priceText = p.lockedDeckPrice !== undefined ? `(🔒 ${curr}${p.lockedDeckPrice.toFixed(2)})` : (p.deckPrice ? `(${curr}${p.deckPrice.toFixed(2)})` : '');
+                let saltText = p.deckSalt !== undefined ? ` [☣️ Salt: ${Number(p.deckSalt).toFixed(1)}]` : '';
+                text += `${nameLabel}: ${p.selected} ${priceText}${saltText}\n   🔗 ${p.deck || 'No Link'}\n\n`;
+            }
         }
         else text += `${nameLabel}: Drafting...\n\n`;
     });
@@ -1035,57 +1043,67 @@ function initDashboard() {
             }
 
             if (pData.deck) {
-                if (pData.deckPrice !== undefined) {
-                    let maxBudget = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
-                    let currSym = data.settings.currency === 'eur' ? '€' : '$';
-                    let checkPrice = pData.lockedDeckPrice !== undefined ? pData.lockedDeckPrice : pData.deckPrice;
-                    let isOver = maxBudget !== 0 && checkPrice > maxBudget;
-                    let priceColor = isOver ? "#ff4444" : "#2ecc71";
-                    let check = isOver ? "❌ Over Budget" : "✅ OK";
-
-                    let cmdrLogic = data.settings.includeCmdr !== false ? "Includes Commander cost." : "Excludes Commander cost.";
-                    let tooltipLogic = `Excludes Basic Lands and Side/Maybeboards. ${cmdrLogic}`;
-
-                    let legalIcon = pData.isLegal ? "✅" : "⚠️";
-                    let legalText = pData.isLegal ? "Legal (100 Cards)" : `Illegal (${pData.deckSize || '?'} Cards)`;
-                    
-                    let saltHtml = '';
-                    if (pData.deckSalt !== undefined && pData.deckSalt !== null && !isNaN(pData.deckSalt)) {
-                        if (isSaltiest) {
-                            saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #39ff14; font-weight:bold; text-shadow: 0 0 8px rgba(57,255,20,0.5);">☣️ Saltiest: ${Number(pData.deckSalt).toFixed(2)}</p>`;
-                        } else {
-                            saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #ccc;">🧂 Salt Score: ${Number(pData.deckSalt).toFixed(2)}</p>`;
-                        }
-                    } else if (id === currentPlayerId) {
-                        saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #aaa;">🧂 Salt Score: <span style="cursor:pointer; color:#d4af37; text-decoration:underline;" onclick="window.refreshMyDeckPrice()">Refresh to calculate</span></p>`;
-                    } else {
-                        saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #aaa;">🧂 Salt Score: N/A (Needs refresh)</p>`;
-                    }
-
-                    let lockedHtml = '';
-                    if (pData.lockedDeckPrice !== undefined) {
-                        lockedHtml = `<p style="margin: 5px 0 0 0; font-size: 0.95rem; color: #d4af37; font-weight:bold;">🔒 Locked Price: ${currSym}${pData.lockedDeckPrice.toFixed(2)}</p>`;
-                    }
-
+                const hideInfo = isBlind && !allLocked && id !== currentPlayerId;
+                
+                if (hideInfo) {
                     html += `
-                        <div style="background: #000; border: 1px solid #333; border-radius: 6px; padding: 10px; margin-top: 15px;">
-                            <div style="margin: 0; font-size: 0.9rem; color: #aaa; display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                Deck Total
-                                <div class="tooltip" style="width: 14px; height: 14px; font-size: 10px; line-height: 12px; cursor: help;">?
-                                    <span class="tooltiptext">${tooltipLogic}</span>
-                                </div>
-                            </div>
-                            <p style="margin: 5px 0 0 0; font-size: 1.1rem; color: ${(maxBudget !== 0 && pData.deckPrice > maxBudget) ? '#ff4444' : '#2ecc71'}; font-weight:bold;">${isMostExpensive ? '💎 Highest:' : 'Current:'} ${currSym}${pData.deckPrice.toFixed(2)}</p>
-                            ${lockedHtml}
-                            <p style="margin: 5px 0 0 0; font-size: 0.85rem; font-weight:bold; color: ${priceColor};">${check} ${maxBudget === 0 ? '(No Limit)' : `(Limit: ${currSym}${maxBudget})`}</p>
-                            <p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #ccc;">${legalIcon} ${legalText}</p>
-                            ${saltHtml}
+                        <div style="background: #111; border: 1px dashed #444; border-radius: 6px; padding: 10px; margin-top: 15px;">
+                            <p style="margin: 0; font-size: 0.85rem; color: #888; font-style: italic; text-align: center;">Deck details hidden until all commanders are revealed.</p>
                         </div>
                     `;
                 } else {
-                    html += `<p style="margin: 15px 0 5px 0; font-size: 0.9rem; color: #aaa;">Deck Price: Calculating...</p>`;
+                    if (pData.deckPrice !== undefined) {
+                        let maxBudget = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
+                        let currSym = data.settings.currency === 'eur' ? '€' : '$';
+                        let checkPrice = pData.lockedDeckPrice !== undefined ? pData.lockedDeckPrice : (pData.deckPrice || 0);
+                        let isOver = maxBudget !== 0 && checkPrice > maxBudget;
+                        let priceColor = isOver ? "#ff4444" : "#2ecc71";
+                        let check = isOver ? "❌ Over Budget" : "✅ OK";
+
+                        let cmdrLogic = data.settings.includeCmdr !== false ? "Includes Commander cost." : "Excludes Commander cost.";
+                        let tooltipLogic = `Excludes Basic Lands and Side/Maybeboards. ${cmdrLogic}`;
+
+                        let legalIcon = pData.isLegal ? "✅" : "⚠️";
+                        let legalText = pData.isLegal ? "Legal (100 Cards)" : `Illegal (${pData.deckSize || '?'} Cards)`;
+                        
+                        let saltHtml = '';
+                        if (pData.deckSalt !== undefined && pData.deckSalt !== null && !isNaN(pData.deckSalt)) {
+                            if (isSaltiest) {
+                                saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #39ff14; font-weight:bold; text-shadow: 0 0 8px rgba(57,255,20,0.5);">☣️ Saltiest: ${Number(pData.deckSalt).toFixed(2)}</p>`;
+                            } else {
+                                saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #ccc;">🧂 Salt Score: ${Number(pData.deckSalt).toFixed(2)}</p>`;
+                            }
+                        } else if (id === currentPlayerId) {
+                            saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #aaa;">🧂 Salt Score: <span style="cursor:pointer; color:#d4af37; text-decoration:underline;" onclick="window.refreshMyDeckPrice()">Refresh to calculate</span></p>`;
+                        } else {
+                            saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #aaa;">🧂 Salt Score: N/A (Needs refresh)</p>`;
+                        }
+
+                        let lockedHtml = '';
+                        if (pData.lockedDeckPrice !== undefined) {
+                            lockedHtml = `<p style="margin: 5px 0 0 0; font-size: 0.95rem; color: #d4af37; font-weight:bold;">🔒 Locked Price: ${currSym}${pData.lockedDeckPrice.toFixed(2)}</p>`;
+                        }
+
+                        html += `
+                            <div style="background: #000; border: 1px solid #333; border-radius: 6px; padding: 10px; margin-top: 15px;">
+                                <div style="margin: 0; font-size: 0.9rem; color: #aaa; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                    Deck Total
+                                    <div class="tooltip" style="width: 14px; height: 14px; font-size: 10px; line-height: 12px; cursor: help;">?
+                                        <span class="tooltiptext">${tooltipLogic}</span>
+                                    </div>
+                                </div>
+                                <p style="margin: 5px 0 0 0; font-size: 1.1rem; color: ${(maxBudget !== 0 && pData.deckPrice > maxBudget) ? '#ff4444' : '#2ecc71'}; font-weight:bold;">${isMostExpensive ? '💎 Highest:' : 'Current:'} ${currSym}${pData.deckPrice.toFixed(2)}</p>
+                                ${lockedHtml}
+                                <p style="margin: 5px 0 0 0; font-size: 0.85rem; font-weight:bold; color: ${priceColor};">${check} ${maxBudget === 0 ? '(No Limit)' : `(Limit: ${currSym}${maxBudget})`}</p>
+                                <p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #ccc;">${legalIcon} ${legalText}</p>
+                                ${saltHtml}
+                            </div>
+                        `;
+                    } else {
+                        html += `<p style="margin: 15px 0 5px 0; font-size: 0.9rem; color: #aaa;">Deck Price: Calculating...</p>`;
+                    }
+                    html += `<br><a href="${sanitizeHTML(pData.deck)}" target="_blank" style="font-size: 0.85rem; color:#d4af37;" onclick="playSound('sfx-click')">View Deck</a>`;
                 }
-                html += `<br><a href="${sanitizeHTML(pData.deck)}" target="_blank" style="font-size: 0.85rem; color:#d4af37;" onclick="playSound('sfx-click')">View Deck</a>`;
             }
             
             if (id === currentPlayerId && safeSelected) {
@@ -1561,13 +1579,13 @@ function renderSelectionScreen(list, currentRerollCount, maxRerollsAllowed, s) {
 
 window.interactiveDraftAction = async (actionType, payload) => {
     if (actionType === 'async_pick') {
-        const { handleAsyncPick } = await import('./draft-async.js?v=19.1');
+        const { handleAsyncPick } = await import('./draft-async.js?v=19.8');
         await handleAsyncPick(payload, currentRoom, currentPlayerId, utils);
     } else if (actionType === 'snake_pick') {
-        const { handleSnakePick } = await import('./draft-snake.js?v=19.1');
+        const { handleSnakePick } = await import('./draft-snake.js?v=19.8');
         await handleSnakePick(payload, currentRoom, currentPlayerId, utils);
     } else if (actionType === 'burn_pick') {
-        const { handleBurnPick } = await import('./draft-burn.js?v=19.1');
+        const { handleBurnPick } = await import('./draft-burn.js?v=19.8');
         await handleBurnPick(payload, currentRoom, currentPlayerId, utils);
     }
 };
@@ -1585,13 +1603,13 @@ async function renderInteractiveDraft(activeDraft, container, s, players) {
     }
 
     if (activeDraft.format === 'async_draft') {
-        const { renderAsyncDraft } = await import('./draft-async.js?v=19.1');
+        const { renderAsyncDraft } = await import('./draft-async.js?v=19.8');
         renderAsyncDraft(activeDraft, container, s, currentPlayerId, utils);
     } else if (activeDraft.format === 'snake_draft') {
-        const { renderSnakeDraft } = await import('./draft-snake.js?v=19.1');
+        const { renderSnakeDraft } = await import('./draft-snake.js?v=19.8');
         renderSnakeDraft(activeDraft, container, s, currentPlayerId, players, utils);
     } else if (activeDraft.format === 'burn_draft') {
-        const { renderBurnDraft } = await import('./draft-burn.js?v=19.1');
+        const { renderBurnDraft } = await import('./draft-burn.js?v=19.8');
         renderBurnDraft(activeDraft, container, s, currentPlayerId, utils);
     }
 }
@@ -1925,6 +1943,32 @@ if ('serviceWorker' in navigator) {
             }, err => {
                 console.log('ServiceWorker registration failed: ', err);
             });
+    });
+}
+
+// --- PWA INSTALL LOGIC ---
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent the mini-infobar from appearing on mobile automatically
+    e.preventDefault();
+    // Stash the event so it can be triggered later.
+    deferredPrompt = e;
+    // Update UI to notify the user they can install the PWA
+    const installBtn = document.getElementById('installPwaBtn');
+    if (installBtn) installBtn.style.display = 'block';
+});
+
+const installBtn = document.getElementById('installPwaBtn');
+if (installBtn) {
+    installBtn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                installBtn.style.display = 'none'; // Hide button once installed
+            }
+            deferredPrompt = null;
+        }
     });
 }
 
