@@ -126,4 +126,71 @@ export function initRoomActionsModule(utils, state) {
             }
         });
     };
+
+    window.openLeaderboard = async () => {
+        playSound('sfx-click');
+        const modal = document.getElementById('leaderboardModal');
+        const contentDiv = document.getElementById('leaderboardContent');
+        modal.style.display = 'flex'; setTimeout(() => modal.classList.add('show'), 10);
+        
+        const snap = await get(ref(db, `rooms/${state.currentRoom}`));
+        const roomData = snap.val() || {};
+        const history = roomData.history || {};
+        const currSym = roomData.settings?.currency === 'usd' ? '$' : '€';
+        
+        const matchCount = Object.keys(history).length;
+        if (matchCount === 0) {
+            contentDiv.innerHTML = '<p style="text-align:center; color:#aaa;">No matches recorded yet. Play some games!</p>';
+            return;
+        }
+
+        const playerStats = {};
+        let maxSalt = { score: -1, player: '', commander: '' };
+        let maxPrice = { score: -1, player: '', commander: '' };
+
+        Object.values(history).forEach(match => {
+            if (match.winnerId) {
+                if (!playerStats[match.winnerId]) playerStats[match.winnerId] = { name: match.winnerName, wins: 0, matches: 0 };
+                playerStats[match.winnerId].wins += 1;
+            }
+
+            if (match.participants) {
+                Object.entries(match.participants).forEach(([pid, pdata]) => {
+                    if (!playerStats[pid]) playerStats[pid] = { name: pdata.name, wins: 0, matches: 0 };
+                    playerStats[pid].matches += 1;
+
+                    if (pdata.salt !== undefined && pdata.salt > maxSalt.score) maxSalt = { score: pdata.salt, player: pdata.name, commander: pdata.commander };
+                    if (pdata.price !== undefined && pdata.price > maxPrice.score) maxPrice = { score: pdata.price, player: pdata.name, commander: pdata.commander };
+                });
+            }
+        });
+
+        const sortedPlayers = Object.values(playerStats).sort((a, b) => b.wins - a.wins || b.matches - a.matches);
+
+        let html = `<div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:10px;">
+            <span>Total Matches: <strong style="color:var(--gold);">${matchCount}</strong></span>
+        </div>`;
+
+        html += `<table style="width:100%; border-collapse: collapse; margin-bottom: 20px;">
+            <thead><tr style="color:var(--gold); border-bottom:1px solid #444; text-align:left;">
+                <th style="padding:5px;">Player</th><th style="padding:5px; text-align:center;">Wins</th>
+                <th style="padding:5px; text-align:center;">Matches</th><th style="padding:5px; text-align:center;">Win Rate</th>
+            </tr></thead><tbody>`;
+
+        sortedPlayers.forEach(p => {
+            const winRate = p.matches > 0 ? Math.round((p.wins / p.matches) * 100) + '%' : 'N/A';
+            html += `<tr style="border-bottom:1px solid #222;">
+                <td style="padding:8px 5px; color:#fff;">${sanitizeHTML(p.name)}</td><td style="padding:8px 5px; text-align:center; color:#2ecc71; font-weight:bold;">${p.wins}</td>
+                <td style="padding:8px 5px; text-align:center; color:#aaa;">${p.matches || '?'}</td><td style="padding:8px 5px; text-align:center; color:#66b3ff;">${winRate}</td>
+            </tr>`;
+        });
+        html += `</tbody></table>`;
+
+        if (maxSalt.score > 0 || maxPrice.score > 0) {
+            html += `<h3 style="color:var(--gold); font-size:1rem; margin-bottom:10px;">Playgroup Records</h3>`;
+            if (maxSalt.score > 0) html += `<p style="margin:5px 0; font-size:0.9rem;">🧂 <strong>Highest Salt:</strong> ${maxSalt.score.toFixed(2)} <span style="color:#888;">(${sanitizeHTML(maxSalt.commander)} by ${sanitizeHTML(maxSalt.player)})</span></p>`;
+            if (maxPrice.score > 0) html += `<p style="margin:5px 0; font-size:0.9rem;">💎 <strong>Most Expensive:</strong> ${currSym}${maxPrice.score.toFixed(2)} <span style="color:#888;">(${sanitizeHTML(maxPrice.commander)} by ${sanitizeHTML(maxPrice.player)})</span></p>`;
+        }
+        contentDiv.innerHTML = html;
+    };
 }

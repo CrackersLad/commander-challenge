@@ -476,8 +476,20 @@ exports.hostDeclareWinner = onCall(async (request) => {
         winnerId: winnerId,
         winnerName: winner.name,
         commander: winner.selected || "Unknown",
-        deck: winner.deck || null
+        deck: winner.deck || null,
+        participants: {}
     };
+
+    Object.entries(players).forEach(([id, p]) => {
+        if (p.selected) {
+            historyRecord.participants[id] = {
+                name: p.name,
+                commander: p.selected,
+                price: p.lockedDeckPrice !== undefined ? p.lockedDeckPrice : (p.deckPrice || 0),
+                salt: p.deckSalt || 0
+            };
+        }
+    });
 
     const winnerUid = winner.uid;
     if (winnerUid) {
