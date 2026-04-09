@@ -1,32 +1,45 @@
 {
   "rules": {
+    // 1. By default, deny all reads and writes unless explicitly allowed below
+    ".read": false,
+    ".write": false,
+
+    // 2. The Archives & Stats are completely Read-Only for players.
+    // (Your Cloud Functions bypass these rules, so the weekly sync will still work!)
     "global_archives": {
       ".read": true,
       ".write": false
     },
-    "rooms": {
-      ".read": true,
-      "$roomId": {
-         ".write": "auth != null"
-      }
-    },
-    "webhooks": {
-      ".read": false,
-      "$roomId": {
-        ".write": "auth != null"
-      }
-    },
     "stats": {
-      ".read": true
-    },
-    "hall_of_fame": {
       ".read": true,
       ".write": false
     },
+    
+    // 3. Prevent anyone from snooping on the admin list
+    "admins": {
+      ".read": false,
+      ".write": false
+    },
+
+    // 4. Lock User Profiles & Push Notification Tokens strictly to the logged-in owner
     "users": {
       "$uid": {
-        ".read": "$uid === auth.uid",
-        ".write": "$uid === auth.uid"
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+
+    // 5. Allow Rooms & Webhooks to be used by Guests, but strictly validate the Webhook URL
+    "webhooks": {
+      "$roomId": {
+        ".read": true,
+        ".write": "newData.val() == null || (newData.child('url').val().matches(/^https:\\/\\/discord\\.com\\/api\\/webhooks\\//) && newData.child('url').val().length < 200)"
+      }
+    },
+    "rooms": {
+      "$roomId": {
+        ".read": true,
+        ".write": true
       }
     }
   }
