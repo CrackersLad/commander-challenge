@@ -1,10 +1,10 @@
-import { db, auth, functions } from './firebase-setup.js?v=19.8';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=19.8';
-import { initAdminModule } from './admin.js?v=19.8';
-import { initCalendarModule } from './calendar.js?v=19.8';
-import { initAuthModule } from './auth.js?v=19.8';
-import { initHubModule } from './hub.js?v=19.8';
-import { initProfileModule } from './profile.js?v=19.8';
+import { db, auth, functions } from './firebase-setup.js?v=19.9';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=19.9';
+import { initAdminModule } from './admin.js?v=19.9';
+import { initCalendarModule } from './calendar.js?v=19.9';
+import { initAuthModule } from './auth.js?v=19.9';
+import { initHubModule } from './hub.js?v=19.9';
+import { initProfileModule } from './profile.js?v=19.9';
 import { ref, set, get, onValue, update, remove, increment, runTransaction } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -1579,13 +1579,13 @@ function renderSelectionScreen(list, currentRerollCount, maxRerollsAllowed, s) {
 
 window.interactiveDraftAction = async (actionType, payload) => {
     if (actionType === 'async_pick') {
-        const { handleAsyncPick } = await import('./draft-async.js?v=19.8');
+        const { handleAsyncPick } = await import('./draft-async.js?v=19.9');
         await handleAsyncPick(payload, currentRoom, currentPlayerId, utils);
     } else if (actionType === 'snake_pick') {
-        const { handleSnakePick } = await import('./draft-snake.js?v=19.8');
+        const { handleSnakePick } = await import('./draft-snake.js?v=19.9');
         await handleSnakePick(payload, currentRoom, currentPlayerId, utils);
     } else if (actionType === 'burn_pick') {
-        const { handleBurnPick } = await import('./draft-burn.js?v=19.8');
+        const { handleBurnPick } = await import('./draft-burn.js?v=19.9');
         await handleBurnPick(payload, currentRoom, currentPlayerId, utils);
     }
 };
@@ -1603,13 +1603,13 @@ async function renderInteractiveDraft(activeDraft, container, s, players) {
     }
 
     if (activeDraft.format === 'async_draft') {
-        const { renderAsyncDraft } = await import('./draft-async.js?v=19.8');
+        const { renderAsyncDraft } = await import('./draft-async.js?v=19.9');
         renderAsyncDraft(activeDraft, container, s, currentPlayerId, utils);
     } else if (activeDraft.format === 'snake_draft') {
-        const { renderSnakeDraft } = await import('./draft-snake.js?v=19.8');
+        const { renderSnakeDraft } = await import('./draft-snake.js?v=19.9');
         renderSnakeDraft(activeDraft, container, s, currentPlayerId, players, utils);
     } else if (activeDraft.format === 'burn_draft') {
-        const { renderBurnDraft } = await import('./draft-burn.js?v=19.8');
+        const { renderBurnDraft } = await import('./draft-burn.js?v=19.9');
         renderBurnDraft(activeDraft, container, s, currentPlayerId, utils);
     }
 }
