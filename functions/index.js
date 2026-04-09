@@ -67,12 +67,24 @@ async function performArchiveSync() {
 
         let scryCards = [];
         let sUrl = "https://api.scryfall.com/cards/search?q=is:commander+-is:digital";
+        let retries = 0;
+        
         while (sUrl) {
             const res = await fetch(sUrl);
+            if (!res.ok) {
+                if (retries < 3) {
+                    retries++;
+                    console.warn(`Scryfall fetch failed (${res.status}). Retrying in ${retries * 2}s...`);
+                    await new Promise(r => setTimeout(r, 2000 * retries));
+                    continue;
+                }
+                throw new Error(`Scryfall API failed after 3 retries: ${res.statusText}`);
+            }
+            retries = 0;
             const data = await res.json();
             if (data.data) scryCards.push(...data.data);
             sUrl = data.has_more ? data.next_page : null;
-            await new Promise(r => setTimeout(r, 50));
+            await new Promise(r => setTimeout(r, 100)); // Respect Scryfall's 100ms rate limit
         }
 
         let finalArray = scryCards.map(c => {
@@ -444,6 +456,7 @@ exports.hostResetLobby = onCall(async (request) => {
     });
     updates['settings/status'] = 'waiting';
     updates['activeDraft'] = null;
+    updates['meetup'] = null;
 
     await admin.database().ref(`rooms/${roomId}`).update(updates);
     return { success: true };
@@ -511,11 +524,16 @@ async function sendDiscordWebhook(roomId, content) {
     const url = snap.val();
     if (!url || !url.startsWith("https://discord.com/api/webhooks/")) return;
     try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        
         await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, username: "Commander Archives" })
+            body: JSON.stringify({ content, username: "Commander Archives" }),
+            signal: controller.signal
         });
+        clearTimeout(timeout);
     } catch (e) {
         console.error("Discord webhook error:", e);
     }
@@ -528,13 +546,17 @@ async function sendRoomNotification(roomId, payload, excludeUid = null) {
     
     const players = playersSnap.val();
     let targetTokens = [];
+    let tokenToUidMap = {};
 
     for (const playerId in players) {
         const uid = players[playerId].uid;
         if (uid && uid !== excludeUid) {
             const tokensSnap = await db.ref(`users/${uid}/fcmTokens`).once('value');
             if (tokensSnap.exists()) {
-                targetTokens = targetTokens.concat(Object.keys(tokensSnap.val()));
+                Object.keys(tokensSnap.val()).forEach(token => {
+                    targetTokens.push(token);
+                    tokenToUidMap[token] = uid;
+                });
             }
         }
     }
@@ -556,15 +578,20 @@ async function sendRoomNotification(roomId, payload, excludeUid = null) {
         const response = await admin.messaging().sendMulticast(message);
         console.log(`Sent ${response.successCount} push notifications successfully.`);
         
-        // Optional: Clean up invalid/expired tokens to keep database tidy
+        // Automatically clean up invalid/expired tokens to prevent database bloat
         if (response.failureCount > 0) {
-            const failedTokens = [];
+            const tokenRemovals = {};
             response.responses.forEach((resp, idx) => {
                 if (!resp.success && (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered')) {
-                    failedTokens.push(targetTokens[idx]);
+                    const deadToken = targetTokens[idx];
+                    const deadUid = tokenToUidMap[deadToken];
+                    if (deadUid) tokenRemovals[`users/${deadUid}/fcmTokens/${deadToken}`] = null;
                 }
             });
-            if (failedTokens.length > 0) console.log("Failed/Expired tokens found:", failedTokens);
+            if (Object.keys(tokenRemovals).length > 0) {
+                await db.ref().update(tokenRemovals);
+                console.log(`Pruned ${Object.keys(tokenRemovals).length} dead FCM tokens.`);
+            }
         }
     } catch (error) {
         console.error('Error sending multicast message:', error);
