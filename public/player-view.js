@@ -251,10 +251,32 @@ export function initPlayerViewModule(utils, state) {
                 <div class="mana-container">${getColorBadges(data.color_identity)}</div>
                 <p style="margin: 0 0 15px 0; font-size: 1.1rem; color: #d4af37; font-weight:bold;">EDHREC Rank: ${data.display_rank ? `#${data.display_rank}` : "Unranked"}</p>
                 <a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" title="View on EDHREC"><img src="${sanitizeHTML(data.image)}" class="final-commander-img" loading="lazy"></a><br><br>
+                
+                <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 25px; flex-wrap: wrap;">
+                    <button id="brewMoxfield" class="secondary-btn" style="padding: 8px 12px; font-size: 0.85rem; border-color: #dfb2f4; color: #dfb2f4; box-shadow: 0 0 10px rgba(223, 178, 244, 0.2);">☕ Brew on Moxfield</button>
+                    <button id="brewArchidekt" class="secondary-btn" style="padding: 8px 12px; font-size: 0.85rem; border-color: #00b0f0; color: #00b0f0; box-shadow: 0 0 10px rgba(0, 176, 240, 0.2);">📐 Brew on Archidekt</button>
+                </div>
+
                 <p style="font-family:Cinzel; color:var(--gold);">Submit Deck Link</p>
                 <input type="text" id="linkIn" value="${data.deck ? sanitizeHTML(data.deck) : ''}" placeholder="Moxfield / Archidekt URL..." style="width:80%; max-width:300px; font-size: 16px;">
                 <br><button id="saveDeckBtn" class="select-btn">Save & Calculate Price</button>
             </div>`;
+
+        document.getElementById('brewMoxfield').onclick = () => {
+            playSound('sfx-click');
+            navigator.clipboard.writeText(data.selected).then(() => {
+                showToast("Commander copied! Paste into Moxfield.", false, 4000, true);
+                window.open('https://moxfield.com/decks/add', '_blank');
+            }).catch(() => { window.open('https://moxfield.com/decks/add', '_blank'); });
+        };
+
+        document.getElementById('brewArchidekt').onclick = () => {
+            playSound('sfx-click');
+            navigator.clipboard.writeText(data.selected).then(() => {
+                showToast("Commander copied! Paste into Archidekt.", false, 4000, true);
+                window.open(`https://archidekt.com/decks/new?format=3&commander=${encodeURIComponent(data.selected)}`, '_blank');
+            }).catch(() => { window.open(`https://archidekt.com/decks/new?format=3&commander=${encodeURIComponent(data.selected)}`, '_blank'); });
+        };
 
         document.getElementById('saveDeckBtn').onclick = async () => {
             playSound('sfx-click'); const link = document.getElementById('linkIn').value.trim(); const lowerLink = link.toLowerCase();
