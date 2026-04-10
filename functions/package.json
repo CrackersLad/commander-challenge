@@ -1,6 +1,6 @@
 {
   "name": "functions",
-  "version": "19.23",
+  "version": "19.24",
   "description": "Cloud Functions for Firebase",
   "scripts": {
     "serve": "firebase emulators:start --only functions",
