@@ -306,7 +306,21 @@ export function initPlayerViewModule(utils, state) {
 
     window.flipCard3D = (cardId, event) => { if(event) { event.preventDefault(); event.stopPropagation(); } playSound('sfx-click'); const card = document.getElementById(cardId); if (card) card.classList.toggle('is-flipped'); };
 
-    window.interactiveDraftAction = async (actionType, payload) => {
+    window.interactiveDraftAction = async (actionType, payload, event) => {
+        if (event && event.target) {
+            const cardEl = event.target.closest('.option-card');
+            if (cardEl) {
+                document.querySelectorAll('.option-card .select-btn').forEach(btn => btn.disabled = true);
+                if (actionType === 'burn_pick') {
+                    playSound('sfx-click');
+                    cardEl.classList.add('card-burn-effect');
+                } else {
+                    playSound('sfx-choose');
+                    cardEl.classList.add('card-pick-effect');
+                }
+                await new Promise(r => setTimeout(r, 550));
+            }
+        }
         if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=19.24'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
         else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=19.24'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
         else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=19.24'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }

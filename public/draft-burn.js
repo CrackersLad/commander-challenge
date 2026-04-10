@@ -48,7 +48,7 @@ export function renderBurnDraft(activeDraft, container, s, currentPlayerId, play
                     <img src="${sanitizeHTML(img)}" class="commander-img" style="margin-top:0;" loading="lazy">
                 </a>
                 <p class="rank-tag" style="color:var(--gold); font-weight:bold; font-size: 0.95rem; margin: 10px 0 5px 0;">EDHREC Rank: #${card.display_rank || 'Unranked'}</p>
-                <button class="select-btn" style="width:100%; margin-top:5px; font-size:0.8rem; background: transparent; border: 1px solid #ff4444; color: #ff9999;" onclick="window.interactiveDraftAction('burn_pick', { packId: '${currentPack.id}', cardName: \`${safeName}\` })">🔥 Burn ${safeName}</button>
+                <button class="select-btn" style="width:100%; margin-top:5px; font-size:0.8rem; background: transparent; border: 1px solid #ff4444; color: #ff9999;" onclick="window.interactiveDraftAction('burn_pick', { packId: '${currentPack.id}', cardName: \`${safeName}\` }, event)">🔥 Burn ${safeName}</button>
             </div>
         `;
     });
@@ -57,9 +57,6 @@ export function renderBurnDraft(activeDraft, container, s, currentPlayerId, play
 }
 
 export async function handleBurnPick(payload, currentRoom, currentPlayerId, utils) {
-    const { playSound } = utils;
-    playSound('sfx-click'); 
-    
     const draftRef = ref(db, `rooms/${currentRoom}/activeDraft`);
     await runTransaction(draftRef, (draft) => {
         if (!draft || !draft.queues || !draft.queues[currentPlayerId]) return draft;

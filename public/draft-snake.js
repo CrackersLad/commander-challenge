@@ -25,7 +25,7 @@ export function renderSnakeDraft(activeDraft, container, s, currentPlayerId, pla
                     <img src="${sanitizeHTML(img)}" class="commander-img" style="margin-top:0;" loading="lazy">
                 </a>
                 <p class="rank-tag" style="color:var(--gold); font-weight:bold; font-size: 0.95rem; margin: 10px 0 5px 0;">EDHREC Rank: #${card.display_rank || 'Unranked'}</p>
-                ${isMyTurn ? `<button class="select-btn" style="width:100%; margin-top:5px; font-size:0.8rem;" onclick="window.interactiveDraftAction('snake_pick', \`${safeName}\`)">Draft ${safeName}</button>` : ''}
+                ${isMyTurn ? `<button class="select-btn" style="width:100%; margin-top:5px; font-size:0.8rem;" onclick="window.interactiveDraftAction('snake_pick', \`${safeName}\`, event)">Draft ${safeName}</button>` : ''}
             </div>
         `;
     });
@@ -34,9 +34,6 @@ export function renderSnakeDraft(activeDraft, container, s, currentPlayerId, pla
 }
 
 export async function handleSnakePick(cardName, currentRoom, currentPlayerId, utils) {
-    const { playSound } = utils;
-    playSound('sfx-choose');
-    
     const draftRef = ref(db, `rooms/${currentRoom}/activeDraft`);
     await runTransaction(draftRef, (draft) => {
         if (!draft || !draft.pickOrder || draft.pickOrder[draft.turn] !== currentPlayerId) return draft;
