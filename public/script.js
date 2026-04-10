@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=19.27';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=19.27';
-import { getArchives } from './data-service.js?v=19.27';
-import { initDeckActionsModule } from './deck-actions.js?v=19.27';
-import { initRoomActionsModule } from './room-actions.js?v=19.27';
-import { initPlayerViewModule } from './player-view.js?v=19.27';
-import { initAdminModule } from './admin.js?v=19.27';
-import { initCalendarModule } from './calendar.js?v=19.27';
-import { initAuthModule } from './auth.js?v=19.27';
-import { initHubModule } from './hub.js?v=19.27';
-import { initProfileModule } from './profile.js?v=19.27';
+import { db, auth, functions } from './firebase-setup.js?v=19.28';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=19.28';
+import { getArchives } from './data-service.js?v=19.28';
+import { initDeckActionsModule } from './deck-actions.js?v=19.28';
+import { initRoomActionsModule } from './room-actions.js?v=19.28';
+import { initPlayerViewModule } from './player-view.js?v=19.28';
+import { initAdminModule } from './admin.js?v=19.28';
+import { initCalendarModule } from './calendar.js?v=19.28';
+import { initAuthModule } from './auth.js?v=19.28';
+import { initHubModule } from './hub.js?v=19.28';
+import { initProfileModule } from './profile.js?v=19.28';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
