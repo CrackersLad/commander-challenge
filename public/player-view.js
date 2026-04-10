@@ -321,15 +321,9 @@ export function initPlayerViewModule(utils, state) {
                 await new Promise(r => setTimeout(r, 550));
             }
         }
-        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=19.24'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=19.24'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=19.24'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
-=======
-    window.interactiveDraftAction = async (actionType, payload) => {
-        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=19.25'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=19.25'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=19.25'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
->>>>>>> 5d98c12f977fa3e788728fb0392290783e7b0fc3
+        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=19.26'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=19.26'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=19.26'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
     };
 
     window.openPlayerView = async () => {
