@@ -29,10 +29,16 @@ fs.writeFileSync(indexPath, indexHtml);
 
 console.log(`Updated version in index.html to ${newVersion}`);
 
-const scriptPath = path.join(__dirname, '..', 'public', 'script.js');
-if (fs.existsSync(scriptPath)) {
-    let scriptJs = fs.readFileSync(scriptPath, 'utf8');
-    scriptJs = scriptJs.replace(/(\.js\?v=)\d+\.\d+/g, `$1${newVersion}`);
-    fs.writeFileSync(scriptPath, scriptJs);
-    console.log(`Updated module imports in script.js to ${newVersion}`);
+const publicDir = path.join(__dirname, '..', 'public');
+if (fs.existsSync(publicDir)) {
+    const files = fs.readdirSync(publicDir).filter(f => f.endsWith('.js'));
+    for (const file of files) {
+        const filePath = path.join(publicDir, file);
+        let fileContent = fs.readFileSync(filePath, 'utf8');
+        if (fileContent.match(/(\.js\?v=)\d+\.\d+/)) {
+            fileContent = fileContent.replace(/(\.js\?v=)\d+\.\d+/g, `$1${newVersion}`);
+            fs.writeFileSync(filePath, fileContent);
+            console.log(`Updated module imports in ${file} to ${newVersion}`);
+        }
+    }
 }
