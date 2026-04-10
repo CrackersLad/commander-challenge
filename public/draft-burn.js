@@ -19,14 +19,15 @@ export function renderBurnDraft(activeDraft, container, s, currentPlayerId, play
     
     let passingToHtml = '';
     if (activeDraft.playerOrder && activeDraft.playerOrder.length > 1) {
+        const order = activeDraft.playerOrder;
+        const distance = currentPack.cards.length - 1;
+        const finalPlayerId = order[(order.indexOf(currentPlayerId) + distance) % order.length];
+        const finalPlayerName = players && players[finalPlayerId] ? players[finalPlayerId].name : "Unknown Player";
+        
         if (currentPack.cards.length > 2) {
-            const order = activeDraft.playerOrder;
-            const distance = currentPack.cards.length - 2;
-            const finalPlayerId = order[(order.indexOf(currentPlayerId) + distance) % order.length];
-            const finalPlayerName = players && players[finalPlayerId] ? players[finalPlayerId].name : "Unknown Player";
-            passingToHtml = `<p style="color:#aaa; font-size: 0.95rem; margin-top: 5px;">Drafted by: <strong style="color:var(--gold);">${sanitizeHTML(finalPlayerName)}</strong></p>`;
+            passingToHtml = `<p style="color:#aaa; font-size: 0.95rem; margin-top: 5px;">These cards contain the commander for <strong style="color:var(--gold);">${sanitizeHTML(finalPlayerName)}</strong></p>`;
         } else {
-            passingToHtml = `<p style="color:#2ecc71; font-size: 0.95rem; margin-top: 5px;"><strong>Final burn! You keep the remaining commander!</strong></p>`;
+            passingToHtml = `<p style="color:#2ecc71; font-size: 0.95rem; margin-top: 5px;"><strong>Final burn! These cards contain the commander for ${sanitizeHTML(finalPlayerName)}!</strong></p>`;
         }
     }
 
@@ -76,9 +77,11 @@ export async function handleBurnPick(payload, currentRoom, currentPlayerId, util
         });
 
         if (pack.cards.length === 1) {
+            const order = draft.playerOrder;
+            const nextPlayerId = order[(order.indexOf(currentPlayerId) + 1) % order.length];
             if (!draft.drafted) draft.drafted = {};
-            if (!draft.drafted[currentPlayerId]) draft.drafted[currentPlayerId] = [];
-            draft.drafted[currentPlayerId].push(pack.cards[0]);
+            if (!draft.drafted[nextPlayerId]) draft.drafted[nextPlayerId] = [];
+            draft.drafted[nextPlayerId].push(pack.cards[0]);
         } else if (pack.cards.length > 1) {
             const order = draft.playerOrder;
             const nextPlayerId = order[(order.indexOf(currentPlayerId) + 1) % order.length];
