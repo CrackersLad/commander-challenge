@@ -1,4 +1,4 @@
-import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=18.0';
+import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=19.24';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
