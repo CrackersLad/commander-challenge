@@ -2,7 +2,6 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onValueUpdated, onValueCreated, onValueDeleted, onValueWritten } = require("firebase-functions/v2/database");
 const admin = require("firebase-admin");
-const fetch = require("node-fetch");
 
 admin.initializeApp({
     databaseURL: "https://commander-challenge-default-rtdb.europe-west1.firebasedatabase.app"
@@ -24,9 +23,6 @@ function extractAll(obj, results = []) {
 
 async function performArchiveSync() {
     try {
-        console.log("--- FINAL FIX: PURGING DATA ---");
-        await admin.database().ref('global_archives').remove();
-        
         let edhrecDataMap = new Map();
 
         for (let i = 0; i <= 30; i++) {
@@ -287,7 +283,9 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         archivesFetchTime = now;
     }
     const archives = cachedArchives;
-    const { budget, currency, noPartner, minRank, maxRank, numOptions } = settings;
+    let { budget, currency, noPartner, minRank, maxRank, numOptions } = settings;
+
+    if (settings.draftFormat === 'burn_draft' && numOptions < 2) numOptions = 2; // Burn drafts mathematically require at least 2 cards
 
     const pool = archives.filter(card => {
         const price = currency === 'eur' ? card.prices.eur : card.prices.usd;
@@ -390,14 +388,12 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         const queues = {};
         const drafted = {};
         playerIds.forEach((id, i) => {
-            if (numOptions === 1) { drafted[id] = [ packs[i].cards[0] ]; queues[id] = []; } 
-            else { queues[id] = [ packs[i] ]; drafted[id] = []; }
+            queues[id] = [ packs[i] ]; drafted[id] = [];
         });
 
         activeDraftPayload.queues = queues;
         activeDraftPayload.drafted = drafted;
         activeDraftPayload.draftGoal = 1;
-        if (numOptions === 1) activeDraftPayload.isComplete = true;
     }
 
     await db.ref(`rooms/${roomId}`).update({ settings, activeDraft: activeDraftPayload });

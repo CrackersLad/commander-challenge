@@ -160,6 +160,13 @@ function updateSettingsVisibility() {
     if(numOptionsLabel) numOptionsLabel.innerText = isInteractive ? "Pack Size (1-5):" : "Options (1-5):";
     
     if (randomSettingsEl) randomSettingsEl.style.display = (!isInteractive && isManual) ? 'none' : 'block';
+
+    const isBurn = draftFormatEl && draftFormatEl.value === 'burn_draft';
+    const numOptsEl = document.getElementById('settingNumOptions');
+    if (numOptsEl) {
+        numOptsEl.options[0].disabled = isBurn; // Disable '1' option
+        if (isBurn && numOptsEl.value === '1') numOptsEl.value = '2'; // Force to 2 if 1 is currently selected
+    }
 }
 if (draftFormatEl) draftFormatEl.addEventListener('change', updateSettingsVisibility);
 if (selectionModeEl) selectionModeEl.addEventListener('change', updateSettingsVisibility);
@@ -527,7 +534,11 @@ document.getElementById('createBtn').onclick = async () => {
     const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
     const pId = currentPlayerId; 
 
-    await set(ref(db, `rooms/${roomCode}/settings`), { budget: 10, currency: 'eur', deckBudget: 50, includeCmdr: true, maxRank: 1, minRank: 500, noPartner: true, numOptions: 3, maxRerolls: 1, selectionMode: 'both', draftFormat: 'independent', maxBracket: 5, status: 'waiting', createdAt: Date.now() });
+    const savedSettingsStr = localStorage.getItem('hostDefaultSettings');
+    const defaultSettings = savedSettingsStr ? JSON.parse(savedSettingsStr) : { budget: 10, currency: 'eur', deckBudget: 50, includeCmdr: true, maxRank: 1, minRank: 500, noPartner: true, numOptions: 3, maxRerolls: 1, selectionMode: 'both', draftFormat: 'independent', maxBracket: 5 };
+    defaultSettings.status = 'waiting';
+    defaultSettings.createdAt = Date.now();
+    await set(ref(db, `rooms/${roomCode}/settings`), defaultSettings);
     
     const hostPayload = { name: safeName, isHost: true, avatar: currentPlayerAvatar || null };
     if (auth.currentUser) hostPayload.uid = auth.currentUser.uid;
@@ -646,6 +657,30 @@ function initLobby() {
                 }
             }
         });
+
+        // Sync UI inputs with the actual database settings so they don't reset on page refresh
+        get(ref(db, `rooms/${currentRoom}/settings`)).then(snap => {
+            const s = snap.val();
+            if (s) {
+                if (document.getElementById('settingDraftFormat')) document.getElementById('settingDraftFormat').value = s.draftFormat || 'independent';
+                if (document.getElementById('settingSelectionMode')) document.getElementById('settingSelectionMode').value = s.selectionMode || 'both';
+                if (document.getElementById('settingCurrency')) document.getElementById('settingCurrency').value = s.currency || 'eur';
+                if (document.getElementById('settingBudget')) document.getElementById('settingBudget').value = s.budget || 10;
+                if (document.getElementById('settingDeckBudget')) document.getElementById('settingDeckBudget').value = s.deckBudget || 50;
+                if (document.getElementById('settingIncludeCmdr')) document.getElementById('settingIncludeCmdr').checked = s.includeCmdr !== false;
+                if (document.getElementById('settingMaxBracket')) document.getElementById('settingMaxBracket').value = s.maxBracket || 5;
+                if (document.getElementById('settingMin')) document.getElementById('settingMin').value = s.minRank || 1;
+                if (document.getElementById('settingMax')) document.getElementById('settingMax').value = s.maxRank || 500;
+                if (document.getElementById('settingNumOptions')) document.getElementById('settingNumOptions').value = s.numOptions || 3;
+                if (document.getElementById('settingMaxRerolls')) document.getElementById('settingMaxRerolls').value = s.maxRerolls || 1;
+                if (document.getElementById('settingNoPartner')) document.getElementById('settingNoPartner').checked = s.noPartner || false;
+                if (document.getElementById('settingBlindDraft')) document.getElementById('settingBlindDraft').checked = s.blindDraft || false;
+                if (document.getElementById('toggleCmdrBudget')) document.getElementById('toggleCmdrBudget').checked = s.budget > 0;
+                if (document.getElementById('toggleDeckBudget')) document.getElementById('toggleDeckBudget').checked = s.deckBudget > 0;
+                if (document.getElementById('toggleRank')) document.getElementById('toggleRank').checked = (s.minRank > 0 || s.maxRank > 0);
+                updateSettingsVisibility(); ['toggleCmdrBudget', 'toggleDeckBudget', 'toggleRank'].forEach(id => { const el = document.getElementById(id); if (el) el.dispatchEvent(new Event('change')); });
+            }
+        });
     } else {
         document.getElementById('hostSettingsUI').style.display = 'none';
         document.getElementById('waitingMessage').style.display = 'block';
@@ -755,6 +790,7 @@ document.getElementById('startDraftBtn').onclick = async () => {
     const settingsPayload = {
         budget: b, currency: c, deckBudget: dbudget, includeCmdr: incCmdr, minRank: minR, maxRank: maxR, noPartner: noPartner, numOptions: numOpts, maxRerolls: maxRr, selectionMode: selMode, blindDraft: blind, draftFormat: draftFormat, maxBracket: maxBracket, status: 'rolling'
     };
+    localStorage.setItem('hostDefaultSettings', JSON.stringify(settingsPayload));
     await set(ref(db, `webhooks/${currentRoom}/url`), webhookUrl || null);
     
     try {
