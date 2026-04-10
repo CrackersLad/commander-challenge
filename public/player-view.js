@@ -1,5 +1,5 @@
-import { db, functions } from './firebase-setup.js?v=19.24';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=19.24';
+import { db, functions } from './firebase-setup.js?v=19.25';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=19.25';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -216,9 +216,9 @@ export function initPlayerViewModule(utils, state) {
 
     async function renderInteractiveDraft(activeDraft, container, s, players) {
         if (activeDraft.isComplete) { container.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; margin-top:50px;"><h2 style="color:var(--gold); font-family:Cinzel;">Finalizing Draft...</h2><span class="mana-spinner"></span></div>`; return; }
-        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=19.24'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=19.24'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=19.24'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
+        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=19.25'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=19.25'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=19.25'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
     }
 
     function renderFinalSelection(list, s) {
@@ -306,6 +306,7 @@ export function initPlayerViewModule(utils, state) {
 
     window.flipCard3D = (cardId, event) => { if(event) { event.preventDefault(); event.stopPropagation(); } playSound('sfx-click'); const card = document.getElementById(cardId); if (card) card.classList.toggle('is-flipped'); };
 
+<<<<<<< HEAD
     window.interactiveDraftAction = async (actionType, payload, event) => {
         if (event && event.target) {
             const cardEl = event.target.closest('.option-card');
@@ -324,6 +325,12 @@ export function initPlayerViewModule(utils, state) {
         if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=19.24'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
         else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=19.24'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
         else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=19.24'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
+=======
+    window.interactiveDraftAction = async (actionType, payload) => {
+        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=19.25'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=19.25'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=19.25'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
+>>>>>>> 5d98c12f977fa3e788728fb0392290783e7b0fc3
     };
 
     window.openPlayerView = async () => {
