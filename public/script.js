@@ -9,7 +9,7 @@ import { initCalendarModule } from './calendar.js?v=19.19';
 import { initAuthModule } from './auth.js?v=19.19';
 import { initHubModule } from './hub.js?v=19.19';
 import { initProfileModule } from './profile.js?v=19.19';
-import { ref, set, get, onValue, update, remove, increment, runTransaction } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 // Optimize for mobile/WebView: Ensure viewport is set correctly
@@ -109,6 +109,17 @@ onValue(ref(db, 'stats'), (snap) => {
             parent = parent.parentElement;
         }
     }
+});
+
+window.establishPresence = () => {
+    if (currentRoom && currentPlayerId) {
+        const myStatusRef = ref(db, `rooms/${currentRoom}/players/${currentPlayerId}/online`);
+        onDisconnect(myStatusRef).set(false).then(() => { set(myStatusRef, true); });
+    }
+};
+
+onValue(ref(db, '.info/connected'), (snap) => {
+    if (snap.val() === true) window.establishPresence();
 });
 
 const sfxToggle = document.getElementById('sfxToggle');
@@ -604,6 +615,7 @@ document.getElementById('joinBtn').onclick = async () => {
 };
 
 function initLobby() {
+    window.establishPresence();
     switchView('view-lobby');
     document.getElementById('displayRoomCode').innerText = currentRoom;
 
@@ -678,7 +690,8 @@ function initLobby() {
                 let hostIcon = (p.avatar && p.isHost) ? ' 👑' : '';
                 let trophies = winCounts[id] ? ` <span title="${winCounts[id]} Wins" style="font-size:0.9rem;">${'🏆'.repeat(winCounts[id])}</span>` : '';
                 let guestTag = p.uid ? '' : ' <span style="color:#888; font-size:0.8rem; font-family:\'Segoe UI\';">(Guest)</span>';
-                listEl.innerHTML += `<li>${avatarHtml} ${safeName}${hostIcon}${trophies}${guestTag}</li>`;
+                let presenceDot = `<span class="presence-dot ${p.online ? 'presence-online' : 'presence-offline'}" title="${p.online ? 'Online' : 'Offline'}"></span>`;
+                listEl.innerHTML += `<li>${avatarHtml} ${presenceDot}${safeName}${hostIcon}${trophies}${guestTag}</li>`;
             });
         }
 
@@ -805,6 +818,7 @@ function attachScrollListener(containerId, leftId, rightId) {
 }
 
 function initDashboard() {
+    window.establishPresence();
     switchView('view-dashboard');
     
     const dashRoomHeader = document.getElementById('dashRoomHeader');
@@ -1039,7 +1053,8 @@ function initDashboard() {
             else if (isSaltiest) highlightClass = 'saltiest-deck';
             else if (isMostExpensive) highlightClass = 'most-expensive-deck';
 
-            let html = `<div class="card ${highlightClass}"><div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">${avatarImg}<h3 style="margin:0; display:flex; align-items:center;">${safeName}${hostIcon}${trophies}${guestTag}</h3></div>${statusHtml}`;
+            let presenceDot = `<span class="presence-dot ${pData.online ? 'presence-online' : 'presence-offline'}" title="${pData.online ? 'Online' : 'Offline'}"></span>`;
+            let html = `<div class="card ${highlightClass}"><div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">${avatarImg}<h3 style="margin:0; display:flex; align-items:center;">${presenceDot}${safeName}${hostIcon}${trophies}${guestTag}</h3></div>${statusHtml}`;
 
             if (id === currentPlayerId && !safeSelected) {
                 let btnText = "Begin Rolling";
