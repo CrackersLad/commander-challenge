@@ -1,23 +1,41 @@
 import { db } from './firebase-setup.js?v=19.10';
 import { ref, runTransaction, update, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
-export function renderAsyncDraft(activeDraft, container, s, currentPlayerId, utils) {
+export function renderAsyncDraft(activeDraft, container, s, currentPlayerId, players, utils) {
     const { sanitizeHTML } = utils;
     const myQueue = activeDraft.queues ? activeDraft.queues[currentPlayerId] : [];
     const myDrafted = activeDraft.drafted ? activeDraft.drafted[currentPlayerId] : [];
 
-    let html = `<div style="text-align:center; margin-bottom:20px; width: 100%;">
-        <h2 style="color:var(--gold); font-family:Cinzel;">Asynchronous Booster Draft</h2>
-        <p style="color:#ccc;">Drafted: ${myDrafted ? myDrafted.length : 0} / ${activeDraft.draftGoal}</p>
-    </div>`;
-
     if (!myQueue || myQueue.length === 0) {
+        let html = `<div style="text-align:center; margin-bottom:20px; width: 100%;">
+            <h2 style="color:var(--gold); font-family:Cinzel;">Asynchronous Booster Draft</h2>
+            <p style="color:#ccc;">Drafted: ${myDrafted ? myDrafted.length : 0} / ${activeDraft.draftGoal}</p>
+        </div>`;
         html += `<div style="text-align:center; color:#aaa; margin-top:40px; width:100%;"><span class="mana-spinner"></span> Waiting for the next pack...</div>`;
         container.innerHTML = html;
         return;
     }
 
     const currentPack = myQueue[0];
+    
+    let passingToHtml = '';
+    if (activeDraft.playerOrder && activeDraft.playerOrder.length > 1) {
+        if (currentPack.cards.length > 1) {
+            const order = activeDraft.playerOrder;
+            const nextPlayerId = order[(order.indexOf(currentPlayerId) + 1) % order.length];
+            const nextPlayerName = players && players[nextPlayerId] ? players[nextPlayerId].name : "Next Player";
+            passingToHtml = `<p style="color:#aaa; font-size: 0.95rem; margin-top: 5px;">Passes next to: <strong style="color:var(--gold);">${sanitizeHTML(nextPlayerName)}</strong></p>`;
+        } else {
+            passingToHtml = `<p style="color:#2ecc71; font-size: 0.95rem; margin-top: 5px;"><strong>Final pick of this pack!</strong></p>`;
+        }
+    }
+
+    let html = `<div style="text-align:center; margin-bottom:20px; width: 100%;">
+        <h2 style="color:var(--gold); font-family:Cinzel;">Asynchronous Booster Draft</h2>
+        <p style="color:#ccc; margin-bottom: 5px;">Drafted: ${myDrafted ? myDrafted.length : 0} / ${activeDraft.draftGoal}</p>
+        ${passingToHtml}
+    </div>`;
+
     html += `<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:20px; width:100%;">`;
     currentPack.cards.forEach((card) => {
         let img = card.image_uris?.normal || card.image1;

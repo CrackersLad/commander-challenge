@@ -216,9 +216,9 @@ export function initPlayerViewModule(utils, state) {
 
     async function renderInteractiveDraft(activeDraft, container, s, players) {
         if (activeDraft.isComplete) { container.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; margin-top:50px;"><h2 style="color:var(--gold); font-family:Cinzel;">Finalizing Draft...</h2><span class="mana-spinner"></span></div>`; return; }
-        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=19.10'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, utils); } 
-        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=19.10'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=19.10'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, utils); }
+        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=19.11'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=19.11'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=19.11'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
     }
 
     function renderFinalSelection(list, s) {

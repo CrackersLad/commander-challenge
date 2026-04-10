@@ -1,22 +1,40 @@
 import { db } from './firebase-setup.js?v=19.10';
 import { ref, runTransaction, update, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
-export function renderBurnDraft(activeDraft, container, s, currentPlayerId, utils) {
+export function renderBurnDraft(activeDraft, container, s, currentPlayerId, players, utils) {
     const { sanitizeHTML } = utils;
     const myQueue = activeDraft.queues ? activeDraft.queues[currentPlayerId] : [];
 
-    let html = `<div style="text-align:center; margin-bottom:20px; width: 100%;">
-        <h2 style="color:var(--gold); font-family:Cinzel;">Blind Elimination Draft</h2>
-        <p style="color:#ff4444; font-weight:bold;">🔥 BURN a commander to eliminate it from the pack! 🔥</p>
-    </div>`;
-
     if (!myQueue || myQueue.length === 0) {
+        let html = `<div style="text-align:center; margin-bottom:20px; width: 100%;">
+            <h2 style="color:var(--gold); font-family:Cinzel;">Blind Elimination Draft</h2>
+            <p style="color:#ff4444; font-weight:bold;">🔥 BURN a commander to eliminate it from the pack! 🔥</p>
+        </div>`;
         html += `<div style="text-align:center; color:#aaa; margin-top:40px; width:100%;"><span class="mana-spinner"></span> Waiting for the next pack...</div>`;
         container.innerHTML = html;
         return;
     }
 
     const currentPack = myQueue[0];
+    
+    let passingToHtml = '';
+    if (activeDraft.playerOrder && activeDraft.playerOrder.length > 1) {
+        if (currentPack.cards.length > 2) {
+            const order = activeDraft.playerOrder;
+            const nextPlayerId = order[(order.indexOf(currentPlayerId) + 1) % order.length];
+            const nextPlayerName = players && players[nextPlayerId] ? players[nextPlayerId].name : "Next Player";
+            passingToHtml = `<p style="color:#aaa; font-size: 0.95rem; margin-top: 5px;">Passes next to: <strong style="color:var(--gold);">${sanitizeHTML(nextPlayerName)}</strong></p>`;
+        } else {
+            passingToHtml = `<p style="color:#2ecc71; font-size: 0.95rem; margin-top: 5px;"><strong>Final burn! You keep the remaining commander!</strong></p>`;
+        }
+    }
+
+    let html = `<div style="text-align:center; margin-bottom:20px; width: 100%;">
+        <h2 style="color:var(--gold); font-family:Cinzel;">Blind Elimination Draft</h2>
+        <p style="color:#ff4444; font-weight:bold; margin-bottom: 5px;">🔥 BURN a commander to eliminate it from the pack! 🔥</p>
+        ${passingToHtml}
+    </div>`;
+
     html += `<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:20px; width:100%;">`;
     currentPack.cards.forEach((card) => {
         let img = card.image_uris?.normal || card.image1;
