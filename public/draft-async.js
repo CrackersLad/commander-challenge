@@ -40,10 +40,15 @@ export function renderAsyncDraft(activeDraft, container, s, currentPlayerId, pla
     currentPack.cards.forEach((card) => {
         let img = card.image_uris?.normal || card.image1;
         const safeName = sanitizeHTML(card.name);
+        const edhrecSlug = safeName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
         html += `
-            <div class="option-card revealed" style="width:220px; padding:15px; cursor:pointer;" onclick="window.interactiveDraftAction('async_pick', { packId: '${currentPack.id}', cardName: '${safeName}' })">
-                <img src="${sanitizeHTML(img)}" class="commander-img" style="margin-top:0;" loading="lazy">
-                <button class="select-btn" style="width:100%; margin-top:10px; font-size:0.8rem;">Draft ${safeName}</button>
+            <div class="option-card revealed" style="width:220px; padding:15px;">
+                <a href="${edhrecLink}" target="_blank" title="View on EDHREC">
+                    <img src="${sanitizeHTML(img)}" class="commander-img" style="margin-top:0;" loading="lazy">
+                </a>
+                <p class="rank-tag" style="color:var(--gold); font-weight:bold; font-size: 0.95rem; margin: 10px 0 5px 0;">EDHREC Rank: #${card.display_rank || 'Unranked'}</p>
+                <button class="select-btn" style="width:100%; margin-top:5px; font-size:0.8rem;" onclick="window.interactiveDraftAction('async_pick', { packId: '${currentPack.id}', cardName: '${safeName}' })">Draft ${safeName}</button>
             </div>
         `;
     });

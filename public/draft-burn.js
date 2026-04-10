@@ -39,10 +39,15 @@ export function renderBurnDraft(activeDraft, container, s, currentPlayerId, play
     currentPack.cards.forEach((card) => {
         let img = card.image_uris?.normal || card.image1;
         const safeName = sanitizeHTML(card.name);
+        const edhrecSlug = safeName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
         html += `
             <div class="option-card revealed" style="width:220px; padding:15px;">
-                <img src="${sanitizeHTML(img)}" class="commander-img" style="margin-top:0;" loading="lazy">
-                <button class="select-btn" style="width:100%; margin-top:10px; font-size:0.8rem; background: transparent; border: 1px solid #ff4444; color: #ff9999;" onclick="window.interactiveDraftAction('burn_pick', { packId: '${currentPack.id}', cardName: '${safeName}' })">🔥 Burn ${safeName}</button>
+                <a href="${edhrecLink}" target="_blank" title="View on EDHREC">
+                    <img src="${sanitizeHTML(img)}" class="commander-img" style="margin-top:0;" loading="lazy">
+                </a>
+                <p class="rank-tag" style="color:var(--gold); font-weight:bold; font-size: 0.95rem; margin: 10px 0 5px 0;">EDHREC Rank: #${card.display_rank || 'Unranked'}</p>
+                <button class="select-btn" style="width:100%; margin-top:5px; font-size:0.8rem; background: transparent; border: 1px solid #ff4444; color: #ff9999;" onclick="window.interactiveDraftAction('burn_pick', { packId: '${currentPack.id}', cardName: '${safeName}' })">🔥 Burn ${safeName}</button>
             </div>
         `;
     });
