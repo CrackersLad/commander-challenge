@@ -454,6 +454,16 @@
         </div>
     </div>
 
+    <div id="burnLogModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 400px; width: 95%;">
+            <h2 style="color:#ff4444; margin-top:0;">Burn Log</h2>
+            <div id="burnLogContent" style="color: #ccc; font-size: 0.95rem; text-align: left; margin-top: 15px; max-height: 60vh; overflow-y: auto;">
+                Loading...
+            </div>
+            <button class="btn-cancel" onclick="document.getElementById('burnLogModal').classList.remove('show'); setTimeout(()=>document.getElementById('burnLogModal').style.display='none', 300);" style="margin-top:20px; width:100%;">Close</button>
+        </div>
+    </div>
+
     <div id="rulesModal" class="modal-overlay">
         <div class="modal-content" style="max-width: 400px; width: 95%; text-align: left;">
             <h2 style="text-align:center; color:var(--gold); margin-top:0;">Challenge Rules</h2>
@@ -711,6 +721,7 @@
             <div class="dashboard-actions" style="align-items: center;">
                 <button class="secondary-btn" onclick="window.copyMatchSummary()" style="padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold;">📋 Summary</button>
                 <button class="secondary-btn" onclick="window.openLeaderboard()" style="padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold; border-color:#e67e22; color:#e67e22;">📊 Leaderboard</button>
+                <button id="burnLogBtn" class="secondary-btn" onclick="window.openBurnLog()" style="display:none; padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold; border-color:#ff4444; color:#ff9999;">🔥 Burn Log</button>
                 <button class="secondary-btn" onclick="window.openRulesModal()" style="padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold; border-color:#6a0dad; color:#e0b0ff;">📜 Rules</button>
                 <button class="secondary-btn" onclick="window.openAvailability()" style="padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold; border-color:#2ecc71; color:#2ecc71;">📅 Availability</button>
                 <div class="dropdown">

@@ -21,9 +21,10 @@ export function renderBurnDraft(activeDraft, container, s, currentPlayerId, play
     if (activeDraft.playerOrder && activeDraft.playerOrder.length > 1) {
         if (currentPack.cards.length > 2) {
             const order = activeDraft.playerOrder;
-            const nextPlayerId = order[(order.indexOf(currentPlayerId) + 1) % order.length];
-            const nextPlayerName = players && players[nextPlayerId] ? players[nextPlayerId].name : "Next Player";
-            passingToHtml = `<p style="color:#aaa; font-size: 0.95rem; margin-top: 5px;">Passes next to: <strong style="color:var(--gold);">${sanitizeHTML(nextPlayerName)}</strong></p>`;
+            const distance = currentPack.cards.length - 2;
+            const finalPlayerId = order[(order.indexOf(currentPlayerId) + distance) % order.length];
+            const finalPlayerName = players && players[finalPlayerId] ? players[finalPlayerId].name : "Unknown Player";
+            passingToHtml = `<p style="color:#aaa; font-size: 0.95rem; margin-top: 5px;">Drafted by: <strong style="color:var(--gold);">${sanitizeHTML(finalPlayerName)}</strong></p>`;
         } else {
             passingToHtml = `<p style="color:#2ecc71; font-size: 0.95rem; margin-top: 5px;"><strong>Final burn! You keep the remaining commander!</strong></p>`;
         }
@@ -69,7 +70,13 @@ export async function handleBurnPick(payload, currentRoom, currentPlayerId, util
         const cardIndex = pack.cards.findIndex(c => c.name === payload.cardName);
         if (cardIndex === -1) return draft;
 
-        pack.cards.splice(cardIndex, 1); // Burn it
+        const burnedCard = pack.cards.splice(cardIndex, 1)[0]; // Burn it
+
+        if (!draft.burnLog) draft.burnLog = [];
+        draft.burnLog.push({
+            playerId: currentPlayerId,
+            cardName: burnedCard.name
+        });
 
         if (pack.cards.length === 1) {
             if (!draft.drafted) draft.drafted = {};
@@ -94,6 +101,7 @@ export async function handleBurnPick(payload, currentRoom, currentPlayerId, util
     if (snap.val()?.isComplete) {
         let updates = {};
         snap.val().playerOrder.forEach(pid => updates[`rooms/${currentRoom}/players/${pid}/generated`] = snap.val().drafted[pid]);
+        updates[`rooms/${currentRoom}/activeDraft`] = null; // Clear the draft session
         await update(ref(db), updates);
     }
 }

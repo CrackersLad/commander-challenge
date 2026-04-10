@@ -1001,6 +1001,15 @@ function initDashboard() {
             if (h.winnerId) winCounts[h.winnerId] = (winCounts[h.winnerId] || 0) + 1;
         });
 
+        const burnLogBtn = document.getElementById('burnLogBtn');
+        if (burnLogBtn) {
+            if (activeDraft && activeDraft.format === 'burn_draft' && activeDraft.burnLog) {
+                burnLogBtn.style.display = 'inline-block';
+            } else {
+                burnLogBtn.style.display = 'none';
+            }
+        }
+
         // Smart Sort: Action Required First -> Host -> Alphabetical
         const getStatusWeight = (p) => {
             if (!p.selected) return 0; // Drafting / Waiting

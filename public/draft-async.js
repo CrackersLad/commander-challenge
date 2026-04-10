@@ -94,6 +94,7 @@ export async function handleAsyncPick(payload, currentRoom, currentPlayerId, uti
     if (snap.val()?.isComplete) {
         let updates = {};
         snap.val().playerOrder.forEach(pid => updates[`rooms/${currentRoom}/players/${pid}/generated`] = snap.val().drafted[pid]);
+        updates[`rooms/${currentRoom}/activeDraft`] = null; // Clear the draft session
         await update(ref(db), updates);
     }
 }

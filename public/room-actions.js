@@ -193,4 +193,29 @@ export function initRoomActionsModule(utils, state) {
         }
         contentDiv.innerHTML = html;
     };
+
+    window.openBurnLog = async () => {
+        playSound('sfx-click');
+        const modal = document.getElementById('burnLogModal');
+        const contentDiv = document.getElementById('burnLogContent');
+        modal.style.display = 'flex'; setTimeout(() => modal.classList.add('show'), 10);
+        
+        const snap = await get(ref(db, `rooms/${state.currentRoom}`));
+        const roomData = snap.val() || {};
+        const burnLog = roomData.activeDraft?.burnLog || [];
+        const players = roomData.players || {};
+
+        if (burnLog.length === 0) {
+            contentDiv.innerHTML = '<p style="text-align:center; color:#aaa;">No commanders were burned.</p>';
+            return;
+        }
+
+        let html = `<ul style="list-style:none; padding:0; margin:0; text-align:left;">`;
+        burnLog.forEach(log => {
+            const pName = players[log.playerId]?.name || "Unknown Player";
+            html += `<li style="padding:8px; border-bottom:1px solid #333; color:#ccc;">🔥 <strong style="color:var(--gold);">${sanitizeHTML(pName)}</strong> burned <strong style="color:#ff9999;">${sanitizeHTML(log.cardName)}</strong></li>`;
+        });
+        html += `</ul>`;
+        contentDiv.innerHTML = html;
+    };
 }
