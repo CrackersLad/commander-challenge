@@ -299,7 +299,7 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
     let requiredPool = N * numOptions;
     if (settings.draftFormat === 'snake_draft') {
         requiredPool = settings.snakePoolSize || 15;
-        if (requiredPool < N) requiredPool = N; // Ensure at least 1 card per player
+        if (requiredPool < N * numOptions) requiredPool = N * numOptions; // Ensure pool supports requested picks
     }
 
     if (pool.length < requiredPool) {
@@ -348,7 +348,7 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         const poolCards = [];
         
         let poolSize = settings.snakePoolSize || 15;
-        if (poolSize < N) poolSize = N;
+        if (poolSize < N * numOptions) poolSize = N * numOptions;
         if (poolSize > 30) poolSize = 30;
 
         for (let i = 0; i < poolSize; i++) {
@@ -364,7 +364,7 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         }
 
         const pickOrder = [];
-        const rounds = Math.floor(poolSize / N);
+        const rounds = numOptions;
         for (let round = 0; round < rounds; round++) {
             let roundOrder = [...playerIds];
             if (round % 2 !== 0) roundOrder.reverse();

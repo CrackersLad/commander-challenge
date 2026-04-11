@@ -8,9 +8,28 @@ export function renderSnakeDraft(activeDraft, container, s, currentPlayerId, pla
     const isMyTurn = pickOrder[turnIndex] === currentPlayerId;
     const currentPickerName = players[pickOrder[turnIndex]]?.name || "Someone";
 
+    const myDrafted = activeDraft.drafted && activeDraft.drafted[currentPlayerId] ? activeDraft.drafted[currentPlayerId] : [];
+    let draftedHtml = '';
+    if (myDrafted.length > 0) {
+        draftedHtml = `
+            <details style="margin: 0 auto 20px auto; background: #151515; padding: 10px 15px; border-radius: 8px; border: 1px solid #333; text-align: left; max-width: 600px;">
+                <summary style="color:var(--gold); cursor:pointer; font-family:'Segoe UI'; outline:none; font-weight:bold;">Your Drafted Commanders (${myDrafted.length}/${activeDraft.draftGoal})</summary>
+                <div style="display:flex; gap:10px; overflow-x:auto; padding-top:15px; padding-bottom:5px;">
+                    ${myDrafted.map(c => `
+                        <div style="flex-shrink:0; text-align:center; width:90px;">
+                            <img src="${sanitizeHTML(c.image_uris?.normal || c.image1)}" style="width:100%; border-radius:4px; border:1px solid #555;" title="${sanitizeHTML(c.name)}">
+                            <div style="font-size:0.7rem; color:#ccc; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${sanitizeHTML(c.name)}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </details>
+        `;
+    }
+
     let html = `<div style="text-align:center; margin-bottom:20px; width: 100%;">
         <h2 style="color:var(--gold); font-family:Cinzel;">Face-Up Snake Draft</h2>
-        <h3 style="color:${isMyTurn ? '#2ecc71' : '#aaa'};">Round ${Math.floor(turnIndex / activeDraft.playerOrder.length) + 1} - ${isMyTurn ? 'Your Turn to Pick!' : `Waiting on ${sanitizeHTML(currentPickerName)}...`}</h3>
+        <h3 style="color:${isMyTurn ? '#2ecc71' : '#aaa'}; margin-bottom:15px;">Round ${Math.floor(turnIndex / activeDraft.playerOrder.length) + 1} - ${isMyTurn ? 'Your Turn to Pick!' : `Waiting on ${sanitizeHTML(currentPickerName)}...`}</h3>
+        ${draftedHtml}
     </div>`;
 
     html += `<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:15px; width:100%;">`;

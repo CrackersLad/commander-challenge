@@ -163,8 +163,9 @@ function updateSettingsVisibility() {
     const isSnake = draftFormatEl && draftFormatEl.value === 'snake_draft';
 
     if (isSnake) {
-        if (numOptsContainer) numOptsContainer.style.display = 'none';
+        if (numOptsContainer) numOptsContainer.style.display = 'flex';
         if (snakePoolContainer) snakePoolContainer.style.display = 'flex';
+        if(numOptionsLabel) numOptionsLabel.innerText = "Picks per Player (1-5):";
     } else {
         if (numOptsContainer) numOptsContainer.style.display = 'flex';
         if (snakePoolContainer) snakePoolContainer.style.display = 'none';
