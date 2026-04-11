@@ -664,6 +664,25 @@ function syncSettingsToUI(s) {
         const el = document.getElementById(id); 
         if (el) el.dispatchEvent(new Event('change')); 
     });
+
+    if (!isHost) {
+        getArchives().then(archives => {
+            if (archives) {
+                const pool = archives.filter(card => {
+                    const price = s.currency === 'eur' ? card.prices.eur : card.prices.usd;
+                    if (s.budget !== 0 && price >= s.budget) return false;
+                    if (s.noPartner && card.isPartner) return false;
+                    if (s.maxRank !== 0 && card.rank_edhrec < s.maxRank) return false;
+                    if (s.minRank !== 0 && card.rank_edhrec > s.minRank) return false;
+                    return true;
+                });
+                const counterEl = document.getElementById('livePoolCounter');
+                if (counterEl) {
+                    counterEl.innerHTML = `Valid Commanders in Archives: <strong style="color:var(--gold);">${pool.length}</strong>`;
+                }
+            }
+        });
+    }
 }
 
 function initLobby() {
@@ -708,9 +727,23 @@ function initLobby() {
         get(ref(db, `rooms/${currentRoom}/settings`)).then(snap => {
             syncSettingsToUI(snap.val());
         });
+
+        const resetSettingsBtn = document.getElementById('resetSettingsBtn');
+        if (resetSettingsBtn) {
+            resetSettingsBtn.style.display = 'block';
+            resetSettingsBtn.onclick = () => {
+                playSound('sfx-click');
+                const defaultS = { budget: 10, currency: 'eur', deckBudget: 50, includeCmdr: true, maxRank: 1, minRank: 500, noPartner: true, numOptions: 3, snakePoolSize: 15, maxRerolls: 1, selectionMode: 'both', blindDraft: false, draftFormat: 'independent', maxBracket: 5 };
+                syncSettingsToUI(defaultS);
+                showToast("Settings reset to defaults.");
+                setTimeout(autoSaveSettings, 100);
+            };
+        }
     } else {
         document.getElementById('startDraftBtn').style.display = 'none';
         document.getElementById('waitingMessage').style.display = 'block';
+        const resetSettingsBtn = document.getElementById('resetSettingsBtn');
+        if (resetSettingsBtn) resetSettingsBtn.style.display = 'none';
         document.querySelectorAll('#hostSettingsUI input, #hostSettingsUI select').forEach(el => el.disabled = true);
     }
 
@@ -823,6 +856,27 @@ function autoSaveSettings() {
         };
         localStorage.setItem('hostDefaultSettings', JSON.stringify(settingsPayload));
         update(ref(db, `rooms/${currentRoom}/settings`), settingsPayload);
+
+        // QoL: Live Commander Pool Counter
+        if (isHost) {
+            getArchives().then(archives => {
+                if (archives) {
+                    const pool = archives.filter(card => {
+                        const price = c === 'eur' ? card.prices.eur : card.prices.usd;
+                        if (b !== 0 && price >= b) return false;
+                        if (noPartner && card.isPartner) return false;
+                        if (maxR !== 0 && card.rank_edhrec < maxR) return false;
+                        if (minR !== 0 && card.rank_edhrec > minR) return false;
+                        return true;
+                    });
+                    const counterEl = document.getElementById('livePoolCounter');
+                    if (counterEl) {
+                        counterEl.innerHTML = `Valid Commanders in Archives: <strong style="color:var(--gold);">${pool.length}</strong>`;
+                        if (pool.length < 15) counterEl.innerHTML += `<br><span style="color:#ff4444;">Warning: Pool may be too small for drafts!</span>`;
+                    }
+                }
+            });
+        }
     }, 500);
 }
 
