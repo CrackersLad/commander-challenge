@@ -616,7 +616,42 @@
                         </select>
                     </div>
 
-                    <label class="toggle-label" style="margin-top: 15px;">
+                    <div id="randomSettingsContainer" style="border-top: 1px solid #333; padding-top: 15px; margin-top: 15px;">
+                        <div class="settings-grid">
+                            <div class="settings-input-group">
+                                <label id="numOptionsLabel" style="color:#ccc;"># Cards to Select From (1-5):</label> 
+                                <select id="settingNumOptions">
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3" selected>3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                </select>
+                            </div>
+                            <div id="snakePoolContainer" class="settings-input-group" style="display:none;">
+                                <label style="display:flex; justify-content:space-between; color:#ccc;">Total Pool Size: <span class="tooltip">?<span class="tooltiptext">The total number of face-up cards to draft from. (Max 30)</span></span></label>
+                                <input type="number" id="settingSnakePoolSize" value="15" min="2" max="30">
+                            </div>
+                            <div id="rerollsContainer" class="settings-input-group">
+                                <label style="display:flex; justify-content:space-between; color:#ccc;">Slot Rerolls: <span class="tooltip">?<span class="tooltiptext">Number of times a player can reroll a specific commander slot to get a new random option.</span></span></label> 
+                                <select id="settingMaxRerolls">
+                                    <option value="0">0</option>
+                                    <option value="1" selected>1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">3</option>
+                                    <option value="4">4</option>
+                                    <option value="5">5</option>
+                                    <option value="6">6</option>
+                                    <option value="7">7</option>
+                                    <option value="8">8</option>
+                                    <option value="9">9</option>
+                                    <option value="10">10</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <label class="toggle-label" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
                         <div class="toggle-switch"><input type="checkbox" id="settingBlindDraft"><span class="slider"></span></div>
                         Blind Draft <span style="color: #888; font-size: 0.8rem; margin-left: 5px;">(Hide picks until locked in)</span>
                     </label>
@@ -677,41 +712,6 @@
                     <div class="rank-inputs" style="margin-bottom: 10px;">
                         <label style="color:#aaa;">Highest Rank:</label> <input type="number" id="settingMin" value="1" title="Most popular (e.g., 1)">
                         <label style="color:#aaa;">Lowest Rank:</label> <input type="number" id="settingMax" value="500" title="Least popular (e.g., 500)">
-                    </div>
-
-                    <div id="randomSettingsContainer" style="border-top: 1px solid #333; padding-top: 15px; margin-top: 10px;">
-                        <div class="settings-grid">
-                            <div class="settings-input-group">
-                                <label id="numOptionsLabel" style="color:#ccc;"># Cards to Select From (1-5):</label> 
-                                <select id="settingNumOptions">
-                                    <option value="1">1</option>
-                                    <option value="2">2</option>
-                                    <option value="3" selected>3</option>
-                                    <option value="4">4</option>
-                                    <option value="5">5</option>
-                                </select>
-                            </div>
-                            <div id="snakePoolContainer" class="settings-input-group" style="display:none;">
-                                <label style="display:flex; justify-content:space-between; color:#ccc;">Total Pool Size: <span class="tooltip">?<span class="tooltiptext">The total number of face-up cards to draft from. (Max 30)</span></span></label>
-                                <input type="number" id="settingSnakePoolSize" value="15" min="2" max="30">
-                            </div>
-                            <div id="rerollsContainer" class="settings-input-group">
-                                <label style="display:flex; justify-content:space-between; color:#ccc;">Slot Rerolls: <span class="tooltip">?<span class="tooltiptext">Number of times a player can reroll a specific commander slot to get a new random option.</span></span></label> 
-                                <select id="settingMaxRerolls">
-                                    <option value="0">0</option>
-                                    <option value="1" selected>1</option>
-                                    <option value="2">2</option>
-                                    <option value="3">3</option>
-                                    <option value="4">4</option>
-                                    <option value="5">5</option>
-                                    <option value="6">6</option>
-                                    <option value="7">7</option>
-                                    <option value="8">8</option>
-                                    <option value="9">9</option>
-                                    <option value="10">10</option>
-                                </select>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
