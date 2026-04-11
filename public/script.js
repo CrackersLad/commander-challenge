@@ -165,7 +165,10 @@ function updateSettingsVisibility() {
     const numOptsEl = document.getElementById('settingNumOptions');
     if (numOptsEl) {
         numOptsEl.options[0].disabled = isBurn; // Disable '1' option
-        if (isBurn && numOptsEl.value === '1') numOptsEl.value = '2'; // Force to 2 if 1 is currently selected
+        if (isBurn && numOptsEl.value === '1') {
+            numOptsEl.value = '2'; // Force to 2 if 1 is currently selected
+            numOptsEl.dispatchEvent(new Event('change'));
+        }
     }
 }
 if (draftFormatEl) draftFormatEl.addEventListener('change', updateSettingsVisibility);
@@ -625,14 +628,44 @@ document.getElementById('joinBtn').onclick = async () => {
     else initLobby();
 };
 
+function syncSettingsToUI(s) {
+    if (!s) return;
+    if (document.getElementById('settingDraftFormat')) document.getElementById('settingDraftFormat').value = s.draftFormat || 'independent';
+    if (document.getElementById('settingSelectionMode')) document.getElementById('settingSelectionMode').value = s.selectionMode || 'both';
+    if (document.getElementById('settingCurrency')) document.getElementById('settingCurrency').value = s.currency || 'eur';
+    if (document.getElementById('settingBudget')) document.getElementById('settingBudget').value = s.budget || 10;
+    if (document.getElementById('settingDeckBudget')) document.getElementById('settingDeckBudget').value = s.deckBudget || 50;
+    if (document.getElementById('settingIncludeCmdr')) document.getElementById('settingIncludeCmdr').checked = s.includeCmdr !== false;
+    if (document.getElementById('settingMaxBracket')) document.getElementById('settingMaxBracket').value = s.maxBracket || 5;
+    if (document.getElementById('settingMin')) document.getElementById('settingMin').value = s.minRank || 1;
+    if (document.getElementById('settingMax')) document.getElementById('settingMax').value = s.maxRank || 500;
+    if (document.getElementById('settingNumOptions')) document.getElementById('settingNumOptions').value = s.numOptions || 3;
+    if (document.getElementById('settingMaxRerolls')) document.getElementById('settingMaxRerolls').value = s.maxRerolls || 1;
+    if (document.getElementById('settingNoPartner')) document.getElementById('settingNoPartner').checked = s.noPartner || false;
+    if (document.getElementById('settingBlindDraft')) document.getElementById('settingBlindDraft').checked = s.blindDraft || false;
+    if (document.getElementById('toggleCmdrBudget')) document.getElementById('toggleCmdrBudget').checked = s.budget > 0;
+    if (document.getElementById('toggleDeckBudget')) document.getElementById('toggleDeckBudget').checked = s.deckBudget > 0;
+    if (document.getElementById('toggleRank')) document.getElementById('toggleRank').checked = (s.minRank > 0 || s.maxRank > 0);
+    updateSettingsVisibility(); 
+    ['toggleCmdrBudget', 'toggleDeckBudget', 'toggleRank'].forEach(id => { 
+        const el = document.getElementById(id); 
+        if (el) el.dispatchEvent(new Event('change')); 
+    });
+}
+
 function initLobby() {
     window.establishPresence();
     switchView('view-lobby');
     document.getElementById('displayRoomCode').innerText = currentRoom;
 
+    document.getElementById('hostSettingsUI').style.display = 'block';
+    const webhookPanel = document.getElementById('webhookPanel');
+    if (webhookPanel) webhookPanel.style.display = isHost ? 'block' : 'none';
+
     if(isHost) {
-        document.getElementById('hostSettingsUI').style.display = 'block';
         document.getElementById('waitingMessage').style.display = 'none';
+        document.getElementById('startDraftBtn').style.display = 'block';
+        document.querySelectorAll('#hostSettingsUI input, #hostSettingsUI select').forEach(el => el.disabled = false);
         
         const dropdown = document.getElementById('moreActionsDropdown');
         const existingBtn = document.getElementById('updateWebhookBtn');
@@ -660,30 +693,12 @@ function initLobby() {
 
         // Sync UI inputs with the actual database settings so they don't reset on page refresh
         get(ref(db, `rooms/${currentRoom}/settings`)).then(snap => {
-            const s = snap.val();
-            if (s) {
-                if (document.getElementById('settingDraftFormat')) document.getElementById('settingDraftFormat').value = s.draftFormat || 'independent';
-                if (document.getElementById('settingSelectionMode')) document.getElementById('settingSelectionMode').value = s.selectionMode || 'both';
-                if (document.getElementById('settingCurrency')) document.getElementById('settingCurrency').value = s.currency || 'eur';
-                if (document.getElementById('settingBudget')) document.getElementById('settingBudget').value = s.budget || 10;
-                if (document.getElementById('settingDeckBudget')) document.getElementById('settingDeckBudget').value = s.deckBudget || 50;
-                if (document.getElementById('settingIncludeCmdr')) document.getElementById('settingIncludeCmdr').checked = s.includeCmdr !== false;
-                if (document.getElementById('settingMaxBracket')) document.getElementById('settingMaxBracket').value = s.maxBracket || 5;
-                if (document.getElementById('settingMin')) document.getElementById('settingMin').value = s.minRank || 1;
-                if (document.getElementById('settingMax')) document.getElementById('settingMax').value = s.maxRank || 500;
-                if (document.getElementById('settingNumOptions')) document.getElementById('settingNumOptions').value = s.numOptions || 3;
-                if (document.getElementById('settingMaxRerolls')) document.getElementById('settingMaxRerolls').value = s.maxRerolls || 1;
-                if (document.getElementById('settingNoPartner')) document.getElementById('settingNoPartner').checked = s.noPartner || false;
-                if (document.getElementById('settingBlindDraft')) document.getElementById('settingBlindDraft').checked = s.blindDraft || false;
-                if (document.getElementById('toggleCmdrBudget')) document.getElementById('toggleCmdrBudget').checked = s.budget > 0;
-                if (document.getElementById('toggleDeckBudget')) document.getElementById('toggleDeckBudget').checked = s.deckBudget > 0;
-                if (document.getElementById('toggleRank')) document.getElementById('toggleRank').checked = (s.minRank > 0 || s.maxRank > 0);
-                updateSettingsVisibility(); ['toggleCmdrBudget', 'toggleDeckBudget', 'toggleRank'].forEach(id => { const el = document.getElementById(id); if (el) el.dispatchEvent(new Event('change')); });
-            }
+            syncSettingsToUI(snap.val());
         });
     } else {
-        document.getElementById('hostSettingsUI').style.display = 'none';
+        document.getElementById('startDraftBtn').style.display = 'none';
         document.getElementById('waitingMessage').style.display = 'block';
+        document.querySelectorAll('#hostSettingsUI input, #hostSettingsUI select').forEach(el => el.disabled = true);
     }
 
     if(activeRoomListener) activeRoomListener(); 
@@ -699,6 +714,10 @@ function initLobby() {
                 window.loadMyPlaygroups();
             }
             return;
+        }
+
+        if (!isHost && data.settings) {
+            syncSettingsToUI(data.settings);
         }
 
         const listEl = document.getElementById('lobbyPlayerList');
@@ -743,7 +762,7 @@ function setupLimitToggle(toggleId, inputIds) {
             inputIds.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
-                    el.disabled = !toggle.checked;
+                    el.disabled = !toggle.checked || !isHost;
                     el.style.opacity = toggle.checked ? '1' : '0.5';
                 }
             });
@@ -756,6 +775,50 @@ function setupLimitToggle(toggleId, inputIds) {
 setupLimitToggle('toggleCmdrBudget', ['settingBudget']);
 setupLimitToggle('toggleDeckBudget', ['settingDeckBudget']);
 setupLimitToggle('toggleRank', ['settingMin', 'settingMax']);
+
+let saveSettingsTimeout;
+function autoSaveSettings() {
+    if (!isHost || !currentRoom) return;
+    clearTimeout(saveSettingsTimeout);
+    saveSettingsTimeout = setTimeout(() => {
+        const limitCmdr = document.getElementById('toggleCmdrBudget') ? document.getElementById('toggleCmdrBudget').checked : true;
+        const limitDeck = document.getElementById('toggleDeckBudget') ? document.getElementById('toggleDeckBudget').checked : true;
+        const limitRank = document.getElementById('toggleRank') ? document.getElementById('toggleRank').checked : true;
+
+        const bVal = document.getElementById('settingBudget').value;
+        const b = !limitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal));
+        const c = document.getElementById('settingCurrency').value;
+        const dbVal = document.getElementById('settingDeckBudget').value;
+        const dbudget = !limitDeck ? 0 : (dbVal === '' || isNaN(parseFloat(dbVal)) ? 50 : parseFloat(dbVal));
+        const incCmdr = document.getElementById('settingIncludeCmdr').checked;
+
+        const minVal = document.getElementById('settingMin').value;
+        const maxVal = document.getElementById('settingMax').value;
+        const maxR = !limitRank ? 0 : (minVal === '' || isNaN(parseInt(minVal)) ? 1 : parseInt(minVal));
+        const minR = !limitRank ? 0 : (maxVal === '' || isNaN(parseInt(maxVal)) ? 500 : parseInt(maxVal));
+        const noPartner = document.getElementById('settingNoPartner').checked; 
+        const numOpts = Math.min(5, Math.max(1, parseInt(document.getElementById('settingNumOptions').value) || 3));
+        const maxRr = Math.max(0, parseInt(document.getElementById('settingMaxRerolls').value) || 1);
+        const selMode = document.getElementById('settingSelectionMode') ? document.getElementById('settingSelectionMode').value : 'both';
+        const blind = document.getElementById('settingBlindDraft').checked;
+        const draftFormat = document.getElementById('settingDraftFormat') ? document.getElementById('settingDraftFormat').value : 'independent';
+        const maxBracket = parseInt(document.getElementById('settingMaxBracket')?.value) || 5;
+
+        const settingsPayload = {
+            budget: b, currency: c, deckBudget: dbudget, includeCmdr: incCmdr, minRank: minR, maxRank: maxR, noPartner: noPartner, numOptions: numOpts, maxRerolls: maxRr, selectionMode: selMode, blindDraft: blind, draftFormat: draftFormat, maxBracket: maxBracket
+        };
+        localStorage.setItem('hostDefaultSettings', JSON.stringify(settingsPayload));
+        update(ref(db, `rooms/${currentRoom}/settings`), settingsPayload);
+    }, 500);
+}
+
+document.querySelectorAll('#hostSettingsUI input, #hostSettingsUI select').forEach(el => {
+    if (el.id === 'settingDiscordWebhook') return;
+    el.addEventListener('change', autoSaveSettings);
+    if (el.type === 'text' || el.type === 'number') {
+        el.addEventListener('input', autoSaveSettings);
+    }
+});
 
 document.getElementById('startDraftBtn').onclick = async () => {
     playSound('sfx-choose');
