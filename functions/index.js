@@ -296,8 +296,14 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         return true;
     });
 
-    if (pool.length < N * numOptions) {
-        throw new HttpsError('failed-precondition', `Not enough commanders in the Archives for this draft! Found ${pool.length}, need ${N * numOptions}.`);
+    let requiredPool = N * numOptions;
+    if (settings.draftFormat === 'snake_draft') {
+        requiredPool = settings.snakePoolSize || 15;
+        if (requiredPool < N) requiredPool = N; // Ensure at least 1 card per player
+    }
+
+    if (pool.length < requiredPool) {
+        throw new HttpsError('failed-precondition', `Not enough commanders in the Archives for this draft! Found ${pool.length}, need ${requiredPool}.`);
     }
 
     // Base structure for the unified interactive draft engine
@@ -340,7 +346,12 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
     } else if (settings.draftFormat === 'snake_draft') {
         const existingNames = new Set();
         const poolCards = [];
-        for (let i = 0; i < N * numOptions; i++) {
+        
+        let poolSize = settings.snakePoolSize || 15;
+        if (poolSize < N) poolSize = N;
+        if (poolSize > 30) poolSize = 30;
+
+        for (let i = 0; i < poolSize; i++) {
             let card; let attempts = 0;
             do { card = pool[Math.floor(Math.random() * pool.length)]; attempts++; } 
             while (existingNames.has(card.name) && attempts < 100);
@@ -353,7 +364,8 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         }
 
         const pickOrder = [];
-        for (let round = 0; round < numOptions; round++) {
+        const rounds = Math.floor(poolSize / N);
+        for (let round = 0; round < rounds; round++) {
             let roundOrder = [...playerIds];
             if (round % 2 !== 0) roundOrder.reverse();
             pickOrder.push(...roundOrder);
@@ -365,7 +377,7 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         activeDraftPayload.pickOrder = pickOrder;
         activeDraftPayload.turn = 0;
         activeDraftPayload.drafted = drafted;
-        activeDraftPayload.draftGoal = numOptions;
+        activeDraftPayload.draftGoal = rounds;
     } else if (settings.draftFormat === 'burn_draft') {
         const existingNames = new Set();
         const packs = [];

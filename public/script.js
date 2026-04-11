@@ -157,8 +157,20 @@ function updateSettingsVisibility() {
 
     if(selectionModeContainer) selectionModeContainer.style.display = isInteractive ? 'none' : 'block';
     if(rerollsContainer) rerollsContainer.style.display = isInteractive ? 'none' : 'flex';
-    if(numOptionsLabel) numOptionsLabel.innerText = isInteractive ? "Pack Size (1-5):" : "Options (1-5):";
     
+    const numOptsContainer = document.getElementById('settingNumOptions') ? document.getElementById('settingNumOptions').parentElement : null;
+    const snakePoolContainer = document.getElementById('snakePoolContainer');
+    const isSnake = draftFormatEl && draftFormatEl.value === 'snake_draft';
+
+    if (isSnake) {
+        if (numOptsContainer) numOptsContainer.style.display = 'none';
+        if (snakePoolContainer) snakePoolContainer.style.display = 'flex';
+    } else {
+        if (numOptsContainer) numOptsContainer.style.display = 'flex';
+        if (snakePoolContainer) snakePoolContainer.style.display = 'none';
+        if(numOptionsLabel) numOptionsLabel.innerText = isInteractive ? "Pack Size (1-5):" : "# Cards to Select From (1-5):";
+    }
+
     if (randomSettingsEl) randomSettingsEl.style.display = (!isInteractive && isManual) ? 'none' : 'block';
 
     const isBurn = draftFormatEl && draftFormatEl.value === 'burn_draft';
@@ -640,6 +652,7 @@ function syncSettingsToUI(s) {
     if (document.getElementById('settingMin')) document.getElementById('settingMin').value = s.maxRank || 1;
     if (document.getElementById('settingMax')) document.getElementById('settingMax').value = s.minRank || 500;
     if (document.getElementById('settingNumOptions')) document.getElementById('settingNumOptions').value = s.numOptions || 3;
+    if (document.getElementById('settingSnakePoolSize')) document.getElementById('settingSnakePoolSize').value = s.snakePoolSize || 15;
     if (document.getElementById('settingMaxRerolls')) document.getElementById('settingMaxRerolls').value = s.maxRerolls || 1;
     if (document.getElementById('settingNoPartner')) document.getElementById('settingNoPartner').checked = s.noPartner || false;
     if (document.getElementById('settingBlindDraft')) document.getElementById('settingBlindDraft').checked = s.blindDraft || false;
@@ -803,9 +816,10 @@ function autoSaveSettings() {
         const blind = document.getElementById('settingBlindDraft').checked;
         const draftFormat = document.getElementById('settingDraftFormat') ? document.getElementById('settingDraftFormat').value : 'independent';
         const maxBracket = parseInt(document.getElementById('settingMaxBracket')?.value) || 5;
+        const snakePoolSize = Math.min(30, Math.max(2, parseInt(document.getElementById('settingSnakePoolSize')?.value) || 15));
 
         const settingsPayload = {
-            budget: b, currency: c, deckBudget: dbudget, includeCmdr: incCmdr, minRank: minR, maxRank: maxR, noPartner: noPartner, numOptions: numOpts, maxRerolls: maxRr, selectionMode: selMode, blindDraft: blind, draftFormat: draftFormat, maxBracket: maxBracket
+            budget: b, currency: c, deckBudget: dbudget, includeCmdr: incCmdr, minRank: minR, maxRank: maxR, noPartner: noPartner, numOptions: numOpts, snakePoolSize: snakePoolSize, maxRerolls: maxRr, selectionMode: selMode, blindDraft: blind, draftFormat: draftFormat, maxBracket: maxBracket
         };
         localStorage.setItem('hostDefaultSettings', JSON.stringify(settingsPayload));
         update(ref(db, `rooms/${currentRoom}/settings`), settingsPayload);
@@ -848,10 +862,11 @@ document.getElementById('startDraftBtn').onclick = async () => {
     const blind = document.getElementById('settingBlindDraft').checked;
     const draftFormat = document.getElementById('settingDraftFormat') ? document.getElementById('settingDraftFormat').value : 'independent';
     const maxBracket = parseInt(document.getElementById('settingMaxBracket')?.value) || 5;
+    const snakePoolSize = Math.min(30, Math.max(2, parseInt(document.getElementById('settingSnakePoolSize')?.value) || 15));
     const webhookUrl = document.getElementById('settingDiscordWebhook') ? document.getElementById('settingDiscordWebhook').value.trim() : '';
 
     const settingsPayload = {
-        budget: b, currency: c, deckBudget: dbudget, includeCmdr: incCmdr, minRank: minR, maxRank: maxR, noPartner: noPartner, numOptions: numOpts, maxRerolls: maxRr, selectionMode: selMode, blindDraft: blind, draftFormat: draftFormat, maxBracket: maxBracket, status: 'rolling'
+        budget: b, currency: c, deckBudget: dbudget, includeCmdr: incCmdr, minRank: minR, maxRank: maxR, noPartner: noPartner, numOptions: numOpts, snakePoolSize: snakePoolSize, maxRerolls: maxRr, selectionMode: selMode, blindDraft: blind, draftFormat: draftFormat, maxBracket: maxBracket, status: 'rolling'
     };
     localStorage.setItem('hostDefaultSettings', JSON.stringify(settingsPayload));
     await set(ref(db, `webhooks/${currentRoom}/url`), webhookUrl || null);

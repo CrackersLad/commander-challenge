@@ -682,7 +682,7 @@
                     <div id="randomSettingsContainer" style="border-top: 1px solid #333; padding-top: 15px; margin-top: 10px;">
                         <div class="settings-grid">
                             <div class="settings-input-group">
-                                <label id="numOptionsLabel" style="color:#ccc;">Options (1-5):</label> 
+                                <label id="numOptionsLabel" style="color:#ccc;"># Cards to Select From (1-5):</label> 
                                 <select id="settingNumOptions">
                                     <option value="1">1</option>
                                     <option value="2">2</option>
@@ -690,6 +690,10 @@
                                     <option value="4">4</option>
                                     <option value="5">5</option>
                                 </select>
+                            </div>
+                            <div id="snakePoolContainer" class="settings-input-group" style="display:none;">
+                                <label style="display:flex; justify-content:space-between; color:#ccc;">Total Pool Size: <span class="tooltip">?<span class="tooltiptext">The total number of face-up cards to draft from. (Max 30)</span></span></label>
+                                <input type="number" id="settingSnakePoolSize" value="15" min="2" max="30">
                             </div>
                             <div id="rerollsContainer" class="settings-input-group">
                                 <label style="display:flex; justify-content:space-between; color:#ccc;">Slot Rerolls: <span class="tooltip">?<span class="tooltiptext">Number of times a player can reroll a specific commander slot to get a new random option.</span></span></label> 
