@@ -637,8 +637,8 @@ function syncSettingsToUI(s) {
     if (document.getElementById('settingDeckBudget')) document.getElementById('settingDeckBudget').value = s.deckBudget || 50;
     if (document.getElementById('settingIncludeCmdr')) document.getElementById('settingIncludeCmdr').checked = s.includeCmdr !== false;
     if (document.getElementById('settingMaxBracket')) document.getElementById('settingMaxBracket').value = s.maxBracket || 5;
-    if (document.getElementById('settingMin')) document.getElementById('settingMin').value = s.minRank || 1;
-    if (document.getElementById('settingMax')) document.getElementById('settingMax').value = s.maxRank || 500;
+    if (document.getElementById('settingMin')) document.getElementById('settingMin').value = s.maxRank || 1;
+    if (document.getElementById('settingMax')) document.getElementById('settingMax').value = s.minRank || 500;
     if (document.getElementById('settingNumOptions')) document.getElementById('settingNumOptions').value = s.numOptions || 3;
     if (document.getElementById('settingMaxRerolls')) document.getElementById('settingMaxRerolls').value = s.maxRerolls || 1;
     if (document.getElementById('settingNoPartner')) document.getElementById('settingNoPartner').checked = s.noPartner || false;
