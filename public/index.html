@@ -726,7 +726,10 @@
                     </div>
                 </div>
 
-                <button class="select-btn" id="startDraftBtn" style="width: 100%; font-size: 1.1rem; padding: 15px;">Start Draft</button>
+                <div id="hostActionButtons" style="display: flex; gap: 10px;">
+                    <button class="select-btn" id="startDraftBtn" style="flex: 2; font-size: 1.1rem; padding: 15px; margin: 0;">Start Draft</button>
+                    <button class="btn-cancel" onclick="window.leaveChallenge()" style="flex: 1; font-size: 1.1rem; padding: 15px; margin: 0; border-radius: 6px; font-family: 'Cinzel', serif; font-weight: bold;">Cancel</button>
+                </div>
                 <div id="livePoolCounter" style="text-align:center; color:#aaa; font-size:0.9rem; margin-top:10px; font-family:'Segoe UI';">Calculating eligible commanders...</div>
             </div>
             <p id="waitingMessage" style="display:none; color:var(--gold); font-family: 'Cinzel', serif;">Waiting for Host to Start...</p>
@@ -796,10 +799,10 @@
         Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
     </div>
 
-    <div style="position: fixed; bottom: 5px; right: 10px; color: #444; font-size: 0.7rem; font-family: 'Segoe UI', sans-serif; cursor: pointer; opacity: 0.5;" onclick="window.enterAdminMode()" title="Admin Access">v19.36</div>
+    <div style="position: fixed; bottom: 5px; right: 10px; color: #444; font-size: 0.7rem; font-family: 'Segoe UI', sans-serif; cursor: pointer; opacity: 0.5;" onclick="window.enterAdminMode()" title="Admin Access">v19.35</div>
     
     <button id="installPwaBtn" class="select-btn" style="display: none; position: fixed; bottom: 30px; right: 20px; z-index: 1000; padding: 10px 20px; font-size: 0.9rem; border-radius: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.9);">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=19.36"></script>
+    <script type="module" src="./script.js?v=19.35"></script>
 </body>
 </html>

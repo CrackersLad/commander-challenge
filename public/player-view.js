@@ -264,17 +264,10 @@ export function initPlayerViewModule(utils, state) {
 
         document.getElementById('brewMoxfield').onclick = () => {
             playSound('sfx-click');
-            const form = document.createElement('form');
-            form.target = '_blank';
-            form.method = 'POST';
-            form.action = 'https://www.moxfield.com/tools/paste';
-            
-            const titleInput = document.createElement('input'); titleInput.type = 'hidden'; titleInput.name = 'title'; titleInput.value = `${data.selected} Draft`;
-            const listInput = document.createElement('input'); listInput.type = 'hidden'; listInput.name = 'board'; listInput.value = `1 ${data.selected} *CMDR*`;
-            
-            form.appendChild(titleInput); form.appendChild(listInput); document.body.appendChild(form);
-            form.submit(); document.body.removeChild(form);
-            showToast("Creating Moxfield deck...", false, 3000, true);
+            const decklist = `1 ${data.selected} *CMDR*`;
+            const url = `https://www.moxfield.com/import?c=${encodeURIComponent(decklist)}`;
+            window.open(url, '_blank');
+            showToast("Opening Moxfield importer...", false, 3000, true);
         };
 
         document.getElementById('brewArchidekt').onclick = async () => {
