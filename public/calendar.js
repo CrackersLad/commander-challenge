@@ -1,4 +1,4 @@
-import { db } from './firebase-setup.js?v=19.36';
+import { db } from './firebase-setup.js?v=19.37';
 import { ref, get, update, remove, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initCalendarModule(utils, state) {

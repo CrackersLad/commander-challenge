@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { db, auth, functions } from './firebase-setup.js?v=19.35';
 import { fetchDeckPriceLocal } from './deck-parser.js?v=19.35';
 import { getArchives } from './data-service.js?v=19.35';
@@ -9,6 +10,19 @@ import { initCalendarModule } from './calendar.js?v=19.35';
 import { initAuthModule } from './auth.js?v=19.35';
 import { initHubModule } from './hub.js?v=19.35';
 import { initProfileModule } from './profile.js?v=19.35';
+=======
+import { db, auth, functions } from './firebase-setup.js?v=19.37';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=19.37';
+import { getArchives } from './data-service.js?v=19.37';
+import { initDeckActionsModule } from './deck-actions.js?v=19.37';
+import { initRoomActionsModule } from './room-actions.js?v=19.37';
+import { initPlayerViewModule } from './player-view.js?v=19.37';
+import { initAdminModule } from './admin.js?v=19.37';
+import { initCalendarModule } from './calendar.js?v=19.37';
+import { initAuthModule } from './auth.js?v=19.37';
+import { initHubModule } from './hub.js?v=19.37';
+import { initProfileModule } from './profile.js?v=19.37';
+>>>>>>> 841e8184f65ac7568c44310841867f522ab20667
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
