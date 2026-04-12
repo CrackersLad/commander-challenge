@@ -264,18 +264,44 @@ export function initPlayerViewModule(utils, state) {
 
         document.getElementById('brewMoxfield').onclick = () => {
             playSound('sfx-click');
-            navigator.clipboard.writeText(data.selected).then(() => {
-                showToast("Commander copied! Paste into Moxfield.", false, 4000, true);
-                window.open('https://moxfield.com/decks/add', '_blank');
-            }).catch(() => { window.open('https://moxfield.com/decks/add', '_blank'); });
+            const form = document.createElement('form');
+            form.target = '_blank';
+            form.method = 'POST';
+            form.action = 'https://www.moxfield.com/tools/paste';
+            
+            const titleInput = document.createElement('input'); titleInput.type = 'hidden'; titleInput.name = 'title'; titleInput.value = `${data.selected} Draft`;
+            const listInput = document.createElement('input'); listInput.type = 'hidden'; listInput.name = 'board'; listInput.value = `1 ${data.selected} *CMDR*`;
+            
+            form.appendChild(titleInput); form.appendChild(listInput); document.body.appendChild(form);
+            form.submit(); document.body.removeChild(form);
+            showToast("Creating Moxfield deck...", false, 3000, true);
         };
 
-        document.getElementById('brewArchidekt').onclick = () => {
+        document.getElementById('brewArchidekt').onclick = async () => {
             playSound('sfx-click');
-            navigator.clipboard.writeText(data.selected).then(() => {
-                showToast("Commander copied! Paste into Archidekt.", false, 4000, true);
-                window.open(`https://archidekt.com/decks/new?format=3&commander=${encodeURIComponent(data.selected)}`, '_blank');
-            }).catch(() => { window.open(`https://archidekt.com/decks/new?format=3&commander=${encodeURIComponent(data.selected)}`, '_blank'); });
+            const btn = document.getElementById('brewArchidekt');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="mana-spinner"></span> Loading...';
+            btn.disabled = true;
+            
+            try {
+                const nameMatch = data.selected.includes(" // ") ? data.selected.split(" // ")[0] : data.selected;
+                const res = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(nameMatch)}`);
+                if (!res.ok) throw new Error("Card not found");
+                const scryData = await res.json();
+                
+                const payload = [{ "c": "c", "f": 0, "q": 1, "u": scryData.id }];
+                window.open(`https://archidekt.com/sandbox?deck=${encodeURIComponent(JSON.stringify(payload))}`, '_blank');
+                showToast("Archidekt Sandbox created!", false, 3000, true);
+            } catch(e) {
+                navigator.clipboard.writeText(data.selected).then(() => {
+                    showToast("Commander copied! Paste into Archidekt.", false, 4000, true);
+                    window.open('https://www.archidekt.com/', '_blank');
+                });
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
         };
 
         document.getElementById('saveDeckBtn').onclick = async () => {
