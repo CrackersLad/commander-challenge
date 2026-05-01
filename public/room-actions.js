@@ -15,6 +15,11 @@ export function initRoomActionsModule(utils, state) {
             } else {
                 await remove(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`));
             }
+            
+            let joined = JSON.parse(localStorage.getItem('joinedRooms') || '[]');
+            joined = joined.filter(c => c !== state.currentRoom);
+            localStorage.setItem('joinedRooms', JSON.stringify(joined));
+
             clearSession();
             state.currentRoom = null; state.isHost = false;
             if (state.activeRoomListener) { state.activeRoomListener(); state.activeRoomListener = null; }

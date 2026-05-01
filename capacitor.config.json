@@ -1,0 +1,8 @@
+{
+  "appId": "com.cmdrchallenge.app",
+  "appName": "Commander Challenge",
+  "webDir": "public",
+  "ios": {
+    "scrollEnabled": false
+  }
+}

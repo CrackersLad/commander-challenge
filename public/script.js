@@ -13,12 +13,44 @@ import { ref, set, get, onValue, update, remove, increment, runTransaction, onDi
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 // Optimize for mobile/WebView: Ensure viewport is set correctly
-if (!document.querySelector('meta[name="viewport"]')) {
-    const meta = document.createElement('meta');
-    meta.name = "viewport";
-    meta.content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
-    document.head.appendChild(meta);
+let viewportMeta = document.querySelector('meta[name="viewport"]');
+if (!viewportMeta) {
+    viewportMeta = document.createElement('meta');
+    viewportMeta.name = "viewport";
+    document.head.appendChild(viewportMeta);
 }
+// Ensure viewport-fit=cover is present for safe area insets (notches/system bars)
+viewportMeta.content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover";
+
+// Inject safe area padding for native app wrappers
+const safeAreaStyle = document.createElement('style');
+// BEST PRACTICE: Android WebViews notoriously crash when evaluating CSS max() with env().
+// To guarantee the padding never collapses, we assign a solid 40px standard height for Android.
+const isAndroid = /android/i.test(navigator.userAgent || navigator.vendor || window.opera);
+const topPadding = isAndroid ? '40px' : 'env(safe-area-inset-top, 0px)';
+const bottomPadding = isAndroid ? '20px' : 'env(safe-area-inset-bottom, 0px)';
+
+safeAreaStyle.innerHTML = `
+    :root {
+        --safe-area-top: ${topPadding};
+        --safe-area-bottom: ${bottomPadding};
+    }
+    body {
+        padding-top: var(--safe-area-top) !important;
+        padding-bottom: var(--safe-area-bottom) !important;
+        padding-left: env(safe-area-inset-left, 0px) !important;
+        padding-right: env(safe-area-inset-right, 0px) !important;
+    }
+    /* Push down absolute positioned header buttons so they are clickable */
+    #audioContainer, #globalAccountBtn {
+        top: calc(15px + var(--safe-area-top)) !important;
+    }
+    .modal-overlay {
+        padding-top: var(--safe-area-top) !important;
+        padding-bottom: var(--safe-area-bottom) !important;
+    }
+`;
+document.head.appendChild(safeAreaStyle);
 
 let currentRoom = localStorage.getItem('roomCode') || null;
 let currentPlayerId = localStorage.getItem('playerId') || 'temp_' + Date.now().toString();
@@ -27,6 +59,65 @@ let currentPlayerAvatar = localStorage.getItem('playerAvatar') || null;
 let isHost = localStorage.getItem('isHost') === 'true';
 
 // --- GLOBAL EVENT LISTENERS ---
+
+// Kill the native Android/iOS stretch and bounce effect completely
+let touchStartY = 0;
+let touchStartX = 0;
+let touchDirection = null;
+document.addEventListener('touchstart', e => {
+    if (!e.touches || !e.touches[0]) return;
+    touchStartY = e.touches[0].clientY;
+    touchStartX = e.touches[0].clientX;
+    touchDirection = null;
+}, { passive: false });
+
+document.addEventListener('touchmove', e => {
+    if (!e.touches || !e.touches[0]) return;
+
+    const touchY = e.touches[0].clientY;
+    const touchX = e.touches[0].clientX;
+    const deltaY = touchY - touchStartY;
+    const deltaX = touchX - touchStartX;
+
+    // Give a slightly larger buffer before locking in the swipe axis
+    if (touchDirection === null) {
+        if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
+            // Require a much stronger horizontal angle to lock into horizontal mode.
+            // This allows diagonal thumb swipes to correctly register as vertical scrolling!
+            touchDirection = Math.abs(deltaX) > Math.abs(deltaY) * 1.5 ? 'horizontal' : 'vertical';
+        } else {
+            return; // Ignore tiny wiggles so we don't preventDefault the wrong axis
+        }
+    }
+
+    if (touchDirection === 'horizontal') {
+        const horizontalEl = e.target.closest('.dashboard, #content, [style*="overflow-x: auto"], [style*="overflow-x:auto"]');
+        if (horizontalEl) {
+            const isAtLeft = horizontalEl.scrollLeft <= 0;
+            const isAtRight = horizontalEl.scrollWidth - horizontalEl.scrollLeft <= horizontalEl.clientWidth + 1;
+            
+            if (isAtLeft && deltaX > 0) e.preventDefault();
+            if (isAtRight && deltaX < 0) e.preventDefault();
+        } else {
+            e.preventDefault();
+        }
+    } else {
+        let el = e.target.closest('.avail-grid, #searchResults, #winHistoryList, #leaderboardContent, #burnLogContent');
+        if (!el) el = document.body;
+
+        // Use robust properties to guarantee calculations across all mobile webviews
+        const scrollTop = el === document.body ? (document.documentElement.scrollTop || document.body.scrollTop) : el.scrollTop;
+        const scrollHeight = el === document.body ? Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) : el.scrollHeight;
+        const clientHeight = el === document.body ? Math.max(document.documentElement.clientHeight, document.body.clientHeight) : el.clientHeight;
+
+        const isAtTop = scrollTop <= 0;
+        const isAtBottom = scrollHeight - scrollTop <= clientHeight + 1;
+
+        if (isAtTop && deltaY > 0) e.preventDefault();
+        if (isAtBottom && deltaY < 0) e.preventDefault();
+    }
+}, { passive: false });
+
 document.addEventListener('click', function(event) {
     // Dropdown toggle logic
     const moreActionsBtn = document.getElementById('moreActionsBtn');
@@ -95,20 +186,6 @@ onValue(ref(db, 'stats'), (snap) => {
     if (pEl) pEl.innerText = data.totalPlayers || 0;
     if (rEl) rEl.innerText = data.activeRooms || 0;
     if (cEl) cEl.innerText = data.commandersRolled || 0;
-
-    // Mobile optimization: Find the fixed stats container and apply the mobile class
-    if (pEl) {
-        let parent = pEl.parentElement;
-        for(let i=0; i<4; i++) {
-            if(!parent || parent.tagName === 'BODY') break;
-            const style = window.getComputedStyle(parent);
-            if (style.position === 'fixed' || style.position === 'absolute') {
-                parent.classList.add('mobile-stats-container');
-                break;
-            }
-            parent = parent.parentElement;
-        }
-    }
 });
 
 window.establishPresence = () => {
@@ -213,6 +290,7 @@ function switchView(viewId) {
     document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
     document.getElementById(viewId).classList.add('active');
     window.scrollTo(0, 0);
+    document.body.scrollTop = 0;
 }
 
 window.openAccountModal = () => {
@@ -268,9 +346,8 @@ window.openRulesModal = async () => {
 
 window.copyRoomCode = () => {
     if(currentRoom) {
-        const url = new URL(window.location.href);
-        url.searchParams.set('room', currentRoom);
-        navigator.clipboard.writeText(url.toString()).then(() => { playSound('sfx-click'); showToast("Invite Link copied to clipboard!", false, 3000, true); });
+        const inviteUrl = `https://edhchallenge.com/?room=${currentRoom}`;
+        navigator.clipboard.writeText(inviteUrl).then(() => { playSound('sfx-click'); showToast("Invite Link copied to clipboard!", false, 3000, true); });
     }
 };
 
@@ -541,6 +618,15 @@ window.copyMatchSummary = async () => {
     .catch(() => showToast("Failed to copy.", true));
 };
 
+function trackJoinedRoom(code) {
+    if (!code) return;
+    let joined = JSON.parse(localStorage.getItem('joinedRooms') || '[]');
+    if (!joined.includes(code)) {
+        joined.push(code);
+        localStorage.setItem('joinedRooms', JSON.stringify(joined));
+    }
+}
+
 document.getElementById('createBtn').onclick = async () => {
     playSound('sfx-click');
 
@@ -563,6 +649,7 @@ document.getElementById('createBtn').onclick = async () => {
     localStorage.setItem('roomCode', roomCode); localStorage.setItem('playerId', pId); localStorage.setItem('playerName', safeName); localStorage.setItem('isHost', 'true');
     if (!auth.currentUser || auth.currentUser.isAnonymous) localStorage.setItem('guestName', safeName);
     currentRoom = roomCode; currentPlayerId = pId; currentPlayerName = safeName; isHost = true;
+    trackJoinedRoom(roomCode);
     initLobby();
 };
 
@@ -611,6 +698,7 @@ document.getElementById('joinBtn').onclick = async () => {
             if (!auth.currentUser || auth.currentUser.isAnonymous) localStorage.setItem('guestName', existingData.name);
             
             currentRoom = code; currentPlayerName = existingData.name; isHost = existingData.isHost === true;
+            trackJoinedRoom(code);
             showToast("Welcome back!", false, 3000, true);
             
             // Re-fetch updated data to determine where to go
@@ -636,6 +724,7 @@ document.getElementById('joinBtn').onclick = async () => {
     localStorage.setItem('roomCode', code); localStorage.setItem('playerId', pId); localStorage.setItem('playerName', safeName); localStorage.setItem('isHost', 'false');
     if (!auth.currentUser || auth.currentUser.isAnonymous) localStorage.setItem('guestName', safeName);
     currentRoom = code; currentPlayerId = pId; currentPlayerName = safeName; isHost = false;
+    trackJoinedRoom(code);
 
     if(roomData.settings.status === 'rolling') initDashboard();
     else initLobby();
@@ -1246,7 +1335,7 @@ function initDashboard() {
 
                 if (hideInfo) {
                     html += `<p style="margin: 15px 0 5px 0; font-family:'Cinzel'; color:#aaa;"><strong>???</strong></p>`;
-                    html += `<img src="card_back.webp" class="commander-img" loading="lazy" style="filter: brightness(0.7);">`;
+                    html += `<div class="skeleton-wrapper"><img src="card_back.webp" class="commander-img" loading="lazy" style="filter: brightness(0.7);" onload="this.parentElement.classList.add('loaded')"></div>`;
                 } else {
                     html += `<p style="margin: 15px 0 5px 0; font-family:'Cinzel'; color:white;"><strong>${safeSelected}</strong></p>`;
                     if (pData.display_rank) html += `<p style="margin: 0 0 10px 0; font-size: 0.9rem; color: #d4af37; font-weight:bold;">EDHREC Rank: #${pData.display_rank}</p>`;
@@ -1254,7 +1343,7 @@ function initDashboard() {
                     const edhrecSlug = safeSelected.toLowerCase().replace(/[^a-z0-9]+/g, '-');
                     const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
                     
-                    html += `<a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" title="View on EDHREC"><img src="${sanitizeHTML(pData.image)}" class="commander-img" loading="lazy"></a>`;
+                    html += `<a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" title="View on EDHREC"><div class="skeleton-wrapper"><img src="${sanitizeHTML(pData.image)}" class="commander-img" loading="lazy" onload="this.parentElement.classList.add('loaded')"></div></a>`;
                 }
             }
 
@@ -1370,6 +1459,9 @@ if(currentRoom && currentPlayerId) {
  */
 function makeDraggable(slider) {
     if (!slider) return;
+
+    // Disable custom mouse drag on touch devices to prevent interference with native vertical scrolling
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
 
     let isDown = false;
     let startX;

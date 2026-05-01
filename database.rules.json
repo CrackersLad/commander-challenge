@@ -26,13 +26,13 @@
 
     "webhooks": {
       "$roomId": {
-        ".read": true,
+        ".read": false,
         ".write": "newData.val() == null || (newData.child('url').val().matches(/^https:\\/\\/discord\\.com\\/api\\/webhooks\\//) && newData.child('url').val().length < 200)"
       }
     },
     "rooms": {
       ".read": true,
-      ".write": true
+      ".write": "auth != null"
     }
   }
 }

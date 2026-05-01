@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'cmdr-draft-cache-v9';
+const CACHE_NAME = 'cmdr-draft-cache-v11';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -10,7 +10,9 @@ const urlsToCache = [
   '/choose.mp3',
   '/reveal.mp3',
   '/card_back.webp',
-  '/icon.svg',
+  '/icon.png',
+  '/icon-192.png',
+  '/icon-maskable-512.png',
   '/manifest.json'
 ];
 
@@ -30,7 +32,7 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || 'Commander Draft Challenge';
   const notificationOptions = {
     body: payload.notification?.body,
-    icon: '/icon.svg',
+    icon: '/icon-192.png',
     data: payload.data
   };
   self.registration.showNotification(notificationTitle, notificationOptions);
@@ -68,21 +70,27 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET') return;
-  
-  event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        // Network First: If we get a response, clone it and update the cache
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
-        return response;
-      })
-      .catch(() => {
-        // Fallback: If offline, serve from cache
-        return caches.match(event.request);
-      })
-  );
+    if (event.request.method !== 'GET') return;
+
+    const url = new URL(event.request.url);
+    const isCoreAsset = urlsToCache.includes(url.pathname);
+
+    // For core app shell files, use a "Stale-While-Revalidate" strategy.
+    // This serves the cached version for speed, then updates the cache in the background.
+    if (isCoreAsset) {
+        event.respondWith(
+            caches.open(CACHE_NAME).then(cache => {
+                return cache.match(event.request).then(cachedResponse => {
+                    const fetchPromise = fetch(event.request).then(networkResponse => {
+                        cache.put(event.request, networkResponse.clone());
+                        return networkResponse;
+                    });
+                    // Return cached response immediately, and let the fetch happen in the background.
+                    return cachedResponse || fetchPromise;
+                });
+            })
+        );
+    } // For other requests, the browser's default network behavior is sufficient.
 });
 
 self.addEventListener('activate', event => {

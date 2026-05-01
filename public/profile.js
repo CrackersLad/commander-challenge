@@ -39,7 +39,7 @@ export function initProfileModule(utils, state) {
                 </div>
                 <div class="lobby-container" style="max-width: 800px; margin-top: 50px;">
                     <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px;">
-                        <img src="${sanitizeHTML(user.photoURL || 'icon.svg')}" style="width: 80px; height: 80px; border-radius: 50%; border: 2px solid var(--gold); object-fit: cover;">
+                        <img src="${sanitizeHTML(user.photoURL || 'icon.png')}" style="width: 80px; height: 80px; border-radius: 50%; border: 2px solid var(--gold); object-fit: cover;">
                         <div>
                             <h2 style="margin: 0; text-align: left;">${sanitizeHTML(profile.nickname || user.displayName)}</h2>
                             <p style="margin: 5px 0 0 0; color: #aaa; text-align: left;">Challenger Profile</p>

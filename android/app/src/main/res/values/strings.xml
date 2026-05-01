@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Commander Challenge</string>
+    <string name="title_activity_main">Commander Challenge</string>
+    <string name="package_name">com.cmdrchallenge.app</string>
+    <string name="custom_url_scheme">com.cmdrchallenge.app</string>
+</resources>
