@@ -1,4 +1,4 @@
-import { db, auth, functions } from './firebase-setup.js?v=19.41';
+import { db, auth, functions } from './firebase-setup.js?v=19.42';
 import { ref, get, remove, update, increment } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -46,6 +46,20 @@ export function initAdminModule(utils) {
             if (btn) {
                 btn.innerText = "🔔 Ping";
                 btn.disabled = false;
+            }
+        }
+    };
+
+    window.adminClearTokens = async (targetUid) => {
+        if(confirm(`Wipe all push notification tokens for this user?`)) {
+            playSound('sfx-click');
+            try {
+                const wipeFn = httpsCallable(functions, 'adminClearTokens');
+                await wipeFn({ targetUid: targetUid });
+                showToast("Tokens wiped!", false, 3000, true);
+                initAdmin();
+            } catch (e) {
+                showToast("Failed to wipe tokens: " + e.message, true);
             }
         }
     };
@@ -128,11 +142,22 @@ export function initAdminModule(utils) {
                     const name = uData.profile?.nickname || "Unknown";
                     const provider = uData.profile?.provider || "Unknown";
                     const wins = uData.stats?.wins || 0;
-                    const hasPush = !!uData.fcmTokens;
-                    const push = hasPush ? "Enabled ✅" : "None ❌";
-                    const pingBtn = hasPush ? `<br><button id="ping-btn-${uid}" class="auth-sm-btn" onclick="window.adminTestPing('${uid}')" style="margin-top:5px; color:var(--gold); border-color:var(--gold);">🔔 Ping</button>` : '';
+                    
+                    const fcmTokens = uData.fcmTokens || {};
+                    const tokenPlatforms = Object.values(fcmTokens).map(v => typeof v === 'string' ? v : 'Legacy');
+                    const platformsSet = new Set(tokenPlatforms);
+                    
+                    let pushDisplay = "None ❌";
+                    if (Object.keys(fcmTokens).length > 0) {
+                        pushDisplay = Array.from(platformsSet).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ') + " ✅";
+                    }
+                    
+                    const hasPush = Object.keys(fcmTokens).length > 0;
+                    const pingBtn = hasPush ? `<br><button id="ping-btn-${uid}" class="auth-sm-btn" onclick="window.adminTestPing('${uid}')" style="margin-top:5px; color:var(--gold); border-color:var(--gold);">🔔 Ping</button>
+                    <button class="auth-sm-btn" onclick="window.adminClearTokens('${uid}')" style="margin-top:5px; color:#ff9999; border-color:#ff4444;">Wipe</button>` : '';
+                    
                     html += `<tr style="border-bottom: 1px solid #222;">
-                        <td style="padding:10px; font-family:monospace; font-size:0.8rem; color:#888;">${sanitizeHTML(uid)}</td><td style="padding:10px; color:#fff; font-weight:bold;">${sanitizeHTML(name)}</td><td style="padding:10px; color:#aaa;">${sanitizeHTML(provider)}</td><td style="padding:10px;">${wins}</td><td style="padding:10px;">${push}${pingBtn}</td>
+                        <td style="padding:10px; font-family:monospace; font-size:0.8rem; color:#888;">${sanitizeHTML(uid)}</td><td style="padding:10px; color:#fff; font-weight:bold;">${sanitizeHTML(name)}</td><td style="padding:10px; color:#aaa;">${sanitizeHTML(provider)}</td><td style="padding:10px;">${wins}</td><td style="padding:10px;">${pushDisplay}${pingBtn}</td>
                     </tr>`;
                 });
                 html += `</tbody></table>`;

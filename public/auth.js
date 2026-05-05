@@ -1,4 +1,4 @@
-import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=19.41';
+import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=19.42';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithRedirect, linkWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
@@ -458,7 +458,8 @@ export function initAuthModule(utils, state) {
                 
                 await PushNotifications.removeAllListeners();
                 PushNotifications.addListener('registration', async (token) => {
-                    await update(ref(db, `users/${uid}/fcmTokens`), { [token.value]: true });
+                    const platform = window.Capacitor ? window.Capacitor.getPlatform() : 'mobile';
+                    await update(ref(db, `users/${uid}/fcmTokens`), { [token.value]: platform });
                     if (!silent) showToast("Push Notifications enabled!", false, 3000, true);
                     const btn = document.getElementById('enableNotificationsBtn');
                     if (btn) {
@@ -501,7 +502,7 @@ export function initAuthModule(utils, state) {
                 const token = await getToken(messaging, { vapidKey: 'BMk1hzKGyWMBxOCWrSPB2-xb3zF5BakEb4kU5_Gq2_gSsDaZZ3hJ9rhcNkj43sxsItODXdq-2Rph-XhcAl2EFVA', serviceWorkerRegistration: swRegistration });
                 
                 if (token) {
-                    await update(ref(db, `users/${uid}/fcmTokens`), { [token]: true });
+                    await update(ref(db, `users/${uid}/fcmTokens`), { [token]: 'web' });
                     if (!silent) showToast("Push Notifications enabled!", false, 3000, true);
                     const btn = document.getElementById('enableNotificationsBtn');
                     if (btn) {

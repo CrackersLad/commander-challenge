@@ -864,3 +864,13 @@ exports.notifyWinnerDeclared = onValueCreated({ ref: "/rooms/{roomId}/history/{h
         url: `/?room=${event.params.roomId}`
     });
 });
+
+exports.adminClearTokens = onCall(async (request) => {
+    await verifyIsAdmin(request.auth);
+    
+    const targetUid = request.data.targetUid;
+    if (!targetUid) throw new HttpsError('invalid-argument', 'Missing target UID.');
+    
+    await admin.database().ref(`users/${targetUid}/fcmTokens`).remove();
+    return { success: true };
+});
