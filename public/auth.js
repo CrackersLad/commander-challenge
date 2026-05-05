@@ -202,6 +202,16 @@ export function initAuthModule(utils, state) {
                 updateUIState(Notification.permission);
                 if (Notification.permission === 'granted') requestPushPermissions(uid, true);
             } else {
+                const isNative = window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() !== 'web';
+                if (isNative) {
+                    enableNotificationsBtn.innerText = '❌ Push Plugin Missing';
+                    enableNotificationsBtn.style.opacity = '0.7';
+                    enableNotificationsBtn.onclick = () => {
+                        playSound('sfx-click');
+                        showToast("Developer Error: @capacitor/push-notifications is not installed or synced.", true, 6000);
+                    };
+                    return;
+                }
                 enableNotificationsBtn.innerText = '📱 App Install Required for Push';
                 enableNotificationsBtn.style.opacity = '0.7';
                 enableNotificationsBtn.onclick = () => {
