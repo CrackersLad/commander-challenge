@@ -3,7 +3,7 @@ import { ref, get, remove, update, increment } from "https://www.gstatic.com/fir
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 export function initAdminModule(utils) {
-    const { showToast, switchView, getRoomCreationTime, sanitizeHTML } = utils;
+    const { showToast, switchView, getRoomCreationTime, sanitizeHTML, playSound } = utils;
 
     window.enterAdminMode = async () => {
         const user = auth.currentUser;
@@ -25,6 +25,28 @@ export function initAdminModule(utils) {
             }
         } else {
             showToast("Access Denied: You must be logged in to access Admin Mode.", true);
+        }
+    };
+
+    window.adminTestPing = async (targetUid) => {
+        playSound('sfx-click');
+        const btn = document.getElementById(`ping-btn-${targetUid}`);
+        if (btn) {
+            btn.innerText = "Sending...";
+            btn.disabled = true;
+        }
+        
+        try {
+            const pingFn = httpsCallable(functions, 'adminTestPing');
+            await pingFn({ targetUid: targetUid });
+            showToast("Test ping sent!", false, 3000, true);
+        } catch (e) {
+            showToast("Ping failed: " + e.message, true);
+        } finally {
+            if (btn) {
+                btn.innerText = "🔔 Ping";
+                btn.disabled = false;
+            }
         }
     };
 
@@ -54,7 +76,7 @@ export function initAdminModule(utils) {
                     <button id="btnTabRooms" onclick="window.switchAdminTab('rooms')" class="select-btn" style="flex:1; padding:10px; background:var(--gold); color:black; border:1px solid var(--gold); font-weight:bold;">Active Rooms</button>
                     <button id="btnTabUsers" onclick="window.switchAdminTab('users')" class="select-btn" style="flex:1; padding:10px; background:#222; color:white; border:1px solid var(--gold); font-weight:bold;">Linked Users</button>
                 </div>
-                <div id="contentRooms" style="display:block;">
+                <div id="contentRooms" style="display:block; width:100%; overflow-x:auto; padding-bottom:15px;">
             `;
 
             if (Object.keys(rooms).length === 0) {
@@ -93,7 +115,7 @@ export function initAdminModule(utils) {
             }
             html += `</div>`;
 
-            html += `<div id="contentUsers" style="display:none;">`;
+            html += `<div id="contentUsers" style="display:none; width:100%; overflow-x:auto; padding-bottom:15px;">`;
             if (Object.keys(users).length === 0) {
                 html += "<p>No linked users found.</p>";
             } else {
@@ -106,9 +128,11 @@ export function initAdminModule(utils) {
                     const name = uData.profile?.nickname || "Unknown";
                     const provider = uData.profile?.provider || "Unknown";
                     const wins = uData.stats?.wins || 0;
-                    const push = uData.fcmTokens ? "Enabled ✅" : "None ❌";
+                    const hasPush = !!uData.fcmTokens;
+                    const push = hasPush ? "Enabled ✅" : "None ❌";
+                    const pingBtn = hasPush ? `<br><button id="ping-btn-${uid}" class="auth-sm-btn" onclick="window.adminTestPing('${uid}')" style="margin-top:5px; color:var(--gold); border-color:var(--gold);">🔔 Ping</button>` : '';
                     html += `<tr style="border-bottom: 1px solid #222;">
-                        <td style="padding:10px; font-family:monospace; font-size:0.8rem; color:#888;">${sanitizeHTML(uid)}</td><td style="padding:10px; color:#fff; font-weight:bold;">${sanitizeHTML(name)}</td><td style="padding:10px; color:#aaa;">${sanitizeHTML(provider)}</td><td style="padding:10px;">${wins}</td><td style="padding:10px;">${push}</td>
+                        <td style="padding:10px; font-family:monospace; font-size:0.8rem; color:#888;">${sanitizeHTML(uid)}</td><td style="padding:10px; color:#fff; font-weight:bold;">${sanitizeHTML(name)}</td><td style="padding:10px; color:#aaa;">${sanitizeHTML(provider)}</td><td style="padding:10px;">${wins}</td><td style="padding:10px;">${push}${pingBtn}</td>
                     </tr>`;
                 });
                 html += `</tbody></table>`;

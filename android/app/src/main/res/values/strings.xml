@@ -4,4 +4,6 @@
     <string name="title_activity_main">Commander Challenge</string>
     <string name="package_name">com.cmdrchallenge.app</string>
     <string name="custom_url_scheme">com.cmdrchallenge.app</string>
+    <string name="default_web_client_id">579721236208-53ml1vqsosjb4cglpo3etka31l1f8l1e.apps.googleusercontent.com</string>
+    <string name="server_client_id">579721236208-53ml1vqsosjb4cglpo3etka31l1f8l1e.apps.googleusercontent.com</string>
 </resources>

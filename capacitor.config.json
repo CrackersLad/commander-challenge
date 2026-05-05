@@ -4,5 +4,21 @@
   "webDir": "public",
   "ios": {
     "scrollEnabled": false
+  },
+  "server": {
+    "allowNavigation": [
+      "commander-challenge.firebaseapp.com",
+      "discord.com",
+      "*.discord.com"
+    ]
+  },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["google.com"]
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
   }
 }

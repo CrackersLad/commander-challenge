@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.cmdrchallenge.app",
+      "sha256_cert_fingerprints": [
+        "6F:DB:04:8B:AC:EC:CE:80:97:8A:5E:96:62:53:DF:E8:C7:E3:E8:17:FF:39:44:2A:A7:D7:C8:3B:57:7D:65:E3",
+        "FB:F6:E8:55:9F:2E:54:43:1F:39:C0:8F:46:B3:57:C7:F2:86:FB:53:7B:03:83:E3:D6:3B:D6:70:69:BE:E6:04"
+      ]
+    }
+  }
+]

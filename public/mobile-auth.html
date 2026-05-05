@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authenticating...</title>
+    <style>
+        body { background: #0d0d0d; color: #d4af37; text-align: center; padding-top: 50px; font-family: sans-serif; }
+        button { background: #d4af37; color: black; border: none; padding: 15px 30px; font-size: 1.2rem; font-weight: bold; border-radius: 8px; margin-top: 20px; cursor: pointer; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4); }
+        #status { margin-top: 20px; color: #aaa; }
+    </style>
+</head>
+<body>
+    <h2>Commander Challenge</h2>
+    <div id="status">Checking authentication status...</div>
+    <button id="loginBtn" style="display: none;">Connect to Discord</button>
+
+    <script type="module">
+        import { auth } from './firebase-setup.js?v=19.39';
+        import { signInWithRedirect, OAuthProvider, getRedirectResult } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+
+        const statusEl = document.getElementById('status');
+        const loginBtn = document.getElementById('loginBtn');
+
+        getRedirectResult(auth).then(result => {
+            if (result) {
+                statusEl.innerText = "Login successful! Returning to app...";
+                const cred = OAuthProvider.credentialFromResult(result);
+                if (cred) {
+                    let qs = [];
+                    if (cred.idToken) qs.push('idToken=' + encodeURIComponent(cred.idToken));
+                    if (cred.accessToken) qs.push('accessToken=' + encodeURIComponent(cred.accessToken));
+                    window.location.href = 'https://edhchallenge.com/auth-callback?' + qs.join('&');
+                } else {
+                    window.location.href = 'https://edhchallenge.com/auth-callback?error=' + encodeURIComponent("No credential found.");
+                }
+            } else {
+                statusEl.innerText = "Ready to securely connect to Discord.";
+                loginBtn.style.display = 'inline-block';
+            }
+        }).catch(err => {
+            statusEl.innerText = "Error: " + err.message;
+            window.location.href = `https://edhchallenge.com/auth-callback?error=${encodeURIComponent(err.message)}`;
+        });
+
+        loginBtn.onclick = () => {
+            statusEl.innerText = "Redirecting to Discord...";
+            loginBtn.style.display = 'none';
+            const provider = new OAuthProvider('oidc.discord');
+            provider.addScope('identify');
+            provider.addScope('email');
+            signInWithRedirect(auth, provider);
+        };
+    </script>
+</body>
+</html>

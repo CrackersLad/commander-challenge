@@ -1,10 +1,30 @@
 import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=19.39';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
-import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, linkWithCredential } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithRedirect, linkWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
 
 export function initAuthModule(utils, state) {
     const { playSound, showToast } = utils;
+
+    getRedirectResult(auth).then(async (result) => {
+        if (result && result.user) {
+            showToast("Discord Login successful!", false, 3000, true);
+        }
+    }).catch(async (error) => {
+        if (error.code === 'auth/credential-already-in-use') {
+            try {
+                const credential = OAuthProvider.credentialFromError(error);
+                if (credential) {
+                    await signInWithCredential(auth, credential);
+                    showToast("Logged into existing account.", false, 3000, true);
+                }
+            } catch (err) {
+                showToast("Login failed: " + err.message, true);
+            }
+        } else if (error.code !== 'auth/redirect-cancelled-by-user') {
+            showToast("Login failed: " + error.message, true);
+        }
+    });
 
     onAuthStateChanged(auth, async (user) => {
         try {
@@ -32,6 +52,9 @@ export function initAuthModule(utils, state) {
             if (googleData.photoURL) bestAvatar = googleData.photoURL;
         }
 
+        const cachedName = localStorage.getItem('playerName');
+        if (cachedName) bestName = cachedName;
+
         const isDiscord = !!discordData;
         const providerStr = isDiscord ? 'Discord' : (googleData ? 'Google' : 'Unknown');
 
@@ -44,6 +67,39 @@ export function initAuthModule(utils, state) {
             localStorage.setItem('guestName', state.currentPlayerName);
         }
 
+        // CRITICAL FIX: Run cross-device recovery BEFORE syncing identity to Firebase
+        // This prevents the new mobile ID from overwriting the database before we can adopt the web ID!
+        // Cross-device room recovery: Find all active rooms this user is in and add them to local storage
+        try {
+            const snap = await get(ref(db, 'rooms'));
+            if (snap.exists()) {
+                const allRooms = snap.val();
+                let joined = JSON.parse(localStorage.getItem('joinedRooms') || '[]');
+                let foundNew = false;
+                let validPlayerIds = [];
+                
+                Object.entries(allRooms).forEach(([code, rData]) => {
+                    if (rData.players) {
+                        const matchedEntry = Object.entries(rData.players).find(([pId, p]) => p.uid === user.uid);
+                        if (matchedEntry) {
+                            validPlayerIds.push(matchedEntry[0]);
+                            if (!joined.includes(code)) { joined.push(code); foundNew = true; }
+                        }
+                    }
+                });
+                
+                if (validPlayerIds.length > 0 && !validPlayerIds.includes(state.currentPlayerId)) {
+                    localStorage.setItem('playerId', validPlayerIds[0]);
+                    localStorage.setItem('joinedRooms', JSON.stringify(joined));
+                    window.location.reload();
+                    return;
+                } else if (foundNew) {
+                    localStorage.setItem('joinedRooms', JSON.stringify(joined));
+                    if (document.getElementById('view-landing').classList.contains('active') && window.loadMyPlaygroups) window.loadMyPlaygroups();
+                }
+            }
+        } catch (e) { console.warn("Failed to recover cross-device rooms:", e); }
+
         setupNotificationButton(user.uid);
         listenToUserProfile(user.uid, bestName, bestAvatar);
     }
@@ -54,8 +110,6 @@ export function initAuthModule(utils, state) {
             state.activeUserProfileListener = null;
         }
         
-        updateAuthUI(false);
-
         const savedGuestName = localStorage.getItem('guestName') || localStorage.getItem('playerName');
         if (savedGuestName) {
             state.currentPlayerName = savedGuestName;
@@ -64,6 +118,8 @@ export function initAuthModule(utils, state) {
             const playerNameInput = document.getElementById('playerNameInput');
             if (playerNameInput) playerNameInput.value = savedGuestName;
         }
+
+        updateAuthUI(false, savedGuestName || "Guest");
 
         if (window.isExplicitSignOut) {
             window.isExplicitSignOut = false;
@@ -107,7 +163,7 @@ export function initAuthModule(utils, state) {
         } else {
             if (loggedOutUI) loggedOutUI.style.display = 'block';
             if (loggedInUI) loggedInUI.style.display = 'none';
-            if (globalAccountName) globalAccountName.innerText = "Guest";
+            if (globalAccountName) globalAccountName.innerText = name || "Guest";
             if (globalAvatar) globalAvatar.style.display = 'none';
             state.currentPlayerAvatar = null;
             localStorage.removeItem('playerAvatar');
@@ -117,10 +173,42 @@ export function initAuthModule(utils, state) {
     function setupNotificationButton(uid) {
         const enableNotificationsBtn = document.getElementById('enableNotificationsBtn');
         if (enableNotificationsBtn) {
-            enableNotificationsBtn.style.display = Notification.permission === 'default' ? 'block' : 'none';
-            enableNotificationsBtn.onclick = () => {
+            enableNotificationsBtn.style.display = 'block';
+
+            const updateUIState = (status) => {
+                if (status === 'granted') {
+                    enableNotificationsBtn.innerText = '✅ Push Notifications Enabled';
+                    enableNotificationsBtn.disabled = true;
+                    enableNotificationsBtn.style.opacity = '0.5';
+                } else if (status === 'denied') {
+                    enableNotificationsBtn.innerText = '❌ Notifications Blocked in OS';
+                    enableNotificationsBtn.disabled = true;
+                    enableNotificationsBtn.style.opacity = '0.5';
+                } else {
+                    enableNotificationsBtn.innerText = '🔔 Enable Push Notifications';
+                    enableNotificationsBtn.disabled = false;
+                    enableNotificationsBtn.style.opacity = '1';
+                }
+            };
+
+            if (window.Capacitor && window.Capacitor.Plugins.PushNotifications) {
+                window.Capacitor.Plugins.PushNotifications.checkPermissions().then(status => {
+                    updateUIState(status.receive);
+                });
+            } else if ('Notification' in window) {
+                updateUIState(Notification.permission);
+            } else {
+                enableNotificationsBtn.style.display = 'none';
+            }
+            enableNotificationsBtn.onclick = async () => {
                 playSound('sfx-click');
-                requestPushPermissions(uid);
+                await requestPushPermissions(uid);
+                if (window.Capacitor && window.Capacitor.Plugins.PushNotifications) {
+                    const st = await window.Capacitor.Plugins.PushNotifications.checkPermissions();
+                    updateUIState(st.receive);
+                } else if ('Notification' in window) {
+                    updateUIState(Notification.permission);
+                }
             };
         }
     }
@@ -211,9 +299,17 @@ export function initAuthModule(utils, state) {
                 if (provider.providerId === 'google.com') {
                     let result;
                     try {
-                        result = await window.Capacitor.Plugins.FirebaseAuthentication.signInWithGoogle();
+                        result = await window.Capacitor.Plugins.FirebaseAuthentication.signInWithGoogle({
+                            clientId: "579721236208-53ml1vqsosjb4cglpo3etka31l1f8l1e.apps.googleusercontent.com",
+                            clientId: "579721236208-53ml1vqsosjb4cglpo3etka31l1f8l1e.apps.googleusercontent.com",
+                            serverClientId: "579721236208-53ml1vqsosjb4cglpo3etka31l1f8l1e.apps.googleusercontent.com"
+                        });
                     } catch (nativeErr) {
-                        alert("Native Plugin Error: " + (nativeErr.message || JSON.stringify(nativeErr)));
+                        console.error("Native Auth Error:", nativeErr);
+                        // Silently ignore if the user just closed the login popup
+                        if (!String(nativeErr.message).toLowerCase().includes("cancel")) {
+                            showToast("Google Sign-In failed.", true);
+                        }
                         return;
                     }
 
@@ -222,8 +318,9 @@ export function initAuthModule(utils, state) {
                         return;
                     }
 
+                    let credential;
                     try {
-                        const credential = GoogleAuthProvider.credential(result.credential.idToken);
+                        credential = GoogleAuthProvider.credential(result.credential.idToken);
                         if (user && user.isAnonymous) {
                             await linkWithCredential(user, credential);
                             showToast("Account linked! Your stats are saved.", false, 3000, true);
@@ -231,10 +328,23 @@ export function initAuthModule(utils, state) {
                             await signInWithCredential(auth, credential);
                         }
                     } catch (fbErr) {
-                        alert("Firebase Error: " + (fbErr.message || JSON.stringify(fbErr)));
+                        if (fbErr.code === 'auth/credential-already-in-use' && credential) {
+                            try {
+                                await signInWithCredential(auth, credential);
+                                showToast("Logged into existing account.", false, 3000, true);
+                            } catch (signInErr) {
+                                alert("Login Error: " + (signInErr.message || JSON.stringify(signInErr)));
+                            }
+                        } else {
+                            alert("Firebase Error: " + (fbErr.message || JSON.stringify(fbErr)));
+                        }
                     }
                 } else {
-                    showToast("Only Google Sign-In is supported on the mobile app.", true);
+                    if (user && user.isAnonymous) {
+                        await linkWithRedirect(user, provider);
+                    } else {
+                        await signInWithRedirect(auth, provider);
+                    }
                 }
                 return; // STOPS execution to physically prevent the browser redirect
             }
@@ -332,6 +442,39 @@ export function initAuthModule(utils, state) {
 
     async function requestPushPermissions(uid) {
         try {
+            if (window.Capacitor && window.Capacitor.Plugins.PushNotifications) {
+                const PushNotifications = window.Capacitor.Plugins.PushNotifications;
+                let permStatus = await PushNotifications.checkPermissions();
+                if (permStatus.receive === 'prompt') {
+                    permStatus = await PushNotifications.requestPermissions();
+                }
+                if (permStatus.receive !== 'granted') {
+                    return showToast("Notification permission denied.", true);
+                }
+                
+                await PushNotifications.removeAllListeners();
+                PushNotifications.addListener('registration', async (token) => {
+                    await update(ref(db, `users/${uid}/fcmTokens`), { [token.value]: true });
+                    showToast("Push Notifications enabled!", false, 3000, true);
+                    const btn = document.getElementById('enableNotificationsBtn');
+                    if (btn) {
+                        btn.innerText = '✅ Push Notifications Enabled';
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                    }
+                });
+                PushNotifications.addListener('registrationError', (error) => {
+                    showToast("Failed to generate native token.", true);
+                });
+                PushNotifications.addListener('pushNotificationReceived', (notification) => {
+                    showToast(`🔔 ${notification.title}: ${notification.body}`, false, 5000, true);
+                });
+                
+                await PushNotifications.register();
+                return;
+            }
+
+            if (!('Notification' in window)) return showToast("Push not supported here.", true);
             const permission = await Notification.requestPermission();
             if (permission === 'granted') {
                 const supported = await isSupported();
@@ -348,7 +491,11 @@ export function initAuthModule(utils, state) {
                     await update(ref(db, `users/${uid}/fcmTokens`), { [token]: true });
                     showToast("Push Notifications enabled!", false, 3000, true);
                     const btn = document.getElementById('enableNotificationsBtn');
-                    if (btn) btn.style.display = 'none';
+                    if (btn) {
+                        btn.innerText = '✅ Push Notifications Enabled';
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                    }
                     
                     // Listen for foreground messages (when user has the app open)
                     onMessage(messaging, (payload) => {

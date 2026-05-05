@@ -559,6 +559,44 @@ async function sendDiscordWebhook(roomId, content) {
     }
 }
 
+async function sendDirectNotification(uid, payload) {
+    const db = admin.database();
+    const tokensSnap = await db.ref(`users/${uid}/fcmTokens`).once('value');
+    if (!tokensSnap.exists()) return;
+
+    let targetTokens = Object.keys(tokensSnap.val());
+    if (targetTokens.length === 0) return;
+
+    const message = {
+        notification: {
+            title: payload.title,
+            body: payload.body,
+        },
+        data: {
+            url: payload.url || `/`
+        },
+        tokens: targetTokens
+    };
+
+    try {
+        const response = await admin.messaging().sendMulticast(message);
+        if (response.failureCount > 0) {
+            const tokenRemovals = {};
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success && (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered')) {
+                    const deadToken = targetTokens[idx];
+                    tokenRemovals[`users/${uid}/fcmTokens/${deadToken}`] = null;
+                }
+            });
+            if (Object.keys(tokenRemovals).length > 0) {
+                await db.ref().update(tokenRemovals);
+            }
+        }
+    } catch (error) {
+        console.error('Error sending direct message:', error);
+    }
+}
+
 async function sendRoomNotification(roomId, payload, excludeUid = null) {
     const db = admin.database();
     const playersSnap = await db.ref(`rooms/${roomId}/players`).once('value');
@@ -630,6 +668,65 @@ exports.notifyDraftStarted = onValueUpdated({ ref: "/rooms/{roomId}/settings/sta
         body: "The Host has started a new Commander Draft! Enter the Archives.",
         url: `/?room=${event.params.roomId}`
     });
+});
+
+exports.pingPlayer = onCall(async (request) => {
+    const { roomId, targetId, pingerName } = request.data;
+    if (!roomId || !targetId) throw new HttpsError('invalid-argument', 'Missing parameters.');
+
+    const db = admin.database();
+    
+    // Enforce 1 ping per day per target per room
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD in UTC
+    const pingRef = db.ref(`rooms/${roomId}/pings/${targetId}/${today}`);
+    
+    const pingSnap = await pingRef.once('value');
+    if (pingSnap.exists()) {
+        throw new HttpsError('resource-exhausted', 'This player has already been pinged today.');
+    }
+    
+    const targetPlayerSnap = await db.ref(`rooms/${roomId}/players/${targetId}`).once('value');
+    if (!targetPlayerSnap.exists()) throw new HttpsError('not-found', 'Player not found.');
+    
+    const targetPlayer = targetPlayerSnap.val();
+    
+    let actionNeeded = "take action in the draft";
+    if (!targetPlayer.selected) {
+        actionNeeded = "pick your commander";
+    } else if (!targetPlayer.deck) {
+        actionNeeded = "submit your deck link";
+    } else {
+        actionNeeded = "make your deck legal and under budget";
+    }
+
+    const title = "Ping! 🔔";
+    const body = `${pingerName || 'Someone'} is waiting for you to ${actionNeeded}!`;
+
+    await pingRef.set({ timestamp: Date.now(), by: request.auth ? request.auth.uid : 'guest' });
+
+    if (targetPlayer.uid) {
+        await sendDirectNotification(targetPlayer.uid, {
+            title, body, url: `/?room=${roomId}`
+        });
+    }
+    
+    await sendDiscordWebhook(roomId, `🔔 **${targetPlayer.name}**, you have been pinged by **${pingerName || 'Someone'}**! Please ${actionNeeded}.\nhttps://edhchallenge.com/?room=${roomId}`);
+
+    return { success: true };
+});
+
+exports.adminTestPing = onCall(async (request) => {
+    await verifyIsAdmin(request.auth);
+    
+    const targetUid = request.data.targetUid;
+    if (!targetUid) throw new HttpsError('invalid-argument', 'Missing target UID.');
+    
+    await sendDirectNotification(targetUid, {
+        title: "Admin Test Ping! 🔔",
+        body: "This is a test push notification from the Admin console.",
+        url: "/"
+    });
+    return { success: true };
 });
 
 exports.onRoomCreated = onValueCreated({ ref: "/rooms/{roomId}", instance: "commander-challenge-default-rtdb", region: "europe-west1" }, async (event) => {

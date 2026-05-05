@@ -146,6 +146,16 @@ document.addEventListener('click', function(event) {
 const initialNameInput = document.getElementById('playerNameInput');
 if (initialNameInput && currentPlayerName) initialNameInput.value = currentPlayerName;
 
+const initialGlobalName = document.getElementById('globalAccountName');
+if (initialGlobalName && currentPlayerName) {
+    initialGlobalName.innerText = currentPlayerName;
+}
+const initialGlobalAvatar = document.getElementById('globalAvatar');
+if (initialGlobalAvatar && currentPlayerAvatar) {
+    initialGlobalAvatar.src = currentPlayerAvatar;
+    initialGlobalAvatar.style.display = 'block';
+}
+
 let activeRoomListener = null;
 let activePlayerListener = null;
 let activeUserProfileListener = null;
@@ -266,6 +276,16 @@ if (selectionModeEl) selectionModeEl.addEventListener('change', updateSettingsVi
 updateSettingsVisibility();
 
 export function playSound(soundId) {
+    // Haptics (Physical Vibration)
+    if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
+        const Haptics = window.Capacitor.Plugins.Haptics;
+        if (soundId === 'sfx-choose' || soundId === 'sfx-reveal') {
+            Haptics.impact({ style: 'HEAVY' }).catch(()=>{});
+        } else {
+            Haptics.impact({ style: 'LIGHT' }).catch(()=>{});
+        }
+    }
+
     if (isSfxMuted) return; 
     const sound = document.getElementById(soundId);
     if (sound) { sound.currentTime = 0; sound.volume = soundId === 'sfx-choose' ? 0.35 : 0.2; sound.play().catch(()=>{}); }
@@ -504,6 +524,26 @@ window.clearPlayer = (id) => {
             showToast("Failed to clear player: " + e.message, true);
         }
     });
+};
+
+window.pingPlayer = async (targetId) => {
+    playSound('sfx-click');
+    const btn = document.querySelector(`button[onclick="window.pingPlayer('${targetId}')"]`);
+    if (btn) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+    }
+    try {
+        const pingFn = httpsCallable(functions, 'pingPlayer');
+        await pingFn({ roomId: currentRoom, targetId: targetId, pingerName: currentPlayerName });
+        showToast("Player pinged!", false, 3000, true);
+    } catch(e) {
+        showToast(e.message, true);
+        if (btn) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+        }
+    }
 };
 
 window.refreshMyDeckPrice = async () => {
@@ -1322,6 +1362,21 @@ function initDashboard() {
 
             let presenceDot = `<span class="presence-dot ${pData.online ? 'presence-online' : 'presence-offline'}" title="${pData.online ? 'Online' : 'Offline'}"></span>`;
             let html = `<div class="card ${highlightClass}"><div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">${avatarImg}<h3 style="margin:0; display:flex; align-items:center;">${presenceDot}${safeName}${hostIcon}${trophies}${guestTag}</h3></div>${statusHtml}`;
+
+            if (id !== currentPlayerId) {
+                let maxB = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
+                let cPrice = pData.lockedDeckPrice !== undefined ? pData.lockedDeckPrice : (pData.deckPrice || 0);
+                let pReady = pData.deck && pData.isLegal === true && (maxB === 0 || cPrice <= maxB);
+                
+                if (!pReady) {
+                    const today = new Date().toISOString().split('T')[0];
+                    const hasBeenPingedToday = data.pings && data.pings[id] && data.pings[id][today];
+                    
+                    if (!hasBeenPingedToday) {
+                        html += `<button class="auth-sm-btn ping-btn" style="position:absolute; top:12px; right:12px; color:var(--gold); border-color:var(--gold); padding: 2px 6px; font-size: 1rem; background: rgba(0,0,0,0.5);" onclick="window.pingPlayer('${id}')" title="Ping to hurry up!">🔔</button>`;
+                    }
+                }
+            }
 
             if (id === currentPlayerId && !safeSelected) {
                 let btnText = "Begin Rolling";

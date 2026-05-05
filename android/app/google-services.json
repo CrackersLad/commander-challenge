@@ -15,6 +15,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "579721236208-kim8fu8k2porjas7jbnojakj150tqjpq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cmdrchallenge.app",
+            "certificate_hash": "42b14cf40272464b32a81914a21524f37fa6b359"
+          }
+        },
+        {
           "client_id": "579721236208-us4jmbpvothh02dusur4i7sjvdm7no7m.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
