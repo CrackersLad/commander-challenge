@@ -1,4 +1,4 @@
-import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=19.40';
+import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=19.41';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithRedirect, linkWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
@@ -194,9 +194,11 @@ export function initAuthModule(utils, state) {
             if (window.Capacitor && window.Capacitor.Plugins.PushNotifications) {
                 window.Capacitor.Plugins.PushNotifications.checkPermissions().then(status => {
                     updateUIState(status.receive);
+                    if (status.receive === 'granted') requestPushPermissions(uid, true);
                 });
             } else if ('Notification' in window) {
                 updateUIState(Notification.permission);
+                if (Notification.permission === 'granted') requestPushPermissions(uid, true);
             } else {
                 enableNotificationsBtn.style.display = 'none';
             }
@@ -440,22 +442,24 @@ export function initAuthModule(utils, state) {
     
     setupUIEventListeners();
 
-    async function requestPushPermissions(uid) {
+    async function requestPushPermissions(uid, silent = false) {
         try {
             if (window.Capacitor && window.Capacitor.Plugins.PushNotifications) {
                 const PushNotifications = window.Capacitor.Plugins.PushNotifications;
                 let permStatus = await PushNotifications.checkPermissions();
                 if (permStatus.receive === 'prompt') {
+                    if (silent) return;
                     permStatus = await PushNotifications.requestPermissions();
                 }
                 if (permStatus.receive !== 'granted') {
-                    return showToast("Notification permission denied.", true);
+                    if (!silent) showToast("Notification permission denied.", true);
+                    return;
                 }
                 
                 await PushNotifications.removeAllListeners();
                 PushNotifications.addListener('registration', async (token) => {
                     await update(ref(db, `users/${uid}/fcmTokens`), { [token.value]: true });
-                    showToast("Push Notifications enabled!", false, 3000, true);
+                    if (!silent) showToast("Push Notifications enabled!", false, 3000, true);
                     const btn = document.getElementById('enableNotificationsBtn');
                     if (btn) {
                         btn.innerText = '✅ Push Notifications Enabled';
@@ -464,7 +468,7 @@ export function initAuthModule(utils, state) {
                     }
                 });
                 PushNotifications.addListener('registrationError', (error) => {
-                    showToast("Failed to generate native token.", true);
+                    if (!silent) showToast("Failed to generate native token.", true);
                 });
                 PushNotifications.addListener('pushNotificationReceived', (notification) => {
                     showToast(`🔔 ${notification.title}: ${notification.body}`, false, 5000, true);
@@ -474,11 +478,20 @@ export function initAuthModule(utils, state) {
                 return;
             }
 
-            if (!('Notification' in window)) return showToast("Push not supported here.", true);
-            const permission = await Notification.requestPermission();
+            if (!('Notification' in window)) {
+                if (!silent) showToast("Push not supported here.", true);
+                return;
+            }
+
+            let permission = Notification.permission;
+            if (permission === 'default' && !silent) permission = await Notification.requestPermission();
+
             if (permission === 'granted') {
                 const supported = await isSupported();
-                if (!supported) return showToast("Push notifications are not supported in this browser.", true);
+                if (!supported) {
+                    if (!silent) showToast("Push notifications are not supported in this browser.", true);
+                    return;
+                }
 
                 const messaging = getMessaging(app);
                 const swRegistration = await navigator.serviceWorker.getRegistration();
@@ -489,7 +502,7 @@ export function initAuthModule(utils, state) {
                 
                 if (token) {
                     await update(ref(db, `users/${uid}/fcmTokens`), { [token]: true });
-                    showToast("Push Notifications enabled!", false, 3000, true);
+                    if (!silent) showToast("Push Notifications enabled!", false, 3000, true);
                     const btn = document.getElementById('enableNotificationsBtn');
                     if (btn) {
                         btn.innerText = '✅ Push Notifications Enabled';
@@ -502,13 +515,14 @@ export function initAuthModule(utils, state) {
                         showToast(`🔔 ${payload.notification?.title}: ${payload.notification?.body}`, false, 5000, true);
                     });
                 } else {
-                    showToast("Failed to generate notification token.", true);
+                    if (!silent) showToast("Failed to generate notification token.", true);
                 }
             } else {
-                showToast("Notification permission denied.", true);
+                if (!silent) showToast("Notification permission denied.", true);
             }
         } catch (error) {
-            console.error('FCM Error:', error); showToast("Failed to enable notifications.", true);
+            console.error('FCM Error:', error); 
+            if (!silent) showToast("Failed to enable notifications.", true);
         }
     }
 }
