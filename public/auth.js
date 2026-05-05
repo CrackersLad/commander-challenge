@@ -132,6 +132,8 @@ export function initAuthModule(utils, state) {
 
         if (!user) {
             signInAnonymously(auth).catch(e => console.error("Anonymous Auth Failed:", e));
+        } else {
+            setupNotificationButton(user.uid);
         }
     }
 
@@ -182,7 +184,7 @@ export function initAuthModule(utils, state) {
                     enableNotificationsBtn.style.opacity = '0.5';
                 } else if (status === 'denied') {
                     enableNotificationsBtn.innerText = '❌ Notifications Blocked in OS';
-                    enableNotificationsBtn.disabled = true;
+                    enableNotificationsBtn.disabled = false;
                     enableNotificationsBtn.style.opacity = '0.5';
                 } else {
                     enableNotificationsBtn.innerText = '🔔 Enable Push Notifications';
@@ -200,10 +202,20 @@ export function initAuthModule(utils, state) {
                 updateUIState(Notification.permission);
                 if (Notification.permission === 'granted') requestPushPermissions(uid, true);
             } else {
-                enableNotificationsBtn.style.display = 'none';
+                enableNotificationsBtn.innerText = '📱 App Install Required for Push';
+                enableNotificationsBtn.style.opacity = '0.7';
+                enableNotificationsBtn.onclick = () => {
+                    playSound('sfx-click');
+                    showToast("To enable notifications on iOS Safari, tap 'Share' then 'Add to Home Screen'.", false, 6000, true);
+                };
+                return;
             }
             enableNotificationsBtn.onclick = async () => {
                 playSound('sfx-click');
+                if (enableNotificationsBtn.innerText.includes('Blocked')) {
+                    showToast("Blocked by OS. Please open device Settings to allow notifications.", true, 4000);
+                    return;
+                }
                 await requestPushPermissions(uid);
                 if (window.Capacitor && window.Capacitor.Plugins.PushNotifications) {
                     const st = await window.Capacitor.Plugins.PushNotifications.checkPermissions();
