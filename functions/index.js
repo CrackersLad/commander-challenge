@@ -577,11 +577,6 @@ async function sendDirectNotification(uid, payload) {
                 channelId: 'default'
             }
         },
-        android: {
-            notification: {
-                channelId: 'default'
-            }
-        },
         data: {
             url: payload.url || `/`
         },
@@ -635,6 +630,11 @@ async function sendRoomNotification(roomId, payload, excludeUid = null) {
         notification: {
             title: payload.title,
             body: payload.body,
+        },
+        android: {
+            notification: {
+                channelId: 'default'
+            }
         },
         data: {
             url: payload.url || `/?room=${roomId}`
