@@ -179,9 +179,9 @@ export function initAuthModule(utils, state) {
 
             const updateUIState = (status) => {
                 if (status === 'granted') {
-                    enableNotificationsBtn.innerText = '✅ Push Notifications Enabled';
-                    enableNotificationsBtn.disabled = true;
-                    enableNotificationsBtn.style.opacity = '0.5';
+                    enableNotificationsBtn.innerText = '✅ Push Notifications Enabled (Re-sync)';
+                    enableNotificationsBtn.disabled = false;
+                    enableNotificationsBtn.style.opacity = '1';
                 } else if (status === 'denied') {
                     enableNotificationsBtn.innerText = '❌ Notifications Blocked in OS';
                     enableNotificationsBtn.disabled = false;
@@ -495,12 +495,12 @@ export function initAuthModule(utils, state) {
                 PushNotifications.addListener('registration', async (token) => {
                     const platform = window.Capacitor ? window.Capacitor.getPlatform() : 'mobile';
                     await update(ref(db, `users/${uid}/fcmTokens`), { [token.value]: platform });
-                    if (!silent) showToast("Push Notifications enabled!", false, 3000, true);
+                    if (!silent) showToast("Push Notifications synced!", false, 3000, true);
                     const btn = document.getElementById('enableNotificationsBtn');
                     if (btn) {
-                        btn.innerText = '✅ Push Notifications Enabled';
-                        btn.disabled = true;
-                        btn.style.opacity = '0.5';
+                        btn.innerText = '✅ Push Notifications Enabled (Re-sync)';
+                        btn.disabled = false;
+                        btn.style.opacity = '1';
                     }
                 });
                 PushNotifications.addListener('registrationError', (error) => {
@@ -542,12 +542,12 @@ export function initAuthModule(utils, state) {
                 
                 if (token) {
                     await update(ref(db, `users/${uid}/fcmTokens`), { [token]: 'web' });
-                    if (!silent) showToast("Push Notifications enabled!", false, 3000, true);
+                    if (!silent) showToast("Push Notifications synced!", false, 3000, true);
                     const btn = document.getElementById('enableNotificationsBtn');
                     if (btn) {
-                        btn.innerText = '✅ Push Notifications Enabled';
-                        btn.disabled = true;
-                        btn.style.opacity = '0.5';
+                        btn.innerText = '✅ Push Notifications Enabled (Re-sync)';
+                        btn.disabled = false;
+                        btn.style.opacity = '1';
                     }
                     
                     // Listen for foreground messages (when user has the app open)
