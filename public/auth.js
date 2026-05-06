@@ -479,6 +479,19 @@ export function initAuthModule(utils, state) {
                 }
                 
                 await PushNotifications.removeAllListeners();
+
+                if (window.Capacitor.getPlatform() === 'android') {
+                    try {
+                        await PushNotifications.createChannel({
+                            id: 'default',
+                            name: 'General Alerts',
+                            description: 'Notifications for challenge events',
+                            importance: 5,
+                            visibility: 1
+                        });
+                    } catch(e) { console.warn("Channel init error:", e); }
+                }
+
                 PushNotifications.addListener('registration', async (token) => {
                     const platform = window.Capacitor ? window.Capacitor.getPlatform() : 'mobile';
                     await update(ref(db, `users/${uid}/fcmTokens`), { [token.value]: platform });
@@ -495,6 +508,10 @@ export function initAuthModule(utils, state) {
                 });
                 PushNotifications.addListener('pushNotificationReceived', (notification) => {
                     showToast(`🔔 ${notification.title}: ${notification.body}`, false, 5000, true);
+                });
+                PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+                    const data = action.notification.data;
+                    if (data && data.url) window.location.href = data.url;
                 });
                 
                 await PushNotifications.register();

@@ -572,6 +572,16 @@ async function sendDirectNotification(uid, payload) {
             title: payload.title,
             body: payload.body,
         },
+        android: {
+            notification: {
+                channelId: 'default'
+            }
+        },
+        android: {
+            notification: {
+                channelId: 'default'
+            }
+        },
         data: {
             url: payload.url || `/`
         },
