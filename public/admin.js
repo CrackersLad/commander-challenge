@@ -1,4 +1,4 @@
-import { db, auth, functions } from './firebase-setup.js?v=19.47';
+import { db, auth, functions } from './firebase-setup.js?v=19.43';
 import { ref, get, remove, update, increment } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -38,8 +38,8 @@ export function initAdminModule(utils) {
         
         try {
             const pingFn = httpsCallable(functions, 'adminTestPing');
-            await pingFn({ targetUid: targetUid });
-            showToast("Test ping sent!", false, 3000, true);
+            const res = await pingFn({ targetUid: targetUid });
+            showToast(`Test ping sent! (${res.data.debug || 'OK'})`, false, 6000, true);
         } catch (e) {
             showToast("Ping failed: " + e.message, true);
         } finally {

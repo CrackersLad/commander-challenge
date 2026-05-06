@@ -559,13 +559,19 @@ async function sendDiscordWebhook(roomId, content) {
     }
 }
 
-async function sendDirectNotification(uid, payload) {
+async function sendDirectNotification(uid, payload, throwOnFail = false) {
     const db = admin.database();
     const tokensSnap = await db.ref(`users/${uid}/fcmTokens`).once('value');
-    if (!tokensSnap.exists()) return;
+    if (!tokensSnap.exists()) {
+        if (throwOnFail) throw new Error("No push tokens found for user.");
+        return;
+    }
 
     let targetTokens = Object.keys(tokensSnap.val());
-    if (targetTokens.length === 0) return;
+    if (targetTokens.length === 0) {
+        if (throwOnFail) throw new Error("Push token array is empty.");
+        return;
+    }
 
     const message = {
         notification: {
@@ -584,11 +590,13 @@ async function sendDirectNotification(uid, payload) {
     };
 
     try {
-        const response = await admin.messaging().sendMulticast(message);
+        const response = await admin.messaging().sendEachForMulticast(message);
+        let errors = [];
         if (response.failureCount > 0) {
             const tokenRemovals = {};
             response.responses.forEach((resp, idx) => {
                 if (!resp.success && (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered')) {
+                    errors.push(resp.error.message);
                     const deadToken = targetTokens[idx];
                     tokenRemovals[`users/${uid}/fcmTokens/${deadToken}`] = null;
                 }
@@ -596,9 +604,14 @@ async function sendDirectNotification(uid, payload) {
             if (Object.keys(tokenRemovals).length > 0) {
                 await db.ref().update(tokenRemovals);
             }
+            if (response.successCount === 0 && throwOnFail) {
+                throw new Error(`FCM Rejected Message: ${errors[0]}`);
+            }
         }
+        return `Success: ${response.successCount}, Fails: ${response.failureCount}`;
     } catch (error) {
         console.error('Error sending direct message:', error);
+        if (throwOnFail) throw error;
     }
 }
 
@@ -643,7 +656,7 @@ async function sendRoomNotification(roomId, payload, excludeUid = null) {
     };
 
     try {
-        const response = await admin.messaging().sendMulticast(message);
+        const response = await admin.messaging().sendEachForMulticast(message);
         console.log(`Sent ${response.successCount} push notifications successfully.`);
         
         // Automatically clean up invalid/expired tokens to prevent database bloat
@@ -731,12 +744,16 @@ exports.adminTestPing = onCall(async (request) => {
     const targetUid = request.data.targetUid;
     if (!targetUid) throw new HttpsError('invalid-argument', 'Missing target UID.');
     
-    await sendDirectNotification(targetUid, {
-        title: "Admin Test Ping! 🔔",
-        body: "This is a test push notification from the Admin console.",
-        url: "/"
-    });
-    return { success: true };
+    try {
+        const debugMsg = await sendDirectNotification(targetUid, {
+            title: "Admin Test Ping! 🔔",
+            body: "This is a test push notification from the Admin console.",
+            url: "/"
+        }, true);
+        return { success: true, debug: debugMsg };
+    } catch (e) {
+        throw new HttpsError('internal', e.message);
+    }
 });
 
 exports.onRoomCreated = onValueCreated({ ref: "/rooms/{roomId}", instance: "commander-challenge-default-rtdb", region: "europe-west1" }, async (event) => {
