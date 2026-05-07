@@ -10,7 +10,11 @@ export function initHubModule(utils, state, coreUi) {
         const archives = await getArchives();
         if (!archives || archives.length === 0) return showToast("Archives not loaded yet. Try again in a moment.", true);
 
+        const existingOverlay = document.getElementById('quickRollOverlay');
+        if (existingOverlay) existingOverlay.remove();
+
         const overlay = document.createElement('div');
+        overlay.id = 'quickRollOverlay';
         overlay.className = 'modal-overlay show';
         overlay.style.display = 'flex';
         overlay.style.zIndex = '9999';
@@ -39,6 +43,7 @@ export function initHubModule(utils, state, coreUi) {
         let finalCard = null;
 
         function animateRoll() {
+            if (!document.body.contains(overlay) || !overlay.classList.contains('show')) return;
             const randomCard = archives[Math.floor(Math.random() * archives.length)];
             finalCard = randomCard;
 

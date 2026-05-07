@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=19.52';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=19.52';
-import { getArchives } from './data-service.js?v=19.52';
-import { initDeckActionsModule } from './deck-actions.js?v=19.52';
-import { initRoomActionsModule } from './room-actions.js?v=19.52';
-import { initPlayerViewModule } from './player-view.js?v=19.52';
-import { initAdminModule } from './admin.js?v=19.52';
-import { initCalendarModule } from './calendar.js?v=19.52';
-import { initAuthModule } from './auth.js?v=19.52';
-import { initHubModule } from './hub.js?v=19.52';
-import { initProfileModule } from './profile.js?v=19.52';
+import { db, auth, functions } from './firebase-setup.js?v=19.51';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=19.51';
+import { getArchives } from './data-service.js?v=19.51';
+import { initDeckActionsModule } from './deck-actions.js?v=19.51';
+import { initRoomActionsModule } from './room-actions.js?v=19.51';
+import { initPlayerViewModule } from './player-view.js?v=19.51';
+import { initAdminModule } from './admin.js?v=19.51';
+import { initCalendarModule } from './calendar.js?v=19.51';
+import { initAuthModule } from './auth.js?v=19.51';
+import { initHubModule } from './hub.js?v=19.51';
+import { initProfileModule } from './profile.js?v=19.51';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -56,6 +56,33 @@ safeAreaStyle.innerHTML = `
         padding-top: var(--safe-area-top) !important;
         padding-bottom: var(--safe-area-bottom) !important;
     }
+        /* UI Polish: Interactions & Animations */
+        .select-btn, .secondary-btn, .auth-sm-btn, .host-action-btn, .flip-btn {
+            transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease !important;
+            cursor: pointer;
+        }
+        .select-btn:active, .secondary-btn:active, .auth-sm-btn:active, .flip-btn:active {
+            transform: scale(0.95) !important;
+            filter: brightness(1.2);
+        }
+        .card {
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease !important;
+        }
+        .modal-overlay:not(.show) .modal-content {
+            transform: scale(0.95);
+            opacity: 0;
+        }
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 `;
 document.head.appendChild(safeAreaStyle);
 
@@ -146,7 +173,10 @@ document.addEventListener('click', function(event) {
     if (event.target.classList.contains('modal-overlay')) {
         playSound('sfx-click');
         event.target.classList.remove('show');
-        setTimeout(() => event.target.style.display = 'none', 300);
+        setTimeout(() => {
+            event.target.style.display = 'none';
+            if (event.target.id === 'quickRollOverlay') event.target.remove();
+        }, 300);
     }
 });
 
@@ -1328,7 +1358,6 @@ function initDashboard() {
             return isReady ? 3 : 2; // Ready (3) vs Deck Sealed (2)
         };
 
-        let animDelay = 0;
         const sortedIds = Object.keys(players).sort((a,b) => {
             const weightA = getStatusWeight(players[a]);
             const weightB = getStatusWeight(players[b]);
@@ -1372,8 +1401,7 @@ function initDashboard() {
             else if (isMostExpensive) highlightClass = 'most-expensive-deck';
 
             let presenceDot = `<span class="presence-dot ${pData.online ? 'presence-online' : 'presence-offline'}" title="${pData.online ? 'Online' : 'Offline'}"></span>`;
-            let html = `<div class="card ${highlightClass}" style="animation: slideUpFade 0.4s ease-out forwards; animation-delay: ${animDelay}s; opacity: 0;"><div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">${avatarImg}<h3 style="margin:0; display:flex; align-items:center;">${presenceDot}${safeName}${hostIcon}${trophies}${guestTag}</h3></div>${statusHtml}`;
-            animDelay += 0.05;
+            let html = `<div class="card ${highlightClass}"><div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">${avatarImg}<h3 style="margin:0; display:flex; align-items:center;">${presenceDot}${safeName}${hostIcon}${trophies}${guestTag}</h3></div>${statusHtml}`;
 
             if (id !== currentPlayerId) {
                 let maxB = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
