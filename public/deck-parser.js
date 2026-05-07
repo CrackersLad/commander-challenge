@@ -89,7 +89,13 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
             }
 
             let validCats = new Set();
-            if (data.categories) data.categories.forEach(cat => { if (cat.includedInDeck) validCats.add(cat.name); });
+            if (data.categories) {
+                data.categories.forEach(cat => { 
+                    const lower = cat.name.toLowerCase();
+                    if (lower.includes('sideboard') || lower.includes('maybeboard') || lower.includes('tokens')) return;
+                    if (cat.includedInDeck) validCats.add(cat.name); 
+                });
+            }
 
             if (data.cards) {
                 data.cards.forEach(item => {
@@ -97,12 +103,13 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
                     const isCommander = item.categories?.some(cat => ["commander", "commanders"].includes(cat.toLowerCase()));
                     if (!item.categories?.some(cat => validCats.has(cat))) return;
 
-                    deckSize += (item.quantity || 1);
+                    const qty = parseInt(item.quantity || 1, 10);
+                    deckSize += qty;
                     let cardSalt = parseFloat(item.card?.salt ?? item.card?.oracleCard?.salt ?? item.oracleCard?.salt ?? 0) || 0;
-                    deckSalt += (cardSalt * (item.quantity || 1));
+                    deckSalt += (cardSalt * qty);
 
                     if (isCommander && !includeCommander) return;
-                    if (basicLands.includes(cardName)) return;
+                    if (basicLands.includes(cardName)) return; // Excludes basic lands from PRICE, but keeps them in deckSize
 
                     let isFoil = item.isFoil === true || String(item.modifier || "").toLowerCase().includes("foil");
                     let p = item.card?.prices;
@@ -114,7 +121,7 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
                     total += (price * (item.quantity || 1));
                 });
             }
-            return { total: total, site: "Archidekt", isLegal: deckSize === 100, deckSize: deckSize, commanderArt: commanderArt, deckSalt: deckSalt };
+            return { total: total, site: "Archidekt", isLegal: deckSize >= 98 && deckSize <= 101, deckSize: deckSize, commanderArt: commanderArt, deckSalt: deckSalt };
         } else if (safeUrl.includes("moxfield.com")) {
             const moxMatch = safeUrl.match(/decks\/([a-zA-Z0-9_-]+)/);
             const deckId = moxMatch ? moxMatch[1] : null;
@@ -144,10 +151,11 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
             }
 
             allCards.forEach(item => {
-                deckSize += (item.quantity || 1);
-                deckSalt += ((parseFloat(item.card?.salt ?? 0) || 0) * (item.quantity || 1));
+                const qty = parseInt(item.quantity || 1, 10);
+                deckSize += qty;
+                deckSalt += ((parseFloat(item.card?.salt ?? 0) || 0) * qty);
                 if (item.board === 'commander' && !includeCommander) return;
-                if (basicLands.includes(item.card?.name || "Unknown")) return;
+                if (basicLands.includes(item.card?.name || "Unknown")) return; // Excludes basic lands from PRICE
 
                 let isFoil = item.finish === "foil" || item.finish === "etched" || item.isFoil === true;
                 let p = item.card?.prices;
@@ -158,7 +166,7 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
                 }
                 total += (price * (item.quantity || 1));
             });
-            return { total: total, site: "Moxfield", isLegal: deckSize === 100, deckSize: deckSize, commanderArt: commanderArt, deckSalt: deckSalt };
+            return { total: total, site: "Moxfield", isLegal: deckSize >= 98 && deckSize <= 101, deckSize: deckSize, commanderArt: commanderArt, deckSalt: deckSalt };
         }
         return { error: "Unsupported site. Only Archidekt and Moxfield are supported for price calculation." };
     } catch (e) {
