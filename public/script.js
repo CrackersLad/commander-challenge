@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=19.48';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=19.48';
-import { getArchives } from './data-service.js?v=19.48';
-import { initDeckActionsModule } from './deck-actions.js?v=19.48';
-import { initRoomActionsModule } from './room-actions.js?v=19.48';
-import { initPlayerViewModule } from './player-view.js?v=19.48';
-import { initAdminModule } from './admin.js?v=19.48';
-import { initCalendarModule } from './calendar.js?v=19.48';
-import { initAuthModule } from './auth.js?v=19.48';
-import { initHubModule } from './hub.js?v=19.48';
-import { initProfileModule } from './profile.js?v=19.48';
+import { db, auth, functions } from './firebase-setup.js?v=19.43';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=19.43';
+import { getArchives } from './data-service.js?v=19.43';
+import { initDeckActionsModule } from './deck-actions.js?v=19.43';
+import { initRoomActionsModule } from './room-actions.js?v=19.43';
+import { initPlayerViewModule } from './player-view.js?v=19.43';
+import { initAdminModule } from './admin.js?v=19.43';
+import { initCalendarModule } from './calendar.js?v=19.43';
+import { initAuthModule } from './auth.js?v=19.43';
+import { initHubModule } from './hub.js?v=19.43';
+import { initProfileModule } from './profile.js?v=19.43';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -170,7 +170,10 @@ function sanitizeHTML(str) {
 
 function getColorBadges(colors) {
     if (!colors || colors.length === 0) return `<span class="mana-badge mana-C">C</span>`;
-    return colors.map(c => `<span class="mana-badge mana-${c}">${c}</span>`).join('');
+    return colors.map(c => {
+        const safeC = sanitizeHTML(c);
+        return `<span class="mana-badge mana-${safeC}">${safeC}</span>`;
+    }).join('');
 }
 
 function getRoomCreationTime(data) {

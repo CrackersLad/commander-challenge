@@ -550,7 +550,11 @@ async function sendDiscordWebhook(roomId, content) {
         await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, username: "Commander Archives" }),
+            body: JSON.stringify({ 
+                content, 
+                username: "Commander Archives",
+                allowed_mentions: { parse: [] } 
+            }),
             signal: controller.signal
         });
         clearTimeout(timeout);
@@ -868,12 +872,26 @@ exports.notifyBattleScheduled = onValueWritten({ ref: "/rooms/{roomId}/meetup", 
         for (const playerId of allKeys) {
             const wasCantMakeIt = beforeCant[playerId];
             const isCantMakeIt = afterCant[playerId];
-            if (!wasCantMakeIt && isCantMakeIt) {
-                const playerSnap = await admin.database().ref(`rooms/${event.params.roomId}/players/${playerId}/name`).once('value');
-                if (playerSnap.val()) await sendDiscordWebhook(event.params.roomId, `⚠️ **${playerSnap.val()}** can no longer make the scheduled date!`);
-            } else if (wasCantMakeIt && !isCantMakeIt) {
-                const playerSnap = await admin.database().ref(`rooms/${event.params.roomId}/players/${playerId}/name`).once('value');
-                if (playerSnap.val()) await sendDiscordWebhook(event.params.roomId, `✅ **${playerSnap.val()}** can make the scheduled date again!`);
+                if (wasCantMakeIt !== isCantMakeIt) {
+                    const playerSnap = await admin.database().ref(`rooms/${event.params.roomId}/players/${playerId}`).once('value');
+                    const pData = playerSnap.val();
+                    if (pData && pData.name) {
+                        if (!wasCantMakeIt && isCantMakeIt) {
+                            await sendDiscordWebhook(event.params.roomId, `⚠️ **${pData.name}** can no longer make the scheduled date!`);
+                            await sendRoomNotification(event.params.roomId, {
+                                title: "Battle Update ⚠️",
+                                body: `${pData.name} can no longer make the scheduled date!`,
+                                url: `/?room=${event.params.roomId}`
+                            }, pData.uid);
+                        } else if (wasCantMakeIt && !isCantMakeIt) {
+                            await sendDiscordWebhook(event.params.roomId, `✅ **${pData.name}** can make the scheduled date again!`);
+                            await sendRoomNotification(event.params.roomId, {
+                                title: "Battle Update ✅",
+                                body: `${pData.name} can make the scheduled date again!`,
+                                url: `/?room=${event.params.roomId}`
+                            }, pData.uid);
+                        }
+                    }
             }
         }
     }
