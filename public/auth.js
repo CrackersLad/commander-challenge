@@ -179,15 +179,15 @@ export function initAuthModule(utils, state) {
 
             const updateUIState = (status) => {
                 if (status === 'granted') {
-                    enableNotificationsBtn.innerText = '✅ Push Notifications Enabled (Re-sync)';
+                    enableNotificationsBtn.innerHTML = '✅ Notifications Enabled <span style="font-size:0.8em; opacity:0.8;">(Tap to re-sync)</span>';
                     enableNotificationsBtn.disabled = false;
                     enableNotificationsBtn.style.opacity = '1';
                 } else if (status === 'denied') {
-                    enableNotificationsBtn.innerText = '❌ Notifications Blocked in OS';
+                    enableNotificationsBtn.innerText = '❌ OS Blocked Notifications';
                     enableNotificationsBtn.disabled = false;
                     enableNotificationsBtn.style.opacity = '0.5';
                 } else {
-                    enableNotificationsBtn.innerText = '🔔 Enable Push Notifications';
+                    enableNotificationsBtn.innerText = '🔔 Enable Notifications';
                     enableNotificationsBtn.disabled = false;
                     enableNotificationsBtn.style.opacity = '1';
                 }
@@ -498,7 +498,7 @@ export function initAuthModule(utils, state) {
                     if (!silent) showToast("Push Notifications synced!", false, 3000, true);
                     const btn = document.getElementById('enableNotificationsBtn');
                     if (btn) {
-                        btn.innerText = '✅ Push Notifications Enabled (Re-sync)';
+                        btn.innerHTML = '✅ Notifications Enabled <span style="font-size:0.8em; opacity:0.8;">(Tap to re-sync)</span>';
                         btn.disabled = false;
                         btn.style.opacity = '1';
                     }
@@ -545,7 +545,7 @@ export function initAuthModule(utils, state) {
                     if (!silent) showToast("Push Notifications synced!", false, 3000, true);
                     const btn = document.getElementById('enableNotificationsBtn');
                     if (btn) {
-                        btn.innerText = '✅ Push Notifications Enabled (Re-sync)';
+                        btn.innerHTML = '✅ Notifications Enabled <span style="font-size:0.8em; opacity:0.8;">(Tap to re-sync)</span>';
                         btn.disabled = false;
                         btn.style.opacity = '1';
                     }

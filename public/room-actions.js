@@ -71,10 +71,10 @@ export function initRoomActionsModule(utils, state) {
         const data = snap.val();
         if (!data || !data.players) return showToast("No data to copy.", true);
 
-        let text = `⚔️ Commander Draft Challenge (Room: ${state.currentRoom}) ⚔️\n`;
+        let text = `⚔️ **Commander Draft Challenge** (Room: ${state.currentRoom}) ⚔️\n`;
         const cTime = getRoomCreationTime(data);
-        if (cTime) text += `Created: ${new Date(cTime).toLocaleString()}\n`;
-        text += `Generated on: ${new Date().toLocaleString()}\n\n`;
+        if (cTime) text += `*Created: ${new Date(cTime).toLocaleString()}*\n`;
+        text += `*Generated on: ${new Date().toLocaleString()}*\n\n`;
         
         const players = data.players;
         const history = data.history || {};
@@ -90,7 +90,7 @@ export function initRoomActionsModule(utils, state) {
             const hideInfo = isBlind && !allLocked && id !== state.currentPlayerId;
             let roleIcon = p.isHost ? '👑' : '👤';
             let trophyIcon = winCounts[id] ? ` ${'🏆'.repeat(winCounts[id])}` : '';
-            let nameLabel = `${roleIcon}${trophyIcon} ${p.name}`;
+            let nameLabel = `${roleIcon}${trophyIcon} **${p.name}**`;
 
             if (p.selected) {
                 if (hideInfo) text += `${nameLabel}: ??? (Mysterious Commander)\n   🔗 (Link hidden)\n\n`;
@@ -126,6 +126,25 @@ export function initRoomActionsModule(utils, state) {
                 document.getElementById('winnerModal').classList.remove('show');
                 setTimeout(() => document.getElementById('winnerModal').style.display='none', 300);
                 showToast(`👑 ${result.data.winnerName} takes the crown! Playgroup reset.`, false, 3000, true);
+                
+                // Trigger Victory Celebration Overlay
+                const confContainer = document.createElement('div');
+                confContainer.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:99999; overflow:hidden;';
+                document.body.appendChild(confContainer);
+                for (let i = 0; i < 40; i++) {
+                    const conf = document.createElement('div');
+                    conf.innerText = ['🏆','👑','✨','🎉'][Math.floor(Math.random()*4)];
+                    conf.style.cssText = `position:absolute; left:${Math.random()*100}vw; top:-10vh; font-size:${Math.random()*20+20}px; opacity:1; transition: transform ${Math.random()*2+2}s linear, top ${Math.random()*2+2}s ease-in, opacity 0.5s ease-out 2.5s;`;
+                    confContainer.appendChild(conf);
+                    
+                    conf.getBoundingClientRect(); // Trigger reflow to ensure transitions apply smoothly
+                    setTimeout(() => {
+                        conf.style.top = '110vh';
+                        conf.style.transform = `rotate(${Math.random()*720-360}deg) translateX(${Math.random()*100-50}px)`;
+                        conf.style.opacity = '0';
+                    }, 50);
+                }
+                setTimeout(() => confContainer.remove(), 4000);
             } catch(e) {
                 showToast("Failed to declare winner: " + e.message, true);
             }
@@ -155,13 +174,13 @@ export function initRoomActionsModule(utils, state) {
 
         Object.values(history).forEach(match => {
             if (match.winnerId) {
-                if (!playerStats[match.winnerId]) playerStats[match.winnerId] = { name: match.winnerName, wins: 0, matches: 0 };
+                if (!playerStats[match.winnerId]) playerStats[match.winnerId] = { id: match.winnerId, name: match.winnerName, wins: 0, matches: 0 };
                 playerStats[match.winnerId].wins += 1;
             }
 
             if (match.participants) {
                 Object.entries(match.participants).forEach(([pid, pdata]) => {
-                    if (!playerStats[pid]) playerStats[pid] = { name: pdata.name, wins: 0, matches: 0 };
+                    if (!playerStats[pid]) playerStats[pid] = { id: pid, name: pdata.name, wins: 0, matches: 0 };
                     playerStats[pid].matches += 1;
 
                     if (pdata.salt !== undefined && pdata.salt > maxSalt.score) maxSalt = { score: pdata.salt, player: pdata.name, commander: pdata.commander };
@@ -184,8 +203,10 @@ export function initRoomActionsModule(utils, state) {
 
         sortedPlayers.forEach(p => {
             const winRate = p.matches > 0 ? Math.round((p.wins / p.matches) * 100) + '%' : 'N/A';
-            html += `<tr style="border-bottom:1px solid #222;">
-                <td style="padding:8px 5px; color:#fff;">${sanitizeHTML(p.name)}</td><td style="padding:8px 5px; text-align:center; color:#2ecc71; font-weight:bold;">${p.wins}</td>
+            const isMe = p.id === state.currentPlayerId;
+            const rowBg = isMe ? 'background-color: rgba(255, 215, 0, 0.1);' : '';
+            html += `<tr style="border-bottom:1px solid #222; ${rowBg}">
+                <td style="padding:8px 5px; color:#fff;">${isMe ? '<strong>' : ''}${sanitizeHTML(p.name)}${isMe ? ' (You)</strong>' : ''}</td><td style="padding:8px 5px; text-align:center; color:#2ecc71; font-weight:bold;">${p.wins}</td>
                 <td style="padding:8px 5px; text-align:center; color:#aaa;">${p.matches || '?'}</td><td style="padding:8px 5px; text-align:center; color:#66b3ff;">${winRate}</td>
             </tr>`;
         });

@@ -20,7 +20,7 @@ export function initHubModule(utils, state, coreUi) {
                 <div id="quickRollCardContainer">
                     <h4 id="quickRollCardName" style="color: white; margin-bottom: 15px; height: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">&nbsp;</h4>
                     <div id="quickRollCardImage" style="height: 50vh; display:flex; align-items:center; justify-content:center;">
-                        <img src="" class="commander-img" loading="eager" style="max-height: 50vh; margin-bottom: 10px; transition: opacity 0.05s ease-in-out;">
+                    <img src="" class="commander-img" loading="eager" style="max-height: 50vh; margin-bottom: 10px; transition: filter 0.05s ease, transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
                     </div>
                 </div>
                 <div id="quickRollButtons" style="display: none; flex-direction: column; gap: 10px; justify-content: center; margin-top: 15px;"></div>
@@ -45,7 +45,11 @@ export function initHubModule(utils, state, coreUi) {
             cardNameEl.textContent = sanitizeHTML(randomCard.name);
             const imgEl = cardImageContainer.querySelector('img');
             const imgUrl = randomCard.image_uris?.normal || (randomCard.card_faces && randomCard.card_faces[0].image_uris?.normal) || randomCard.image1;
-            if (imgEl) imgEl.src = sanitizeHTML(imgUrl);
+            if (imgEl) {
+                imgEl.src = sanitizeHTML(imgUrl);
+                imgEl.style.filter = 'blur(4px) brightness(1.2)';
+                setTimeout(() => { if(imgEl) imgEl.style.filter = 'none'; }, Math.max(20, interval - 20));
+            }
             
             playSound('sfx-click');
 

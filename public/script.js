@@ -1328,6 +1328,7 @@ function initDashboard() {
             return isReady ? 3 : 2; // Ready (3) vs Deck Sealed (2)
         };
 
+        let animDelay = 0;
         const sortedIds = Object.keys(players).sort((a,b) => {
             const weightA = getStatusWeight(players[a]);
             const weightB = getStatusWeight(players[b]);
@@ -1371,7 +1372,8 @@ function initDashboard() {
             else if (isMostExpensive) highlightClass = 'most-expensive-deck';
 
             let presenceDot = `<span class="presence-dot ${pData.online ? 'presence-online' : 'presence-offline'}" title="${pData.online ? 'Online' : 'Offline'}"></span>`;
-            let html = `<div class="card ${highlightClass}"><div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">${avatarImg}<h3 style="margin:0; display:flex; align-items:center;">${presenceDot}${safeName}${hostIcon}${trophies}${guestTag}</h3></div>${statusHtml}`;
+            let html = `<div class="card ${highlightClass}" style="animation: slideUpFade 0.4s ease-out forwards; animation-delay: ${animDelay}s; opacity: 0;"><div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">${avatarImg}<h3 style="margin:0; display:flex; align-items:center;">${presenceDot}${safeName}${hostIcon}${trophies}${guestTag}</h3></div>${statusHtml}`;
+            animDelay += 0.05;
 
             if (id !== currentPlayerId) {
                 let maxB = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
