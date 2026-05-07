@@ -1,7 +1,7 @@
 <<<<<<< HEAD
-import { db, auth, functions } from './firebase-setup.js?v=19.43';
+import { db, auth, functions } from './firebase-setup.js?v=19.49';
 =======
-import { db, auth, functions } from './firebase-setup.js?v=19.48';
+import { db, auth, functions } from './firebase-setup.js?v=19.49';
 >>>>>>> b8532f99ab7608d57bb93e48d65a21ba56734114
 import { ref, get, remove, update, increment } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
