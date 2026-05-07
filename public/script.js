@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { db, auth, functions } from './firebase-setup.js?v=19.50';
 import { fetchDeckPriceLocal } from './deck-parser.js?v=19.50';
 import { getArchives } from './data-service.js?v=19.50';
@@ -10,19 +9,6 @@ import { initCalendarModule } from './calendar.js?v=19.50';
 import { initAuthModule } from './auth.js?v=19.50';
 import { initHubModule } from './hub.js?v=19.50';
 import { initProfileModule } from './profile.js?v=19.50';
-=======
-import { db, auth, functions } from './firebase-setup.js?v=19.50';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=19.50';
-import { getArchives } from './data-service.js?v=19.50';
-import { initDeckActionsModule } from './deck-actions.js?v=19.50';
-import { initRoomActionsModule } from './room-actions.js?v=19.50';
-import { initPlayerViewModule } from './player-view.js?v=19.50';
-import { initAdminModule } from './admin.js?v=19.50';
-import { initCalendarModule } from './calendar.js?v=19.50';
-import { initAuthModule } from './auth.js?v=19.50';
-import { initHubModule } from './hub.js?v=19.50';
-import { initProfileModule } from './profile.js?v=19.50';
->>>>>>> defe5d8fb9f89c3c690889a6fffe574a7adf65dd
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -49,11 +35,18 @@ safeAreaStyle.innerHTML = `
         --safe-area-top: ${topPadding};
         --safe-area-bottom: ${bottomPadding};
     }
+    html, body {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+    * {
+        box-sizing: border-box;
+    }
     body {
         padding-top: var(--safe-area-top) !important;
         padding-bottom: var(--safe-area-bottom) !important;
-        padding-left: env(safe-area-inset-left, 0px) !important;
-        padding-right: env(safe-area-inset-right, 0px) !important;
+        padding-left: calc(15px + env(safe-area-inset-left, 0px)) !important;
+        padding-right: calc(15px + env(safe-area-inset-right, 0px)) !important;
     }
     /* Push down absolute positioned header buttons so they are clickable */
     #audioContainer, #globalAccountBtn {
