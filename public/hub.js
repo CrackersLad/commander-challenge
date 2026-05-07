@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { db, auth } from './firebase-setup.js?v=19.43';
+=======
+import { db, auth } from './firebase-setup.js?v=19.51';
+>>>>>>> 0f9e1803b15efacfde94d8d27fd1e80a50bfb851
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
