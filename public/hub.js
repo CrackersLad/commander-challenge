@@ -1,9 +1,112 @@
-import { db, auth } from './firebase-setup.js?v=19.50';
+import { db, auth } from './firebase-setup.js?v=19.43';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
-    const { playSound, switchView, sanitizeHTML, getRoomCreationTime } = utils;
+    const { playSound, switchView, sanitizeHTML, getRoomCreationTime, getArchives, showToast } = utils;
     const { initDashboard, initLobby } = coreUi;
+
+    window.quickRollCommander = async () => {
+        playSound('sfx-click');
+        const archives = await getArchives();
+        if (!archives || archives.length === 0) return showToast("Archives not loaded yet. Try again in a moment.", true);
+
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay show';
+        overlay.style.display = 'flex';
+        overlay.style.zIndex = '9999';
+        overlay.innerHTML = `
+            <div class="modal-content" id="quickRollModalContent" style="background: #1a1a1a; padding: 20px; border-radius: 8px; border: 1px solid var(--gold); text-align: center; max-width: 400px; width: 90%; transition: transform 0.2s ease-out, opacity 0.2s ease-out;">
+                <h3 style="color: var(--gold); margin-top: 0; font-family: Cinzel;">Quick Roll</h3>
+                <div id="quickRollCardContainer">
+                    <h4 id="quickRollCardName" style="color: white; margin-bottom: 15px; height: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">&nbsp;</h4>
+                    <div id="quickRollCardImage" style="height: 50vh; display:flex; align-items:center; justify-content:center;">
+                        <img src="" class="commander-img" loading="eager" style="max-height: 50vh; margin-bottom: 10px; transition: opacity 0.05s ease-in-out;">
+                    </div>
+                </div>
+                <div id="quickRollButtons" style="display: none; flex-direction: column; gap: 10px; justify-content: center; margin-top: 15px;"></div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const cardNameEl = document.getElementById('quickRollCardName');
+        const cardImageContainer = document.getElementById('quickRollCardImage');
+        const buttonsEl = document.getElementById('quickRollButtons');
+        const modalContentEl = document.getElementById('quickRollModalContent');
+
+        let animationDuration = 2500;
+        let startTime = Date.now();
+        let interval = 50;
+        let finalCard = null;
+
+        function animateRoll() {
+            const randomCard = archives[Math.floor(Math.random() * archives.length)];
+            finalCard = randomCard;
+
+            cardNameEl.textContent = sanitizeHTML(randomCard.name);
+            const imgEl = cardImageContainer.querySelector('img');
+            const imgUrl = randomCard.image_uris?.normal || (randomCard.card_faces && randomCard.card_faces[0].image_uris?.normal) || randomCard.image1;
+            if (imgEl) imgEl.src = sanitizeHTML(imgUrl);
+            
+            playSound('sfx-click');
+
+            const elapsedTime = Date.now() - startTime;
+            if (elapsedTime < animationDuration) {
+                interval = 50 + (elapsedTime / animationDuration) * 250;
+                setTimeout(animateRoll, interval);
+            } else {
+                showFinalCard(finalCard);
+            }
+        }
+
+        function showFinalCard(card) {
+            playSound('sfx-reveal');
+            modalContentEl.style.transform = 'scale(1.05)';
+            setTimeout(() => modalContentEl.style.transform = 'scale(1)', 200);
+
+            const safeName = sanitizeHTML(card.name);
+            let img1 = card.image_uris?.normal || (card.card_faces && card.card_faces[0].image_uris?.normal) || card.image1;
+            let img2 = (card.card_faces && card.card_faces[1] && card.card_faces[1].image_uris?.normal) || card.image2 || null;
+            const edhrecSlug = safeName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
+
+            cardNameEl.textContent = safeName;
+
+            let imageHtml = img2 
+                ? `<div class="scene" style="margin:0 auto;"><div class="card-3d" id="quickroll-card3d"><a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" style="display:block;" class="card-face card-face-front"><img src="${sanitizeHTML(img1)}" class="commander-img" loading="lazy" style="max-height: 50vh;"></a><a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" style="display:block;" class="card-face card-face-back"><img src="${sanitizeHTML(img2)}" class="commander-img" loading="lazy" style="max-height: 50vh;"></a></div></div><button class="flip-btn" style="margin: 10px auto;" onclick="window.flipCard3D('quickroll-card3d', event)">🔄 Flip Card</button>` 
+                : `<a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')"><img src="${sanitizeHTML(img1)}" class="commander-img" loading="lazy" style="max-height: 50vh; margin-bottom: 10px;"></a>`;
+            
+            cardImageContainer.innerHTML = imageHtml;
+
+            buttonsEl.innerHTML = `
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="quickRollAgainBtn" class="select-btn" style="flex: 1; padding: 10px;">Roll Again</button>
+                    <button id="closeQuickRollBtn" class="select-btn" style="flex: 1; padding: 10px; background: transparent; border: 1px solid #ff4444; color: #ff9999;">Close</button>
+                </div>
+            `;
+            buttonsEl.style.display = 'flex';
+
+            const close = () => { playSound('sfx-click'); overlay.classList.remove('show'); setTimeout(() => overlay.remove(), 300); };
+            document.getElementById('closeQuickRollBtn').onclick = close;
+            document.getElementById('quickRollAgainBtn').onclick = () => { close(); setTimeout(() => window.quickRollCommander(), 300); };
+        }
+
+        animateRoll();
+    };
+
+    // Dynamically inject the button into the landing page
+    const joinBtn = document.getElementById('joinBtn');
+    if (joinBtn && !document.getElementById('quickRollBtn')) {
+        const quickRollBtn = document.createElement('button');
+        quickRollBtn.id = 'quickRollBtn';
+        quickRollBtn.className = 'secondary-btn';
+        quickRollBtn.style.marginTop = '15px';
+        quickRollBtn.style.width = '100%';
+        quickRollBtn.style.padding = '12px';
+        quickRollBtn.style.fontSize = '1.05rem';
+        quickRollBtn.innerHTML = '🎲 Quick Roll (Random Cmdr)';
+        quickRollBtn.onclick = window.quickRollCommander;
+        joinBtn.parentNode.insertBefore(quickRollBtn, joinBtn.nextSibling);
+    }
 
     window.goToMainMenu = () => {
         playSound('sfx-click');
