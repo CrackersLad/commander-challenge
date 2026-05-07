@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=19.57';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=19.57';
-import { getArchives } from './data-service.js?v=19.57';
-import { initDeckActionsModule } from './deck-actions.js?v=19.57';
-import { initRoomActionsModule } from './room-actions.js?v=19.57';
-import { initPlayerViewModule } from './player-view.js?v=19.57';
-import { initAdminModule } from './admin.js?v=19.57';
-import { initCalendarModule } from './calendar.js?v=19.57';
-import { initAuthModule } from './auth.js?v=19.57';
-import { initHubModule } from './hub.js?v=19.57';
-import { initProfileModule } from './profile.js?v=19.57';
+import { db, auth, functions } from './firebase-setup.js?v=19.58';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=19.58';
+import { getArchives } from './data-service.js?v=19.58';
+import { initDeckActionsModule } from './deck-actions.js?v=19.58';
+import { initRoomActionsModule } from './room-actions.js?v=19.58';
+import { initPlayerViewModule } from './player-view.js?v=19.58';
+import { initAdminModule } from './admin.js?v=19.58';
+import { initCalendarModule } from './calendar.js?v=19.58';
+import { initAuthModule } from './auth.js?v=19.58';
+import { initHubModule } from './hub.js?v=19.58';
+import { initProfileModule } from './profile.js?v=19.58';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -1703,3 +1703,65 @@ setTimeout(async () => {
         }
     } catch(e) {}
 }, 3000);
+
+// --- PROMOTIONAL MESSAGES ---
+
+// Function to add desktop promo message
+function addDesktopPromo() {
+    const landingView = document.getElementById('view-landing');
+    // Check if it's a desktop viewport and the promo hasn't been added yet
+    if (landingView && window.matchMedia("(min-width: 768px)").matches && !document.getElementById('desktopAndroidPromo')) {
+        const promoDiv = document.createElement('div');
+        promoDiv.id = 'desktopAndroidPromo';
+        promoDiv.className = 'desktop-android-promo';
+        promoDiv.innerHTML = `
+            <p>Our app is now available on Android! Help us beta test.</p>
+            <a href="https://groups.google.com/g/commanderchallenge" target="_blank" class="promo-link">Join the Google Group</a>
+        `;
+        // Insert it after the join/create buttons, or at a suitable place
+        const joinBtn = document.getElementById('joinBtn');
+        if (joinBtn) {
+            joinBtn.parentNode.insertBefore(promoDiv, joinBtn.nextSibling);
+        } else {
+            landingView.appendChild(promoDiv);
+        }
+    }
+}
+
+// Function to add mobile promo banner
+function addMobilePromoBanner() {
+    const MOBILE_PROMO_DISMISSED_KEY = 'mobile_android_promo_dismissed';
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    const isDismissed = localStorage.getItem(MOBILE_PROMO_DISMISSED_KEY) === 'true';
+
+    // Only add if on mobile, not dismissed, and not already added
+    if (isMobile && !isDismissed && !document.getElementById('mobileAndroidPromoBanner')) {
+        const bannerDiv = document.createElement('div');
+        bannerDiv.id = 'mobileAndroidPromoBanner';
+        bannerDiv.className = 'mobile-promo-banner';
+        bannerDiv.innerHTML = `
+            <p>App now on Android! Help beta test: <a href="https://groups.google.com/g/commanderchallenge" target="_blank">Google Group</a></p>
+            <button id="dismissMobilePromo" class="dismiss-btn">✕</button>
+        `;
+        document.body.appendChild(bannerDiv);
+
+        const dismissBtn = document.getElementById('dismissMobilePromo');
+        if (dismissBtn) {
+            dismissBtn.onclick = () => {
+                playSound('sfx-click');
+                bannerDiv.style.display = 'none';
+                localStorage.setItem(MOBILE_PROMO_DISMISSED_KEY, 'true');
+            };
+        }
+    }
+}
+
+// Call mobile banner on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', addMobilePromoBanner);
+
+// Hook desktop promo into loadMyPlaygroups (which is called when landing view is active)
+const originalLoadMyPlaygroups = window.loadMyPlaygroups;
+window.loadMyPlaygroups = async () => {
+    await originalLoadMyPlaygroups();
+    addDesktopPromo();
+};
