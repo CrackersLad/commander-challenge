@@ -1694,5 +1694,21 @@ if (installBtn) {
     });
 }
 
-// Silently pre-fetch the heavy Archives JSON in the background to make rolling instant later
-setTimeout(() => { getArchives().catch(() => {}); }, 3000);
+// Silently pre-fetch the heavy Archives JSON and preload a pool of images for smooth Quick Rolls
+setTimeout(async () => { 
+    try {
+        const archives = await getArchives();
+        if (archives && archives.length > 0) {
+            window.preloadedRollCards = [];
+            for (let i = 0; i < 25; i++) {
+                const c = archives[Math.floor(Math.random() * archives.length)];
+                const imgUrl = c.image_uris?.normal || (c.card_faces && c.card_faces[0].image_uris?.normal) || c.image1;
+                if (imgUrl) {
+                    const img = new Image();
+                    img.src = imgUrl;
+                    window.preloadedRollCards.push(c);
+                }
+            }
+        }
+    } catch(e) {}
+}, 3000);

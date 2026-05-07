@@ -40,26 +40,36 @@ export function initHubModule(utils, state, coreUi) {
         let animationDuration = 2500;
         let startTime = Date.now();
         let interval = 50;
-        let finalCard = null;
+        
+        // 1. Pick the final card ahead of time
+        const finalCard = archives[Math.floor(Math.random() * archives.length)];
+        
+        // 2. Preload the final card's images immediately so it's ready when the spin ends
+        let preImg1 = finalCard.image_uris?.normal || (finalCard.card_faces && finalCard.card_faces[0].image_uris?.normal) || finalCard.image1;
+        let preImg2 = (finalCard.card_faces && finalCard.card_faces[1] && finalCard.card_faces[1].image_uris?.normal) || finalCard.image2 || null;
+        if (preImg1) new Image().src = preImg1;
+        if (preImg2) new Image().src = preImg2;
 
         function animateRoll() {
             if (!document.body.contains(overlay) || !overlay.classList.contains('show')) return;
-            const randomCard = archives[Math.floor(Math.random() * archives.length)];
-            finalCard = randomCard;
-
-            cardNameEl.textContent = sanitizeHTML(randomCard.name);
-            const imgEl = cardImageContainer.querySelector('img');
-            const imgUrl = randomCard.image_uris?.normal || (randomCard.card_faces && randomCard.card_faces[0].image_uris?.normal) || randomCard.image1;
-            if (imgEl) {
-                imgEl.src = sanitizeHTML(imgUrl);
-                imgEl.style.filter = 'blur(4px) brightness(1.2)';
-                setTimeout(() => { if(imgEl) imgEl.style.filter = 'none'; }, Math.max(20, interval - 20));
-            }
-            
-            playSound('sfx-click');
 
             const elapsedTime = Date.now() - startTime;
             if (elapsedTime < animationDuration) {
+                // 3. Use preloaded pool for smooth spinning frames, fallback to full archives
+                const pool = (window.preloadedRollCards && window.preloadedRollCards.length > 0) ? window.preloadedRollCards : archives;
+                const randomCard = pool[Math.floor(Math.random() * pool.length)];
+
+                cardNameEl.textContent = sanitizeHTML(randomCard.name);
+                const imgEl = cardImageContainer.querySelector('img');
+                const imgUrl = randomCard.image_uris?.normal || (randomCard.card_faces && randomCard.card_faces[0].image_uris?.normal) || randomCard.image1;
+                if (imgEl) {
+                    imgEl.src = sanitizeHTML(imgUrl);
+                    imgEl.style.filter = 'blur(4px) brightness(1.2)';
+                    setTimeout(() => { if(imgEl) imgEl.style.filter = 'none'; }, Math.max(20, interval - 20));
+                }
+                
+                playSound('sfx-click');
+
                 interval = 50 + (elapsedTime / animationDuration) * 250;
                 setTimeout(animateRoll, interval);
             } else {
