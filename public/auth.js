@@ -1,4 +1,4 @@
-import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=19.54';
+import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=19.52';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithRedirect, linkWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
@@ -287,13 +287,27 @@ export function initAuthModule(utils, state) {
             const rootUpdates = {};
             const gName = localStorage.getItem('guestName') || finalName || "Player";
             
-            roomsToUpdate.forEach(code => {
-                const pathPrefix = `rooms/${code}/players/${state.currentPlayerId}`;
-                rootUpdates[`${pathPrefix}/name`] = uid ? finalName : gName;
-                rootUpdates[`${pathPrefix}/avatar`] = avatar || null;
-                rootUpdates[`${pathPrefix}/uid`] = uid || null;
-                if (uid) rootUpdates[`${pathPrefix}/guestName`] = gName;
+            let validJoinedRooms = [];
+            
+            // Check if rooms still exist to prevent "ghost rooms" from recreating
+            const existenceChecks = await Promise.all(
+                roomsToUpdate.map(code => get(ref(db, `rooms/${code}/settings`)).then(snap => ({ code, exists: snap.exists() })))
+            );
+            
+            existenceChecks.forEach(({ code, exists }) => {
+                if (exists) {
+                    validJoinedRooms.push(code);
+                    const pathPrefix = `rooms/${code}/players/${state.currentPlayerId}`;
+                    rootUpdates[`${pathPrefix}/name`] = uid ? finalName : gName;
+                    rootUpdates[`${pathPrefix}/avatar`] = avatar || null;
+                    rootUpdates[`${pathPrefix}/uid`] = uid || null;
+                    if (uid) rootUpdates[`${pathPrefix}/guestName`] = gName;
+                }
             });
+
+            if (savedRooms) {
+                localStorage.setItem('joinedRooms', JSON.stringify(validJoinedRooms));
+            }
             
             // Send the entire batch at once without downloading any room data!
             if (Object.keys(rootUpdates).length > 0) {

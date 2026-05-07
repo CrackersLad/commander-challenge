@@ -254,8 +254,13 @@ onValue(ref(db, 'stats'), (snap) => {
 
 window.establishPresence = () => {
     if (currentRoom && currentPlayerId) {
-        const myStatusRef = ref(db, `rooms/${currentRoom}/players/${currentPlayerId}/online`);
-        onDisconnect(myStatusRef).set(false).then(() => { set(myStatusRef, true); });
+        // Prevent recreating deleted rooms by ensuring the room exists first
+        get(ref(db, `rooms/${currentRoom}/settings`)).then(snap => {
+            if (snap.exists() && currentRoom) {
+                const myStatusRef = ref(db, `rooms/${currentRoom}/players/${currentPlayerId}/online`);
+                onDisconnect(myStatusRef).set(false).then(() => { set(myStatusRef, true); });
+            }
+        });
     }
 };
 
