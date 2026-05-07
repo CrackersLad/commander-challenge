@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=19.52';
+=======
+import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=19.55';
+>>>>>>> 4ffff9a1228216ec8b03e0e45cd1a5928ac5bf93
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithRedirect, linkWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
