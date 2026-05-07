@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=19.58';
+import { db, auth } from './firebase-setup.js?v=19.59';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -141,7 +141,6 @@ export function initHubModule(utils, state, coreUi) {
     window.loadMyPlaygroups = async () => {
         const container = document.getElementById('myPlaygroupsContainer');
         const listEl = document.getElementById('myPlaygroupsList');
-        addDesktopPromo(); // Call desktop promo here as well, as this is called when landing is active
         if (!container || !listEl || !state.currentPlayerId) return;
 
         listEl.innerHTML = '<span style="color:#888; font-size:0.9rem;">Scanning archives for your playgroups...</span>';

@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=19.58';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=19.58';
-import { getArchives } from './data-service.js?v=19.58';
-import { initDeckActionsModule } from './deck-actions.js?v=19.58';
-import { initRoomActionsModule } from './room-actions.js?v=19.58';
-import { initPlayerViewModule } from './player-view.js?v=19.58';
-import { initAdminModule } from './admin.js?v=19.58';
-import { initCalendarModule } from './calendar.js?v=19.58';
-import { initAuthModule } from './auth.js?v=19.58';
-import { initHubModule } from './hub.js?v=19.58';
-import { initProfileModule } from './profile.js?v=19.58';
+import { db, auth, functions } from './firebase-setup.js?v=19.59';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=19.59';
+import { getArchives } from './data-service.js?v=19.59';
+import { initDeckActionsModule } from './deck-actions.js?v=19.59';
+import { initRoomActionsModule } from './room-actions.js?v=19.59';
+import { initPlayerViewModule } from './player-view.js?v=19.59';
+import { initAdminModule } from './admin.js?v=19.59';
+import { initCalendarModule } from './calendar.js?v=19.59';
+import { initAuthModule } from './auth.js?v=19.59';
+import { initHubModule } from './hub.js?v=19.59';
+import { initProfileModule } from './profile.js?v=19.59';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -1706,6 +1706,33 @@ setTimeout(async () => {
 
 // --- PROMOTIONAL MESSAGES ---
 
+const promoStyles = document.createElement('style');
+promoStyles.innerHTML = `
+    .desktop-android-promo {
+        display: none; text-align: center; margin-top: 20px; padding: 15px;
+        background-color: #28a745; color: white; border-radius: 8px;
+        font-size: 1.1rem; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+    .desktop-android-promo p { margin: 0 0 10px 0; }
+    .desktop-android-promo .promo-link { color: #ffeb3b; text-decoration: underline; font-weight: bold; }
+    @media (min-width: 768px) { .desktop-android-promo { display: block; } }
+    
+    .mobile-promo-banner {
+        display: none; position: fixed; bottom: 0; left: 0; width: 100%;
+        background-color: #28a745; color: white; padding: 10px 15px;
+        font-size: 0.9rem; text-align: center; box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+        z-index: 10000; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .mobile-promo-banner p { margin: 0; flex-grow: 1; }
+    .mobile-promo-banner a { color: #ffeb3b; text-decoration: underline; font-weight: bold; }
+    .mobile-promo-banner .dismiss-btn {
+        background: none; border: none; color: white; font-size: 1.2rem;
+        cursor: pointer; padding: 0 5px; line-height: 1;
+    }
+    @media (max-width: 767px) { .mobile-promo-banner { display: flex; padding-bottom: calc(10px + var(--safe-area-bottom, 0px)); } }
+`;
+document.head.appendChild(promoStyles);
+
 // Function to add desktop promo message
 function addDesktopPromo() {
     const landingView = document.getElementById('view-landing');
@@ -1756,8 +1783,12 @@ function addMobilePromoBanner() {
     }
 }
 
-// Call mobile banner on DOMContentLoaded
-document.addEventListener('DOMContentLoaded', addMobilePromoBanner);
+// Call mobile banner safely, even if DOM is already loaded (common with ES modules)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', addMobilePromoBanner);
+} else {
+    addMobilePromoBanner();
+}
 
 // Hook desktop promo into loadMyPlaygroups (which is called when landing view is active)
 const originalLoadMyPlaygroups = window.loadMyPlaygroups;
