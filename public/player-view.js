@@ -1,5 +1,5 @@
-import { db, functions } from './firebase-setup.js?v=19.51';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=19.51';
+import { db, functions } from './firebase-setup.js?v=19.52';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=19.52';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -219,9 +219,9 @@ export function initPlayerViewModule(utils, state) {
 
     async function renderInteractiveDraft(activeDraft, container, s, players) {
         if (activeDraft.isComplete) { container.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; margin-top:50px;"><h2 style="color:var(--gold); font-family:Cinzel;">Finalizing Draft...</h2><span class="mana-spinner"></span></div>`; return; }
-        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=19.51'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=19.51'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=19.51'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
+        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=19.52'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=19.52'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=19.52'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
     }
 
     function renderFinalSelection(list, s) {
@@ -346,9 +346,9 @@ export function initPlayerViewModule(utils, state) {
                 await new Promise(r => setTimeout(r, 550));
             }
         }
-        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=19.51'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=19.51'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=19.51'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
+        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=19.52'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=19.52'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=19.52'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
     };
 
     window.openPlayerView = async () => {
