@@ -1,4 +1,4 @@
-import { db, auth, functions } from './firebase-setup.js?v=19.61';
+import { db, auth, functions } from './firebase-setup.js?v=20.4';
 import { ref, get, remove, update, increment } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -107,6 +107,7 @@ export function initAdminModule(utils) {
                 });
 
                 sortedRooms.forEach(([code, data]) => {
+                    if (!data.settings) return; // Skip ghost rooms in Admin view
                     const cTime = getRoomCreationTime(data);
                     const dateStr = cTime ? new Date(cTime).toLocaleDateString() + ' ' + new Date(cTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "Unknown";
                     const players = data.players || {};

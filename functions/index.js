@@ -227,7 +227,7 @@ exports.adminPruneRooms = onCall(async (request) => {
                 if (!isNaN(parsedTime) && parsedTime > 1600000000000) cTime = parsedTime;
             }
         }
-        if (pCount === 0 || (now - cTime > thirtyDays)) {
+        if (pCount === 0 || (now - cTime > thirtyDays) || !data.settings) {
             updates[`rooms/${code}`] = null;
             updates[`webhooks/${code}`] = null;
             deletedCount++;
@@ -761,6 +761,14 @@ exports.adminTestPing = onCall(async (request) => {
 });
 
 exports.onRoomCreated = onValueCreated({ ref: "/rooms/{roomId}", instance: "commander-challenge-default-rtdb", region: "europe-west1" }, async (event) => {
+    const data = event.data.val();
+    
+    // If the room was created without settings, it's a ghost room (likely from a lingering onDisconnect).
+    // Delete it instantly and prevent the activeRooms stat from falsely incrementing.
+    if (!data || !data.settings) {
+        return admin.database().ref(`rooms/${event.params.roomId}`).remove();
+    }
+
     await admin.database().ref('stats').update({ activeRooms: admin.database.ServerValue.increment(1) });
 });
 

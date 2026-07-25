@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=19.61';
+import { db, auth } from './firebase-setup.js?v=20.4';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -134,7 +134,7 @@ export function initHubModule(utils, state, coreUi) {
         if (state.activeRoomListener) { state.activeRoomListener(); state.activeRoomListener = null; }
         if (state.activePlayerListener) { state.activePlayerListener(); state.activePlayerListener = null; }
         switchView('view-landing');
-        window.history.pushState({}, '', '/');
+        window.history.pushState({}, '', window.location.pathname);
         window.loadMyPlaygroups();
     };
 
@@ -152,6 +152,7 @@ export function initHubModule(utils, state, coreUi) {
             const activeRooms = [];
 
             Object.entries(rooms).forEach(([code, data]) => {
+                if (!data.settings) return; // Skip ghost rooms
                 let matched = false;
                 if (data.players && data.players[state.currentPlayerId]) {
                     matched = true;
@@ -164,7 +165,16 @@ export function initHubModule(utils, state, coreUi) {
             });
 
             if (activeRooms.length === 0) {
-                container.style.display = 'none';
+                listEl.innerHTML = `
+                    <div style="text-align:center; padding: 25px 15px; background: rgba(0,0,0,0.4); border-radius: 12px; border: 1px dashed rgba(212, 175, 55, 0.3);">
+                        <h3 style="color:var(--gold); margin: 0 0 10px 0; font-family:Cinzel;">No Active Challenges</h3>
+                        <p style="color:#ccc; font-size: 0.95rem; margin: 0 0 20px 0; line-height: 1.4;">Gather your playgroup, roll random commanders, brew on a budget, and track your victories!</p>
+                        <div style="display:flex; justify-content:center; gap: 20px; font-size: 2rem;">
+                            <span title="1. Roll">🎲</span> <span style="color:#555;">➔</span> <span title="2. Brew">🛠️</span> <span style="color:#555;">➔</span> <span title="3. Battle">⚔️</span>
+                        </div>
+                    </div>
+                `;
+                container.style.display = 'block';
                 return;
             }
 

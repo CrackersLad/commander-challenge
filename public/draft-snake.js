@@ -1,4 +1,4 @@
-import { db } from './firebase-setup.js?v=19.61';
+import { db } from './firebase-setup.js?v=20.4';
 import { ref, runTransaction, update, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function renderSnakeDraft(activeDraft, container, s, currentPlayerId, players, utils) {
@@ -25,10 +25,33 @@ export function renderSnakeDraft(activeDraft, container, s, currentPlayerId, pla
             </details>
         `;
     }
+    
+    // --- TRACKER HTML ---
+    let trackerHtml = `<div style="display:flex; gap:10px; overflow-x:auto; padding:10px; margin-bottom:20px; background:rgba(0,0,0,0.4); border-radius:8px; border:1px solid rgba(212, 175, 55, 0.2); justify-content:flex-start; align-items:center;">`;
+    const upcomingTurns = pickOrder.slice(turnIndex, turnIndex + 5);
+    upcomingTurns.forEach((pid, idx) => {
+        const p = players[pid];
+        const avatar = p?.avatar || 'icon.png';
+        const isCurrent = idx === 0;
+        trackerHtml += `
+            <div style="display:flex; flex-direction:column; align-items:center; opacity:${isCurrent ? '1' : '0.5'}; transform:${isCurrent ? 'scale(1.05)' : 'scale(0.95)'}; transition:all 0.3s ease; min-width:60px;">
+                <img src="${sanitizeHTML(avatar)}" style="width:40px; height:40px; border-radius:50%; border:2px solid ${isCurrent ? 'var(--gold)' : '#555'}; object-fit:cover; box-shadow:${isCurrent ? '0 0 10px var(--gold)' : 'none'};">
+                <span style="font-size:0.7rem; color:${isCurrent ? 'var(--gold)' : '#aaa'}; margin-top:4px; font-weight:${isCurrent ? 'bold' : 'normal'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60px;">${sanitizeHTML(p?.name || 'Player')}</span>
+            </div>
+        `;
+        if (idx < upcomingTurns.length - 1) {
+            trackerHtml += `<div style="color:#555; font-size:1.2rem;">➔</div>`;
+        }
+    });
+    if (pickOrder.length - turnIndex > 5) {
+        trackerHtml += `<div style="color:#777; font-size:0.8rem; margin-left:5px; white-space:nowrap;">+${pickOrder.length - turnIndex - 5} more</div>`;
+    }
+    trackerHtml += `</div>`;
 
     let html = `<div style="text-align:center; margin-bottom:20px; width: 100%;">
         <h2 style="color:var(--gold); font-family:Cinzel;">Face-Up Snake Draft</h2>
         <h3 style="color:${isMyTurn ? '#2ecc71' : '#aaa'}; margin-bottom:15px;">Round ${Math.floor(turnIndex / activeDraft.playerOrder.length) + 1} - ${isMyTurn ? 'Your Turn to Pick!' : `Waiting on ${sanitizeHTML(currentPickerName)}...`}</h3>
+        ${trackerHtml}
         ${draftedHtml}
     </div>`;
 

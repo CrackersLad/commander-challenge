@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=19.61';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=19.61';
-import { getArchives } from './data-service.js?v=19.61';
-import { initDeckActionsModule } from './deck-actions.js?v=19.61';
-import { initRoomActionsModule } from './room-actions.js?v=19.61';
-import { initPlayerViewModule } from './player-view.js?v=19.61';
-import { initAdminModule } from './admin.js?v=19.61';
-import { initCalendarModule } from './calendar.js?v=19.61';
-import { initAuthModule } from './auth.js?v=19.61';
-import { initHubModule } from './hub.js?v=19.61';
-import { initProfileModule } from './profile.js?v=19.61';
+import { db, auth, functions } from './firebase-setup.js?v=20.4';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=20.4';
+import { getArchives } from './data-service.js?v=20.4';
+import { initDeckActionsModule } from './deck-actions.js?v=20.4';
+import { initRoomActionsModule } from './room-actions.js?v=20.4';
+import { initPlayerViewModule } from './player-view.js?v=20.4';
+import { initAdminModule } from './admin.js?v=20.4';
+import { initCalendarModule } from './calendar.js?v=20.4';
+import { initAuthModule } from './auth.js?v=20.4';
+import { initHubModule } from './hub.js?v=20.4';
+import { initProfileModule } from './profile.js?v=20.4';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -82,6 +82,27 @@ safeAreaStyle.innerHTML = `
         @keyframes slideUpFade {
             from { opacity: 0; transform: translateY(15px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Modern Visuals & Aesthetics */
+        .card {
+            background: rgba(26, 26, 26, 0.75) !important;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(212, 175, 55, 0.2) !important;
+            border-radius: 12px;
+        }
+        .modal-content, .battle-info {
+            background: rgba(20, 20, 20, 0.85) !important;
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(212, 175, 55, 0.3) !important;
+            border-radius: 12px;
+        }
+        
+        /* Advanced Settings Progressive Disclosure */
+        .hide-advanced .advanced-section {
+            display: none !important;
         }
 `;
 document.head.appendChild(safeAreaStyle);
@@ -320,6 +341,49 @@ if (draftFormatEl) draftFormatEl.addEventListener('change', updateSettingsVisibi
 if (selectionModeEl) selectionModeEl.addEventListener('change', updateSettingsVisibility);
 updateSettingsVisibility();
 
+window.setupAdvancedSettings = () => {
+    const hostUI = document.getElementById('hostSettingsUI');
+    if (!hostUI || document.getElementById('advancedToggleBtn')) return;
+
+    hostUI.classList.add('hide-advanced');
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.id = 'advancedToggleBtn';
+    toggleBtn.className = 'secondary-btn';
+    toggleBtn.style.cssText = 'margin: 15px 0; width: 100%; padding: 10px; font-size: 0.95rem; border-color: #666; color: #ccc; background: rgba(0,0,0,0.4);';
+    toggleBtn.innerHTML = '⚙️ Show Advanced Options ▼';
+
+    toggleBtn.onclick = (e) => {
+        e.preventDefault();
+        const isHidden = hostUI.classList.contains('hide-advanced');
+        if (isHidden) {
+            hostUI.classList.remove('hide-advanced');
+            toggleBtn.innerHTML = '⚙️ Hide Advanced Options ▲';
+        } else {
+            hostUI.classList.add('hide-advanced');
+            toggleBtn.innerHTML = '⚙️ Show Advanced Options ▼';
+        }
+        if (window.playSound) window.playSound('sfx-click');
+    };
+
+    const advancedInputIds = [ 'settingSelectionMode', 'settingMaxBracket', 'toggleRank', 'settingNoPartner', 'settingBlindDraft', 'settingMaxRerolls', 'settingSnakePoolSize' ];
+    advancedInputIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            let wrapper = el.closest('.setting-row') || el.parentElement;
+            if (id === 'settingSelectionMode' && document.getElementById('selectionModeContainer')) wrapper = document.getElementById('selectionModeContainer');
+            if (id === 'settingMaxRerolls' && document.getElementById('rerollsContainer')) wrapper = document.getElementById('rerollsContainer');
+            if (id === 'settingSnakePoolSize' && document.getElementById('snakePoolContainer')) wrapper = document.getElementById('snakePoolContainer');
+            if (id === 'toggleRank' && document.getElementById('randomSettingsContainer')) wrapper = document.getElementById('randomSettingsContainer');
+            if (wrapper && wrapper !== hostUI) wrapper.classList.add('advanced-section');
+        }
+    });
+
+    const startBtn = document.getElementById('startDraftBtn');
+    if (startBtn && hostUI.contains(startBtn)) startBtn.parentNode.insertBefore(toggleBtn, startBtn);
+    else hostUI.appendChild(toggleBtn);
+};
+
 export function playSound(soundId) {
     // Haptics (Physical Vibration)
     if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
@@ -351,12 +415,26 @@ function showToast(msg, isError = false, duration = 3000, isSuccess = false) {
     }
 }
 
-function switchView(viewId) {
+function switchView(viewId, pushState = true) {
     document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
-    document.getElementById(viewId).classList.add('active');
+    const viewEl = document.getElementById(viewId);
+    if (viewEl) viewEl.classList.add('active');
     window.scrollTo(0, 0);
     document.body.scrollTop = 0;
+
+    if (pushState) {
+        window.history.pushState({ viewId }, '', `#${viewId}`);
+    }
 }
+
+window.addEventListener('popstate', (event) => {
+    if (event.state && event.state.viewId) {
+        switchView(event.state.viewId, false);
+    } else {
+        // Fallback or handle initial state
+        switchView('view-landing', false);
+    }
+});
 
 window.openAccountModal = () => {
     playSound('sfx-click');
@@ -513,6 +591,10 @@ window.leaveChallenge = () => {
         isHost ? "As the Host, leaving will close the playgroup and kick everyone out. Are you sure?" : "Are you sure you want to leave this playgroup?", 
         async () => {
             playSound('sfx-click');
+            
+            const myStatusRef = ref(db, `rooms/${currentRoom}/players/${currentPlayerId}/online`);
+            onDisconnect(myStatusRef).cancel().catch(() => {});
+
             if (isHost) {
                 await remove(ref(db, `rooms/${currentRoom}`));
                 await remove(ref(db, `webhooks/${currentRoom}`));
@@ -874,6 +956,8 @@ function initLobby() {
         if (document.getElementById('hostActionButtons')) document.getElementById('hostActionButtons').style.display = 'flex';
         document.querySelectorAll('#hostSettingsUI input, #hostSettingsUI select').forEach(el => el.disabled = false);
         
+        if (typeof window.setupAdvancedSettings === 'function') window.setupAdvancedSettings();
+        
         const dropdown = document.getElementById('moreActionsDropdown');
         const existingBtn = document.getElementById('updateWebhookBtn');
         if (dropdown && !existingBtn) {
@@ -929,6 +1013,7 @@ function initLobby() {
         
         if(!data || !data.players || !data.players[currentPlayerId]) {
             if(currentRoom) { 
+                onDisconnect(ref(db, `rooms/${currentRoom}/players/${currentPlayerId}/online`)).cancel().catch(() => {});
                 clearSession();
                 currentRoom = null; isHost = false;
                 switchView('view-landing'); showToast("You have been removed from the playgroup.", true);
@@ -958,6 +1043,17 @@ function initLobby() {
             if(timeEl) timeEl.innerText = cTime ? `Opened: ${new Date(cTime).toLocaleString()}` : "";
 
             if(countEl) countEl.innerText = `Players Assembled (${playerCount}/6):`;
+
+            if (playerCount === 1) {
+                listEl.innerHTML += `
+                    <div style="text-align:center; margin-top: 25px; padding: 20px; border-radius: 12px; border: 1px dashed rgba(212, 175, 55, 0.3); background: rgba(0,0,0,0.3);">
+                        <p style="margin: 0 0 15px 0; color: #ccc; font-size: 1.05rem;">You're the only one here!</p>
+                        <div class="mana-spinner" style="margin: 0 auto;"></div>
+                        <p style="margin: 15px 0 0 0; color: var(--gold); font-size: 0.9rem;">Waiting for players to gather their mana...</p>
+                        <p style="margin: 5px 0 0 0; color: #888; font-size: 0.85rem;">(Share the Invite Link at the top so they can join)</p>
+                    </div>
+                `;
+            }
 
             Object.entries(data.players).forEach(([id, p]) => {
                 const safeName = sanitizeHTML(p.name);
@@ -1181,6 +1277,7 @@ function initDashboard() {
         
         if(!data || !data.players || !data.players[currentPlayerId]) {
             if(currentRoom) {
+                onDisconnect(ref(db, `rooms/${currentRoom}/players/${currentPlayerId}/online`)).cancel().catch(() => {});
                 clearSession(); currentRoom = null; isHost = false;
                 switchView('view-landing'); showToast("You have been removed from the playgroup.", true);
                 window.loadMyPlaygroups();
@@ -1229,6 +1326,79 @@ function initDashboard() {
         const cTime = getRoomCreationTime(data);
         const timeEl = document.getElementById('dashCreatedTime');
         if(timeEl) timeEl.innerText = cTime ? `Opened: ${new Date(cTime).toLocaleString()}` : "";
+
+        // --- TICKER TAPE LOGIC ---
+        const activityTicker = document.getElementById('activityTicker');
+        const dashRoomHeaderEl = document.getElementById('dashRoomHeader');
+        if (!activityTicker && dashRoomHeaderEl) {
+            const ticker = document.createElement('div');
+            ticker.id = 'activityTicker';
+            ticker.style.cssText = 'width: 100%; overflow: hidden; background: rgba(0,0,0,0.4); padding: 6px; color: var(--gold); font-size: 0.85rem; white-space: nowrap; box-sizing: border-box; margin-bottom: 15px; border-radius: 6px; border: 1px solid rgba(212, 175, 55, 0.2);';
+            ticker.innerHTML = '<marquee scrollamount="4" id="tickerText">Gathering mana...</marquee>';
+            dashRoomHeaderEl.parentNode.insertBefore(ticker, dashRoomHeaderEl.nextSibling);
+        }
+
+        // --- TABS LOGIC ---
+        const tabsContainerEl = document.getElementById('dashTabsContainer');
+        if (!tabsContainerEl && dashRoomHeaderEl) {
+            const tabsDiv = document.createElement('div');
+            tabsDiv.id = 'dashTabsContainer';
+            tabsDiv.innerHTML = `
+                <div style="display:flex; justify-content:center; gap:10px; margin-bottom:15px; width:100%;">
+                    <button id="tab-btn-draft" class="select-btn dash-tab-btn" onclick="window.setDashTab('draft')" style="flex:1; padding:8px; font-size:0.9rem; border-color:var(--gold);">Draft</button>
+                    <button id="tab-btn-armory" class="select-btn dash-tab-btn" onclick="window.setDashTab('armory')" style="flex:1; padding:8px; font-size:0.9rem; border-color:var(--gold);">Armory</button>
+                    <button id="tab-btn-arena" class="select-btn dash-tab-btn" onclick="window.setDashTab('arena')" style="flex:1; padding:8px; font-size:0.9rem; border-color:var(--gold);">Arena</button>
+                </div>
+            `;
+            const insertRef = document.getElementById('activityTicker') || dashRoomHeaderEl;
+            insertRef.parentNode.insertBefore(tabsDiv, insertRef.nextSibling);
+
+            window.currentDashTab = window.currentDashTab || 'draft';
+            window.setDashTab = (tabName) => {
+                window.currentDashTab = tabName;
+                if (window.playSound) window.playSound('sfx-click');
+                
+                document.querySelectorAll('.dash-tab-btn').forEach(btn => {
+                    btn.style.background = 'rgba(26, 26, 26, 0.75)';
+                    btn.style.color = 'white';
+                });
+                const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+                if (activeBtn) { activeBtn.style.background = 'var(--gold)'; activeBtn.style.color = 'black'; }
+
+                const battleEl = document.getElementById('battleInfoDisplay');
+                const dashEl = document.getElementById('dynamicDashboard');
+                if (battleEl) battleEl.style.display = tabName === 'arena' ? 'block' : 'none';
+                if (dashEl) dashEl.style.display = tabName !== 'arena' ? 'flex' : 'none';
+
+                document.querySelectorAll('.card-draft-info').forEach(el => el.style.display = tabName === 'draft' ? 'block' : 'none');
+                document.querySelectorAll('.card-armory-info').forEach(el => el.style.display = tabName === 'armory' ? 'block' : 'none');
+            };
+            setTimeout(() => window.setDashTab(window.currentDashTab), 50);
+        }
+
+        const tickerText = document.getElementById('tickerText');
+        if (tickerText) {
+            let latestActivity = "Drafting is currently underway...";
+            if (data.activeDraft && data.activeDraft.burnLog && data.activeDraft.burnLog.length > 0) {
+                const latestBurn = data.activeDraft.burnLog[data.activeDraft.burnLog.length - 1];
+                const pName = players[latestBurn.playerId]?.name || "Someone";
+                latestActivity = `🔥 ${pName} just burned ${latestBurn.cardName}!`;
+            } else if (data.activeDraft && data.activeDraft.pickOrder && data.activeDraft.pickOrder.length > 0) {
+                const currentPickerId = data.activeDraft.pickOrder[data.activeDraft.turn || 0];
+                if (currentPickerId) {
+                    const pickerName = players[currentPickerId]?.name || "Someone";
+                    latestActivity = `⏳ Waiting on ${pickerName} to make a pick...`;
+                }
+            } else {
+                 const lockedPlayers = Object.values(players).filter(p => p.selected);
+                 if (lockedPlayers.length > 0) {
+                     latestActivity = `🔒 ${lockedPlayers.length}/${Object.keys(players).length} players have locked in their commanders.`;
+                 } else {
+                     latestActivity = "The challenge has begun. Roll your commanders!";
+                 }
+            }
+            tickerText.innerText = latestActivity;
+        }
 
         // --- BATTLE INFO LOGIC ---
         const battleInfoEl = document.getElementById('battleInfoDisplay');
@@ -1408,6 +1578,9 @@ function initDashboard() {
             let presenceDot = `<span class="presence-dot ${pData.online ? 'presence-online' : 'presence-offline'}" title="${pData.online ? 'Online' : 'Offline'}"></span>`;
             let html = `<div class="card ${highlightClass}"><div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">${avatarImg}<h3 style="margin:0; display:flex; align-items:center;">${presenceDot}${safeName}${hostIcon}${trophies}${guestTag}</h3></div>${statusHtml}`;
 
+            // --- DRAFT TAB CONTENT ---
+            let draftInfoHtml = `<div class="card-draft-info" style="display:${window.currentDashTab === 'draft' ? 'block' : 'none'};">`;
+
             if (id !== currentPlayerId) {
                 let maxB = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
                 let cPrice = pData.lockedDeckPrice !== undefined ? pData.lockedDeckPrice : (pData.deckPrice || 0);
@@ -1418,7 +1591,7 @@ function initDashboard() {
                     const hasBeenPingedToday = data.pings && data.pings[id] && data.pings[id][today];
                     
                     if (!hasBeenPingedToday) {
-                        html += `<button class="auth-sm-btn ping-btn" style="position:absolute; top:12px; right:12px; color:var(--gold); border-color:var(--gold); padding: 2px 6px; font-size: 1rem; background: rgba(0,0,0,0.5);" onclick="window.pingPlayer('${id}')" title="Ping to hurry up!">🔔</button>`;
+                        html += `<button class="auth-sm-btn ping-btn" style="position:absolute; top:12px; right:12px; color:var(--gold); border-color:var(--gold); padding: 2px 6px; font-size: 1rem; background: rgba(0,0,0,0.5); z-index:10;" onclick="window.pingPlayer('${id}')" title="Ping to hurry up!">🔔</button>`;
                     }
                 }
             }
@@ -1427,31 +1600,42 @@ function initDashboard() {
                 let btnText = "Begin Rolling";
                 if (activeDraft) btnText = "Enter Draft";
                 else if (pData.generated) btnText = "Resume Rolling";
-                html += `<br><button class="select-btn" style="margin-top: 10px; margin-bottom: 5px; width: 100%; font-size: 0.9rem;" onclick="window.openPlayerView()">${btnText}</button>`;
+                draftInfoHtml += `<br><button class="select-btn" style="margin-top: 10px; margin-bottom: 5px; width: 100%; font-size: 0.9rem;" onclick="window.openPlayerView()">${btnText}</button>`;
             }
 
             if (safeSelected) {
                 const hideInfo = isBlind && !allLocked && id !== currentPlayerId;
 
                 if (hideInfo) {
-                    html += `<p style="margin: 15px 0 5px 0; font-family:'Cinzel'; color:#aaa;"><strong>???</strong></p>`;
-                    html += `<div class="skeleton-wrapper"><img src="card_back.webp" class="commander-img" loading="lazy" style="filter: brightness(0.7);" onload="this.parentElement.classList.add('loaded')"></div>`;
+                    draftInfoHtml += `<p style="margin: 15px 0 5px 0; font-family:'Cinzel'; color:#aaa;"><strong>???</strong></p>`;
+                    draftInfoHtml += `<div class="skeleton-wrapper"><img src="card_back.webp" class="commander-img" loading="lazy" style="filter: brightness(0.7);" onload="this.parentElement.classList.add('loaded')"></div>`;
                 } else {
-                    html += `<p style="margin: 15px 0 5px 0; font-family:'Cinzel'; color:white;"><strong>${safeSelected}</strong></p>`;
-                    if (pData.display_rank) html += `<p style="margin: 0 0 10px 0; font-size: 0.9rem; color: #d4af37; font-weight:bold;">EDHREC Rank: #${pData.display_rank}</p>`;
+                    draftInfoHtml += `<p style="margin: 15px 0 5px 0; font-family:'Cinzel'; color:white;"><strong>${safeSelected}</strong></p>`;
+                    if (pData.display_rank) draftInfoHtml += `<p style="margin: 0 0 10px 0; font-size: 0.9rem; color: #d4af37; font-weight:bold;">EDHREC Rank: #${pData.display_rank}</p>`;
                     
                     const edhrecSlug = safeSelected.toLowerCase().replace(/[^a-z0-9]+/g, '-');
                     const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
                     
-                    html += `<a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" title="View on EDHREC"><div class="skeleton-wrapper"><img src="${sanitizeHTML(pData.image)}" class="commander-img" loading="lazy" onload="this.parentElement.classList.add('loaded')"></div></a>`;
+                    draftInfoHtml += `<a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" title="View on EDHREC"><div class="skeleton-wrapper"><img src="${sanitizeHTML(pData.image)}" class="commander-img" loading="lazy" onload="this.parentElement.classList.add('loaded')"></div></a>`;
                 }
+            }
+            draftInfoHtml += `</div>`;
+            html += draftInfoHtml;
+
+            // --- ARMORY TAB CONTENT ---
+            let armoryInfoHtml = `<div class="card-armory-info" style="display:${window.currentDashTab === 'armory' ? 'block' : 'none'};">`;
+            
+            if (safeSelected && !pData.deck) {
+                armoryInfoHtml += `<div style="background: rgba(0,0,0,0.5); border: 1px dashed #444; border-radius: 6px; padding: 15px; margin-top: 15px;">
+                    <p style="margin: 0; font-size: 0.9rem; color: #aaa; text-align: center;">Brewing in progress...</p>
+                </div>`;
             }
 
             if (pData.deck) {
                 const hideInfo = isBlind && !allLocked && id !== currentPlayerId;
                 
                 if (hideInfo) {
-                    html += `
+                    armoryInfoHtml += `
                         <div style="background: #111; border: 1px dashed #444; border-radius: 6px; padding: 10px; margin-top: 15px;">
                             <p style="margin: 0; font-size: 0.85rem; color: #888; font-style: italic; text-align: center;">Deck details hidden until all commanders are revealed.</p>
                         </div>
@@ -1489,7 +1673,7 @@ function initDashboard() {
                             lockedHtml = `<p style="margin: 5px 0 0 0; font-size: 0.95rem; color: #d4af37; font-weight:bold;">🔒 Locked Price: ${currSym}${pData.lockedDeckPrice.toFixed(2)}</p>`;
                         }
 
-                        html += `
+                        armoryInfoHtml += `
                             <div style="background: #000; border: 1px solid #333; border-radius: 6px; padding: 10px; margin-top: 15px;">
                                 <div style="margin: 0; font-size: 0.9rem; color: #aaa; display: flex; align-items: center; justify-content: center; gap: 5px;">
                                     Deck Total
@@ -1505,24 +1689,26 @@ function initDashboard() {
                             </div>
                         `;
                     } else {
-                        html += `<p style="margin: 15px 0 5px 0; font-size: 0.9rem; color: #aaa;">Deck Price: Calculating...</p>`;
+                        armoryInfoHtml += `<p style="margin: 15px 0 5px 0; font-size: 0.9rem; color: #aaa;">Deck Price: Calculating...</p>`;
                     }
-                    html += `<br><a href="${sanitizeHTML(pData.deck)}" target="_blank" style="font-size: 0.85rem; color:#d4af37;" onclick="playSound('sfx-click')">View Deck</a>`;
+                    armoryInfoHtml += `<br><a href="${sanitizeHTML(pData.deck)}" target="_blank" style="font-size: 0.85rem; color:#d4af37;" onclick="playSound('sfx-click')">View Deck</a>`;
                 }
             }
             
             if (id === currentPlayerId && safeSelected) {
-                html += `<div style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">`;
-                html += `<button class="select-btn" style="width: 100%; font-size: 0.9rem;" onclick="window.openPlayerView()">Update Link</button>`;
+                armoryInfoHtml += `<div style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">`;
+                armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.9rem;" onclick="window.openPlayerView()">Update Link</button>`;
                 if (pData.deck) {
-                    html += `<button class="select-btn" style="width: 100%; font-size: 0.9rem; background-color: #4a4a5e; border-color: #696982;" onclick="window.refreshMyDeckPrice()">Refresh Price</button>`;
-                    html += `<button class="select-btn" style="width: 100%; font-size: 0.9rem; background-color: #6a4a4a; border-color: #826969;" onclick="window.lockMyDeckPrice()">Lock In Price</button>`;
+                    armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.9rem; background-color: #4a4a5e; border-color: #696982;" onclick="window.refreshMyDeckPrice()">Refresh Price</button>`;
+                    armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.9rem; background-color: #6a4a4a; border-color: #826969;" onclick="window.lockMyDeckPrice()">Lock In Price</button>`;
                 }
-                html += `</div>`;
+                armoryInfoHtml += `</div>`;
             }
+            armoryInfoHtml += `</div>`;
+            html += armoryInfoHtml;
 
             if (isHost) {
-                html += `<div style="margin-top:15px; border-top:1px solid #333; padding-top:15px; display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">`;
+                html += `<div style="margin-top:15px; border-top:1px solid rgba(212,175,55,0.2); padding-top:15px; display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">`;
                 html += `<button class="host-action-btn clear" onclick="window.clearPlayer('${id}')">Wipe</button>`;
                 if (id !== currentPlayerId) {
                     html += `<button class="host-action-btn kick" onclick="window.kickPlayer('${id}')">Kick</button>`;

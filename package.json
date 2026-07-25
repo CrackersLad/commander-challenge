@@ -14,5 +14,11 @@
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5"
+  },
+  "scripts": {
+    "version": "node functions/build.js",
+    "version:major": "node functions/build.js major",
+    "deploy": "npm run version && git add . && git commit -m \"chore(release): bump version\" && git push",
+    "deploy:major": "npm run version:major && git add . && git commit -m \"chore(release): bump major version\" && git push"
   }
 }

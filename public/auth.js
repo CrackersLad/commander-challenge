@@ -1,4 +1,4 @@
-import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=19.61';
+import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=20.4';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithRedirect, linkWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
@@ -79,6 +79,7 @@ export function initAuthModule(utils, state) {
                 let validPlayerIds = [];
                 
                 Object.entries(allRooms).forEach(([code, rData]) => {
+                    if (!rData.settings) return; // Skip ghost rooms
                     if (rData.players) {
                         const matchedEntry = Object.entries(rData.players).find(([pId, p]) => p.uid === user.uid);
                         if (matchedEntry) {
