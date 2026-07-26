@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=20.7';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=20.7';
-import { getArchives } from './data-service.js?v=20.7';
-import { initDeckActionsModule } from './deck-actions.js?v=20.7';
-import { initRoomActionsModule } from './room-actions.js?v=20.7';
-import { initPlayerViewModule } from './player-view.js?v=20.7';
-import { initAdminModule } from './admin.js?v=20.7';
-import { initCalendarModule } from './calendar.js?v=20.7';
-import { initAuthModule } from './auth.js?v=20.7';
-import { initHubModule } from './hub.js?v=20.7';
-import { initProfileModule } from './profile.js?v=20.7';
+import { db, auth, functions } from './firebase-setup.js?v=20.8';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=20.8';
+import { getArchives } from './data-service.js?v=20.8';
+import { initDeckActionsModule } from './deck-actions.js?v=20.8';
+import { initRoomActionsModule } from './room-actions.js?v=20.8';
+import { initPlayerViewModule } from './player-view.js?v=20.8';
+import { initAdminModule } from './admin.js?v=20.8';
+import { initCalendarModule } from './calendar.js?v=20.8';
+import { initAuthModule } from './auth.js?v=20.8';
+import { initHubModule } from './hub.js?v=20.8';
+import { initProfileModule } from './profile.js?v=20.8';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -781,6 +781,9 @@ window.copyMatchSummary = async () => {
         else text += `${nameLabel}: Drafting...\n\n`;
     });
 
+    const inviteUrl = `https://edhchallenge.com/?room=${currentRoom}`;
+    text += `\n\nJoin the challenge: ${inviteUrl}`;
+
     navigator.clipboard.writeText(text).then(() => showToast("Match Summary copied!", false, 3000, true))
     .catch(() => showToast("Failed to copy.", true));
 };
@@ -1327,79 +1330,6 @@ function initDashboard() {
         const timeEl = document.getElementById('dashCreatedTime');
         if(timeEl) timeEl.innerText = cTime ? `Opened: ${new Date(cTime).toLocaleString()}` : "";
 
-        // --- TICKER TAPE LOGIC ---
-        const activityTicker = document.getElementById('activityTicker');
-        const dashRoomHeaderEl = document.getElementById('dashRoomHeader');
-        if (!activityTicker && dashRoomHeaderEl) {
-            const ticker = document.createElement('div');
-            ticker.id = 'activityTicker';
-            ticker.style.cssText = 'width: 100%; overflow: hidden; background: rgba(0,0,0,0.4); padding: 6px; color: var(--gold); font-size: 0.85rem; white-space: nowrap; box-sizing: border-box; margin-bottom: 15px; border-radius: 6px; border: 1px solid rgba(212, 175, 55, 0.2);';
-            ticker.innerHTML = '<marquee scrollamount="4" id="tickerText">Gathering mana...</marquee>';
-            dashRoomHeaderEl.parentNode.insertBefore(ticker, dashRoomHeaderEl.nextSibling);
-        }
-
-        // --- TABS LOGIC ---
-        const tabsContainerEl = document.getElementById('dashTabsContainer');
-        if (!tabsContainerEl && dashRoomHeaderEl) {
-            const tabsDiv = document.createElement('div');
-            tabsDiv.id = 'dashTabsContainer';
-            tabsDiv.innerHTML = `
-                <div style="display:flex; justify-content:center; gap:10px; margin-bottom:15px; width:100%;">
-                    <button id="tab-btn-draft" class="select-btn dash-tab-btn" onclick="window.setDashTab('draft')" style="flex:1; padding:8px; font-size:0.9rem; border-color:var(--gold);">Draft</button>
-                    <button id="tab-btn-armory" class="select-btn dash-tab-btn" onclick="window.setDashTab('armory')" style="flex:1; padding:8px; font-size:0.9rem; border-color:var(--gold);">Armory</button>
-                    <button id="tab-btn-arena" class="select-btn dash-tab-btn" onclick="window.setDashTab('arena')" style="flex:1; padding:8px; font-size:0.9rem; border-color:var(--gold);">Arena</button>
-                </div>
-            `;
-            const insertRef = document.getElementById('activityTicker') || dashRoomHeaderEl;
-            insertRef.parentNode.insertBefore(tabsDiv, insertRef.nextSibling);
-
-            window.currentDashTab = window.currentDashTab || 'draft';
-            window.setDashTab = (tabName) => {
-                window.currentDashTab = tabName;
-                if (window.playSound) window.playSound('sfx-click');
-                
-                document.querySelectorAll('.dash-tab-btn').forEach(btn => {
-                    btn.style.background = 'rgba(26, 26, 26, 0.75)';
-                    btn.style.color = 'white';
-                });
-                const activeBtn = document.getElementById(`tab-btn-${tabName}`);
-                if (activeBtn) { activeBtn.style.background = 'var(--gold)'; activeBtn.style.color = 'black'; }
-
-                const battleEl = document.getElementById('battleInfoDisplay');
-                const dashEl = document.getElementById('dynamicDashboard');
-                if (battleEl) battleEl.style.display = tabName === 'arena' ? 'block' : 'none';
-                if (dashEl) dashEl.style.display = tabName !== 'arena' ? 'flex' : 'none';
-
-                document.querySelectorAll('.card-draft-info').forEach(el => el.style.display = tabName === 'draft' ? 'block' : 'none');
-                document.querySelectorAll('.card-armory-info').forEach(el => el.style.display = tabName === 'armory' ? 'block' : 'none');
-            };
-            setTimeout(() => window.setDashTab(window.currentDashTab), 50);
-        }
-
-        const tickerText = document.getElementById('tickerText');
-        if (tickerText) {
-            let latestActivity = "Drafting is currently underway...";
-            if (data.activeDraft && data.activeDraft.burnLog && data.activeDraft.burnLog.length > 0) {
-                const latestBurn = data.activeDraft.burnLog[data.activeDraft.burnLog.length - 1];
-                const pName = players[latestBurn.playerId]?.name || "Someone";
-                latestActivity = `🔥 ${pName} just burned ${latestBurn.cardName}!`;
-            } else if (data.activeDraft && data.activeDraft.pickOrder && data.activeDraft.pickOrder.length > 0) {
-                const currentPickerId = data.activeDraft.pickOrder[data.activeDraft.turn || 0];
-                if (currentPickerId) {
-                    const pickerName = players[currentPickerId]?.name || "Someone";
-                    latestActivity = `⏳ Waiting on ${pickerName} to make a pick...`;
-                }
-            } else {
-                 const lockedPlayers = Object.values(players).filter(p => p.selected);
-                 if (lockedPlayers.length > 0) {
-                     latestActivity = `🔒 ${lockedPlayers.length}/${Object.keys(players).length} players have locked in their commanders.`;
-                 } else {
-                     latestActivity = "The challenge has begun. Roll your commanders!";
-                 }
-            }
-            tickerText.innerText = latestActivity;
-        }
-
         // --- BATTLE INFO LOGIC ---
         const battleInfoEl = document.getElementById('battleInfoDisplay');
         const meetup = data.meetup;
@@ -1500,6 +1430,11 @@ function initDashboard() {
         } else if (battleBtn) {
             battleBtn.remove();
         }
+
+        // Ensure main content areas are visible now that tabs are removed
+        if (battleInfoEl) battleInfoEl.style.display = 'block';
+        const dashEl = document.getElementById('dynamicDashboard');
+        if (dashEl) dashEl.style.display = 'flex';
         // -------------------------
 
         const dash = document.getElementById('dynamicDashboard');
@@ -1579,7 +1514,7 @@ function initDashboard() {
             let html = `<div class="card ${highlightClass}"><div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:10px;">${avatarImg}<h3 style="margin:0; display:flex; align-items:center;">${presenceDot}${safeName}${hostIcon}${trophies}${guestTag}</h3></div>${statusHtml}`;
 
             // --- DRAFT TAB CONTENT ---
-            let draftInfoHtml = `<div class="card-draft-info" style="display:${window.currentDashTab === 'draft' ? 'block' : 'none'};">`;
+            let draftInfoHtml = `<div class="card-draft-info">`;
 
             if (id !== currentPlayerId) {
                 let maxB = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
@@ -1623,7 +1558,7 @@ function initDashboard() {
             html += draftInfoHtml;
 
             // --- ARMORY TAB CONTENT ---
-            let armoryInfoHtml = `<div class="card-armory-info" style="display:${window.currentDashTab === 'armory' ? 'block' : 'none'};">`;
+            let armoryInfoHtml = `<div class="card-armory-info">`;
             
             if (safeSelected && !pData.deck) {
                 armoryInfoHtml += `<div style="background: rgba(0,0,0,0.5); border: 1px dashed #444; border-radius: 6px; padding: 15px; margin-top: 15px;">
