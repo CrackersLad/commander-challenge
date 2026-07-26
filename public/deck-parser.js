@@ -1,24 +1,14 @@
-// Helper to try multiple proxies if one fails
-export async function fetchWithFallback(targetUrl) {
-    const encoded = encodeURIComponent(targetUrl);
-    const proxies = [
-        `https://api.allorigins.win/raw?url=${encoded}&timestamp=${Date.now()}`, // Fast and reliable for Moxfield/Archidekt
-        `https://api.codetabs.com/v1/proxy?quest=${encoded}`, // Fallbacks
-        `https://corsproxy.io/?${encoded}`
-    ];
+import { functions } from './firebase-setup.js?v=20.9';
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
-    let lastError = null;
-    for (const proxyUrl of proxies) {
-        try {
-            const res = await fetch(proxyUrl);
-            if (res.ok) return await res.json();
-            lastError = `Status ${res.status}`;
-        } catch (e) {
-            console.warn(`Proxy failed: ${proxyUrl}`, e);
-            lastError = e.message;
-        }
+async function fetchDeckFromAPI(deckUrl) {
+    try {
+        const getDeckPriceFn = httpsCallable(functions, 'getDeckPrice');
+        const result = await getDeckPriceFn({ deckUrl });
+        return result.data;
+    } catch (error) {
+        throw new Error(error.message || "Failed to call pricing function.");
     }
-    throw new Error(lastError || "All proxies failed");
 }
 
 export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, selectedCommanderName) {
@@ -34,11 +24,7 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
         let commanderArt = null;
         
         if (safeUrl.includes("archidekt.com")) {
-            const archMatch = safeUrl.match(/decks\/(\d+)/);
-            const deckId = archMatch ? archMatch[1] : null;
-            if (!deckId) return { error: "Invalid Archidekt URL." };
-
-            const data = await fetchWithFallback(`https://archidekt.com/api/decks/${deckId}/?t=${Date.now()}`);
+            const data = await fetchDeckFromAPI(safeUrl);
 
             const commanderNameParts = selectedCommanderName ? selectedCommanderName.split(' // ') : [];
             
@@ -123,11 +109,7 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
             }
             return { total: total, site: "Archidekt", isLegal: deckSize >= 98 && deckSize <= 101, deckSize: deckSize, commanderArt: commanderArt, deckSalt: deckSalt };
         } else if (safeUrl.includes("moxfield.com")) {
-            const moxMatch = safeUrl.match(/decks\/([a-zA-Z0-9_-]+)/);
-            const deckId = moxMatch ? moxMatch[1] : null;
-            if (!deckId) return { error: "Invalid Moxfield URL." };
-
-            const data = await fetchWithFallback(`https://api.moxfield.com/v2/decks/all/${deckId}?t=${Date.now()}`);
+            const data = await fetchDeckFromAPI(safeUrl);
             const commanderNameParts = selectedCommanderName ? selectedCommanderName.split(' // ') : [];
             
             let allCards = [];

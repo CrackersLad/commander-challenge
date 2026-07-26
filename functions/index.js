@@ -927,3 +927,40 @@ exports.adminClearTokens = onCall(async (request) => {
     await admin.database().ref(`users/${targetUid}/fcmTokens`).remove();
     return { success: true };
 });
+
+exports.getDeckPrice = onCall({ cors: true, timeoutSeconds: 60, memory: "256MiB" }, async (request) => {
+    const { deckUrl } = request.data;
+    if (!deckUrl) {
+        throw new HttpsError('invalid-argument', 'The function must be called with a "deckUrl" argument.');
+    }
+    if (!deckUrl.includes("moxfield.com") && !deckUrl.includes("archidekt.com")) {
+        throw new HttpsError('invalid-argument', 'Only Moxfield and Archidekt URLs are supported.');
+    }
+
+    try {
+        if (deckUrl.includes("archidekt.com")) {
+            const archMatch = deckUrl.match(/decks\/(\d+)/);
+            const deckId = archMatch ? archMatch[1] : null;
+            if (!deckId) throw new HttpsError('invalid-argument', 'Invalid Archidekt URL.');
+            
+            const response = await fetch(`https://archidekt.com/api/decks/${deckId}/`);
+            if (!response.ok) throw new HttpsError('not-found', `Archidekt API failed with status: ${response.status}`);
+            return await response.json();
+        }
+
+        if (deckUrl.includes("moxfield.com")) {
+            const moxMatch = deckUrl.match(/decks\/([a-zA-Z0-9_-]+)/);
+            const deckId = moxMatch ? moxMatch[1] : null;
+            if (!deckId) throw new HttpsError('invalid-argument', 'Invalid Moxfield URL.');
+
+            const response = await fetch(`https://api.moxfield.com/v2/decks/all/${deckId}`);
+            if (!response.ok) throw new HttpsError('not-found', `Moxfield API failed with status: ${response.status}`);
+            return await response.json();
+        }
+    } catch (error) {
+        console.error("Deck price fetch error:", error);
+        throw new HttpsError('internal', 'Failed to fetch deck data from the source API.');
+    }
+    
+    throw new HttpsError('unknown', 'Could not process the provided URL.');
+});

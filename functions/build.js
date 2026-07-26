@@ -59,3 +59,30 @@ if (fs.existsSync(gradlePath)) {
 } else {
     console.warn('⚠️ android/app/build.gradle not found. Skipping Android version bump.');
 }
+
+const copyRecursiveSync = (src, dest) => {
+    const exists = fs.existsSync(src);
+    const stats = exists && fs.statSync(src);
+    const isDirectory = exists && stats.isDirectory();
+    if (isDirectory) {
+        if (!fs.existsSync(dest)) {
+            fs.mkdirSync(dest, { recursive: true });
+        }
+        fs.readdirSync(src).forEach(childItemName => {
+            copyRecursiveSync(path.join(src, childItemName), path.join(dest, childItemName));
+        });
+    } else if (exists) {
+        fs.copyFileSync(src, dest);
+    }
+};
+
+const publicPath = path.join(__dirname, '..', 'public');
+const androidAssetsPath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'assets', 'public');
+const iosAssetsPath = path.join(__dirname, '..', 'ios', 'App', 'App', 'public');
+
+console.log('\n🔄 Syncing web assets to native platforms...');
+
+if (fs.existsSync(path.dirname(androidAssetsPath))) copyRecursiveSync(publicPath, androidAssetsPath);
+if (fs.existsSync(path.dirname(iosAssetsPath))) copyRecursiveSync(publicPath, iosAssetsPath);
+
+console.log('✅ Asset sync complete.');

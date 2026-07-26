@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=20.8';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=20.8';
-import { getArchives } from './data-service.js?v=20.8';
-import { initDeckActionsModule } from './deck-actions.js?v=20.8';
-import { initRoomActionsModule } from './room-actions.js?v=20.8';
-import { initPlayerViewModule } from './player-view.js?v=20.8';
-import { initAdminModule } from './admin.js?v=20.8';
-import { initCalendarModule } from './calendar.js?v=20.8';
-import { initAuthModule } from './auth.js?v=20.8';
-import { initHubModule } from './hub.js?v=20.8';
-import { initProfileModule } from './profile.js?v=20.8';
+import { db, auth, functions } from './firebase-setup.js?v=20.9';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=20.9';
+import { getArchives } from './data-service.js?v=20.9';
+import { initDeckActionsModule } from './deck-actions.js?v=20.9';
+import { initRoomActionsModule } from './room-actions.js?v=20.9';
+import { initPlayerViewModule } from './player-view.js?v=20.9';
+import { initAdminModule } from './admin.js?v=20.9';
+import { initCalendarModule } from './calendar.js?v=20.9';
+import { initAuthModule } from './auth.js?v=20.9';
+import { initHubModule } from './hub.js?v=20.9';
+import { initProfileModule } from './profile.js?v=20.9';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -766,7 +766,7 @@ window.copyMatchSummary = async () => {
         const hideInfo = isBlind && !allLocked && id !== currentPlayerId;
         let roleIcon = p.isHost ? '👑' : '👤';
         let trophyIcon = winCounts[id] ? ` ${'🏆'.repeat(winCounts[id])}` : '';
-        let nameLabel = `${roleIcon}${trophyIcon} ${p.name}`;
+        let nameLabel = `${roleIcon}${trophyIcon} **${p.name}**`;
 
         if (p.selected) {
             if (hideInfo) {
@@ -775,14 +775,15 @@ window.copyMatchSummary = async () => {
                 let curr = data.settings?.currency === 'usd' ? '$' : '€';
                 let priceText = p.lockedDeckPrice !== undefined ? `(🔒 ${curr}${p.lockedDeckPrice.toFixed(2)})` : (p.deckPrice ? `(${curr}${p.deckPrice.toFixed(2)})` : '');
                 let saltText = p.deckSalt !== undefined ? ` [☣️ Salt: ${Number(p.deckSalt).toFixed(1)}]` : '';
-                text += `${nameLabel}: ${p.selected} ${priceText}${saltText}\n   🔗 ${p.deck || 'No Link'}\n\n`;
+                const deckLink = p.deck ? `<${p.deck}>` : 'No Link';
+                text += `${nameLabel}: **${p.selected}** ${priceText}${saltText}\n   🔗 ${deckLink}\n\n`;
             }
         }
         else text += `${nameLabel}: Drafting...\n\n`;
     });
 
     const inviteUrl = `https://edhchallenge.com/?room=${currentRoom}`;
-    text += `\n\nJoin the challenge: ${inviteUrl}`;
+    text += `\n\nJoin the challenge: <${inviteUrl}>`;
 
     navigator.clipboard.writeText(text).then(() => showToast("Match Summary copied!", false, 3000, true))
     .catch(() => showToast("Failed to copy.", true));
