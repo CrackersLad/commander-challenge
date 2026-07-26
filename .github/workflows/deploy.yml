@@ -20,10 +20,10 @@ jobs:
       - name: Install dependencies
         run: npm install --prefix functions
 
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
       - name: Deploy to Firebase
-        uses: w9jds/firebase-action@master
-        with:
-          args: deploy --only functions,hosting
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          PROJECT_ID: commander-challenge
+        run: firebase deploy --only functions,hosting --token "${{ secrets.FIREBASE_TOKEN }}" --project commander-challenge --non-interactive
