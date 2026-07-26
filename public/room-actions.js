@@ -1,4 +1,4 @@
-import { db, functions } from './firebase-setup.js?v=20.11';
+import { db, functions } from './firebase-setup.js?v=20.12';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 

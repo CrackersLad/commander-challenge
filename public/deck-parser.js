@@ -1,4 +1,4 @@
-import { functions } from './firebase-setup.js?v=20.11';
+import { functions } from './firebase-setup.js?v=20.12';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 async function fetchDeckFromAPI(deckUrl) {
@@ -74,20 +74,38 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
                 } catch (e) { console.error("Art lookup failed:", e); }
             }
 
-            let validCats = new Set();
-            if (data.categories) {
-                data.categories.forEach(cat => { 
-                    const lower = cat.name.toLowerCase();
-                    if (lower.includes('sideboard') || lower.includes('maybeboard') || lower.includes('tokens')) return;
-                    if (cat.includedInDeck) validCats.add(cat.name); 
+            // --- Category & Deck Size Logic ---
+            // Determine which cards are part of the main deck.
+            const mainboardCategoryNames = new Set();
+            const hasDefinedCategories = data.categories && data.categories.length > 0;
+
+            if (hasDefinedCategories) {
+                data.categories.forEach(cat => {
+                    // The `includedInDeck` property is the source of truth from Archidekt's API.
+                    if (cat.includedInDeck) {
+                        mainboardCategoryNames.add(cat.name);
+                    }
                 });
             }
 
             if (data.cards) {
                 data.cards.forEach(item => {
+                    const cardCategories = item.categories || [];
+                    let isMainboard = false;
+
+                    if (!hasDefinedCategories || cardCategories.length === 0) {
+                        // If no categories are defined for the deck, OR if this specific card is uncategorized,
+                        // Archidekt considers it part of the main deck.
+                        isMainboard = true;
+                    } else {
+                        // If the card has categories, check if any of them are valid mainboard categories.
+                        isMainboard = cardCategories.some(catName => mainboardCategoryNames.has(catName));
+                    }
+
+                    if (!isMainboard) return; // Skip card if it's not in the main deck (e.g., sideboard, maybeboard).
+
                     let cardName = item.card?.oracleCard?.name || item.card?.name || "Unknown";
                     const isCommander = item.categories?.some(cat => ["commander", "commanders"].includes(cat.toLowerCase()));
-                    if (!item.categories?.some(cat => validCats.has(cat))) return;
 
                     const qty = parseInt(item.quantity || 1, 10);
                     deckSize += qty;
