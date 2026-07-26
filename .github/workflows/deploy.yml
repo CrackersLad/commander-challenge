@@ -25,5 +25,5 @@ jobs:
 
       - name: Deploy to Firebase
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: firebase deploy --only functions,hosting --token "${{ secrets.FIREBASE_TOKEN }}" --project commander-challenge --non-interactive
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_CREDENTIALS }}
+        run: firebase deploy --only functions,hosting --token "${{ secrets.FIREBASE_CREDENTIALS }}" --project commander-challenge --non-interactive
