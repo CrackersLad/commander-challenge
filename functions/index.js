@@ -249,6 +249,31 @@ exports.adminViewRoom = onCall(async (request) => {
     return { room: snap.val() };
 });
 
+async function getCardsForSet(setCode) {
+    const boosterCards = [];
+    let sUrl = `https://api.scryfall.com/cards/search?q=set%3A${setCode}+is%3Abooster`;
+    let retries = 0;
+
+    while (sUrl) {
+        const res = await fetch(sUrl);
+        if (!res.ok) {
+            if (retries < 3) {
+                retries++;
+                console.warn(`Scryfall set fetch failed (${res.status}). Retrying...`);
+                await new Promise(r => setTimeout(r, 1500 * retries));
+                continue;
+            }
+            throw new Error(`Scryfall API failed for set ${setCode}: ${res.statusText}`);
+        }
+        retries = 0;
+        const data = await res.json();
+        if (data.data) boosterCards.push(...data.data);
+        sUrl = data.has_more ? data.next_page : null;
+        await new Promise(r => setTimeout(r, 100)); // Scryfall rate limit
+    }
+    return boosterCards;
+}
+
 let cachedArchives = null;
 let archivesFetchTime = 0;
 
@@ -276,27 +301,55 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         [playerIds[i], playerIds[j]] = [playerIds[j], playerIds[i]];
     }
 
-    const now = Date.now();
-    if (!cachedArchives || (now - archivesFetchTime > 12 * 60 * 60 * 1000)) {
-        const archivesSnap = await db.ref('global_archives/cards').once('value');
-        cachedArchives = archivesSnap.val() || [];
-        archivesFetchTime = now;
+    let { budget, currency, noPartner, minRank, maxRank, numOptions, draftMode, draftSet } = settings;
+    let pool = [];
+
+    if (draftMode === 'set_draft' && draftSet) {
+        // SET DRAFT: Fetch cards from the specified MTG set
+        pool = await getCardsForSet(draftSet);
+        // For set drafts, we use a different metric for pack size
+        numOptions = settings.packSize || 15;
+    } else {
+        // COMMANDER DRAFT (existing logic)
+        const now = Date.now();
+        if (!cachedArchives || (now - archivesFetchTime > 12 * 60 * 60 * 1000)) {
+            const archivesSnap = await db.ref('global_archives/cards').once('value');
+            cachedArchives = archivesSnap.val() || [];
+            archivesFetchTime = now;
+        }
+        const archives = cachedArchives;
+
+        if (settings.draftFormat === 'burn_draft' && numOptions < 2) numOptions = 2; // Burn drafts mathematically require at least 2 cards
+
+        pool = archives.filter(card => {
+            const price = currency === 'eur' ? card.prices.eur : card.prices.usd;
+            if (parseFloat(budget) !== 0 && price >= parseFloat(budget)) return false;
+            if (noPartner && card.isPartner) return false;
+            if (maxRank !== 0 && card.rank_edhrec < maxRank) return false;
+            if (minRank !== 0 && card.rank_edhrec > minRank) return false;
+            return true;
+        });
     }
-    const archives = cachedArchives;
-    let { budget, currency, noPartner, minRank, maxRank, numOptions } = settings;
 
-    if (settings.draftFormat === 'burn_draft' && numOptions < 2) numOptions = 2; // Burn drafts mathematically require at least 2 cards
-
-    const pool = archives.filter(card => {
-        const price = currency === 'eur' ? card.prices.eur : card.prices.usd;
-        if (parseFloat(budget) !== 0 && price >= parseFloat(budget)) return false;
-        if (noPartner && card.isPartner) return false;
-        if (maxRank !== 0 && card.rank_edhrec < maxRank) return false;
-        if (minRank !== 0 && card.rank_edhrec > minRank) return false;
-        return true;
+    const formatCard = (c) => ({
+        name: c.name,
+        image_uris: { normal: c.image_uris?.normal || c.card_faces?.[0]?.image_uris?.normal || "" },
+        card_faces: c.card_faces ? c.card_faces.map(face => ({ image_uris: { normal: face.image_uris?.normal || "" } })) : null,
+        prices: { usd: parseFloat(c.prices?.usd || 9999), eur: parseFloat(c.prices?.eur || 9999) },
+        display_rank: c.rank_edhrec || null,
+        color_identity: c.color_identity || [],
+        scryfall_uri: c.scryfall_uri || "https://scryfall.com",
+        cmc: c.cmc || 0,
+        type_line: c.type_line || ""
     });
 
-    let requiredPool = N * numOptions;
+    let requiredPool;
+    if (draftMode === 'set_draft') {
+        requiredPool = N * (settings.packsPerPlayer || 3) * (settings.packSize || 15);
+    } else {
+        requiredPool = N * numOptions;
+    }
+
     if (settings.draftFormat === 'snake_draft') {
         requiredPool = settings.snakePoolSize || 15;
         if (requiredPool < N * numOptions) requiredPool = N * numOptions; // Ensure pool supports requested picks
@@ -311,7 +364,8 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         format: settings.draftFormat,
         createdAt: Date.now(),
         isComplete: false,
-        playerOrder: playerIds
+        playerOrder: playerIds,
+        draftMode: draftMode || 'commander_draft'
     };
 
     if (settings.draftFormat === 'async_draft') {
@@ -324,10 +378,7 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
                 do { card = pool[Math.floor(Math.random() * pool.length)]; attempts++; } 
                 while (existingNames.has(card.name) && attempts < 100);
                 
-                packCards.push({ 
-                    name: card.name, image_uris: { normal: card.image1 }, card_faces: card.image2 ? [{ image_uris: { normal: card.image1 } }, { image_uris: { normal: card.image2 } }] : null, 
-                    prices: card.prices, display_rank: card.rank_edhrec, color_identity: card.color_identity, scryfall_uri: card.scryfall_uri 
-                });
+                packCards.push(formatCard(card));
                 existingNames.add(card.name);
             }
             packs.push({ id: `pack_${i}`, cards: packCards });
@@ -356,10 +407,7 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
             do { card = pool[Math.floor(Math.random() * pool.length)]; attempts++; } 
             while (existingNames.has(card.name) && attempts < 100);
             
-            poolCards.push({ 
-                name: card.name, image_uris: { normal: card.image1 }, card_faces: card.image2 ? [{ image_uris: { normal: card.image1 } }, { image_uris: { normal: card.image2 } }] : null, 
-                prices: card.prices, display_rank: card.rank_edhrec, color_identity: card.color_identity, scryfall_uri: card.scryfall_uri 
-            });
+            poolCards.push(formatCard(card));
             existingNames.add(card.name);
         }
 
@@ -388,10 +436,7 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
                 do { card = pool[Math.floor(Math.random() * pool.length)]; attempts++; } 
                 while (existingNames.has(card.name) && attempts < 100);
                 
-                packCards.push({ 
-                    name: card.name, image_uris: { normal: card.image1 }, card_faces: card.image2 ? [{ image_uris: { normal: card.image1 } }, { image_uris: { normal: card.image2 } }] : null, 
-                    prices: card.prices, display_rank: card.rank_edhrec, color_identity: card.color_identity, scryfall_uri: card.scryfall_uri 
-                });
+                packCards.push(formatCard(card));
                 existingNames.add(card.name);
             }
             packs.push({ id: `pack_${i}`, cards: packCards });
