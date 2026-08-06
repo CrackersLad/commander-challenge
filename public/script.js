@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.1';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.1';
-import { getArchives } from './data-service.js?v=0.1';
-import { initDeckActionsModule } from './deck-actions.js?v=0.1';
-import { initRoomActionsModule } from './room-actions.js?v=0.1';
-import { initPlayerViewModule } from './player-view.js?v=0.1';
-import { initAdminModule } from './admin.js?v=0.1';
-import { initCalendarModule } from './calendar.js?v=0.1';
-import { initAuthModule } from './auth.js?v=0.1';
-import { initHubModule } from './hub.js?v=0.1';
-import { initProfileModule } from './profile.js?v=0.1';
+import { db, auth, functions } from './firebase-setup.js?v=0.2';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.2';
+import { getArchives } from './data-service.js?v=0.2';
+import { initDeckActionsModule } from './deck-actions.js?v=0.2';
+import { initRoomActionsModule } from './room-actions.js?v=0.2';
+import { initPlayerViewModule } from './player-view.js?v=0.2';
+import { initAdminModule } from './admin.js?v=0.2';
+import { initCalendarModule } from './calendar.js?v=0.2';
+import { initAuthModule } from './auth.js?v=0.2';
+import { initHubModule } from './hub.js?v=0.2';
+import { initProfileModule } from './profile.js?v=0.2';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -221,6 +221,37 @@ let activeRoomListener = null;
 let activePlayerListener = null;
 let activeUserProfileListener = null;
 let isSearchingManually = false;
+
+let scryfallSets = [];
+let setNameToCodeMap = new Map();
+let setsPromise = null;
+
+function fetchAndPopulateSets() {
+    if (!setsPromise) {
+        setsPromise = new Promise(async (resolve, reject) => {
+            const setDatalist = document.getElementById('setList');
+            if (!setDatalist) return reject();
+
+            try {
+                const response = await fetch('https://api.scryfall.com/sets');
+                if (!response.ok) throw new Error('Scryfall API for sets failed');
+                const data = await response.json();
+                scryfallSets = data.data
+                    .filter(set => ['core', 'expansion', 'masters', 'draft_innovation', 'funny', 'commander'].includes(set.set_type) && set.card_count > 50)
+                    .sort((a, b) => new Date(b.released_at) - new Date(a.released_at));
+
+                let datalistHTML = '';
+                scryfallSets.forEach(set => {
+                    datalistHTML += `<option value="${sanitizeHTML(set.name)}"></option>`;
+                    setNameToCodeMap.set(set.name, set.code);
+                });
+                setDatalist.innerHTML = datalistHTML;
+                resolve();
+            } catch (error) { console.error("Failed to fetch Scryfall sets:", error); reject(error); }
+        });
+    }
+    return setsPromise;
+}
 
 function sanitizeHTML(str) {
     if (!str) return "";
@@ -934,7 +965,10 @@ document.getElementById('joinBtn').onclick = async () => {
 function syncSettingsToUI(s) {
     if (!s) return;
     if (document.getElementById('settingDraftMode')) document.getElementById('settingDraftMode').value = s.draftMode || 'commander_draft';
-    if (document.getElementById('settingDraftSet')) document.getElementById('settingDraftSet').value = s.draftSet || 'woe';
+    if (document.getElementById('settingDraftSetInput')) {
+        const set = scryfallSets.find(set => set.code.toLowerCase() === (s.draftSet || '').toLowerCase());
+        document.getElementById('settingDraftSetInput').value = set ? set.name : (s.draftSet || '');
+    }
     if (document.getElementById('settingDraftFormat')) document.getElementById('settingDraftFormat').value = s.draftFormat || 'independent';
     if (document.getElementById('settingSelectionMode')) document.getElementById('settingSelectionMode').value = s.selectionMode || 'both';
     if (document.getElementById('settingCurrency')) document.getElementById('settingCurrency').value = s.currency || 'eur';
@@ -1008,17 +1042,6 @@ function initLobby() {
             };
             dropdown.appendChild(webhookBtn);
         }
-
-        const setSelect = document.getElementById('settingDraftSet');
-        if (setSelect && setSelect.options.length <= 1) {
-            const sets = { "mkm": "Murders at Karlov Manor", "lci": "Lost Caverns of Ixalan", "woe": "Wilds of Eldraine", "mom": "March of the Machine", "one": "Phyrexia: All Will Be One", "bro": "The Brothers' War", "dmu": "Dominaria United" };
-            Object.entries(sets).forEach(([code, name]) => {
-                const option = document.createElement('option');
-                option.value = code;
-                option.innerText = name;
-                setSelect.appendChild(option);
-            });
-        }
         
         getArchives().then(archives => {
             if (archives && archives.length > 0) {
@@ -1030,7 +1053,8 @@ function initLobby() {
         });
 
         // Sync UI inputs with the actual database settings so they don't reset on page refresh
-        get(ref(db, `rooms/${currentRoom}/settings`)).then(snap => {
+        get(ref(db, `rooms/${currentRoom}/settings`)).then(async (snap) => {
+            await fetchAndPopulateSets();
             syncSettingsToUI(snap.val());
         });
 
@@ -1058,7 +1082,7 @@ function initLobby() {
     activeRoomListener = onValue(ref(db, `rooms/${currentRoom}`), (snap) => {
         const data = snap.val();
         
-        if(!data || !data.players || !data.players[currentPlayerId]) {
+        if(!data || (data.players && !data.players[currentPlayerId])) {
             if(currentRoom) { 
                 onDisconnect(ref(db, `rooms/${currentRoom}/players/${currentPlayerId}/online`)).cancel().catch(() => {});
                 clearSession();
@@ -1069,8 +1093,8 @@ function initLobby() {
             return;
         }
 
-        if (!isHost && data.settings) {
-            syncSettingsToUI(data.settings);
+        if (!isHost && data.settings) { // Non-host syncs settings
+            fetchAndPopulateSets().then(() => syncSettingsToUI(data.settings));
         }
 
         const listEl = document.getElementById('lobbyPlayerList');
@@ -1150,7 +1174,8 @@ function autoSaveSettings() {
         const limitRank = document.getElementById('toggleRank') ? document.getElementById('toggleRank').checked : true;
 
         const draftMode = document.getElementById('settingDraftMode').value;
-        const draftSet = document.getElementById('settingDraftSet').value;
+        const draftSetName = document.getElementById('settingDraftSetInput').value;
+        const draftSet = setNameToCodeMap.get(draftSetName) || null;
         const bVal = document.getElementById('settingBudget').value;
         const b = !limitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal));
         const c = document.getElementById('settingCurrency').value;
@@ -1219,7 +1244,16 @@ document.getElementById('startDraftBtn').onclick = async () => {
     const limitRank = document.getElementById('toggleRank') ? document.getElementById('toggleRank').checked : true;
 
     const draftMode = document.getElementById('settingDraftMode').value;
-    const draftSet = document.getElementById('settingDraftSet').value;
+    let draftSet = null;
+
+    if (draftMode === 'set_draft') {
+        const draftSetName = document.getElementById('settingDraftSetInput').value;
+        draftSet = setNameToCodeMap.get(draftSetName);
+        if (!draftSet) {
+            showToast("Please select a valid set from the searchable list.", true);
+            btn.disabled = false; btn.innerHTML = "Start Draft"; return;
+        }
+    }
     const bVal = document.getElementById('settingBudget').value;
     const b = !limitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal));
     const c = document.getElementById('settingCurrency').value;
@@ -1810,7 +1844,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.1').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.2').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
