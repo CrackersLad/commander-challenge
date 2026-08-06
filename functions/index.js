@@ -307,8 +307,6 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
     if (draftMode === 'set_draft' && draftSet) {
         // SET DRAFT: Fetch cards from the specified MTG set
         pool = await getCardsForSet(draftSet);
-        // For set drafts, we use a different metric for pack size
-        numOptions = settings.packSize || 15;
     } else {
         // COMMANDER DRAFT (existing logic)
         const now = Date.now();
@@ -345,7 +343,9 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
 
     let requiredPool;
     if (draftMode === 'set_draft') {
-        requiredPool = N * (settings.packsPerPlayer || 3) * (settings.packSize || 15);
+        const packsPerPlayer = settings.packsPerPlayer || 3;
+        const packSize = settings.packSize || 15;
+        requiredPool = N * packsPerPlayer * packSize;
     } else {
         requiredPool = N * numOptions;
     }
@@ -369,32 +369,48 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
     };
 
     if (settings.draftFormat === 'async_draft') {
+        const isSetDraft = draftMode === 'set_draft';
+        const packsPerPlayer = isSetDraft ? (settings.packsPerPlayer || 3) : 1;
+        const packSize = isSetDraft ? (settings.packSize || 15) : numOptions;
+        const totalPacks = N * packsPerPlayer;
+
         const existingNames = new Set();
         const packs = [];
-        for (let i = 0; i < N; i++) {
+        for (let i = 0; i < totalPacks; i++) {
             const packCards = [];
-            for (let j = 0; j < numOptions; j++) {
+            for (let j = 0; j < packSize; j++) {
                 let card; let attempts = 0;
-                do { card = pool[Math.floor(Math.random() * pool.length)]; attempts++; } 
-                while (existingNames.has(card.name) && attempts < 100);
+                do { 
+                    card = pool[Math.floor(Math.random() * pool.length)]; 
+                    attempts++; 
+                } while (!isSetDraft && existingNames.has(card.name) && attempts < 100);
                 
                 packCards.push(formatCard(card));
-                existingNames.add(card.name);
+                if (!isSetDraft) existingNames.add(card.name);
             }
             packs.push({ id: `pack_${i}`, cards: packCards });
         }
         
         const queues = {};
         const drafted = {};
-        playerIds.forEach((id, i) => {
-            queues[id] = [ packs[i] ];
+        playerIds.forEach((id) => {
+            queues[id] = [];
             drafted[id] = [];
         });
 
+        // Distribute packs
+        for (let i = 0; i < totalPacks; i++) {
+            const playerIndex = i % N;
+            queues[playerIds[playerIndex]].push(packs[i]);
+        }
+
         activeDraftPayload.queues = queues;
         activeDraftPayload.drafted = drafted;
-        activeDraftPayload.draftGoal = numOptions;
+        activeDraftPayload.draftGoal = packsPerPlayer * packSize;
     } else if (settings.draftFormat === 'snake_draft') {
+        if (draftMode === 'set_draft') {
+            throw new HttpsError('unimplemented', `Set Drafts are not yet supported for the 'Snake Draft' format.`);
+        }
         const existingNames = new Set();
         const poolCards = [];
         
@@ -427,6 +443,9 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         activeDraftPayload.drafted = drafted;
         activeDraftPayload.draftGoal = rounds;
     } else if (settings.draftFormat === 'burn_draft') {
+        if (draftMode === 'set_draft') {
+            throw new HttpsError('unimplemented', `Set Drafts are not yet supported for the 'Burn Draft' format.`);
+        }
         const existingNames = new Set();
         const packs = [];
         for (let i = 0; i < N; i++) {

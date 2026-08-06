@@ -606,7 +606,25 @@
                     <h3 style="color: var(--gold); margin: 0; font-family: 'Cinzel', serif; font-size: 1.4rem;">Playgroup Settings</h3>
                     <button id="resetSettingsBtn" class="host-action-btn clear" style="margin:0; font-size:0.75rem;">↺ Reset</button>
                 </div>
+
+                <div class="settings-input-group" style="margin-bottom: 20px;">
+                    <label for="settingDraftMode" style="color:#ccc;">Draft Mode:</label>
+                    <select id="settingDraftMode">
+                        <option value="commander_draft" selected>Commander Draft</option>
+                        <option value="set_draft">Set Draft</option>
+                    </select>
+                </div>
+
+                <div id="setDraftContainer" style="display:none; border: 1px solid #444; padding: 15px; border-radius: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.2);">
+                    <h4 style="margin-top:0; color:var(--gold); font-family:Cinzel;">Set Draft Options</h4>
+                    <div class="settings-input-group">
+                        <label for="settingDraftSet">Select Set:</label>
+                        <select id="settingDraftSet">
+                        </select>
+                    </div>
+                </div>
                 
+                <div id="commanderSettings">
                 <div class="settings-panel">
                     <h4>📝 Drafting Format</h4>
                     
@@ -735,6 +753,7 @@
                         <input type="text" id="settingDiscordWebhook" placeholder="https://discord.com/api/webhooks/...">
                     </div>
                 </div>
+                </div>
 
                 <div id="hostActionButtons" style="display: flex; gap: 10px;">
                     <button class="select-btn" id="startDraftBtn" style="flex: 2; font-size: 1.1rem; padding: 15px; margin: 0;">Start Draft</button>
@@ -809,10 +828,10 @@
         Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
     </div>
 
-    <div style="position: fixed; bottom: 5px; right: 10px; color: #444; font-size: 0.7rem; font-family: 'Segoe UI', sans-serif; cursor: pointer; opacity: 0.5;" onclick="window.enterAdminMode()" title="Admin Access">v20.15</div>
+    <div style="position: fixed; bottom: 5px; right: 10px; color: #444; font-size: 0.7rem; font-family: 'Segoe UI', sans-serif; cursor: pointer; opacity: 0.5;" onclick="window.enterAdminMode()" title="Admin Access">v20.16</div>
     
     <button id="installPwaBtn" class="select-btn" style="display: none; position: fixed; bottom: 30px; right: 20px; z-index: 1000; padding: 10px 20px; font-size: 0.9rem; border-radius: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.9);">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=20.15"></script>
+    <script type="module" src="./script.js?v=20.16"></script>
 </body>
 </html>

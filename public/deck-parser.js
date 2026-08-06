@@ -1,4 +1,4 @@
-import { functions } from './firebase-setup.js?v=20.15';
+import { functions } from './firebase-setup.js?v=20.16';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 async function fetchDeckFromAPI(deckUrl) {

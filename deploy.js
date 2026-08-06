@@ -10,6 +10,13 @@ const args = process.argv.slice(2);
 const isMajor = args.includes('--major');
 // Filter out the --major flag to isolate the notes
 const notes = args.filter(arg => arg !== '--major').join(' ');
+
+if (!notes) {
+    console.error('\n❌ Error: Please provide release notes for the commit.');
+    console.error('   Example: npm run deploy -- "Your release notes go here"');
+    process.exit(1);
+}
+
 const versionType = isMajor ? 'major' : 'minor';
 
 try {

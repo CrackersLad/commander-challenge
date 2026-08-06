@@ -14,7 +14,7 @@ Use this command for regular updates, bug fixes, and small features. It will inc
 
 **Command:**
 ```bash
-npm run deploy -- "Your release notes go here. Fixed bug X and added feature Y."
+npm run deploy -- "Your release notes go here. This part is required."
 ```
 
 **What it does:**
