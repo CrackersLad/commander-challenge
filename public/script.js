@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=20.14';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=20.14';
-import { getArchives } from './data-service.js?v=20.14';
-import { initDeckActionsModule } from './deck-actions.js?v=20.14';
-import { initRoomActionsModule } from './room-actions.js?v=20.14';
-import { initPlayerViewModule } from './player-view.js?v=20.14';
-import { initAdminModule } from './admin.js?v=20.14';
-import { initCalendarModule } from './calendar.js?v=20.14';
-import { initAuthModule } from './auth.js?v=20.14';
-import { initHubModule } from './hub.js?v=20.14';
-import { initProfileModule } from './profile.js?v=20.14';
+import { db, auth, functions } from './firebase-setup.js?v=20.15';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=20.15';
+import { getArchives } from './data-service.js?v=20.15';
+import { initDeckActionsModule } from './deck-actions.js?v=20.15';
+import { initRoomActionsModule } from './room-actions.js?v=20.15';
+import { initPlayerViewModule } from './player-view.js?v=20.15';
+import { initAdminModule } from './admin.js?v=20.15';
+import { initCalendarModule } from './calendar.js?v=20.15';
+import { initAuthModule } from './auth.js?v=20.15';
+import { initHubModule } from './hub.js?v=20.15';
+import { initProfileModule } from './profile.js?v=20.15';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -307,6 +307,8 @@ const randomSettingsEl = document.getElementById('randomSettingsContainer');
 const rerollsContainer = document.getElementById('rerollsContainer');
 const numOptionsLabel = document.getElementById('numOptionsLabel');
 
+const commanderSettings = document.getElementById('commanderSettings');
+
 function updateSettingsVisibility() {
     const isInteractive = draftFormatEl && draftFormatEl.value !== 'independent';
     const isManual = selectionModeEl && selectionModeEl.value === 'manual';
@@ -317,6 +319,12 @@ function updateSettingsVisibility() {
     const numOptsContainer = document.getElementById('settingNumOptions') ? document.getElementById('settingNumOptions').parentElement : null;
     const snakePoolContainer = document.getElementById('snakePoolContainer');
     const isSnake = draftFormatEl && draftFormatEl.value === 'snake_draft';
+
+    const draftMode = document.getElementById('settingDraftMode')?.value;
+    const setDraftContainer = document.getElementById('setDraftContainer');
+
+    if (commanderSettings) commanderSettings.style.display = draftMode === 'set_draft' ? 'none' : 'block';
+    if (setDraftContainer) setDraftContainer.style.display = draftMode === 'set_draft' ? 'block' : 'none';
 
     if (isSnake) {
         if (numOptsContainer) numOptsContainer.style.display = 'flex';
@@ -340,6 +348,8 @@ function updateSettingsVisibility() {
         }
     }
 }
+const draftModeEl = document.getElementById('settingDraftMode');
+if (draftModeEl) draftModeEl.addEventListener('change', updateSettingsVisibility);
 if (draftFormatEl) draftFormatEl.addEventListener('change', updateSettingsVisibility);
 if (selectionModeEl) selectionModeEl.addEventListener('change', updateSettingsVisibility);
 updateSettingsVisibility();
@@ -923,6 +933,8 @@ document.getElementById('joinBtn').onclick = async () => {
 
 function syncSettingsToUI(s) {
     if (!s) return;
+    if (document.getElementById('settingDraftMode')) document.getElementById('settingDraftMode').value = s.draftMode || 'commander_draft';
+    if (document.getElementById('settingDraftSet')) document.getElementById('settingDraftSet').value = s.draftSet || 'woe';
     if (document.getElementById('settingDraftFormat')) document.getElementById('settingDraftFormat').value = s.draftFormat || 'independent';
     if (document.getElementById('settingSelectionMode')) document.getElementById('settingSelectionMode').value = s.selectionMode || 'both';
     if (document.getElementById('settingCurrency')) document.getElementById('settingCurrency').value = s.currency || 'eur';
@@ -995,6 +1007,17 @@ function initLobby() {
                 window.openWebhookModal();
             };
             dropdown.appendChild(webhookBtn);
+        }
+
+        const setSelect = document.getElementById('settingDraftSet');
+        if (setSelect && setSelect.options.length <= 1) {
+            const sets = { "mkm": "Murders at Karlov Manor", "lci": "Lost Caverns of Ixalan", "woe": "Wilds of Eldraine", "mom": "March of the Machine", "one": "Phyrexia: All Will Be One", "bro": "The Brothers' War", "dmu": "Dominaria United" };
+            Object.entries(sets).forEach(([code, name]) => {
+                const option = document.createElement('option');
+                option.value = code;
+                option.innerText = name;
+                setSelect.appendChild(option);
+            });
         }
         
         getArchives().then(archives => {
@@ -1126,6 +1149,8 @@ function autoSaveSettings() {
         const limitDeck = document.getElementById('toggleDeckBudget') ? document.getElementById('toggleDeckBudget').checked : true;
         const limitRank = document.getElementById('toggleRank') ? document.getElementById('toggleRank').checked : true;
 
+        const draftMode = document.getElementById('settingDraftMode').value;
+        const draftSet = document.getElementById('settingDraftSet').value;
         const bVal = document.getElementById('settingBudget').value;
         const b = !limitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal));
         const c = document.getElementById('settingCurrency').value;
@@ -1147,7 +1172,7 @@ function autoSaveSettings() {
         const snakePoolSize = Math.min(30, Math.max(2, parseInt(document.getElementById('settingSnakePoolSize')?.value) || 15));
 
         const settingsPayload = {
-            budget: b, currency: c, deckBudget: dbudget, includeCmdr: incCmdr, minRank: minR, maxRank: maxR, noPartner: noPartner, numOptions: numOpts, snakePoolSize: snakePoolSize, maxRerolls: maxRr, selectionMode: selMode, blindDraft: blind, draftFormat: draftFormat, maxBracket: maxBracket
+            draftMode: draftMode, draftSet: draftSet, budget: b, currency: c, deckBudget: dbudget, includeCmdr: incCmdr, minRank: minR, maxRank: maxR, noPartner: noPartner, numOptions: numOpts, snakePoolSize: snakePoolSize, maxRerolls: maxRr, selectionMode: selMode, blindDraft: blind, draftFormat: draftFormat, maxBracket: maxBracket
         };
         localStorage.setItem('hostDefaultSettings', JSON.stringify(settingsPayload));
         update(ref(db, `rooms/${currentRoom}/settings`), settingsPayload);
@@ -1193,6 +1218,8 @@ document.getElementById('startDraftBtn').onclick = async () => {
     const limitDeck = document.getElementById('toggleDeckBudget') ? document.getElementById('toggleDeckBudget').checked : true;
     const limitRank = document.getElementById('toggleRank') ? document.getElementById('toggleRank').checked : true;
 
+    const draftMode = document.getElementById('settingDraftMode').value;
+    const draftSet = document.getElementById('settingDraftSet').value;
     const bVal = document.getElementById('settingBudget').value;
     const b = !limitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal));
     const c = document.getElementById('settingCurrency').value;
@@ -1215,7 +1242,7 @@ document.getElementById('startDraftBtn').onclick = async () => {
     const webhookUrl = document.getElementById('settingDiscordWebhook') ? document.getElementById('settingDiscordWebhook').value.trim() : '';
 
     const settingsPayload = {
-        budget: b, currency: c, deckBudget: dbudget, includeCmdr: incCmdr, minRank: minR, maxRank: maxR, noPartner: noPartner, numOptions: numOpts, snakePoolSize: snakePoolSize, maxRerolls: maxRr, selectionMode: selMode, blindDraft: blind, draftFormat: draftFormat, maxBracket: maxBracket, status: 'rolling'
+        draftMode: draftMode, draftSet: draftSet, budget: b, currency: c, deckBudget: dbudget, includeCmdr: incCmdr, minRank: minR, maxRank: maxR, noPartner: noPartner, numOptions: numOpts, snakePoolSize: snakePoolSize, maxRerolls: maxRr, selectionMode: selMode, blindDraft: blind, draftFormat: draftFormat, maxBracket: maxBracket, status: 'rolling'
     };
     localStorage.setItem('hostDefaultSettings', JSON.stringify(settingsPayload));
     await set(ref(db, `webhooks/${currentRoom}/url`), webhookUrl || null);
@@ -1783,6 +1810,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
+import('./deck-builder-view.js?v=20.15').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
