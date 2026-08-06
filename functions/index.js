@@ -2,10 +2,7 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onValueUpdated, onValueCreated, onValueDeleted, onValueWritten } = require("firebase-functions/v2/database");
 const admin = require("firebase-admin");
-
-admin.initializeApp({
-    databaseURL: "https://commander-challenge-default-rtdb.europe-west1.firebasedatabase.app"
-});
+admin.initializeApp();
 
 function extractAll(obj, results = []) {
     if (!obj) return results;

@@ -15,10 +15,12 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24' # From your functions/package.json
+          node-version: '22' # Must match functions/package.json
 
       - name: Install dependencies
-        run: npm install --prefix functions
+        run: |
+          rm -f functions/package-lock.json
+          npm install --prefix functions
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
