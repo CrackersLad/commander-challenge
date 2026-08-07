@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.2';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.2';
-import { getArchives } from './data-service.js?v=0.2';
-import { initDeckActionsModule } from './deck-actions.js?v=0.2';
-import { initRoomActionsModule } from './room-actions.js?v=0.2';
-import { initPlayerViewModule } from './player-view.js?v=0.2';
-import { initAdminModule } from './admin.js?v=0.2';
-import { initCalendarModule } from './calendar.js?v=0.2';
-import { initAuthModule } from './auth.js?v=0.2';
-import { initHubModule } from './hub.js?v=0.2';
-import { initProfileModule } from './profile.js?v=0.2';
+import { db, auth, functions } from './firebase-setup.js?v=0.3';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.3';
+import { getArchives } from './data-service.js?v=0.3';
+import { initDeckActionsModule } from './deck-actions.js?v=0.3';
+import { initRoomActionsModule } from './room-actions.js?v=0.3';
+import { initPlayerViewModule } from './player-view.js?v=0.3';
+import { initAdminModule } from './admin.js?v=0.3';
+import { initCalendarModule } from './calendar.js?v=0.3';
+import { initAuthModule } from './auth.js?v=0.3';
+import { initHubModule } from './hub.js?v=0.3';
+import { initProfileModule } from './profile.js?v=0.3';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -860,6 +860,12 @@ function trackJoinedRoom(code) {
 }
 
 document.getElementById('createBtn').onclick = async () => {
+        // Change "Create New Playgroup" to "Start New Commander Challenge"
+        // This button will now always create a 'commander_draft'
+        window.startCommanderChallenge();
+    };
+
+window.startCommanderChallenge = async () => {
     playSound('sfx-click');
 
     const name = document.getElementById('playerNameInput').value.trim();
@@ -872,6 +878,36 @@ document.getElementById('createBtn').onclick = async () => {
     const defaultSettings = savedSettingsStr ? JSON.parse(savedSettingsStr) : { budget: 10, currency: 'eur', deckBudget: 50, includeCmdr: true, maxRank: 1, minRank: 500, noPartner: true, numOptions: 3, maxRerolls: 1, selectionMode: 'both', draftFormat: 'independent', maxBracket: 5 };
     defaultSettings.status = 'waiting';
     defaultSettings.createdAt = Date.now();
+    await set(ref(db, `rooms/${roomCode}/settings`), defaultSettings);
+    
+    const hostPayload = { name: safeName, isHost: true, avatar: currentPlayerAvatar || null };
+    if (auth.currentUser) hostPayload.uid = auth.currentUser.uid;
+    await set(ref(db, `rooms/${roomCode}/players/${pId}`), hostPayload);
+
+    localStorage.setItem('roomCode', roomCode); localStorage.setItem('playerId', pId); localStorage.setItem('playerName', safeName); localStorage.setItem('isHost', 'true');
+    if (!auth.currentUser || auth.currentUser.isAnonymous) localStorage.setItem('guestName', safeName);
+    currentRoom = roomCode; currentPlayerId = pId; currentPlayerName = safeName; isHost = true;
+    trackJoinedRoom(roomCode);
+    initLobby();
+};
+
+window.startPrereleasePractice = async () => {
+    playSound('sfx-click');
+
+    const name = document.getElementById('playerNameInput').value.trim();
+    if(!name) return showToast("Enter a name first!", true);
+    const safeName = sanitizeHTML(name);
+    const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const pId = currentPlayerId; 
+
+    // Default settings for prerelease sealed
+    const defaultSettings = {
+        draftFormat: 'prerelease_sealed', // This is the key to the new functionality
+        draftMode: 'prerelease_sealed', // Also set draftMode for client-side logic
+        numOptions: 1, maxRerolls: 0, selectionMode: 'manual', // Force these for sealed
+        budget: 0, deckBudget: 0, minRank: 0, maxRank: 0, noPartner: false, blindDraft: false, // Disable filters
+        status: 'waiting', createdAt: Date.now(), packsPerPlayer: 6, packSize: 15 // Standard prerelease pack counts
+    };
     await set(ref(db, `rooms/${roomCode}/settings`), defaultSettings);
     
     const hostPayload = { name: safeName, isHost: true, avatar: currentPlayerAvatar || null };
@@ -1844,7 +1880,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.2').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.3').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

@@ -246,7 +246,9 @@ exports.adminViewRoom = onCall(async (request) => {
     return { room: snap.val() };
 });
 
-async function getCardsForSet(setCode) {
+async function fetchBoosterCardsForSet(setCode) {
+    // This function is for fetching cards for interactive set drafts (like async/snake draft)
+    // It's kept separate from fetchSetCardsByRarity for clarity and different use cases.
     const boosterCards = [];
     let sUrl = `https://api.scryfall.com/cards/search?q=set%3A${setCode}+is%3Abooster`;
     let retries = 0;
@@ -269,6 +271,55 @@ async function getCardsForSet(setCode) {
         await new Promise(r => setTimeout(r, 100)); // Scryfall rate limit
     }
     return boosterCards;
+}
+
+// New helper function to fetch cards from a set and categorize by rarity for sealed pools
+async function fetchSetCardsByRarity(setCode) {
+    const commons = [];
+    const uncommons = [];
+    const rares = [];
+    const mythics = [];
+
+    // Fetch all non-basic-land cards from the set that can appear in boosters
+    let sUrl = `https://api.scryfall.com/cards/search?q=set%3A${setCode}+is%3Abooster+-is:basic`;
+    let retries = 0;
+
+    while (sUrl) {
+        const res = await fetch(sUrl);
+        if (!res.ok) {
+            if (retries < 3) {
+                retries++;
+                console.warn(`Scryfall set fetch failed (${res.status}). Retrying in ${retries * 2}s...`);
+                await new Promise(r => setTimeout(r, 2000 * retries));
+                continue;
+            }
+            throw new Error(`Scryfall API failed for set ${setCode}: ${res.statusText}`);
+        }
+        retries = 0;
+        const data = await res.json();
+        if (data.data) {
+            data.data.forEach(card => {
+                const formattedCard = {
+                    name: card.name,
+                    image_uris: { normal: card.image_uris?.normal || (card.card_faces?.[0]?.image_uris?.normal) || "" },
+                    card_faces: card.card_faces ? card.card_faces.map(face => ({ image_uris: { normal: face.image_uris?.normal || "" } })) : null,
+                    prices: { usd: parseFloat(card.prices?.usd || 0), eur: parseFloat(card.prices?.eur || 0) },
+                    color_identity: card.color_identity || [],
+                    scryfall_uri: card.scryfall_uri || "https://scryfall.com",
+                    cmc: card.cmc || 0,
+                    type_line: card.type_line || "",
+                    rarity: card.rarity // Store rarity for distribution
+                };
+                if (card.rarity === 'common') commons.push(formattedCard);
+                else if (card.rarity === 'uncommon') uncommons.push(formattedCard);
+                else if (card.rarity === 'rare') rares.push(formattedCard);
+                else if (card.rarity === 'mythic') mythics.push(formattedCard);
+            });
+        }
+        sUrl = data.has_more ? data.next_page : null;
+        await new Promise(r => setTimeout(r, 100)); // Scryfall rate limit
+    }
+    return { commons, uncommons, rares, mythics, allRaresMythics: [...rares, ...mythics] };
 }
 
 let cachedArchives = null;
@@ -298,6 +349,863 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         [playerIds[i], playerIds[j]] = [playerIds[j], playerIds[i]];
     }
 
+    // Format card helper (used for both commander draft and interactive set draft)
+    const formatCard = (c) => ({
+        name: c.name,
+        image_uris: { normal: c.image_uris?.normal || c.card_faces?.[0]?.image_uris?.normal || "" },
+        card_faces: c.card_faces ? c.card_faces.map(face => ({ image_uris: { normal: face.image_uris?.normal || "" } })) : null,
+        prices: { usd: parseFloat(c.prices?.usd || 9999), eur: parseFloat(c.prices?.eur || 9999) },
+        display_rank: c.rank_edhrec || null,
+        color_identity: c.color_identity || [],
+        scryfall_uri: c.scryfall_uri || "https://scryfall.com",
+        cmc: c.cmc || 0,
+        type_line: c.type_line || ""
+    });
+
+    // Base structure for the unified interactive draft engine
+    const activeDraftPayload = {
+        format: settings.draftFormat,
+        createdAt: Date.now(),
+        isComplete: false,
+        playerOrder: playerIds,
+        draftMode: settings.draftMode || 'commander_draft', // Use settings.draftMode
+        settingsOverride: {} // Will be populated for prerelease_sealed
+    };
+
+    if (settings.draftFormat === 'prerelease_sealed') {
+        if (!settings.draftSet) {
+            throw new HttpsError('invalid-argument', 'A set must be selected for Prerelease Sealed.');
+        }
+        const { commons, uncommons, allRaresMythics } = await fetchSetCardsByRarity(settings.draftSet);
+
+        // Prerelease pack simulation: 6 boosters + 1 promo rare/mythic
+        // Per player pool: 7 R/M, 18 U, 60 C (total 85 cards)
+        const requiredRaresMythics = 7;
+        const requiredUncommons = 18;
+        const requiredCommons = 60;
+
+        if (commons.length < N * requiredCommons || uncommons.length < N * requiredUncommons || allRaresMythics.length < N * requiredRaresMythics) {
+            throw new HttpsError('failed-precondition', `Not enough unique cards in the set to generate sealed pools for all players. Commons: ${commons.length}, Uncommons: ${uncommons.length}, Rares/Mythics: ${allRaresMythics.length}. Needed per player: ${requiredCommons}C, ${requiredUncommons}U, ${requiredRaresMythics}R/M.`);
+        }
+
+        const playerPools = {};
+        const globalUsedCards = new Set(); // Track cards used across all players to minimize duplicates
+
+        // Helper to get a unique card from a source array
+        const getUniqueCard = (sourceArray) => {
+            let card;
+            let attempts = 0;
+            const maxAttempts = sourceArray.length * 2; // Try to find unique, but don't loop forever
+            do {
+                if (attempts > maxAttempts) {
+                    // Fallback: if we can't find a unique card after many attempts, just pick one.
+                    card = sourceArray[Math.floor(Math.random() * sourceArray.length)];
+                    break;
+                }
+                card = sourceArray[Math.floor(Math.random() * sourceArray.length)];
+                attempts++;
+            } while (globalUsedCards.has(card.name));
+            globalUsedCards.add(card.name);
+            return card;
+        };
+
+        for (const playerId of playerIds) {
+            const playerSealedPool = [];
+            for (let i = 0; i < requiredRaresMythics; i++) playerSealedPool.push(getUniqueCard(allRaresMythics));
+            for (let i = 0; i < requiredUncommons; i++) playerSealedPool.push(getUniqueCard(uncommons));
+            for (let i = 0; i < requiredCommons; i++) playerSealedPool.push(getUniqueCard(commons));
+            
+            playerPools[playerId] = playerSealedPool;
+        }
+
+        activeDraftPayload.playerPools = playerPools;
+        activeDraftPayload.draftGoal = 1; // Player selects 1 commander from their pool
+        activeDraftPayload.draftMode = 'prerelease_sealed'; // Indicate it's a prerelease sealed pool
+        activeDraftPayload.format = 'independent'; // Prerelease is an independent selection from a sealed pool
+
+        // Override settings for the client to correctly interpret the state
+        activeDraftPayload.settingsOverride = {
+            draftFormat: 'prerelease_sealed', // Use a unique format name for client-side logic
+            draftMode: 'prerelease_sealed',
+            numOptions: 1, // Only one commander to select
+            maxRerolls: 0, // No rerolls from a sealed pool
+            selectionMode: 'manual', // Must manually pick from pool
+            budget: 0, // Disable budget/rank/partner filters as they don't apply to sealed pool generation
+            deckBudget: 0,
+            minRank: 0,
+            maxRank: 0,
+            noPartner: false,
+            blindDraft: false // Prerelease is not blind
+        };
+
+        // Update the room settings in the database with the overridden values
+        await db.ref(`rooms/${roomId}`).update({ 
+            settings: { ...settings, ...activeDraftPayload.settingsOverride }, 
+            activeDraft: activeDraftPayload 
+        });
+        await db.ref('stats').update({ commandersRolled: admin.database.ServerValue.increment(N * 1) }); // 1 commander selected per player
+
+        return { success: true };
+
+    } else if (settings.draftMode === 'set_draft' && settings.draftSet) {
+        // Existing SET DRAFT logic (interactive drafting from a set)
+        pool = await fetchBoosterCardsForSet(settings.draftSet); // Use the renamed function
+
+        const existingNames = new Set();
+        const packs = [];
+        const totalPacks = N * (settings.packsPerPlayer || 3); // Assuming packsPerPlayer is still relevant for interactive set draft
+
+        for (let i = 0; i < totalPacks; i++) {
+            const packCards = [];
+            for (let j = 0; j < (settings.packSize || 15); j++) {
+                let card; let attempts = 0;
+                do {
+                    card = pool[Math.floor(Math.random() * pool.length)];
+                    attempts++;
+                } while (existingNames.has(card.name) && attempts < 100); // Ensure unique cards within the overall draft pool
+                packCards.push(formatCard(card));
+                existingNames.add(card.name);
+            }
+            packs.push({ id: `pack_${i}`, cards: packCards });
+        }
+
+        // Distribute packs for interactive set draft (async/snake)
+        if (settings.draftFormat === 'async_draft') {
+            const queues = {};
+            const drafted = {};
+            playerIds.forEach((id) => {
+                queues[id] = [];
+                drafted[id] = [];
+            });
+            for (let i = 0; i < totalPacks; i++) {
+                const playerIndex = i % N;
+                queues[playerIds[playerIndex]].push(packs[i]);
+            }
+            activeDraftPayload.queues = queues;
+            activeDraftPayload.drafted = drafted;
+            activeDraftPayload.draftGoal = (settings.packsPerPlayer || 3) * (settings.packSize || 15);
+        } else if (settings.draftFormat === 'snake_draft') {
+            // This block is for snake draft with set_draft mode
+            const pickOrder = [];
+            const rounds = settings.numOptions; // numOptions here means picks per player
+            for (let round = 0; round < rounds; round++) {
+                let roundOrder = [...playerIds];
+                if (round % 2 !== 0) roundOrder.reverse();
+                pickOrder.push(...roundOrder);
+            }
+
+            const drafted = Object.fromEntries(playerIds.map(id => [id, []]));
+
+            activeDraftPayload.pool = packs.flat().map(p => p.cards).flat(); // Combine all cards from all packs into one pool
+            activeDraftPayload.pickOrder = pickOrder;
+            activeDraftPayload.turn = 0;
+            activeDraftPayload.drafted = drafted;
+            activeDraftPayload.draftGoal = rounds;
+        }
+
+    } else { // Commander Draft (existing logic)
+        const now = Date.now();
+        if (!cachedArchives || (now - archivesFetchTime > 12 * 60 * 60 * 1000)) {
+            const archivesSnap = await db.ref('global_archives/cards').once('value');
+            cachedArchives = archivesSnap.val() || [];
+            archivesFetchTime = now;
+        }
+        const archives = cachedArchives;
+
+        if (settings.draftFormat === 'burn_draft' && numOptions < 2) numOptions = 2; // Burn drafts mathematically require at least 2 cards
+
+        pool = archives.filter(card => {
+            const price = currency === 'eur' ? card.prices.eur : card.prices.usd;
+            if (parseFloat(budget) !== 0 && price >= parseFloat(budget)) return false;
+            if (noPartner && card.isPartner) return false;
+            if (maxRank !== 0 && card.rank_edhrec < maxRank) return false;
+            if (minRank !== 0 && card.rank_edhrec > minRank) return false;
+            return true;
+        }).map(formatCard); // Apply formatCard here for consistency
+    }
+
+    // If it's not prerelease_sealed, apply the existing interactive draft logic
+    if (settings.draftFormat !== 'prerelease_sealed') {
+        let requiredPool;
+        if (settings.draftMode === 'set_draft') {
+            const packsPerPlayer = settings.packsPerPlayer || 3;
+            const packSize = settings.packSize || 15;
+            requiredPool = N * packsPerPlayer * packSize;
+        } else {
+            requiredPool = N * numOptions;
+        }
+
+        if (settings.draftFormat === 'snake_draft') {
+            requiredPool = settings.snakePoolSize || 15;
+            if (requiredPool < N * numOptions) requiredPool = N * numOptions; // Ensure pool supports requested picks
+        }
+
+        if (pool.length < requiredPool) {
+            throw new HttpsError('failed-precondition', `Not enough commanders in the Archives for this draft! Found ${pool.length}, need ${requiredPool}.`);
+        }
+
+        if (settings.draftFormat === 'async_draft') {
+            const isSetDraft = settings.draftMode === 'set_draft';
+            const packsPerPlayer = isSetDraft ? (settings.packsPerPlayer || 3) : 1;
+            const packSize = isSetDraft ? (settings.packSize || 15) : numOptions;
+            const totalPacks = N * packsPerPlayer;
+
+            const existingNames = new Set();
+            const packs = [];
+            for (let i = 0; i < totalPacks; i++) {
+                const packCards = [];
+                for (let j = 0; j < packSize; j++) {
+                    let card; let attempts = 0;
+                    do { 
+                        card = pool[Math.floor(Math.random() * pool.length)]; 
+                        attempts++; 
+                    } while (!isSetDraft && existingNames.has(card.name) && attempts < 100);
+                    
+                    packCards.push(formatCard(card));
+                    if (!isSetDraft) existingNames.add(card.name);
+                }
+                packs.push({ id: `pack_${i}`, cards: packCards });
+            }
+            
+            const queues = {};
+            const drafted = {};
+            playerIds.forEach((id) => {
+                queues[id] = [];
+                drafted[id] = [];
+            });
+
+            // Distribute packs
+            for (let i = 0; i < totalPacks; i++) {
+                const playerIndex = i % N;
+                queues[playerIds[playerIndex]].push(packs[i]);
+            }
+
+            activeDraftPayload.queues = queues;
+            activeDraftPayload.drafted = drafted;
+            activeDraftPayload.draftGoal = packsPerPlayer * packSize;
+        } else if (settings.draftFormat === 'snake_draft') {
+            if (settings.draftMode === 'set_draft') {
+                throw new HttpsError('unimplemented', `Set Drafts are not yet supported for the 'Snake Draft' format.`);
+            }
+            const existingNames = new Set();
+            const poolCards = [];
+            
+            let poolSize = settings.snakePoolSize || 15;
+            if (poolSize < N * numOptions) poolSize = N * numOptions;
+            if (poolSize > 30) poolSize = 30;
+
+            for (let i = 0; i < poolSize; i++) {
+                let card; let attempts = 0;
+                do { card = pool[Math.floor(Math.random() * pool.length)]; attempts++; } 
+                while (existingNames.has(card.name) && attempts < 100);
+                
+                poolCards.push(formatCard(card));
+                existingNames.add(card.name);
+            }
+
+            const pickOrder = [];
+            const rounds = numOptions;
+            for (let round = 0; round < rounds; round++) {
+                let roundOrder = [...playerIds];
+                if (round % 2 !== 0) roundOrder.reverse();
+                pickOrder.push(...roundOrder);
+            }
+
+            const drafted = Object.fromEntries(playerIds.map(id => [id, []]));
+
+            activeDraftPayload.pool = poolCards;
+            activeDraftPayload.pickOrder = pickOrder;
+            activeDraftPayload.turn = 0;
+            activeDraftPayload.drafted = drafted;
+            activeDraftPayload.draftGoal = rounds;
+        } else if (settings.draftFormat === 'burn_draft') {
+            if (settings.draftMode === 'set_draft') {
+                throw new HttpsError('unimplemented', `Set Drafts are not yet supported for the 'Burn Draft' format.`);
+            }
+            const existingNames = new Set();
+            const packs = [];
+            for (let i = 0; i < N; i++) {
+                const packCards = [];
+                for (let j = 0; j < numOptions; j++) {
+                    let card; let attempts = 0;
+                    do { card = pool[Math.floor(Math.random() * pool.length)]; attempts++; } 
+                    while (existingNames.has(card.name) && attempts < 100);
+                    
+                    packCards.push(formatCard(card));
+                    existingNames.add(card.name);
+                }
+                packs.push({ id: `pack_${i}`, cards: packCards });
+            }
+            
+            const queues = {};
+            const drafted = {};
+            playerIds.forEach((id, i) => {
+                queues[id] = [ packs[i] ]; drafted[id] = [];
+            });
+
+            activeDraftPayload.queues = queues;
+            activeDraftPayload.drafted = drafted;
+            activeDraftPayload.draftGoal = 1;
+        }
+        await db.ref(`rooms/${roomId}`).update({ settings, activeDraft: activeDraftPayload });
+        await db.ref('stats').update({ commandersRolled: admin.database.ServerValue.increment(N * numOptions) });
+    }
+
+    return { success: true };
+});
+
+async function verifyIsHost(roomId, auth) {
+    if (!auth) throw new HttpsError('unauthenticated', 'Not authenticated.');
+    const snap = await admin.database().ref(`rooms/${roomId}/players`).once('value');
+    const players = snap.val() || {};
+    // Check if any player in the room is marked as host AND has a matching UID
+    const isHost = Object.values(players).some(p => p.uid === auth.uid && p.isHost);
+    if (!isHost) throw new HttpsError('permission-denied', 'Only the Host can perform this action.');
+    return players;
+}
+
+exports.hostKickPlayer = onCall(async (request) => {
+    const { roomId, targetId } = request.data;
+    if (!roomId || !targetId) throw new HttpsError('invalid-argument', 'Missing parameters.');
+    await verifyIsHost(roomId, request.auth);
+    
+    await admin.database().ref(`rooms/${roomId}/players/${targetId}`).remove();
+    return { success: true };
+});
+
+exports.hostClearPlayer = onCall(async (request) => {
+    const { roomId, targetId } = request.data;
+    if (!roomId || !targetId) throw new HttpsError('invalid-argument', 'Missing parameters.');
+    await verifyIsHost(roomId, request.auth);
+
+    await admin.database().ref(`rooms/${roomId}/players/${targetId}`).update({
+        selected: null, image: null, display_rank: null, scryfall_uri: null, deck: null, deckPrice: null, lockedDeckPrice: null, deckSize: null, deckSalt: null, isLegal: null, generated: null, rerollCount: 0, sealedPool: null
+    });
+    return { success: true };
+});
+
+exports.hostResetLobby = onCall(async (request) => {
+    const { roomId } = request.data;
+    if (!roomId) throw new HttpsError('invalid-argument', 'Missing parameters.');
+    const players = await verifyIsHost(roomId, request.auth);
+
+    let updates = {};
+    Object.keys(players).forEach(id => {
+        updates[`players/${id}/generated`] = null;
+        updates[`players/${id}/selected`] = null;
+        updates[`players/${id}/deck`] = null;
+        updates[`players/${id}/deckPrice`] = null;
+        updates[`players/${id}/lockedDeckPrice`] = null;
+        updates[`players/${id}/deckSize`] = null;
+        updates[`players/${id}/deckSalt`] = null;
+        updates[`players/${id}/isLegal`] = null;
+        updates[`players/${id}/rerollCount`] = 0;
+        updates[`players/${id}/image`] = null;
+        updates[`players/${id}/sealedPool`] = null;
+    });
+    updates['settings/status'] = 'waiting';
+    updates['activeDraft'] = null;
+    updates['meetup'] = null;
+
+    await admin.database().ref(`rooms/${roomId}`).update(updates);
+    return { success: true };
+});
+
+exports.hostDeclareWinner = onCall(async (request) => {
+    const { roomId, winnerId } = request.data;
+    if (!roomId || !winnerId) throw new HttpsError('invalid-argument', 'Missing parameters.');
+    const players = await verifyIsHost(roomId, request.auth);
+
+    const winner = players[winnerId];
+    if (!winner) throw new HttpsError('not-found', 'Winner not found.');
+
+    const historyId = Date.now().toString();
+    const historyRecord = {
+        date: Date.now(),
+        winnerId: winnerId,
+        winnerName: winner.name,
+        commander: winner.selected || "Unknown",
+        deck: winner.deck || null,
+        participants: {}
+    };
+
+    Object.entries(players).forEach(([id, p]) => {
+        if (p.selected) {
+            historyRecord.participants[id] = {
+                name: p.name,
+                commander: p.selected,
+                price: p.lockedDeckPrice !== undefined ? p.lockedDeckPrice : (p.deckPrice || 0),
+                salt: p.deckSalt || 0
+            };
+        }
+    });
+
+    const winnerUid = winner.uid;
+    if (winnerUid) {
+        const db = admin.database();
+        const winnerName = winner.name || "Unknown";
+        const winnerAvatar = winner.avatar || null;
+        const commanderName = winner.selected || "Unknown";
+
+        // 1. Update user-specific stats
+        const userStatsRef = db.ref(`users/${winnerUid}/stats`);
+        await userStatsRef.child('wins').transaction(current => (current || 0) + 1);
+        
+        const winRecord = { commander: commanderName, date: Date.now(), room: roomId };
+        await userStatsRef.child('win_history').push(winRecord);
+
+        
+    }
+
+    let updates = {};
+    updates[`history/${historyId}`] = historyRecord;
+    updates['settings/status'] = 'waiting';
+    updates['meetup'] = null;
+    updates['activeDraft'] = null;
+
+    Object.keys(players).forEach(id => {
+        updates[`players/${id}/generated`] = null;
+        updates[`players/${id}/selected`] = null;
+        updates[`players/${id}/deck`] = null;
+        updates[`players/${id}/deckPrice`] = null;
+        updates[`players/${id}/lockedDeckPrice`] = null;
+        updates[`players/${id}/deckSize`] = null;
+        updates[`players/${id}/deckSalt`] = null;
+        updates[`players/${id}/isLegal`] = null;
+        updates[`players/${id}/rerollCount`] = 0;
+        updates[`players/${id}/image`] = null;
+        updates[`players/${id}/sealedPool`] = null;
+    });
+
+    await admin.database().ref(`rooms/${roomId}`).update(updates);
+    return { success: true, winnerName: winner.name };
+});
+
+async function sendDiscordWebhook(roomId, content) {
+    const snap = await admin.database().ref(`webhooks/${roomId}/url`).once('value');
+    const url = snap.val();
+    if (!url || !url.startsWith("https://discord.com/api/webhooks/")) return;
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        
+        await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                content, 
+                username: "Commander Archives",
+                allowed_mentions: { parse: [] } 
+            }),
+            signal: controller.signal
+        });
+        clearTimeout(timeout);
+    } catch (e) {
+        console.error("Discord webhook error:", e);
+    }
+}
+
+async function sendDirectNotification(uid, payload, throwOnFail = false) {
+    const db = admin.database();
+    const tokensSnap = await db.ref(`users/${uid}/fcmTokens`).once('value');
+    if (!tokensSnap.exists()) {
+        if (throwOnFail) throw new Error("No push tokens found for user.");
+        return;
+    }
+
+    let targetTokens = Object.keys(tokensSnap.val());
+    if (targetTokens.length === 0) {
+        if (throwOnFail) throw new Error("Push token array is empty.");
+        return;
+    }
+
+    const message = {
+        notification: {
+            title: payload.title,
+            body: payload.body,
+        },
+        android: {
+            notification: {
+                channelId: 'default'
+            }
+        },
+        data: {
+            url: payload.url || `/`
+        },
+        tokens: targetTokens
+    };
+
+    try {
+        const response = await admin.messaging().sendEachForMulticast(message);
+        let errors = [];
+        if (response.failureCount > 0) {
+            const tokenRemovals = {};
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success && (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered')) {
+                    errors.push(resp.error.message);
+                    const deadToken = targetTokens[idx];
+                    tokenRemovals[`users/${uid}/fcmTokens/${deadToken}`] = null;
+                }
+            });
+            if (Object.keys(tokenRemovals).length > 0) {
+                await db.ref().update(tokenRemovals);
+            }
+            if (response.successCount === 0 && throwOnFail) {
+                throw new Error(`FCM Rejected Message: ${errors[0]}`);
+            }
+        }
+        return `Success: ${response.successCount}, Fails: ${response.failureCount}`;
+    } catch (error) {
+        console.error('Error sending direct message:', error);
+        if (throwOnFail) throw error;
+    }
+}
+
+async function sendRoomNotification(roomId, payload, excludeUid = null) {
+    const db = admin.database();
+    const playersSnap = await db.ref(`rooms/${roomId}/players`).once('value');
+    if (!playersSnap.exists()) return;
+    
+    const players = playersSnap.val();
+    let targetTokens = [];
+    let tokenToUidMap = {};
+
+    for (const playerId in players) {
+        const uid = players[playerId].uid;
+        if (uid && uid !== excludeUid) {
+            const tokensSnap = await db.ref(`users/${uid}/fcmTokens`).once('value');
+            if (tokensSnap.exists()) {
+                Object.keys(tokensSnap.val()).forEach(token => {
+                    targetTokens.push(token);
+                    tokenToUidMap[token] = uid;
+                });
+            }
+        }
+    }
+
+    if (targetTokens.length === 0) return;
+
+    const message = {
+        notification: {
+            title: payload.title,
+            body: payload.body,
+        },
+        android: {
+            notification: {
+                channelId: 'default'
+            }
+        },
+        data: {
+            url: payload.url || `/?room=${roomId}`
+        },
+        tokens: targetTokens
+    };
+
+    try {
+        const response = await admin.messaging().sendEachForMulticast(message);
+        console.log(`Sent ${response.successCount} push notifications successfully.`);
+        
+        // Automatically clean up invalid/expired tokens to prevent database bloat
+        if (response.failureCount > 0) {
+            const tokenRemovals = {};
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success && (resp.error.code === 'messaging/invalid-registration-token' || resp.error.code === 'messaging/registration-token-not-registered')) {
+                    const deadToken = targetTokens[idx];
+                    const deadUid = tokenToUidMap[deadToken];
+                    if (deadUid) tokenRemovals[`users/${deadUid}/fcmTokens/${deadToken}`] = null;
+                }
+            });
+            if (Object.keys(tokenRemovals).length > 0) {
+                await db.ref().update(tokenRemovals);
+                console.log(`Pruned ${Object.keys(tokenRemovals).length} dead FCM tokens.`);
+            }
+        }
+    } catch (error) {
+        console.error('Error sending multicast message:', error);
+    }
+}
+
+exports.notifyDraftStarted = onValueUpdated({ ref: "/rooms/{roomId}/settings/status", instance: "commander-challenge-default-rtdb", region: "europe-west1" }, async (event) => {
+    const before = event.data.before.val();
+    const after = event.data.after.val();
+    if (before !== 'waiting' || after !== 'rolling') return;
+    
+    await sendDiscordWebhook(event.params.roomId, `🎲 **A new Commander Draft has begun!**\nJoin the playgroup: https://edhchallenge.com/?room=${event.params.roomId}`);
+
+    return sendRoomNotification(event.params.roomId, {
+        title: "Draft Started! 🎲",
+        body: "The Host has started a new Commander Draft! Enter the Archives.",
+        url: `/?room=${event.params.roomId}`
+    });
+});
+
+exports.pingPlayer = onCall(async (request) => {
+    const { roomId, targetId, pingerName } = request.data;
+    if (!roomId || !targetId) throw new HttpsError('invalid-argument', 'Missing parameters.');
+
+    const db = admin.database();
+    
+    // Enforce 1 ping per day per target per room
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD in UTC
+    const pingRef = db.ref(`rooms/${roomId}/pings/${targetId}/${today}`);
+    
+    const pingSnap = await pingRef.once('value');
+    if (pingSnap.exists()) {
+        throw new HttpsError('resource-exhausted', 'This player has already been pinged today.');
+    }
+    
+    const targetPlayerSnap = await db.ref(`rooms/${roomId}/players/${targetId}`).once('value');
+    if (!targetPlayerSnap.exists()) throw new HttpsError('not-found', 'Player not found.');
+    
+    const targetPlayer = targetPlayerSnap.val();
+    
+    let actionNeeded = "take action in the draft";
+    if (!targetPlayer.selected) {
+        actionNeeded = "pick your commander";
+    } else if (!targetPlayer.deck) {
+        actionNeeded = "submit your deck link";
+    } else {
+        actionNeeded = "make your deck legal and under budget";
+    }
+
+    const title = "Ping! 🔔";
+    const body = `${pingerName || 'Someone'} is waiting for you to ${actionNeeded}!`;
+
+    await pingRef.set({ timestamp: Date.now(), by: request.auth ? request.auth.uid : 'guest' });
+
+    if (targetPlayer.uid) {
+        await sendDirectNotification(targetPlayer.uid, {
+            title, body, url: `/?room=${roomId}`
+        });
+    }
+    
+    await sendDiscordWebhook(roomId, `🔔 **${targetPlayer.name}**, you have been pinged by **${pingerName || 'Someone'}**! Please ${actionNeeded}.\nhttps://edhchallenge.com/?room=${roomId}`);
+
+    return { success: true };
+});
+
+exports.adminTestPing = onCall(async (request) => {
+    await verifyIsAdmin(request.auth);
+    
+    const targetUid = request.data.targetUid;
+    if (!targetUid) throw new HttpsError('invalid-argument', 'Missing target UID.');
+    
+    try {
+        const debugMsg = await sendDirectNotification(targetUid, {
+            title: "Admin Test Ping! 🔔",
+            body: "This is a test push notification from the Admin console.",
+            url: "/"
+        }, true);
+        return { success: true, debug: debugMsg };
+    } catch (e) {
+        throw new HttpsError('internal', e.message);
+    }
+});
+
+exports.onRoomCreated = onValueCreated({ ref: "/rooms/{roomId}", instance: "commander-challenge-default-rtdb", region: "europe-west1" }, async (event) => {
+    const data = event.data.val();
+    
+    // If the room was created without settings, it's a ghost room (likely from a lingering onDisconnect).
+    // Delete it instantly and prevent the activeRooms stat from falsely incrementing.
+    if (!data || !data.settings) {
+        return admin.database().ref(`rooms/${event.params.roomId}`).remove();
+    }
+
+    await admin.database().ref('stats').update({ activeRooms: admin.database.ServerValue.increment(1) });
+});
+
+exports.onRoomDeleted = onValueDeleted({ ref: "/rooms/{roomId}", instance: "commander-challenge-default-rtdb", region: "europe-west1" }, async (event) => {
+    await admin.database().ref('stats').update({ activeRooms: admin.database.ServerValue.increment(-1) });
+});
+
+exports.onPlayerJoined = onValueCreated({ ref: "/rooms/{roomId}/players/{playerId}", instance: "commander-challenge-default-rtdb", region: "europe-west1" }, async (event) => {
+    await admin.database().ref('stats').update({ totalPlayers: admin.database.ServerValue.increment(1) });
+});
+
+exports.logCommandersRolled = onCall(async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Not authenticated.');
+    const count = request.data.count;
+    if (!Number.isInteger(count) || count < 1 || count > 5) throw new HttpsError('invalid-argument', 'Invalid roll count.');
+    await admin.database().ref('stats').update({ commandersRolled: admin.database.ServerValue.increment(count) });
+    return { success: true };
+});
+
+exports.notifyPlayerProgress = onValueUpdated({ ref: "/rooms/{roomId}/players/{playerId}", instance: "commander-challenge-default-rtdb", region: "europe-west1" }, async (event) => {
+    const before = event.data.before.val() || {};
+    const after = event.data.after.val() || {};
+    if (!after.name) return; // Player left/kicked
+
+    let title = null;
+    let body = null;
+    
+    const roomSnap = await admin.database().ref(`rooms/${event.params.roomId}`).once('value');
+    const roomData = roomSnap.val();
+    if (!roomData) return;
+
+    const isBlind = roomData.settings?.blindDraft === true;
+    const players = roomData.players || {};
+    const allLocked = Object.values(players).every(p => p.selected);
+    const hideInfo = isBlind && !allLocked;
+
+    if (!before.selected && after.selected) {
+        title = "Commander Locked In! 🔒";
+        body = hideInfo ? `${after.name} has locked in a mysterious Commander!` : `${after.name} has chosen ${after.selected}!`;
+        
+        const edhrecSlug = after.selected.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
+        const discordMsg = hideInfo ? `🔒 **${after.name}** has locked in a mysterious Commander!` : `🔒 **${after.name}** has chosen **${after.selected}**!\n${edhrecLink}`;
+        await sendDiscordWebhook(event.params.roomId, discordMsg);
+
+        if (allLocked) {
+            const revealMsg = `🎉 **${isBlind ? 'All Commanders Revealed!' : 'All Commanders Locked In!'}** 🎉\n${isBlind ? 'The Blind Draft is complete! The board is now revealed.' : 'Everyone has chosen their commanders. Time to brew!'}\nhttps://edhchallenge.com/?room=${event.params.roomId}`;
+            await sendDiscordWebhook(event.params.roomId, revealMsg);
+            
+            title = isBlind ? "All Commanders Revealed! 🎭" : "Draft Phase Complete! 🎉";
+            body = isBlind ? "The Blind Draft is over! Check the board to see the matchups." : "Everyone has locked in their commanders.";
+        }
+    } else if (after.deck) {
+        const maxBudget = roomData.settings?.deckBudget !== undefined ? parseFloat(roomData.settings?.deckBudget) : 50;
+        
+        const beforePrice = before.lockedDeckPrice !== undefined ? before.lockedDeckPrice : (before.deckPrice || 0);
+        const afterPrice = after.lockedDeckPrice !== undefined ? after.lockedDeckPrice : (after.deckPrice || 0);
+        
+        const wasReady = before.deck && before.isLegal && (maxBudget === 0 || beforePrice <= maxBudget);
+        const isReady = after.isLegal && (maxBudget === 0 || afterPrice <= maxBudget);
+
+        const deckLinkDisplay = hideInfo ? "*(Deck link hidden until all players lock in their commanders!)*" : after.deck;
+
+        if (!wasReady && isReady) {
+            title = "Ready for Battle! ✅";
+            body = `${after.name}'s deck is fully legal and under budget!`;
+            await sendDiscordWebhook(event.params.roomId, `✅ **${after.name}**'s deck is fully legal, under budget, and **Ready for Battle**!\n${deckLinkDisplay}`);
+        } else if (!before.deck && after.deck && !isReady) {
+            title = "Deck Sealed! 🛡️";
+            body = `${after.name} has submitted a deck link.`;
+            await sendDiscordWebhook(event.params.roomId, `🛡️ **${after.name}** has sealed their deck!\n${deckLinkDisplay}`);
+        }
+    }
+
+    if (title && body) {
+        return sendRoomNotification(event.params.roomId, {
+            title: title, body: body, url: `/?room=${event.params.roomId}`
+        }, after.uid);
+    }
+});
+
+exports.notifyBattleScheduled = onValueWritten({ ref: "/rooms/{roomId}/meetup", instance: "commander-challenge-default-rtdb", region: "europe-west1" }, async (event) => {
+    const before = event.data.before.val();
+    const after = event.data.after.val();
+    
+    if (!after) return; // Meetup was completely canceled/removed
+
+    // If the meetup is brand new or the date was changed
+    if (!before || before.date !== after.date) {
+        const dateObj = new Date(after.date);
+        const dateStr = dateObj.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        let discordMsg = `📅 **Battle Scheduled!**\n**Date:** ${dateStr}\n**Format:** ${after.format}\n**Prize:** ${after.prize}`;
+        if (after.location) discordMsg += `\n**Location:** ${after.location}`;
+        await sendDiscordWebhook(event.params.roomId, discordMsg);
+
+        return sendRoomNotification(event.params.roomId, {
+            title: "Battle Scheduled! 📅",
+            body: `A match is set for ${dateStr}. Format: ${after.format}`,
+            url: `/?room=${event.params.roomId}`
+        });
+    }
+
+    // If the date remained the same, check if player availability toggled
+    if (before && after && before.date === after.date) {
+        const beforeCant = before.cantMakeIt || {};
+        const afterCant = after.cantMakeIt || {};
+        const allKeys = new Set([...Object.keys(beforeCant), ...Object.keys(afterCant)]);
+        
+        for (const playerId of allKeys) {
+            const wasCantMakeIt = beforeCant[playerId];
+            const isCantMakeIt = afterCant[playerId];
+                if (wasCantMakeIt !== isCantMakeIt) {
+                    const playerSnap = await admin.database().ref(`rooms/${event.params.roomId}/players/${playerId}`).once('value');
+                    const pData = playerSnap.val();
+                    if (pData && pData.name) {
+                        if (!wasCantMakeIt && isCantMakeIt) {
+                            await sendDiscordWebhook(event.params.roomId, `⚠️ **${pData.name}** can no longer make the scheduled date!`);
+                            await sendRoomNotification(event.params.roomId, {
+                                title: "Battle Update ⚠️",
+                                body: `${pData.name} can no longer make the scheduled date!`,
+                                url: `/?room=${event.params.roomId}`
+                            }, pData.uid);
+                        } else if (wasCantMakeIt && !isCantMakeIt) {
+                            await sendDiscordWebhook(event.params.roomId, `✅ **${pData.name}** can make the scheduled date again!`);
+                            await sendRoomNotification(event.params.roomId, {
+                                title: "Battle Update ✅",
+                                body: `${pData.name} can make the scheduled date again!`,
+                                url: `/?room=${event.params.roomId}`
+                            }, pData.uid);
+                        }
+                    }
+            }
+        }
+    }
+});
+
+exports.notifyWinnerDeclared = onValueCreated({ ref: "/rooms/{roomId}/history/{historyId}", instance: "commander-challenge-default-rtdb", region: "europe-west1" }, async (event) => {
+    const history = event.data.val();
+    const edhrecSlug = history.commander.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
+    await sendDiscordWebhook(event.params.roomId, `🏆 **${history.winnerName}** has claimed victory with **${history.commander}**!\n${edhrecLink}\nCongratulations to the champion!`);
+
+    return sendRoomNotification(event.params.roomId, {
+        title: "Winner Declared! 🏆",
+        body: `${history.winnerName} has claimed victory with ${history.commander}!`,
+        url: `/?room=${event.params.roomId}`
+    });
+});
+
+exports.adminClearTokens = onCall(async (request) => {
+    await verifyIsAdmin(request.auth);
+    
+    const targetUid = request.data.targetUid;
+    if (!targetUid) throw new HttpsError('invalid-argument', 'Missing target UID.');
+    
+    await admin.database().ref(`users/${targetUid}/fcmTokens`).remove();
+    return { success: true };
+});
+
+exports.getDeckPrice = onCall({ cors: true, timeoutSeconds: 60, memory: "256MiB" }, async (request) => {
+    const { deckUrl } = request.data;
+    if (!deckUrl) {
+        throw new HttpsError('invalid-argument', 'The function must be called with a "deckUrl" argument.');
+    }
+    if (!deckUrl.includes("moxfield.com") && !deckUrl.includes("archidekt.com")) {
+        throw new HttpsError('invalid-argument', 'Only Moxfield and Archidekt URLs are supported.');
+    }
+
+    try {
+        if (deckUrl.includes("archidekt.com")) {
+            const archMatch = deckUrl.match(/decks\/(\d+)/);
+            const deckId = archMatch ? archMatch[1] : null;
+            if (!deckId) throw new HttpsError('invalid-argument', 'Invalid Archidekt URL.');
+            
+            const response = await fetch(`https://archidekt.com/api/decks/${deckId}/`);
+            if (!response.ok) throw new HttpsError('not-found', `Archidekt API failed with status: ${response.status}`);
+            return await response.json();
+        }
+
+        if (deckUrl.includes("moxfield.com")) {
+            const moxMatch = deckUrl.match(/decks\/([a-zA-Z0-9_-]+)/);
+            const deckId = moxMatch ? moxMatch[1] : null;
+            if (!deckId) throw new HttpsError('invalid-argument', 'Invalid Moxfield URL.');
+
+            const response = await fetch(`https://api.moxfield.com/v2/decks/all/${deckId}`);
+            if (!response.ok) throw new HttpsError('not-found', `Moxfield API failed with status: ${response.status}`);
+            return await response.json();
+        }
+    } catch (error) {
+        console.error("Deck price fetch error:", error);
+        throw new HttpsError('internal', 'Failed to fetch deck data from the source API.');
+    }
+    
+    throw new HttpsError('unknown', 'Could not process the provided URL.');
+});
     let { budget, currency, noPartner, minRank, maxRank, numOptions, draftMode, draftSet } = settings;
     let pool = [];
 

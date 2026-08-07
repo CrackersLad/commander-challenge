@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=0.2';
+import { db, auth } from './firebase-setup.js?v=0.3';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -191,7 +191,7 @@ export function initHubModule(utils, state, coreUi) {
                 renderedCodes.add(room.code);
                 
                 const hostName = Object.values(room.data.players).find(p => p.isHost)?.name || "Unknown";
-                const status = room.data.settings?.status === 'rolling' ? 'Drafting' : 'Waiting';
+                const status = room.data.settings?.status === 'rolling' ? (room.data.settings?.draftFormat === 'prerelease_sealed' ? 'Prerelease' : 'Drafting') : 'Waiting';
                 const color = status === 'Drafting' ? 'var(--reroll)' : '#aaa';
                 
                 const btn = document.createElement('button');

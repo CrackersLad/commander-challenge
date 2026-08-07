@@ -1,5 +1,5 @@
-import { db, functions } from './firebase-setup.js?v=0.2';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.2';
+import { db, functions } from './firebase-setup.js?v=0.3';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.3';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -160,6 +160,51 @@ export function initPlayerViewModule(utils, state) {
         }, 300);
     }
 
+    async function renderPrereleaseSealedPool(container, s, playerSealedPool) {
+        container.innerHTML = `
+            <div style="width:100%; text-align:center; margin-bottom: 20px;">
+                <h2 style="color:var(--gold); font-family:Cinzel;">Prerelease Sealed Pool</h2>
+                <p style="color:#aaa;">Select your commander from the cards you opened!</p>
+            </div>
+            <div id="sealedPoolGrid" style="display:flex; flex-wrap:wrap; justify-content:center; gap:15px; width:100%;"></div>
+        `;
+        const sealedPoolGrid = document.getElementById('sealedPoolGrid');
+
+        playerSealedPool.forEach((card, i) => {
+            let img1 = card.image_uris?.normal || (card.card_faces && card.card_faces[0].image_uris?.normal) || card.image1;
+            let img2 = (card.card_faces && card.card_faces[1] && card.card_faces[1].image_uris?.normal) || card.image2 || null;
+            let priceString = "Price N/A";
+            if (card.prices) { if (s.currency === 'eur' && card.prices.eur !== 9999) priceString = `€${card.prices.eur}`; else if (s.currency === 'usd' && card.prices.usd !== 9999) priceString = `$${card.prices.usd}`; }
+            
+            const safeCardName = sanitizeHTML(card.name);
+            const edhrecSlug = safeCardName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
+            
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'option-card revealed'; // Use 'revealed' class for styling
+            cardDiv.style.transition = 'none'; // Disable animation for initial render
+            cardDiv.style.transform = 'none';
+            cardDiv.style.opacity = '1';
+            
+            let imageHtml = img2 ? `<div class="scene"><div class="card-3d" id="sealed-card3d-${i}"><a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" style="display:block;" class="card-face card-face-front"><img src="${sanitizeHTML(img1)}" class="commander-img" loading="lazy"></a><a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" style="display:block;" class="card-face card-face-back"><img src="${sanitizeHTML(img2)}" class="commander-img" loading="lazy"></a></div></div><button class="flip-btn" onclick="window.flipCard3D('sealed-card3d-${i}', event)">🔄 Flip Card</button>` : `<a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')"><img id="sealed-img-${i}" src="${sanitizeHTML(img1)}" class="commander-img" loading="lazy"></a>`;
+
+            cardDiv.innerHTML = `
+                ${imageHtml}
+                <p class="price-tag" style="margin-top: 15px;">${priceString}</p>
+                <div class="mana-container">${getColorBadges(card.color_identity)}</div>
+                <p class="rank-tag" style="color:var(--gold); font-weight:bold; font-size: 1rem; margin-bottom: 15px;">EDHREC Rank: #${card.display_rank || 'Unranked'}</p>
+                <button class="select-btn" data-idx="${i}">Select ${safeCardName}</button>
+            `;
+            cardDiv.querySelector('.select-btn').onclick = () => {
+                playSound('sfx-click'); showConfirm("Seal Your Champion?", `Are you sure you want to lock in ${card.name} as your commander? This choice is final.`, () => {
+                    playSound('sfx-choose'); update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), { selected: card.name, image: img1, display_rank: card.display_rank, scryfall_uri: card.scryfall_uri, color_identity: card.color_identity || [], generated: null, rerollCount: 0, sealedPool: null });
+                });
+            };
+            sealedPoolGrid.appendChild(cardDiv);
+        });
+        attachScrollListener('content', 'player-scroll-left', 'player-scroll-right');
+    }
+
     function renderSelectionScreen(list, currentRerollCount, maxRerollsAllowed, s) {
         const container = document.getElementById('content'); const isInitialRender = container.querySelectorAll('.option-card').length === 0;
         const canReroll = currentRerollCount < maxRerollsAllowed; const rerollsRemaining = maxRerollsAllowed - currentRerollCount;
@@ -219,9 +264,9 @@ export function initPlayerViewModule(utils, state) {
 
     async function renderInteractiveDraft(activeDraft, container, s, players) {
         if (activeDraft.isComplete) { container.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; margin-top:50px;"><h2 style="color:var(--gold); font-family:Cinzel;">Finalizing Draft...</h2><span class="mana-spinner"></span></div>`; return; }
-        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=0.2'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=0.2'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=0.2'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
+        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=0.3'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=0.3'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=0.3'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
     }
 
     function renderFinalSelection(list, s) {
@@ -346,9 +391,9 @@ export function initPlayerViewModule(utils, state) {
                 await new Promise(r => setTimeout(r, 550));
             }
         }
-        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=0.2'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=0.2'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=0.2'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
+        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=0.3'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=0.3'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=0.3'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
     };
 
     window.openPlayerView = async () => {
@@ -358,10 +403,13 @@ export function initPlayerViewModule(utils, state) {
         const settingsSnap = await get(ref(db, `rooms/${state.currentRoom}/settings`)); const s = settingsSnap.val() || {}; const maxRerollsAllowed = s.maxRerolls !== undefined ? s.maxRerolls : 1;
         get(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`)).then(snap => { document.getElementById('playerTitle').innerText = sanitizeHTML(snap.val().name) + "'s Challenge"; });
 
+        // Listen for changes in the room data
         state.activePlayerListener = onValue(ref(db, `rooms/${state.currentRoom}`), (snap) => {
             const roomData = snap.val() || {}; const currentS = roomData.settings || s; const data = roomData.players?.[state.currentPlayerId] || {}; const activeDraft = roomData.activeDraft;
             if (!document.getElementById('view-player').classList.contains('active')) return;
             const container = document.getElementById('content');
+
+            if (activeDraft?.draftMode === 'prerelease_sealed' && data.sealedPool) { isSearchingManually = false; renderPrereleaseSealedPool(container, currentS, data.sealedPool); }
             if (data.selected) { isSearchingManually = false; renderFinalForm(data); }
             else if (activeDraft && currentS.draftFormat !== 'independent') { isSearchingManually = false; renderInteractiveDraft(activeDraft, container, currentS, roomData.players); }
             else if (data.generated) {
