@@ -1,4 +1,4 @@
-import { functions } from './firebase-setup.js?v=0.5';
+import { functions } from './firebase-setup.js?v=0.6';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 async function fetchDeckFromAPI(deckUrl) {
@@ -22,11 +22,17 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
         let deckSize = 0;
         let deckSalt = 0;
         let commanderArt = null;
+        let deckBracket = null; // This will hold the 1-10 power level from the deck site
         
         if (safeUrl.includes("archidekt.com")) {
             const data = await fetchDeckFromAPI(safeUrl);
 
             const commanderNameParts = selectedCommanderName ? selectedCommanderName.split(' // ') : [];
+
+            // Archidekt has a built-in 'powerLevel' property in their API response
+            if (data.powerLevel && !isNaN(parseFloat(data.powerLevel))) {
+                deckBracket = parseFloat(data.powerLevel);
+            }
             
             if (selectedCommanderName) {
                 const lowerSelected = selectedCommanderName.toLowerCase().trim();
@@ -125,10 +131,15 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
                     total += (price * (item.quantity || 1));
                 });
             }
-            return { total: total, site: "Archidekt", isLegal: deckSize >= 98 && deckSize <= 101, deckSize: deckSize, commanderArt: commanderArt, deckSalt: deckSalt };
+            return { total: total, site: "Archidekt", isLegal: deckSize >= 98 && deckSize <= 101, deckSize: deckSize, commanderArt: commanderArt, deckSalt: deckSalt, deckBracket: deckBracket };
         } else if (safeUrl.includes("moxfield.com")) {
             const data = await fetchDeckFromAPI(safeUrl);
             const commanderNameParts = selectedCommanderName ? selectedCommanderName.split(' // ') : [];
+
+            // Moxfield has a built-in 'powerLevel' property in their API response
+            if (data.powerLevel && !isNaN(parseFloat(data.powerLevel))) {
+                deckBracket = parseFloat(data.powerLevel);
+            }
             
             let allCards = [];
             if (data.mainboard) allCards.push(...Object.values(data.mainboard).map(c => ({...c, board: 'mainboard'})));
@@ -166,7 +177,7 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
                 }
                 total += (price * (item.quantity || 1));
             });
-            return { total: total, site: "Moxfield", isLegal: deckSize >= 98 && deckSize <= 101, deckSize: deckSize, commanderArt: commanderArt, deckSalt: deckSalt };
+            return { total: total, site: "Moxfield", isLegal: deckSize >= 98 && deckSize <= 101, deckSize: deckSize, commanderArt: commanderArt, deckSalt: deckSalt, deckBracket: deckBracket };
         }
         return { error: "Unsupported site. Only Archidekt and Moxfield are supported for price calculation." };
     } catch (e) {
