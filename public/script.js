@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.6';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.6';
-import { getArchives } from './data-service.js?v=0.6';
-import { initDeckActionsModule } from './deck-actions.js?v=0.6';
-import { initRoomActionsModule } from './room-actions.js?v=0.6';
-import { initPlayerViewModule } from './player-view.js?v=0.6';
-import { initAdminModule } from './admin.js?v=0.6';
-import { initCalendarModule } from './calendar.js?v=0.6';
-import { initAuthModule } from './auth.js?v=0.6';
-import { initHubModule } from './hub.js?v=0.6';
-import { initProfileModule } from './profile.js?v=0.6';
+import { db, auth, functions } from './firebase-setup.js?v=0.7';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.7';
+import { getArchives } from './data-service.js?v=0.7';
+import { initDeckActionsModule } from './deck-actions.js?v=0.7';
+import { initRoomActionsModule } from './room-actions.js?v=0.7';
+import { initPlayerViewModule } from './player-view.js?v=0.7';
+import { initAdminModule } from './admin.js?v=0.7';
+import { initCalendarModule } from './calendar.js?v=0.7';
+import { initAuthModule } from './auth.js?v=0.7';
+import { initHubModule } from './hub.js?v=0.7';
+import { initProfileModule } from './profile.js?v=0.7';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -1856,22 +1856,24 @@ function initDashboard() {
                         
                         let saltHtml = '';
                         if (pData.deckSalt !== undefined && pData.deckSalt !== null && !isNaN(pData.deckSalt)) {
-                            const maxBracket = data.settings.maxBracket !== undefined ? parseFloat(data.settings.maxBracket) : 5;
-                            const isOverBracket = maxBracket > 0 && pData.deckSalt > maxBracket;
-
                             if (isSaltiest) {
                                 saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #39ff14; font-weight:bold; text-shadow: 0 0 8px rgba(57,255,20,0.5);">☣️ Saltiest: ${Number(pData.deckSalt).toFixed(2)}</p>`;
                             } else {
                                 saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #ccc;">🧂 Salt Score: ${Number(pData.deckSalt).toFixed(2)}</p>`;
                             }
-
-                            if (isOverBracket) {
-                                saltHtml += `<p style="margin: 2px 0 0 0; font-size: 0.85rem; font-weight:bold; color: #ffae42;">⚠️ Over Bracket (Limit: ${maxBracket})</p>`;
-                            }
                         } else if (id === currentPlayerId) {
                             saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #aaa;">🧂 Salt Score: <span style="cursor:pointer; color:#d4af37; text-decoration:underline;" onclick="window.refreshMyDeckPrice()">Refresh to calculate</span></p>`;
                         } else {
                             saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #aaa;">🧂 Salt Score: N/A (Needs refresh)</p>`;
+                        }
+
+                        if (pData.deckBracket !== undefined && pData.deckBracket !== null) {
+                            const maxBracket = data.settings.maxBracket !== undefined ? parseFloat(data.settings.maxBracket) : 0;
+                            const isOverBracket = maxBracket > 0 && pData.deckBracket > maxBracket;
+                            saltHtml += `<p style="margin: 2px 0 0 0; font-size: 0.85rem; color: #ccc;">Power Bracket: ${pData.deckBracket}</p>`;
+                            if (isOverBracket) {
+                                saltHtml += `<p style="margin: 2px 0 0 0; font-size: 0.85rem; font-weight:bold; color: #ffae42;">⚠️ Over Bracket (Lobby Limit: ${maxBracket})</p>`;
+                            }
                         }
 
                         let lockedHtml = '';
@@ -2033,7 +2035,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.6').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.7').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
