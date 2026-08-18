@@ -273,6 +273,7 @@ async function fetchBoosterCardsForSet(setCode) {
     return boosterCards;
 }
 
+// New helper function to fetch cards from a set and categorize by rarity
 // New helper function to fetch cards from a set and categorize by rarity for sealed pools
 async function fetchSetCardsByRarity(setCode) {
     const commons = [];
@@ -1232,7 +1233,7 @@ exports.hostClearPlayer = onCall(async (request) => {
     await verifyIsHost(roomId, request.auth);
 
     await admin.database().ref(`rooms/${roomId}/players/${targetId}`).update({
-        selected: null, image: null, display_rank: null, scryfall_uri: null, deck: null, deckPrice: null, lockedDeckPrice: null, deckSize: null, deckSalt: null, isLegal: null, generated: null, rerollCount: 0
+        selected: null, image: null, display_rank: null, scryfall_uri: null, deck: null, deckPrice: null, lockedDeckPrice: null, deckSize: null, deckSalt: null, isLegal: null, generated: null, rerollCount: 0, sealedPool: null
     });
     return { success: true };
 });
@@ -1254,6 +1255,7 @@ exports.hostResetLobby = onCall(async (request) => {
         updates[`players/${id}/isLegal`] = null;
         updates[`players/${id}/rerollCount`] = 0;
         updates[`players/${id}/image`] = null;
+        updates[`players/${id}/sealedPool`] = null;
     });
     updates['settings/status'] = 'waiting';
     updates['activeDraft'] = null;
@@ -1326,6 +1328,7 @@ exports.hostDeclareWinner = onCall(async (request) => {
         updates[`players/${id}/isLegal`] = null;
         updates[`players/${id}/rerollCount`] = 0;
         updates[`players/${id}/image`] = null;
+        updates[`players/${id}/sealedPool`] = null;
     });
 
     await admin.database().ref(`rooms/${roomId}`).update(updates);

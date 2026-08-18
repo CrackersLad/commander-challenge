@@ -562,7 +562,8 @@
                 <button class="select-btn" id="joinBtn" style="width: 65%;">Join Playgroup</button>
             </div>
             <h3 style="margin: 15px 0;">— OR —</h3>
-            <button class="secondary-btn" id="createBtn" style="width: 70%;">Create New Playgroup</button>
+            <button class="secondary-btn" id="createBtn" style="width: 70%;">Start New Commander Challenge</button>
+            <button class="select-btn" id="startPrereleasePracticeBtn" style="width: 70%; margin-top: 15px; background: linear-gradient(135deg, #6a0dad 0%, #a020f0 50%, #6a0dad 100%); background-size: 200% auto; animation: goldShimmer 3s linear infinite; color: #fff; box-shadow: 0 4px 0 #4a097d;" onclick="window.startPrereleasePractice()">Start New Prerelease Practice</button>
             
 
             <div id="myPlaygroupsContainer" style="display: none; margin-top: 35px; background: #111; border-radius: 8px; padding: 20px;">
@@ -635,6 +636,7 @@
                             <option value="async_draft">Asynchronous Booster Draft</option>
                             <option value="snake_draft">Face-Up Snake Draft</option>
                             <option value="burn_draft">Blind Elimination Draft</option>
+                            <option value="prerelease_sealed">Prerelease Sealed Pool</option>
                         </select>
                     </div>
 
@@ -828,10 +830,10 @@
         Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
     </div>
 
-    <div style="position: fixed; bottom: 5px; right: 10px; color: #444; font-size: 0.7rem; font-family: 'Segoe UI', sans-serif; cursor: pointer; opacity: 0.5;" onclick="window.enterAdminMode()" title="Admin Access">v0.4</div>
+    <div style="position: fixed; bottom: 5px; right: 10px; color: #444; font-size: 0.7rem; font-family: 'Segoe UI', sans-serif; cursor: pointer; opacity: 0.5;" onclick="window.enterAdminMode()" title="Admin Access">v0.5</div>
     
     <button id="installPwaBtn" class="select-btn" style="display: none; position: fixed; bottom: 30px; right: 20px; z-index: 1000; padding: 10px 20px; font-size: 0.9rem; border-radius: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.9);">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=0.4"></script>
+    <script type="module" src="./script.js?v=0.5"></script>
 </body>
 </html>

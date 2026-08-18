@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.4';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.4';
-import { getArchives } from './data-service.js?v=0.4';
-import { initDeckActionsModule } from './deck-actions.js?v=0.4';
-import { initRoomActionsModule } from './room-actions.js?v=0.4';
-import { initPlayerViewModule } from './player-view.js?v=0.4';
-import { initAdminModule } from './admin.js?v=0.4';
-import { initCalendarModule } from './calendar.js?v=0.4';
-import { initAuthModule } from './auth.js?v=0.4';
-import { initHubModule } from './hub.js?v=0.4';
-import { initProfileModule } from './profile.js?v=0.4';
+import { db, auth, functions } from './firebase-setup.js?v=0.5';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.5';
+import { getArchives } from './data-service.js?v=0.5';
+import { initDeckActionsModule } from './deck-actions.js?v=0.5';
+import { initRoomActionsModule } from './room-actions.js?v=0.5';
+import { initPlayerViewModule } from './player-view.js?v=0.5';
+import { initAdminModule } from './admin.js?v=0.5';
+import { initCalendarModule } from './calendar.js?v=0.5';
+import { initAuthModule } from './auth.js?v=0.5';
+import { initHubModule } from './hub.js?v=0.5';
+import { initProfileModule } from './profile.js?v=0.5';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -341,36 +341,64 @@ const numOptionsLabel = document.getElementById('numOptionsLabel');
 const commanderSettings = document.getElementById('commanderSettings');
 
 function updateSettingsVisibility() {
+    // Get current values
     const isInteractive = draftFormatEl && draftFormatEl.value !== 'independent';
     const isManual = selectionModeEl && selectionModeEl.value === 'manual';
+    const isPrereleaseSealed = draftFormatEl && draftFormatEl.value === 'prerelease_sealed';
 
-    if(selectionModeContainer) selectionModeContainer.style.display = isInteractive ? 'none' : 'block';
-    if(rerollsContainer) rerollsContainer.style.display = isInteractive ? 'none' : 'flex';
-    
     const numOptsContainer = document.getElementById('settingNumOptions') ? document.getElementById('settingNumOptions').parentElement : null;
+    const numOptsEl = document.getElementById('settingNumOptions');
     const snakePoolContainer = document.getElementById('snakePoolContainer');
     const isSnake = draftFormatEl && draftFormatEl.value === 'snake_draft';
-
     const draftMode = document.getElementById('settingDraftMode')?.value;
     const setDraftContainer = document.getElementById('setDraftContainer');
+    const blindDraftToggle = document.getElementById('settingBlindDraft')?.closest('.toggle-label');
 
-    if (commanderSettings) commanderSettings.style.display = draftMode === 'set_draft' ? 'none' : 'block';
-    if (setDraftContainer) setDraftContainer.style.display = draftMode === 'set_draft' ? 'block' : 'none';
+    // Reset all to default visibility
+    if (commanderSettings) commanderSettings.style.display = 'block';
+    if (setDraftContainer) setDraftContainer.style.display = 'none';
+    if (selectionModeContainer) selectionModeContainer.style.display = 'block';
+    if (rerollsContainer) rerollsContainer.style.display = 'flex';
+    if (randomSettingsEl) randomSettingsEl.style.display = 'block';
+    if (snakePoolContainer) snakePoolContainer.style.display = 'none';
+    if (numOptsContainer) numOptsContainer.style.display = 'flex';
+    if (numOptionsLabel) numOptionsLabel.innerText = "# Cards to Select From (1-5):";
+    if (selectionModeEl) selectionModeEl.disabled = false;
+    if (numOptsEl) numOptsEl.disabled = false;
+    if (blindDraftToggle) blindDraftToggle.style.display = 'flex';
 
-    if (isSnake) {
-        if (numOptsContainer) numOptsContainer.style.display = 'flex';
-        if (snakePoolContainer) snakePoolContainer.style.display = 'flex';
-        if(numOptionsLabel) numOptionsLabel.innerText = "Picks per Player (1-5):";
-    } else {
-        if (numOptsContainer) numOptsContainer.style.display = 'flex';
+    // Apply specific format rules
+    if (isPrereleaseSealed) {
+        if (commanderSettings) commanderSettings.style.display = 'none';
+        if (setDraftContainer) setDraftContainer.style.display = 'block';
+        if (selectionModeContainer) selectionModeContainer.style.display = 'none';
+        if (rerollsContainer) rerollsContainer.style.display = 'none';
+        if (randomSettingsEl) randomSettingsEl.style.display = 'none';
         if (snakePoolContainer) snakePoolContainer.style.display = 'none';
-        if(numOptionsLabel) numOptionsLabel.innerText = isInteractive ? "Pack Size (1-5):" : "# Cards to Select From (1-5):";
+        if (numOptsContainer) numOptsContainer.style.display = 'none'; // No num options for sealed
+        if (selectionModeEl) selectionModeEl.value = 'manual'; // Force manual
+        if (numOptsEl) { numOptsEl.value = '1'; numOptsEl.disabled = true; } // Force 1 option
+        if (blindDraftToggle) blindDraftToggle.style.display = 'none'; // No blind draft for sealed
+    } else if (draftMode === 'set_draft') { // Interactive Set Draft
+        if (commanderSettings) commanderSettings.style.display = 'none';
+        if (setDraftContainer) setDraftContainer.style.display = 'block';
     }
 
-    if (randomSettingsEl) randomSettingsEl.style.display = (!isInteractive && isManual) ? 'none' : 'block';
+    // Interactive draft specific rules (not prerelease sealed)
+    if (isInteractive && !isPrereleaseSealed) {
+        if (selectionModeContainer) selectionModeContainer.style.display = 'none';
+        if (rerollsContainer) rerollsContainer.style.display = 'flex';
+        if (numOptionsLabel) numOptionsLabel.innerText = "Pack Size (1-5):";
+    }
 
+    // Snake draft specific rules
+    if (isSnake && !isPrereleaseSealed) {
+        if (snakePoolContainer) snakePoolContainer.style.display = 'flex';
+        if (numOptionsLabel) numOptionsLabel.innerText = "Picks per Player (1-5):";
+    }
+
+    // Burn draft specific rules
     const isBurn = draftFormatEl && draftFormatEl.value === 'burn_draft';
-    const numOptsEl = document.getElementById('settingNumOptions');
     if (numOptsEl) {
         numOptsEl.options[0].disabled = isBurn; // Disable '1' option
         if (isBurn && numOptsEl.value === '1') {
@@ -517,6 +545,7 @@ window.openRulesModal = async () => {
         let curr = s.currency === 'usd' ? '$' : '€';
         let formatName = 'Independent';
         if (s.draftFormat === 'async_draft') formatName = 'Asynchronous Booster Draft';
+        if (s.draftFormat === 'prerelease_sealed') formatName = 'Prerelease Sealed Pool';
         if (s.draftFormat === 'snake_draft') formatName = 'Face-Up Snake Draft';
         if (s.draftFormat === 'burn_draft') formatName = 'Blind Elimination Draft';
         
@@ -860,12 +889,12 @@ function trackJoinedRoom(code) {
 }
 
 document.getElementById('createBtn').onclick = async () => {
-        // Change "Create New Playgroup" to "Start New Commander Challenge"
-        // This button will now always create a 'commander_draft'
-        window.startCommanderChallenge();
-    };
+    // This function is now dynamically replaced by the DOMContentLoaded listener
+    // to ensure the correct button text and actions are set up.
+    // The original logic is moved into window.startCommanderChallenge.
+};
 
-window.startCommanderChallenge = async () => {
+window.startCommanderChallenge = async () => { // This function is called by the modified button
     playSound('sfx-click');
 
     const name = document.getElementById('playerNameInput').value.trim();
@@ -891,6 +920,7 @@ window.startCommanderChallenge = async () => {
     initLobby();
 };
 
+// This new function is called by the new button we're creating
 window.startPrereleasePractice = async () => {
     playSound('sfx-click');
 
@@ -920,6 +950,31 @@ window.startPrereleasePractice = async () => {
     trackJoinedRoom(roomCode);
     initLobby();
 };
+
+// DOM Manipulation to create the buttons and dropdown options without manual HTML editing
+document.addEventListener('DOMContentLoaded', () => {
+    const createBtn = document.getElementById('createBtn');
+    if (createBtn) {
+        createBtn.innerHTML = 'Start New Commander Challenge';
+        createBtn.onclick = () => window.startCommanderChallenge();
+        
+        if (!document.getElementById('startPrereleasePracticeBtn')) {
+            const prereleaseBtn = document.createElement('button');
+            prereleaseBtn.id = 'startPrereleasePracticeBtn';
+            prereleaseBtn.className = 'select-btn';
+            prereleaseBtn.style.cssText = 'width: 70%; margin-top: 15px; background: linear-gradient(135deg, #6a0dad 0%, #a020f0 50%, #6a0dad 100%); background-size: 200% auto; animation: goldShimmer 3s linear infinite; color: #fff; box-shadow: 0 4px 0 #4a097d;';
+            prereleaseBtn.innerHTML = 'Start New Prerelease Practice';
+            prereleaseBtn.onclick = () => window.startPrereleasePractice();
+            createBtn.parentNode.insertBefore(prereleaseBtn, createBtn.nextSibling);
+        }
+    }
+
+    const draftFormatDropdown = document.getElementById('settingDraftFormat');
+    if (draftFormatDropdown && !Array.from(draftFormatDropdown.options).some(opt => opt.value === 'prerelease_sealed')) {
+        const prereleaseOption = new Option('Prerelease Sealed Pool', 'prerelease_sealed');
+        draftFormatDropdown.add(prereleaseOption);
+    }
+});
 
 document.getElementById('joinBtn').onclick = async () => {
     playSound('sfx-click');
@@ -1022,6 +1077,27 @@ function syncSettingsToUI(s) {
     if (document.getElementById('toggleCmdrBudget')) document.getElementById('toggleCmdrBudget').checked = s.budget > 0;
     if (document.getElementById('toggleDeckBudget')) document.getElementById('toggleDeckBudget').checked = s.deckBudget > 0;
     if (document.getElementById('toggleRank')) document.getElementById('toggleRank').checked = (s.minRank > 0 || s.maxRank > 0);
+
+    // Special handling for Prerelease Sealed
+    if (s.draftFormat === 'prerelease_sealed') {
+        // Force these settings visually and functionally
+        if (document.getElementById('settingSelectionMode')) document.getElementById('settingSelectionMode').value = 'manual';
+        if (document.getElementById('settingNumOptions')) document.getElementById('settingNumOptions').value = 1;
+        if (document.getElementById('settingMaxRerolls')) document.getElementById('settingMaxRerolls').value = 0;
+        
+        // Disable budget/rank/partner toggles and inputs
+        ['toggleCmdrBudget', 'toggleDeckBudget', 'toggleRank'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.checked = false; el.disabled = true; }
+        });
+        ['settingBudget', 'settingDeckBudget', 'settingMin', 'settingMax', 'settingNoPartner', 'settingBlindDraft'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.disabled = true; el.style.opacity = '0.5'; }
+        });
+        // Ensure set draft container is visible
+        if (document.getElementById('setDraftContainer')) document.getElementById('setDraftContainer').style.display = 'block';
+    }
+
     updateSettingsVisibility(); 
     ['toggleCmdrBudget', 'toggleDeckBudget', 'toggleRank'].forEach(id => { 
         const el = document.getElementById(id); 
@@ -1099,7 +1175,7 @@ function initLobby() {
             resetSettingsBtn.style.display = 'block';
             resetSettingsBtn.onclick = () => {
                 playSound('sfx-click');
-                const defaultS = { budget: 10, currency: 'eur', deckBudget: 50, includeCmdr: true, maxRank: 1, minRank: 500, noPartner: true, numOptions: 3, snakePoolSize: 15, maxRerolls: 1, selectionMode: 'both', blindDraft: false, draftFormat: 'independent', maxBracket: 5 };
+                const defaultS = { budget: 10, currency: 'eur', deckBudget: 50, includeCmdr: true, maxRank: 1, minRank: 500, noPartner: true, numOptions: 3, snakePoolSize: 15, maxRerolls: 1, selectionMode: 'both', blindDraft: false, draftFormat: 'independent', draftMode: 'commander_draft', maxBracket: 5, draftSet: null };
                 syncSettingsToUI(defaultS);
                 showToast("Settings reset to defaults.");
                 setTimeout(autoSaveSettings, 100);
@@ -1110,13 +1186,18 @@ function initLobby() {
         document.getElementById('waitingMessage').style.display = 'block';
         const resetSettingsBtn = document.getElementById('resetSettingsBtn');
         if (resetSettingsBtn) resetSettingsBtn.style.display = 'none';
-        document.querySelectorAll('#hostSettingsUI input, #hostSettingsUI select').forEach(el => el.disabled = true);
+        // Only disable if not prerelease_sealed, as some inputs might be forced by it
+        if (document.getElementById('settingDraftFormat')?.value !== 'prerelease_sealed') {
+            document.querySelectorAll('#hostSettingsUI input, #hostSettingsUI select').forEach(el => el.disabled = true);
+        }
     }
 
     if(activeRoomListener) activeRoomListener(); 
 
     activeRoomListener = onValue(ref(db, `rooms/${currentRoom}`), (snap) => {
         const data = snap.val();
+        const isPrereleaseSealed = data?.settings?.draftFormat === 'prerelease_sealed';
+        const livePoolCounterEl = document.getElementById('livePoolCounter');
         
         if(!data || (data.players && !data.players[currentPlayerId])) {
             if(currentRoom) { 
@@ -1129,8 +1210,20 @@ function initLobby() {
             return;
         }
 
-        if (!isHost && data.settings) { // Non-host syncs settings
-            fetchAndPopulateSets().then(() => syncSettingsToUI(data.settings));
+        if (!isHost && data.settings) { // Non-host syncs settings and disables inputs
+            fetchAndPopulateSets().then(() => {
+                // Use settingsOverride if present, otherwise fallback to main settings
+                syncSettingsToUI(data.activeDraft?.settingsOverride || data.settings);
+                // Disable all inputs for non-host, unless it's prerelease_sealed which has its own disabling logic
+                if (!isPrereleaseSealed) {
+                    document.querySelectorAll('#hostSettingsUI input, #hostSettingsUI select').forEach(el => el.disabled = true);
+                }
+            });
+        }
+
+        // Hide live pool counter for prerelease sealed
+        if (livePoolCounterEl) {
+            livePoolCounterEl.style.display = isPrereleaseSealed ? 'none' : 'block';
         }
 
         const listEl = document.getElementById('lobbyPlayerList');
@@ -1206,6 +1299,10 @@ function autoSaveSettings() {
     clearTimeout(saveSettingsTimeout);
     saveSettingsTimeout = setTimeout(() => {
         const limitCmdr = document.getElementById('toggleCmdrBudget') ? document.getElementById('toggleCmdrBudget').checked : true;
+        // If prerelease_sealed, these are always false
+        const isPrereleaseSealed = document.getElementById('settingDraftFormat')?.value === 'prerelease_sealed';
+        const actualLimitCmdr = isPrereleaseSealed ? false : limitCmdr;
+
         const limitDeck = document.getElementById('toggleDeckBudget') ? document.getElementById('toggleDeckBudget').checked : true;
         const limitRank = document.getElementById('toggleRank') ? document.getElementById('toggleRank').checked : true;
 
@@ -1213,27 +1310,42 @@ function autoSaveSettings() {
         const draftSetName = document.getElementById('settingDraftSetInput').value;
         const draftSet = setNameToCodeMap.get(draftSetName) || null;
         const bVal = document.getElementById('settingBudget').value;
-        const b = !limitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal));
+        const b = !actualLimitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal));
         const c = document.getElementById('settingCurrency').value;
         const dbVal = document.getElementById('settingDeckBudget').value;
-        const dbudget = !limitDeck ? 0 : (dbVal === '' || isNaN(parseFloat(dbVal)) ? 50 : parseFloat(dbVal));
+        const dbudget = isPrereleaseSealed ? 0 : (!limitDeck ? 0 : (dbVal === '' || isNaN(parseFloat(dbVal)) ? 50 : parseFloat(dbVal)));
         const incCmdr = document.getElementById('settingIncludeCmdr').checked;
 
         const minVal = document.getElementById('settingMin').value;
         const maxVal = document.getElementById('settingMax').value;
-        const maxR = !limitRank ? 0 : (minVal === '' || isNaN(parseInt(minVal)) ? 1 : parseInt(minVal));
-        const minR = !limitRank ? 0 : (maxVal === '' || isNaN(parseInt(maxVal)) ? 500 : parseInt(maxVal));
-        const noPartner = document.getElementById('settingNoPartner').checked; 
-        const numOpts = Math.min(5, Math.max(1, parseInt(document.getElementById('settingNumOptions').value) || 3));
-        const maxRr = Math.max(0, parseInt(document.getElementById('settingMaxRerolls').value) || 1);
-        const selMode = document.getElementById('settingSelectionMode') ? document.getElementById('settingSelectionMode').value : 'both';
-        const blind = document.getElementById('settingBlindDraft').checked;
+        const maxR = isPrereleaseSealed ? 0 : (!limitRank ? 0 : (minVal === '' || isNaN(parseInt(minVal)) ? 1 : parseInt(minVal)));
+        const minR = isPrereleaseSealed ? 0 : (!limitRank ? 0 : (maxVal === '' || isNaN(parseInt(maxVal)) ? 500 : parseInt(maxVal)));
+        const noPartner = isPrereleaseSealed ? false : document.getElementById('settingNoPartner').checked; 
+        const numOpts = isPrereleaseSealed ? 1 : Math.min(5, Math.max(1, parseInt(document.getElementById('settingNumOptions').value) || 3));
+        const maxRr = isPrereleaseSealed ? 0 : Math.max(0, parseInt(document.getElementById('settingMaxRerolls').value) || 1);
+        const selMode = isPrereleaseSealed ? 'manual' : (document.getElementById('settingSelectionMode') ? document.getElementById('settingSelectionMode').value : 'both');
+        const blind = isPrereleaseSealed ? false : document.getElementById('settingBlindDraft').checked;
         const draftFormat = document.getElementById('settingDraftFormat') ? document.getElementById('settingDraftFormat').value : 'independent';
         const maxBracket = parseInt(document.getElementById('settingMaxBracket')?.value) || 5;
         const snakePoolSize = Math.min(30, Math.max(2, parseInt(document.getElementById('settingSnakePoolSize')?.value) || 15));
 
         const settingsPayload = {
-            draftMode: draftMode, draftSet: draftSet, budget: b, currency: c, deckBudget: dbudget, includeCmdr: incCmdr, minRank: minR, maxRank: maxR, noPartner: noPartner, numOptions: numOpts, snakePoolSize: snakePoolSize, maxRerolls: maxRr, selectionMode: selMode, blindDraft: blind, draftFormat: draftFormat, maxBracket: maxBracket
+            draftMode: draftMode,
+            draftSet: draftSet,
+            budget: b,
+            currency: c,
+            deckBudget: dbudget,
+            includeCmdr: incCmdr,
+            minRank: minR,
+            maxRank: maxR,
+            noPartner: noPartner,
+            numOptions: numOpts,
+            snakePoolSize: snakePoolSize,
+            maxRerolls: maxRr,
+            selectionMode: selMode,
+            blindDraft: blind,
+            draftFormat: draftFormat,
+            maxBracket: maxBracket, packsPerPlayer: 3, packSize: 15 // Add defaults for set draft
         };
         localStorage.setItem('hostDefaultSettings', JSON.stringify(settingsPayload));
         update(ref(db, `rooms/${currentRoom}/settings`), settingsPayload);
@@ -1275,6 +1387,9 @@ document.getElementById('startDraftBtn').onclick = async () => {
     btn.disabled = true;
     btn.innerHTML = '<span class="mana-spinner"></span> Initializing...';
 
+    const isPrereleaseSealed = document.getElementById('settingDraftFormat')?.value === 'prerelease_sealed';
+
+    // These values might be overridden if it's prerelease_sealed
     const limitCmdr = document.getElementById('toggleCmdrBudget') ? document.getElementById('toggleCmdrBudget').checked : true;
     const limitDeck = document.getElementById('toggleDeckBudget') ? document.getElementById('toggleDeckBudget').checked : true;
     const limitRank = document.getElementById('toggleRank') ? document.getElementById('toggleRank').checked : true;
@@ -1282,43 +1397,74 @@ document.getElementById('startDraftBtn').onclick = async () => {
     const draftMode = document.getElementById('settingDraftMode').value;
     let draftSet = null;
 
-    if (draftMode === 'set_draft') {
+    if (draftMode === 'set_draft') { // This block is for interactive set draft. Prerelease sealed is handled by draftFormat.
         const draftSetName = document.getElementById('settingDraftSetInput').value;
         draftSet = setNameToCodeMap.get(draftSetName);
         if (!draftSet) {
             showToast("Please select a valid set from the searchable list.", true);
             btn.disabled = false; btn.innerHTML = "Start Draft"; return;
         }
+    } else if (isPrereleaseSealed) {
+        const draftSetName = document.getElementById('settingDraftSetInput').value;
+        draftSet = setNameToCodeMap.get(draftSetName);
+        if (!draftSet) {
+            showToast("Please select a valid set for Prerelease Sealed.", true);
+            btn.disabled = false; btn.innerHTML = "Start Draft"; return;
+        }
     }
     const bVal = document.getElementById('settingBudget').value;
-    const b = !limitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal));
+    const b = isPrereleaseSealed ? 0 : (!limitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal)));
     const c = document.getElementById('settingCurrency').value;
     const dbVal = document.getElementById('settingDeckBudget').value;
-    const dbudget = !limitDeck ? 0 : (dbVal === '' || isNaN(parseFloat(dbVal)) ? 50 : parseFloat(dbVal));
+    const dbudget = isPrereleaseSealed ? 0 : (!limitDeck ? 0 : (dbVal === '' || isNaN(parseFloat(dbVal)) ? 50 : parseFloat(dbVal)));
     const incCmdr = document.getElementById('settingIncludeCmdr').checked;
 
     const minVal = document.getElementById('settingMin').value;
     const maxVal = document.getElementById('settingMax').value;
-    const maxR = !limitRank ? 0 : (minVal === '' || isNaN(parseInt(minVal)) ? 1 : parseInt(minVal));
-    const minR = !limitRank ? 0 : (maxVal === '' || isNaN(parseInt(maxVal)) ? 500 : parseInt(maxVal));
-    const noPartner = document.getElementById('settingNoPartner').checked; 
-    const numOpts = Math.min(5, Math.max(1, parseInt(document.getElementById('settingNumOptions').value) || 3));
-    const maxRr = Math.max(0, parseInt(document.getElementById('settingMaxRerolls').value) || 1);
-    const selMode = document.getElementById('settingSelectionMode') ? document.getElementById('settingSelectionMode').value : 'both';
-    const blind = document.getElementById('settingBlindDraft').checked;
+    const maxR = isPrereleaseSealed ? 0 : (!limitRank ? 0 : (minVal === '' || isNaN(parseInt(minVal)) ? 1 : parseInt(minVal)));
+    const minR = isPrereleaseSealed ? 0 : (!limitRank ? 0 : (maxVal === '' || isNaN(parseInt(maxVal)) ? 500 : parseInt(maxVal)));
+    const noPartner = isPrereleaseSealed ? false : document.getElementById('settingNoPartner').checked; 
+    const numOpts = isPrereleaseSealed ? 1 : Math.min(5, Math.max(1, parseInt(document.getElementById('settingNumOptions').value) || 3));
+    const maxRr = isPrereleaseSealed ? 0 : Math.max(0, parseInt(document.getElementById('settingMaxRerolls').value) || 1);
+    const selMode = isPrereleaseSealed ? 'manual' : (document.getElementById('settingSelectionMode') ? document.getElementById('settingSelectionMode').value : 'both');
+    const blind = isPrereleaseSealed ? false : document.getElementById('settingBlindDraft').checked;
     const draftFormat = document.getElementById('settingDraftFormat') ? document.getElementById('settingDraftFormat').value : 'independent';
+    // If prerelease_sealed, draftMode should be 'prerelease_sealed'
+    const actualDraftMode = isPrereleaseSealed ? 'prerelease_sealed' : draftMode;
+    // If prerelease_sealed, draftFormat should be 'independent'
+    const actualDraftFormat = isPrereleaseSealed ? 'independent' : draftFormat;
+
     const maxBracket = parseInt(document.getElementById('settingMaxBracket')?.value) || 5;
     const snakePoolSize = Math.min(30, Math.max(2, parseInt(document.getElementById('settingSnakePoolSize')?.value) || 15));
     const webhookUrl = document.getElementById('settingDiscordWebhook') ? document.getElementById('settingDiscordWebhook').value.trim() : '';
 
     const settingsPayload = {
-        draftMode: draftMode, draftSet: draftSet, budget: b, currency: c, deckBudget: dbudget, includeCmdr: incCmdr, minRank: minR, maxRank: maxR, noPartner: noPartner, numOptions: numOpts, snakePoolSize: snakePoolSize, maxRerolls: maxRr, selectionMode: selMode, blindDraft: blind, draftFormat: draftFormat, maxBracket: maxBracket, status: 'rolling'
+        draftMode: actualDraftMode,
+        draftSet: draftSet,
+        budget: b,
+        currency: c,
+        deckBudget: dbudget,
+        includeCmdr: incCmdr,
+        minRank: minR,
+        maxRank: maxR,
+        noPartner: noPartner,
+        numOptions: numOpts,
+        snakePoolSize: snakePoolSize,
+        maxRerolls: maxRr,
+        selectionMode: selMode,
+        blindDraft: blind,
+        draftFormat: actualDraftFormat, // Use actualDraftFormat
+        maxBracket: maxBracket,
+        status: 'rolling'
     };
     localStorage.setItem('hostDefaultSettings', JSON.stringify(settingsPayload));
     await set(ref(db, `webhooks/${currentRoom}/url`), webhookUrl || null);
     
     try {
-        if (draftFormat !== 'independent') {
+        if (isPrereleaseSealed) { // New condition for prerelease sealed
+            const startDraftFn = httpsCallable(functions, 'hostStartInteractiveDraft');
+            await startDraftFn({ roomId: currentRoom, settings: { ...settingsPayload, draftFormat: 'prerelease_sealed' } }); // Explicitly pass prerelease_sealed
+        } else if (draftFormat !== 'independent') { // Existing interactive draft formats
             const startDraftFn = httpsCallable(functions, 'hostStartInteractiveDraft');
             await startDraftFn({ roomId: currentRoom, settings: settingsPayload });
         } else {
@@ -1710,10 +1856,17 @@ function initDashboard() {
                         
                         let saltHtml = '';
                         if (pData.deckSalt !== undefined && pData.deckSalt !== null && !isNaN(pData.deckSalt)) {
+                            const maxBracket = data.settings.maxBracket !== undefined ? parseFloat(data.settings.maxBracket) : 5;
+                            const isOverBracket = maxBracket > 0 && pData.deckSalt > maxBracket;
+
                             if (isSaltiest) {
                                 saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #39ff14; font-weight:bold; text-shadow: 0 0 8px rgba(57,255,20,0.5);">☣️ Saltiest: ${Number(pData.deckSalt).toFixed(2)}</p>`;
                             } else {
                                 saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #ccc;">🧂 Salt Score: ${Number(pData.deckSalt).toFixed(2)}</p>`;
+                            }
+
+                            if (isOverBracket) {
+                                saltHtml += `<p style="margin: 2px 0 0 0; font-size: 0.85rem; font-weight:bold; color: #ffae42;">⚠️ Over Bracket (Limit: ${maxBracket})</p>`;
                             }
                         } else if (id === currentPlayerId) {
                             saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #aaa;">🧂 Salt Score: <span style="cursor:pointer; color:#d4af37; text-decoration:underline;" onclick="window.refreshMyDeckPrice()">Refresh to calculate</span></p>`;
@@ -1880,7 +2033,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.4').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.5').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
