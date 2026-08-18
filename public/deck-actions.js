@@ -1,5 +1,5 @@
-import { db } from './firebase-setup.js?v=0.7';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.7';
+import { db } from './firebase-setup.js?v=0.8';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.8';
 import { ref, get, update } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initDeckActionsModule(utils, state) {
@@ -21,7 +21,7 @@ export function initDeckActionsModule(utils, state) {
         try {
             const res = await fetchDeckPriceLocal(myData.deck, settings.currency || 'eur', settings.includeCmdr !== false, myData.selected);
             if (res && !res.error) {
-                let updates = { deckPrice: res.total, isLegal: res.isLegal, deckSize: res.deckSize, deckSalt: res.deckSalt };
+                let updates = { deckPrice: res.total, isLegal: res.isLegal, deckSize: res.deckSize, deckSalt: res.deckSalt, deckBracket: res.deckBracket };
                 if (res.commanderArt) updates.image = res.commanderArt;
 
                 const maxDeckBudget = settings.deckBudget !== undefined ? parseFloat(settings.deckBudget) : 50;
@@ -75,6 +75,7 @@ export function initDeckActionsModule(utils, state) {
                         updates[`rooms/${state.currentRoom}/players/${pId}/isLegal`] = res.isLegal;
                         updates[`rooms/${state.currentRoom}/players/${pId}/deckSize`] = res.deckSize;
                         updates[`rooms/${state.currentRoom}/players/${pId}/deckSalt`] = res.deckSalt;
+                        updates[`rooms/${state.currentRoom}/players/${pId}/deckBracket`] = res.deckBracket;
                         if (res.commanderArt) updates[`rooms/${state.currentRoom}/players/${pId}/image`] = res.commanderArt;
 
                         const maxDeckBudget = settings.deckBudget !== undefined ? parseFloat(settings.deckBudget) : 50;
