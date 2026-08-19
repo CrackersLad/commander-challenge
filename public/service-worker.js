@@ -82,7 +82,10 @@ self.addEventListener('fetch', event => {
             caches.open(CACHE_NAME).then(cache => {
                 return cache.match(event.request).then(cachedResponse => {
                     const fetchPromise = fetch(event.request).then(networkResponse => {
-                        cache.put(event.request, networkResponse.clone());
+                        // Only cache valid, successful (200) responses.
+                        if (networkResponse && networkResponse.status === 200) {
+                            cache.put(event.request, networkResponse.clone());
+                        }
                         return networkResponse;
                     });
                     // Return cached response immediately, and let the fetch happen in the background.
