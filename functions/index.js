@@ -273,32 +273,38 @@ async function fetchBoosterCardsForSet(setCode) {
     return boosterCards;
 }
 
-// New helper function to fetch cards from a set and categorize by rarity
-// New helper function to fetch cards from a set and categorize by rarity for sealed pools
 async function fetchSetCardsByRarity(setCode) {
+    const cleanSet = (setCode || '').trim().toLowerCase();
+    if (!cleanSet) {
+        throw new HttpsError('invalid-argument', 'A valid MTG set code is required.');
+    }
+
     const commons = [];
     const uncommons = [];
     const rares = [];
     const mythics = [];
+    const allCards = [];
 
-    // Fetch all non-basic-land cards from the set that can appear in boosters
-    let sUrl = `https://api.scryfall.com/cards/search?q=set%3A${setCode}+is%3Abooster+-is:basic`;
-    let retries = 0;
+    // Search query for non-basic cards from the set
+    let sUrl = `https://api.scryfall.com/cards/search?q=set%3A${encodeURIComponent(cleanSet)}+is%3Abooster+-is:basic`;
+    let res = await fetch(sUrl);
+    
+    // Fallback if is:booster returned nothing
+    if (!res.ok) {
+        sUrl = `https://api.scryfall.com/cards/search?q=set%3A${encodeURIComponent(cleanSet)}+-is:basic`;
+        res = await fetch(sUrl);
+    }
+
+    if (!res.ok) {
+        throw new HttpsError('not-found', `Could not find cards for set code "${cleanSet}". Please choose another set.`);
+    }
 
     while (sUrl) {
-        const res = await fetch(sUrl);
-        if (!res.ok) {
-            if (retries < 3) {
-                retries++;
-                console.warn(`Scryfall set fetch failed (${res.status}). Retrying in ${retries * 2}s...`);
-                await new Promise(r => setTimeout(r, 2000 * retries));
-                continue;
-            }
-            throw new Error(`Scryfall API failed for set ${setCode}: ${res.statusText}`);
-        }
-        retries = 0;
+        if (!res) res = await fetch(sUrl);
+        if (!res.ok) break;
+
         const data = await res.json();
-        if (data.data) {
+        if (data.data && Array.isArray(data.data)) {
             data.data.forEach(card => {
                 const formattedCard = {
                     name: card.name,
@@ -309,18 +315,34 @@ async function fetchSetCardsByRarity(setCode) {
                     scryfall_uri: card.scryfall_uri || "https://scryfall.com",
                     cmc: card.cmc || 0,
                     type_line: card.type_line || "",
-                    rarity: card.rarity // Store rarity for distribution
+                    rarity: card.rarity || 'common'
                 };
+                allCards.push(formattedCard);
                 if (card.rarity === 'common') commons.push(formattedCard);
                 else if (card.rarity === 'uncommon') uncommons.push(formattedCard);
                 else if (card.rarity === 'rare') rares.push(formattedCard);
                 else if (card.rarity === 'mythic') mythics.push(formattedCard);
+                else commons.push(formattedCard);
             });
         }
         sUrl = data.has_more ? data.next_page : null;
-        await new Promise(r => setTimeout(r, 100)); // Scryfall rate limit
+        res = null;
+        if (sUrl) await new Promise(r => setTimeout(r, 100));
     }
-    return { commons, uncommons, rares, mythics, allRaresMythics: [...rares, ...mythics] };
+
+    const allRaresMythics = [...rares, ...mythics];
+    if (allCards.length === 0) {
+        throw new HttpsError('not-found', `No playable cards found for set "${cleanSet}".`);
+    }
+
+    return {
+        commons: commons.length > 0 ? commons : allCards,
+        uncommons: uncommons.length > 0 ? uncommons : allCards,
+        rares: rares.length > 0 ? rares : allCards,
+        mythics: mythics.length > 0 ? mythics : (rares.length > 0 ? rares : allCards),
+        allRaresMythics: allRaresMythics.length > 0 ? allRaresMythics : allCards,
+        allCards
+    };
 }
 
 let cachedArchives = null;
@@ -383,82 +405,98 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         createdAt: Date.now(),
         isComplete: false,
         playerOrder: playerIds,
-        draftMode: settings.draftMode || 'commander_draft', // Use settings.draftMode
-        settingsOverride: {} // Will be populated for prerelease_sealed
+        draftMode: settings.draftMode || 'commander_draft',
+        settingsOverride: {}
     };
 
-    if (settings.draftFormat === 'prerelease_sealed') {
+    if (settings.draftFormat === 'prerelease_sealed' || settings.draftMode === 'prerelease_sealed') {
         if (!settings.draftSet) {
             throw new HttpsError('invalid-argument', 'A set must be selected for Prerelease Sealed.');
         }
-        const { commons, uncommons, allRaresMythics } = await fetchSetCardsByRarity(settings.draftSet);
-
-        // Prerelease pack simulation: 6 boosters + 1 promo rare/mythic
-        // Per player pool: 7 R/M, 18 U, 60 C (total 85 cards)
-        const requiredRaresMythics = 7;
-        const requiredUncommons = 18;
-        const requiredCommons = 60;
-
-        if (commons.length < N * requiredCommons || uncommons.length < N * requiredUncommons || allRaresMythics.length < N * requiredRaresMythics) {
-            throw new HttpsError('failed-precondition', `Not enough unique cards in the set to generate sealed pools for all players. Commons: ${commons.length}, Uncommons: ${uncommons.length}, Rares/Mythics: ${allRaresMythics.length}. Needed per player: ${requiredCommons}C, ${requiredUncommons}U, ${requiredRaresMythics}R/M.`);
-        }
+        const { commons, uncommons, rares, mythics, allRaresMythics } = await fetchSetCardsByRarity(settings.draftSet);
 
         const playerPools = {};
-        const globalUsedCards = new Set(); // Track cards used across all players to minimize duplicates
+        const playerUpdates = {};
+        const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-        // Helper to get a unique card from a source array
-        const getUniqueCard = (sourceArray) => {
-            let card;
-            let attempts = 0;
-            const maxAttempts = sourceArray.length * 2; // Try to find unique, but don't loop forever
-            do {
-                if (attempts > maxAttempts) {
-                    // Fallback: if we can't find a unique card after many attempts, just pick one.
-                    card = sourceArray[Math.floor(Math.random() * sourceArray.length)];
-                    break;
-                }
-                card = sourceArray[Math.floor(Math.random() * sourceArray.length)];
-                attempts++;
-            } while (globalUsedCards.has(card.name));
-            globalUsedCards.add(card.name);
-            return card;
-        };
-
+        // Generate authentic 6-pack sealed pool per player (84 cards + 1 promo rare/mythic = 85 cards)
         for (const playerId of playerIds) {
             const playerSealedPool = [];
-            for (let i = 0; i < requiredRaresMythics; i++) playerSealedPool.push(getUniqueCard(allRaresMythics));
-            for (let i = 0; i < requiredUncommons; i++) playerSealedPool.push(getUniqueCard(uncommons));
-            for (let i = 0; i < requiredCommons; i++) playerSealedPool.push(getUniqueCard(commons));
-            
+
+            // 6 Booster Packs
+            for (let pack = 0; pack < 6; pack++) {
+                const packCards = [];
+                // 1 Rare or Mythic
+                const isMythic = mythics.length > 0 && Math.random() < 0.125;
+                const rareCard = isMythic ? pickRandom(mythics) : pickRandom(rares.length > 0 ? rares : allRaresMythics);
+                packCards.push(rareCard);
+
+                // 3 Uncommons (distinct within this single pack)
+                const usedInPack = new Set([rareCard.name]);
+                for (let u = 0; u < 3; u++) {
+                    let uncom;
+                    let attempts = 0;
+                    do {
+                        uncom = pickRandom(uncommons);
+                        attempts++;
+                    } while (usedInPack.has(uncom.name) && attempts < 30);
+                    usedInPack.add(uncom.name);
+                    packCards.push(uncom);
+                }
+
+                // 10 Commons (distinct within this single pack)
+                for (let c = 0; c < 10; c++) {
+                    let com;
+                    let attempts = 0;
+                    do {
+                        com = pickRandom(commons);
+                        attempts++;
+                    } while (usedInPack.has(com.name) && attempts < 50);
+                    usedInPack.add(com.name);
+                    packCards.push(com);
+                }
+
+                playerSealedPool.push(...packCards);
+            }
+
+            // 1 Foil Stamped Prerelease Promo Rare/Mythic
+            const promoCard = pickRandom(allRaresMythics);
+            playerSealedPool.push({ ...promoCard, isPromo: true });
+
             playerPools[playerId] = playerSealedPool;
+            playerUpdates[`rooms/${roomId}/players/${playerId}/sealedPool`] = playerSealedPool;
         }
 
         activeDraftPayload.playerPools = playerPools;
-        activeDraftPayload.draftGoal = 1; // Player selects 1 commander from their pool
-        activeDraftPayload.draftMode = 'prerelease_sealed'; // Indicate it's a prerelease sealed pool
-        activeDraftPayload.format = 'independent'; // Prerelease is an independent selection from a sealed pool
+        activeDraftPayload.draftGoal = 1;
+        activeDraftPayload.draftMode = 'prerelease_sealed';
+        activeDraftPayload.format = 'independent';
 
-        // Override settings for the client to correctly interpret the state
         activeDraftPayload.settingsOverride = {
-            draftFormat: 'prerelease_sealed', // Use a unique format name for client-side logic
+            draftFormat: 'prerelease_sealed',
             draftMode: 'prerelease_sealed',
-            numOptions: 1, // Only one commander to select
-            maxRerolls: 0, // No rerolls from a sealed pool
-            selectionMode: 'manual', // Must manually pick from pool
-            budget: 0, // Disable budget/rank/partner filters as they don't apply to sealed pool generation
+            draftSet: settings.draftSet,
+            draftSetName: settings.draftSetName || settings.draftSet,
+            numOptions: 1,
+            maxRerolls: 0,
+            selectionMode: 'manual',
+            budget: 0,
             deckBudget: 0,
             minRank: 0,
             maxRank: 0,
             noPartner: false,
-            blindDraft: false // Prerelease is not blind
+            blindDraft: false,
+            status: 'rolling'
         };
 
-        // Update the room settings in the database with the overridden values
-        await db.ref(`rooms/${roomId}`).update({ 
-            settings: { ...settings, ...activeDraftPayload.settingsOverride }, 
-            activeDraft: activeDraftPayload 
-        });
-        await db.ref('stats').update({ commandersRolled: admin.database.ServerValue.increment(N * 1) }); // 1 commander selected per player
+        const updates = {
+            [`rooms/${roomId}/settings`]: { ...settings, ...activeDraftPayload.settingsOverride, status: 'rolling' },
+            [`rooms/${roomId}/activeDraft`]: activeDraftPayload,
+            ...playerUpdates
+        };
+
+        await db.ref().update(updates);
+        await db.ref('stats').update({ commandersRolled: admin.database.ServerValue.increment(N * 1) });
 
         return { success: true };
 

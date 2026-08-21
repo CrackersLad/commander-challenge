@@ -2023,3 +2023,156 @@ select:focus {
     z-index: 100;
     position: relative;
 }
+
+/* --- Quick Set Chips & Sealed Pool Styles --- */
+.quick-set-btn {
+    background: rgba(22, 22, 32, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ccc;
+    font-size: 0.78rem;
+    padding: 5px 10px;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: normal;
+    transition: all 0.2s ease;
+}
+
+.quick-set-btn:hover {
+    background: rgba(142, 36, 170, 0.25);
+    border-color: var(--arcane-bright);
+    color: #fff;
+    box-shadow: 0 0 10px rgba(142, 36, 170, 0.3);
+    transform: translateY(-1px);
+}
+
+.quick-set-btn.active {
+    background: var(--gold);
+    color: #000;
+    border-color: var(--gold-dark);
+    font-weight: 700;
+}
+
+/* Sealed Pool Header & Action Bar */
+.sealed-header-wrapper {
+    width: 100%;
+    margin-bottom: 25px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border-gold);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+}
+
+.sealed-title {
+    font-size: 1.8rem;
+    color: var(--gold);
+    margin-bottom: 6px;
+}
+
+.sealed-stats-row {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 15px 0;
+}
+
+.sealed-stat-chip {
+    background: rgba(10, 10, 15, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 5px 12px;
+    border-radius: var(--radius-full);
+    font-size: 0.82rem;
+    color: #bbb;
+    font-weight: 600;
+}
+
+.sealed-stat-chip.highlight-gold {
+    border-color: rgba(212, 175, 55, 0.4);
+    color: var(--gold);
+}
+
+.sealed-stat-chip.highlight-arcane {
+    border-color: rgba(186, 104, 200, 0.4);
+    color: var(--arcane-bright);
+}
+
+.sealed-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.toolbar-btn {
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    border-radius: var(--radius-full);
+}
+
+.sealed-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 12px;
+}
+
+.filter-chip-btn {
+    background: rgba(15, 15, 22, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #aaa;
+    padding: 5px 14px;
+    border-radius: var(--radius-full);
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.filter-chip-btn:hover {
+    background: rgba(30, 30, 42, 0.95);
+    color: #fff;
+    border-color: var(--gold);
+}
+
+.filter-chip-btn.active {
+    background: var(--gold);
+    color: #000;
+    border-color: var(--gold-dark);
+}
+
+/* Hand Simulator Modal & Pool Cards */
+.hand-sim-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 10px;
+    margin: 20px 0;
+    max-height: 55vh;
+    overflow-y: auto;
+    padding: 5px;
+}
+
+.hand-card-img {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+    transition: transform 0.2s ease;
+}
+
+.hand-card-img:hover {
+    transform: scale(1.06);
+    border-color: var(--gold);
+    z-index: 10;
+}
