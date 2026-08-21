@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.12';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.12';
-import { getArchives } from './data-service.js?v=0.12';
-import { initDeckActionsModule } from './deck-actions.js?v=0.12';
-import { initRoomActionsModule } from './room-actions.js?v=0.12';
-import { initPlayerViewModule } from './player-view.js?v=0.12';
-import { initAdminModule } from './admin.js?v=0.12';
-import { initCalendarModule } from './calendar.js?v=0.12';
-import { initAuthModule } from './auth.js?v=0.12';
-import { initHubModule } from './hub.js?v=0.12';
-import { initProfileModule } from './profile.js?v=0.12';
+import { db, auth, functions } from './firebase-setup.js?v=0.13';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.13';
+import { getArchives } from './data-service.js?v=0.13';
+import { initDeckActionsModule } from './deck-actions.js?v=0.13';
+import { initRoomActionsModule } from './room-actions.js?v=0.13';
+import { initPlayerViewModule } from './player-view.js?v=0.13';
+import { initAdminModule } from './admin.js?v=0.13';
+import { initCalendarModule } from './calendar.js?v=0.13';
+import { initAuthModule } from './auth.js?v=0.13';
+import { initHubModule } from './hub.js?v=0.13';
+import { initProfileModule } from './profile.js?v=0.13';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -132,29 +132,56 @@ let setsPromise = null;
 
 function fetchAndPopulateSets() {
     if (!setsPromise) {
-        setsPromise = new Promise(async (resolve, reject) => {
+        setsPromise = new Promise(async (resolve) => {
             const setDatalist = document.getElementById('setList');
-            if (!setDatalist) return reject();
-
             try {
-                const response = await fetch('https://api.scryfall.com/sets');
+                const response = await fetch('https://api.scryfall.com/sets', {
+                    headers: { 'Accept': 'application/json' }
+                });
                 if (!response.ok) throw new Error('Scryfall API for sets failed');
                 const data = await response.json();
-                scryfallSets = data.data
+                scryfallSets = (data.data || [])
                     .filter(set => ['core', 'expansion', 'masters', 'draft_innovation', 'funny', 'commander'].includes(set.set_type) && set.card_count > 50)
                     .sort((a, b) => new Date(b.released_at) - new Date(a.released_at));
 
                 let datalistHTML = '';
+                setNameToCodeMap.clear();
                 scryfallSets.forEach(set => {
-                    datalistHTML += `<option value="${sanitizeHTML(set.name)}"></option>`;
-                    setNameToCodeMap.set(set.name, set.code);
+                    datalistHTML += `<option value="${sanitizeHTML(set.name)}">${sanitizeHTML(set.code.toUpperCase())}</option>`;
+                    setNameToCodeMap.set(set.name.toLowerCase(), set.code.toLowerCase());
+                    setNameToCodeMap.set(set.code.toLowerCase(), set.code.toLowerCase());
                 });
-                setDatalist.innerHTML = datalistHTML;
+                if (setDatalist) setDatalist.innerHTML = datalistHTML;
                 resolve();
-            } catch (error) { console.error("Failed to fetch Scryfall sets:", error); reject(error); }
+            } catch (error) { console.error("Failed to fetch Scryfall sets:", error); resolve(); }
         });
     }
     return setsPromise;
+}
+fetchAndPopulateSets();
+
+function resolveClientSet(rawInput) {
+    if (!rawInput) return { code: 'dsk', name: 'Duskmourn: House of Horror' };
+    const raw = String(rawInput).trim();
+    const rawLower = raw.toLowerCase();
+
+    if (setNameToCodeMap.has(rawLower)) {
+        const code = setNameToCodeMap.get(rawLower);
+        const setObj = scryfallSets.find(s => s.code.toLowerCase() === code);
+        return { code: code, name: setObj ? setObj.name : raw };
+    }
+
+    const found = scryfallSets.find(s => s.name.toLowerCase() === rawLower || s.code.toLowerCase() === rawLower);
+    if (found) return { code: found.code, name: found.name };
+
+    const partial = scryfallSets.find(s => s.name.toLowerCase().includes(rawLower) || rawLower.includes(s.name.toLowerCase()));
+    if (partial) return { code: partial.code, name: partial.name };
+
+    if (/^[a-z0-9]{3,5}$/i.test(raw)) {
+        return { code: rawLower, name: raw.toUpperCase() };
+    }
+
+    return { code: 'dsk', name: 'Duskmourn: House of Horror' };
 }
 
 function sanitizeHTML(str) {
@@ -178,9 +205,7 @@ function getRoomCreationTime(data) {
     if(data.players) {
         const hostEntry = Object.entries(data.players).find(([k, v]) => v.isHost);
             if(hostEntry) {
-                const parsedTime = parseInt(hostEntry[0]);
-                // Only use the Host ID if it is actually a valid timestamp (e.g. > Year 2020)
-                if (!isNaN(parsedTime) && parsedTime > 1600000000000) return parsedTime;
+                return hostEntry[1].joinedAt || null;
             }
     }
     return null;
@@ -246,19 +271,29 @@ const numOptionsLabel = document.getElementById('numOptionsLabel');
 const commanderSettings = document.getElementById('commanderSettings');
 
 function updateSettingsVisibility() {
-    const draftMode = document.getElementById('settingDraftMode')?.value || 'commander_draft';
     const draftFormatEl = document.getElementById('settingDraftFormat');
-    const isInteractive = draftFormatEl && draftFormatEl.value !== 'independent';
-    const isPrereleaseSealed = draftMode === 'prerelease_sealed' || (draftFormatEl && draftFormatEl.value === 'prerelease_sealed');
+    const draftModeEl = document.getElementById('settingDraftMode');
+    const draftFormat = draftFormatEl?.value || 'independent';
+    const draftMode = draftModeEl?.value || 'commander_draft';
 
+    const isPrereleaseSealed = draftFormat === 'prerelease_sealed';
+    const isSpecificSet = isPrereleaseSealed || draftMode === 'set_draft';
+    const isInteractive = draftFormat !== 'independent';
+
+    const cardSourceContainer = document.getElementById('cardSourceContainer');
+    const setDraftContainer = document.getElementById('setDraftContainer');
+    const commanderSettings = document.getElementById('commanderSettings');
+    const selectionModeContainer = document.getElementById('selectionModeContainer');
+    const rerollsContainer = document.getElementById('rerollsContainer');
+    const randomSettingsEl = document.getElementById('randomSettingsContainer');
+    const snakePoolContainer = document.getElementById('snakePoolContainer');
     const numOptsContainer = document.getElementById('settingNumOptions') ? document.getElementById('settingNumOptions').parentElement : null;
     const numOptsEl = document.getElementById('settingNumOptions');
-    const snakePoolContainer = document.getElementById('snakePoolContainer');
-    const isSnake = draftFormatEl && draftFormatEl.value === 'snake_draft';
-    const setDraftContainer = document.getElementById('setDraftContainer');
+    const numOptionsLabel = document.getElementById('numOptionsLabel');
+    const selectionModeEl = document.getElementById('settingSelectionMode');
     const blindDraftToggle = document.getElementById('settingBlindDraft')?.closest('.toggle-label');
 
-    // Update dynamic text in Sealed Info Box based on player count
+    // Dynamic solo vs multiplayer guidance text
     const sealedInfoText = document.getElementById('sealedInfoText');
     if (sealedInfoText) {
         const count = document.querySelectorAll('#lobbyPlayerList li').length || 1;
@@ -269,51 +304,34 @@ function updateSettingsVisibility() {
         }
     }
 
-    // Reset all to default visibility
-    if (commanderSettings) commanderSettings.style.display = 'block';
-    if (setDraftContainer) setDraftContainer.style.display = 'none';
-    if (selectionModeContainer) selectionModeContainer.style.display = 'block';
-    if (rerollsContainer) rerollsContainer.style.display = 'flex';
-    if (randomSettingsEl) randomSettingsEl.style.display = 'block';
-    if (snakePoolContainer) snakePoolContainer.style.display = 'none';
-    if (numOptsContainer) numOptsContainer.style.display = 'flex';
-    if (numOptionsLabel) numOptionsLabel.innerText = "# Cards to Select From (1-5):";
-    if (selectionModeEl) selectionModeEl.disabled = false;
-    if (numOptsEl) numOptsEl.disabled = false;
-    if (blindDraftToggle) blindDraftToggle.style.display = 'flex';
-
     if (isPrereleaseSealed) {
-        if (commanderSettings) commanderSettings.style.display = 'none';
+        if (cardSourceContainer) cardSourceContainer.style.display = 'none';
         if (setDraftContainer) setDraftContainer.style.display = 'block';
-        if (selectionModeContainer) selectionModeContainer.style.display = 'none';
-        if (rerollsContainer) rerollsContainer.style.display = 'none';
-        if (randomSettingsEl) randomSettingsEl.style.display = 'none';
-        if (snakePoolContainer) snakePoolContainer.style.display = 'none';
-        if (numOptsContainer) numOptsContainer.style.display = 'none';
-        if (selectionModeEl) selectionModeEl.value = 'manual';
-        if (numOptsEl) { numOptsEl.value = '1'; numOptsEl.disabled = true; }
-        if (blindDraftToggle) blindDraftToggle.style.display = 'none';
-    } else if (draftMode === 'set_draft') {
         if (commanderSettings) commanderSettings.style.display = 'none';
+    } else if (isSpecificSet) {
+        if (cardSourceContainer) cardSourceContainer.style.display = 'block';
         if (setDraftContainer) setDraftContainer.style.display = 'block';
+        if (commanderSettings) commanderSettings.style.display = 'none';
     } else {
-        // Commander Draft
-        if (isInteractive) {
-            if (selectionModeContainer) selectionModeContainer.style.display = 'none';
-            if (rerollsContainer) rerollsContainer.style.display = 'flex';
-            if (numOptionsLabel) numOptionsLabel.innerText = "Pack Size (1-5):";
-        }
-        if (isSnake) {
-            if (snakePoolContainer) snakePoolContainer.style.display = 'flex';
-            if (numOptionsLabel) numOptionsLabel.innerText = "Picks per Player (1-5):";
-        }
-        const isBurn = draftFormatEl && draftFormatEl.value === 'burn_draft';
-        if (numOptsEl) {
-            numOptsEl.options[0].disabled = isBurn;
-            if (isBurn && numOptsEl.value === '1') {
-                numOptsEl.value = '2';
-                numOptsEl.dispatchEvent(new Event('change'));
-            }
+        // Global Archives (Independent, Async, Snake, Burn)
+        if (cardSourceContainer) cardSourceContainer.style.display = 'block';
+        if (setDraftContainer) setDraftContainer.style.display = 'none';
+        if (commanderSettings) commanderSettings.style.display = 'block';
+        if (selectionModeContainer) selectionModeContainer.style.display = 'block';
+        if (rerollsContainer) rerollsContainer.style.display = 'flex';
+        if (randomSettingsEl) randomSettingsEl.style.display = 'block';
+        if (snakePoolContainer) snakePoolContainer.style.display = (draftFormat === 'snake_draft') ? 'flex' : 'none';
+        if (numOptsContainer) numOptsContainer.style.display = 'flex';
+        if (numOptionsLabel) numOptionsLabel.innerText = (draftFormat === 'snake_draft') ? "Picks per Player (1-5):" : (isInteractive ? "Pack Size (1-5):" : "# Cards to Select From (1-5):");
+        if (selectionModeEl) selectionModeEl.disabled = false;
+        if (numOptsEl) numOptsEl.disabled = false;
+        if (blindDraftToggle) blindDraftToggle.style.display = 'flex';
+
+        if (draftFormat === 'burn_draft' && numOptsEl) {
+            numOptsEl.options[0].disabled = true;
+            if (numOptsEl.value === '1') { numOptsEl.value = '2'; }
+        } else if (numOptsEl && numOptsEl.options[0]) {
+            numOptsEl.options[0].disabled = false;
         }
     }
 }
@@ -490,12 +508,23 @@ window.openRulesModal = async () => {
         let curr = s.currency === 'usd' ? '$' : '€';
         let formatName = 'Independent';
         if (s.draftFormat === 'async_draft') formatName = 'Asynchronous Booster Draft';
-        if (s.draftFormat === 'prerelease_sealed') formatName = 'Prerelease Sealed Pool';
+        if (s.draftFormat === 'prerelease_sealed') formatName = 'Prerelease Sealed Pool (6 Boosters / 85 Cards)';
         if (s.draftFormat === 'snake_draft') formatName = 'Face-Up Snake Draft';
         if (s.draftFormat === 'burn_draft') formatName = 'Blind Elimination Draft';
+
+        if (s.draftFormat === 'prerelease_sealed') {
+            listDiv.innerHTML = `
+                <p style="margin: 8px 0;"><strong style="color:var(--gold);">Format:</strong> ${formatName}</p>
+                <p style="margin: 8px 0;"><strong style="color:var(--gold);">Set:</strong> ${s.draftSetName || (s.draftSet ? s.draftSet.toUpperCase() : 'Duskmourn')}</p>
+                <p style="margin: 8px 0;"><strong style="color:var(--gold);">Booster Packs:</strong> 6 Packs (84 Cards) + 1 Foil Promo</p>
+                <p style="margin: 8px 0;"><strong style="color:var(--gold);">Pool Size:</strong> 85 Total Cards</p>
+            `;
+            return;
+        }
         
         let html = `
             <p style="margin: 8px 0;"><strong style="color:var(--gold);">Format:</strong> ${formatName}</p>
+            ${s.draftSet ? `<p style="margin: 8px 0;"><strong style="color:var(--gold);">Set:</strong> ${s.draftSetName || s.draftSet.toUpperCase()}</p>` : ''}
             <p style="margin: 8px 0;"><strong style="color:var(--gold);">Selection:</strong> ${s.selectionMode === 'both' ? 'Random & Manual' : (s.selectionMode === 'random' ? 'Random Only' : 'Manual Only')}</p>
             <p style="margin: 8px 0;"><strong style="color:var(--gold);">Cmdr Budget:</strong> ${parseFloat(s.budget) === 0 ? 'Any' : curr + s.budget}</p>
             <p style="margin: 8px 0;"><strong style="color:var(--gold);">Deck Limit:</strong> ${parseFloat(s.deckBudget) === 0 ? 'Any' : curr + s.deckBudget} <span style="font-size:0.8rem; color:#aaa;">(${s.includeCmdr !== false ? 'Includes' : 'Excludes'} Cmdr)</span></p>
@@ -882,6 +911,8 @@ window.startPrereleasePractice = async () => {
     const defaultSettings = {
         draftFormat: 'prerelease_sealed',
         draftMode: 'prerelease_sealed',
+        draftSet: 'dsk',
+        draftSetName: 'Duskmourn: House of Horror',
         numOptions: 1, maxRerolls: 0, selectionMode: 'manual',
         budget: 0, deckBudget: 0, minRank: 0, maxRank: 0, noPartner: false, blindDraft: false,
         status: 'waiting', createdAt: Date.now(), packsPerPlayer: 6, packSize: 15
@@ -1175,26 +1206,23 @@ setupLimitToggle('toggleRank', ['settingMin', 'settingMax']);
 let autoSaveTimeout;
 function autoSaveSettings() {
     if (!isHost || !currentRoom) return;
-
+    updateSettingsVisibility();
+    
     clearTimeout(autoSaveTimeout);
     autoSaveTimeout = setTimeout(async () => {
-        const draftMode = document.getElementById('settingDraftMode')?.value || 'commander_draft';
         const draftFormat = document.getElementById('settingDraftFormat')?.value || 'independent';
-        const isPrereleaseSealed = draftMode === 'prerelease_sealed';
-        const isSetDraft = draftMode === 'set_draft';
+        const draftMode = document.getElementById('settingDraftMode')?.value || 'commander_draft';
+        const isPrereleaseSealed = draftFormat === 'prerelease_sealed';
+        const isSetDraft = isPrereleaseSealed || draftMode === 'set_draft';
 
         let draftSet = null;
         let draftSetName = null;
 
-        if (isPrereleaseSealed || isSetDraft) {
+        if (isSetDraft) {
             const inputEl = document.getElementById('settingDraftSetInput');
-            const rawInput = inputEl ? inputEl.value.trim() : '';
-            draftSet = setNameToCodeMap.get(rawInput) || (rawInput.length <= 5 ? rawInput.toLowerCase() : null);
-            draftSetName = rawInput;
-            if (!draftSet && rawInput) {
-                const found = scryfallSets.find(s => s.name.toLowerCase() === rawInput.toLowerCase() || s.code.toLowerCase() === rawInput.toLowerCase());
-                if (found) { draftSet = found.code; draftSetName = found.name; }
-            }
+            const resolved = resolveClientSet(inputEl ? inputEl.value : '');
+            draftSet = resolved.code;
+            draftSetName = resolved.name;
         }
 
         const limitCmdr = document.getElementById('toggleCmdrBudget') ? document.getElementById('toggleCmdrBudget').checked : true;
@@ -1222,8 +1250,8 @@ function autoSaveSettings() {
         const snakePoolSize = Math.min(30, Math.max(2, parseInt(document.getElementById('settingSnakePoolSize')?.value) || 15));
 
         const updates = {
-            draftMode: draftMode,
-            draftFormat: isPrereleaseSealed ? 'prerelease_sealed' : (isSetDraft ? 'async_draft' : draftFormat),
+            draftMode: isPrereleaseSealed ? 'prerelease_sealed' : (isSetDraft ? 'set_draft' : draftMode),
+            draftFormat: draftFormat,
             draftSet: draftSet,
             draftSetName: draftSetName,
             budget: b,
@@ -1259,31 +1287,20 @@ document.getElementById('startDraftBtn').onclick = async () => {
     btn.disabled = true;
     btn.innerHTML = '<span class="mana-spinner"></span> Initializing...';
 
-    const draftMode = document.getElementById('settingDraftMode')?.value || 'commander_draft';
     const draftFormat = document.getElementById('settingDraftFormat')?.value || 'independent';
-    const isPrereleaseSealed = draftMode === 'prerelease_sealed';
-    const isSetDraft = draftMode === 'set_draft';
+    const draftMode = document.getElementById('settingDraftMode')?.value || 'commander_draft';
+    const isPrereleaseSealed = draftFormat === 'prerelease_sealed';
+    const isSetDraft = isPrereleaseSealed || draftMode === 'set_draft';
 
     let draftSet = null;
     let draftSetName = null;
 
-    if (isPrereleaseSealed || isSetDraft) {
+    if (isSetDraft) {
         const inputEl = document.getElementById('settingDraftSetInput');
-        const rawInput = inputEl ? inputEl.value.trim() : '';
-        draftSet = setNameToCodeMap.get(rawInput) || (rawInput.length <= 5 ? rawInput.toLowerCase() : null);
-        draftSetName = rawInput;
-
-        if (!draftSet && rawInput) {
-            const found = scryfallSets.find(s => s.name.toLowerCase() === rawInput.toLowerCase() || s.code.toLowerCase() === rawInput.toLowerCase());
-            if (found) { draftSet = found.code; draftSetName = found.name; }
-        }
-
-        // Default fallback if empty
-        if (!draftSet) {
-            draftSet = 'dsk';
-            draftSetName = 'Duskmourn: House of Horror';
-            if (inputEl) inputEl.value = draftSetName;
-        }
+        const resolved = resolveClientSet(inputEl ? inputEl.value : '');
+        draftSet = resolved.code;
+        draftSetName = resolved.name;
+        if (inputEl) inputEl.value = resolved.name;
     }
 
     const limitCmdr = document.getElementById('toggleCmdrBudget') ? document.getElementById('toggleCmdrBudget').checked : true;
@@ -1312,8 +1329,8 @@ document.getElementById('startDraftBtn').onclick = async () => {
     const webhookUrl = document.getElementById('settingDiscordWebhook') ? document.getElementById('settingDiscordWebhook').value.trim() : '';
 
     const settingsPayload = {
-        draftMode: draftMode,
-        draftFormat: isPrereleaseSealed ? 'prerelease_sealed' : (isSetDraft ? 'async_draft' : draftFormat),
+        draftMode: isPrereleaseSealed ? 'prerelease_sealed' : (isSetDraft ? 'set_draft' : draftMode),
+        draftFormat: draftFormat,
         draftSet: draftSet,
         draftSetName: draftSetName,
         budget: b,
@@ -1335,7 +1352,7 @@ document.getElementById('startDraftBtn').onclick = async () => {
     await set(ref(db, `webhooks/${currentRoom}/url`), webhookUrl || null);
     
     try {
-        if (isPrereleaseSealed || isSetDraft || draftFormat !== 'independent') {
+        if (isPrereleaseSealed || draftFormat !== 'independent') {
             const startDraftFn = httpsCallable(functions, 'hostStartInteractiveDraft');
             await startDraftFn({ roomId: currentRoom, settings: settingsPayload });
         } else {
@@ -1903,7 +1920,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.12').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.13').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

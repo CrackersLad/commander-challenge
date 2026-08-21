@@ -246,35 +246,95 @@ exports.adminViewRoom = onCall(async (request) => {
     return { room: snap.val() };
 });
 
+let cachedScryfallSets = null;
+let cachedSetsTime = 0;
+
+async function resolveScryfallSetCode(input) {
+    if (!input) return 'dsk';
+    const raw = String(input).trim().toLowerCase();
+    if (/^[a-z0-9]{3,5}$/i.test(raw)) {
+        return raw;
+    }
+
+    if (!cachedScryfallSets || (Date.now() - cachedSetsTime > 3600000)) {
+        try {
+            const res = await fetch('https://api.scryfall.com/sets', {
+                headers: { 'User-Agent': 'CommanderChallenge/1.0', 'Accept': 'application/json' }
+            });
+            if (res.ok) {
+                const json = await res.json();
+                cachedScryfallSets = json.data || [];
+                cachedSetsTime = Date.now();
+            }
+        } catch (e) {
+            console.warn("Could not fetch Scryfall sets list:", e.message);
+        }
+    }
+
+    if (cachedScryfallSets && cachedScryfallSets.length > 0) {
+        const exact = cachedScryfallSets.find(s => s.code.toLowerCase() === raw || s.name.toLowerCase() === raw);
+        if (exact) return exact.code;
+
+        const partial = cachedScryfallSets.find(s => s.name.toLowerCase().includes(raw) || raw.includes(s.name.toLowerCase()));
+        if (partial) return partial.code;
+    }
+
+    const commonMap = {
+        'duskmourn': 'dsk',
+        'bloomburrow': 'blb',
+        'modern horizons 3': 'mh3',
+        'outlaws of thunder junction': 'otj',
+        'outlaws': 'otj',
+        'the lost caverns of ixalan': 'lci',
+        'ixalan': 'lci',
+        'wilds of eldraine': 'woe',
+        'eldraine': 'woe',
+        'commander masters': 'cmm',
+        'murders at karlov manor': 'mkm',
+        'karlov': 'mkm',
+        'phyrexia: all will be one': 'one',
+        'phyrexia': 'one',
+        'march of the machine': 'mom',
+        'dominaria united': 'dmu',
+        'innistrad: midnight hunt': 'mid',
+        'innistrad: crimson vow': 'vow',
+        'kamigawa: neon dynasty': 'neo'
+    };
+
+    for (const [nameKey, codeVal] of Object.entries(commonMap)) {
+        if (raw.includes(nameKey) || nameKey.includes(raw)) {
+            return codeVal;
+        }
+    }
+
+    return raw.substring(0, 5);
+}
+
 async function fetchBoosterCardsForSet(setCode) {
-    // This function is for fetching cards for interactive set drafts (like async/snake draft)
-    // It's kept separate from fetchSetCardsByRarity for clarity and different use cases.
+    const cleanSet = await resolveScryfallSetCode(setCode);
     const boosterCards = [];
-    let sUrl = `https://api.scryfall.com/cards/search?q=set%3A${setCode}+is%3Abooster`;
-    let retries = 0;
+    const fetchHeaders = { 'User-Agent': 'CommanderChallenge/1.0', 'Accept': 'application/json' };
+    let sUrl = `https://api.scryfall.com/cards/search?q=set%3A${encodeURIComponent(cleanSet)}+is%3Abooster+-is:basic`;
+    let res = await fetch(sUrl, { headers: fetchHeaders });
+    if (!res.ok) {
+        sUrl = `https://api.scryfall.com/cards/search?q=set%3A${encodeURIComponent(cleanSet)}+-is:basic`;
+        res = await fetch(sUrl, { headers: fetchHeaders });
+    }
 
     while (sUrl) {
-        const res = await fetch(sUrl);
-        if (!res.ok) {
-            if (retries < 3) {
-                retries++;
-                console.warn(`Scryfall set fetch failed (${res.status}). Retrying...`);
-                await new Promise(r => setTimeout(r, 1500 * retries));
-                continue;
-            }
-            throw new Error(`Scryfall API failed for set ${setCode}: ${res.statusText}`);
-        }
-        retries = 0;
+        if (!res) res = await fetch(sUrl, { headers: fetchHeaders });
+        if (!res.ok) break;
         const data = await res.json();
         if (data.data) boosterCards.push(...data.data);
         sUrl = data.has_more ? data.next_page : null;
-        await new Promise(r => setTimeout(r, 100)); // Scryfall rate limit
+        res = null;
+        if (sUrl) await new Promise(r => setTimeout(r, 100));
     }
     return boosterCards;
 }
 
 async function fetchSetCardsByRarity(setCode) {
-    const cleanSet = (setCode || '').trim().toLowerCase();
+    const cleanSet = await resolveScryfallSetCode(setCode);
     if (!cleanSet) {
         throw new HttpsError('invalid-argument', 'A valid MTG set code is required.');
     }
@@ -284,23 +344,30 @@ async function fetchSetCardsByRarity(setCode) {
     const rares = [];
     const mythics = [];
     const allCards = [];
+    const fetchHeaders = { 'User-Agent': 'CommanderChallenge/1.0', 'Accept': 'application/json' };
 
     // Search query for non-basic cards from the set
     let sUrl = `https://api.scryfall.com/cards/search?q=set%3A${encodeURIComponent(cleanSet)}+is%3Abooster+-is:basic`;
-    let res = await fetch(sUrl);
+    let res = await fetch(sUrl, { headers: fetchHeaders });
     
     // Fallback if is:booster returned nothing
     if (!res.ok) {
         sUrl = `https://api.scryfall.com/cards/search?q=set%3A${encodeURIComponent(cleanSet)}+-is:basic`;
-        res = await fetch(sUrl);
+        res = await fetch(sUrl, { headers: fetchHeaders });
+    }
+
+    // Secondary fallback for entire set
+    if (!res.ok) {
+        sUrl = `https://api.scryfall.com/cards/search?q=set%3A${encodeURIComponent(cleanSet)}`;
+        res = await fetch(sUrl, { headers: fetchHeaders });
     }
 
     if (!res.ok) {
-        throw new HttpsError('not-found', `Could not find cards for set code "${cleanSet}". Please choose another set.`);
+        throw new HttpsError('not-found', `Could not find cards for set "${setCode}" (code: ${cleanSet}). Please choose another set.`);
     }
 
     while (sUrl) {
-        if (!res) res = await fetch(sUrl);
+        if (!res) res = await fetch(sUrl, { headers: fetchHeaders });
         if (!res.ok) break;
 
         const data = await res.json();
@@ -332,7 +399,7 @@ async function fetchSetCardsByRarity(setCode) {
 
     const allRaresMythics = [...rares, ...mythics];
     if (allCards.length === 0) {
-        throw new HttpsError('not-found', `No playable cards found for set "${cleanSet}".`);
+        throw new HttpsError('not-found', `No playable cards found for set code "${cleanSet}".`);
     }
 
     return {
