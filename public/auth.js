@@ -1,4 +1,4 @@
-import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=0.9';
+import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=0.10';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithRedirect, linkWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
@@ -327,11 +327,11 @@ export function initAuthModule(utils, state) {
         const modal = document.getElementById('accountModal');
         try {
             const user = auth.currentUser;
-            const isMobileDevice = /android|iphone|ipad|ipod/i.test(navigator.userAgent.toLowerCase());
+            const isNativePlatform = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
 
-            if (isMobileDevice) {
-                if (!window.Capacitor || !window.Capacitor.Plugins || !window.Capacitor.Plugins.FirebaseAuthentication) {
-                    alert("CRITICAL ERROR: Native plugins failed to load.\nPlease close Android Studio, run 'npx cap sync android' in PowerShell, and rebuild.");
+            if (isNativePlatform) {
+                if (!window.Capacitor.Plugins || !window.Capacitor.Plugins.FirebaseAuthentication) {
+                    showToast("Native authentication plugins not available in this build.", true);
                     return;
                 }
 
@@ -339,7 +339,6 @@ export function initAuthModule(utils, state) {
                     let result;
                     try {
                         result = await window.Capacitor.Plugins.FirebaseAuthentication.signInWithGoogle({
-                            clientId: "579721236208-53ml1vqsosjb4cglpo3etka31l1f8l1e.apps.googleusercontent.com",
                             clientId: "579721236208-53ml1vqsosjb4cglpo3etka31l1f8l1e.apps.googleusercontent.com",
                             serverClientId: "579721236208-53ml1vqsosjb4cglpo3etka31l1f8l1e.apps.googleusercontent.com"
                         });
@@ -353,7 +352,7 @@ export function initAuthModule(utils, state) {
                     }
 
                     if (!result || !result.credential || !result.credential.idToken) {
-                        alert("Error: Google Sign-In succeeded but returned no ID Token.");
+                        showToast("Error: Google Sign-In succeeded but returned no ID Token.", true);
                         return;
                     }
 
@@ -372,10 +371,10 @@ export function initAuthModule(utils, state) {
                                 await signInWithCredential(auth, credential);
                                 showToast("Logged into existing account.", false, 3000, true);
                             } catch (signInErr) {
-                                alert("Login Error: " + (signInErr.message || JSON.stringify(signInErr)));
+                                showToast("Login Error: " + (signInErr.message || "Failed to sign in"), true);
                             }
                         } else {
-                            alert("Firebase Error: " + (fbErr.message || JSON.stringify(fbErr)));
+                            showToast("Firebase Error: " + (fbErr.message || "Authentication error"), true);
                         }
                     }
                 } else {
@@ -385,10 +384,10 @@ export function initAuthModule(utils, state) {
                         await signInWithRedirect(auth, provider);
                     }
                 }
-                return; // STOPS execution to physically prevent the browser redirect
+                return;
             }
 
-            // Web fallback (Desktop only)
+            // Web authentication flow (Desktop & Mobile web browsers)
             if (user && user.isAnonymous) {
                 await linkWithPopup(user, provider);
                 showToast("Account linked! Your stats are saved.", false, 3000, true);

@@ -1,5 +1,5 @@
-import { db, functions } from './firebase-setup.js?v=0.9';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.9';
+import { db, functions } from './firebase-setup.js?v=0.10';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.10';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -264,9 +264,9 @@ export function initPlayerViewModule(utils, state) {
 
     async function renderInteractiveDraft(activeDraft, container, s, players) {
         if (activeDraft.isComplete) { container.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; margin-top:50px;"><h2 style="color:var(--gold); font-family:Cinzel;">Finalizing Draft...</h2><span class="mana-spinner"></span></div>`; return; }
-        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=0.9'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=0.9'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=0.9'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
+        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=0.10'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=0.10'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=0.10'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
     }
 
     function renderFinalSelection(list, s) {
@@ -364,7 +364,7 @@ export function initPlayerViewModule(utils, state) {
                         showToast("Deck sealed and priced!", false, 3000, true); setTimeout(() => window.closePlayerView(), 1000); 
                     }
                 } catch (e) { showToast("Calculation failed. Check URL.", true); } finally { btn.innerHTML = "Save & Calculate Price"; btn.disabled = false; }
-player-view.js            } else {
+            } else {
                 if (!link) return showToast("Please enter a URL.", true);
                 showConfirm("Price Calculation Unavailable", "You can add a link using other deck builders, but the deck pricing feature currently only works with Archidekt and Moxfield. Do you want to proceed?", async () => {
                     await update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), { deck: link, deckPrice: 0, lockedDeckPrice: 0, isLegal: true });
@@ -391,9 +391,9 @@ player-view.js            } else {
                 await new Promise(r => setTimeout(r, 550));
             }
         }
-        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=0.9'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=0.9'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=0.9'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
+        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=0.10'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=0.10'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=0.10'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
     };
 
     window.openPlayerView = async () => {
