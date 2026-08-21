@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=0.10';
+import { db, auth } from './firebase-setup.js?v=0.11';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -112,19 +112,9 @@ export function initHubModule(utils, state, coreUi) {
         animateRoll();
     };
 
-    // Dynamically inject the button into the landing page
-    const joinBtn = document.getElementById('joinBtn');
-    if (joinBtn && !document.getElementById('quickRollBtn')) {
-        const quickRollBtn = document.createElement('button');
-        quickRollBtn.id = 'quickRollBtn';
-        quickRollBtn.className = 'secondary-btn';
-        quickRollBtn.style.marginTop = '15px';
-        quickRollBtn.style.width = '100%';
-        quickRollBtn.style.padding = '12px';
-        quickRollBtn.style.fontSize = '1.05rem';
-        quickRollBtn.innerHTML = '🎲 Quick Roll (Random Cmdr)';
+    const quickRollBtn = document.getElementById('quickRollBtn');
+    if (quickRollBtn) {
         quickRollBtn.onclick = window.quickRollCommander;
-        joinBtn.parentNode.insertBefore(quickRollBtn, joinBtn.nextSibling);
     }
 
     window.goToMainMenu = () => {

@@ -2,53 +2,86 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Commander Draft Challenge</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Commander Draft Challenge | Interactive EDH Simulator</title>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0d0d0d">
+    <meta name="theme-color" content="#0a0a0f">
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" type="image/png" href="icon.png">
     
     <!-- Open Graph / Social Media Meta Tags -->
     <meta property="og:title" content="Commander Draft Challenge">
-    <meta property="og:description" content="A free, interactive Commander/EDH draft simulator. Roll commanders, enforce budgets & brackets, lock in deck prices, run blind drafts, track player profiles, and get Discord webhook alerts with your playgroup!">
+    <meta property="og:description" content="A free, interactive Commander/EDH draft simulator. Roll commanders, enforce budgets & brackets, lock in deck prices, run blind drafts, track player profiles, and get Discord alerts with your playgroup!">
     <meta property="og:url" content="https://edhchallenge.com/">
     <meta property="og:type" content="website">
-    <meta name="twitter:card" content="summary">
+    <meta name="twitter:card" content="summary_large_image">
     <script>
         // Redirect old Firebase domains to the primary custom domain
         (function() {
             var currentHost = window.location.hostname;
             var primaryDomain = 'edhchallenge.com';
-            // If the host is not the primary domain (and not a local testing environment), redirect.
             if (currentHost !== primaryDomain && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
-                // This handles www.edhchallenge.com, commander-challenge.web.app, etc.
                 window.location.replace('https://' + primaryDomain + window.location.pathname + window.location.search);
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=0.9">
+    <link rel="stylesheet" href="styles.css?v=0.10">
 </head>
 <body>
+    <!-- Top Master Glass Navigation Bar -->
+    <header class="master-navbar" id="globalNavbar">
+        <div class="nav-left">
+            <div class="nav-brand" onclick="window.goToMainMenu()" title="Commander Draft Challenge">
+                <img src="icon.png" alt="Commander Draft" class="nav-logo">
+                <span class="nav-brand-text">EDH Challenge</span>
+            </div>
+        </div>
+        
+        <div class="nav-center">
+            <div id="navRoomBadge" class="nav-room-badge" style="display: none;" onclick="window.copyRoomCode()" title="Click to copy invite link">
+                <span class="nav-room-dot"></span>
+                <span class="nav-room-label">Playgroup:</span>
+                <span id="navRoomCode" class="nav-room-code">----</span>
+                <span class="nav-copy-icon">📋</span>
+            </div>
+        </div>
+
+        <div class="nav-right">
+            <div id="audioContainer" class="nav-audio-box">
+                <button id="sfxToggle" class="nav-icon-btn" title="Toggle Sound Effects">🔊 SFX</button>
+            </div>
+            
+            <div id="globalAccountBtn" class="nav-account-pill" onclick="window.openAccountModal()" title="Manage Player Identity">
+                <img id="globalAvatar" src="" alt="Avatar" class="nav-avatar" style="display: none;">
+                <span id="globalAccountName" class="nav-account-name">Guest</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Toast Notification Container -->
     <div id="toast-container" class="toast"></div>
 
+    <!-- Confirmation Modal -->
     <div id="confirmModal" class="modal-overlay">
         <div class="modal-content">
             <h2 id="modalTitle" style="margin-top: 0;">Confirm</h2>
-            <p id="modalText" style="color: #e0e0e0; font-size: 1.1rem;"></p>
-            <div style="display: flex; gap: 20px; justify-content: center; margin-top: 25px;">
-                <button id="modalCancel" class="btn-cancel" style="border-radius:6px; font-family: 'Cinzel', serif; font-weight:bold;">Cancel</button>
-                <button id="modalConfirm" class="btn-confirm" style="border-radius:6px; font-family: 'Cinzel', serif; font-weight:bold;">Confirm</button>
+            <p id="modalText" style="color: #e0e0e0; font-size: 1.05rem; line-height: 1.5;"></p>
+            <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px;">
+                <button id="modalCancel" class="btn-cancel" style="flex: 1;">Cancel</button>
+                <button id="modalConfirm" class="btn-confirm" style="flex: 1;">Confirm</button>
             </div>
         </div>
     </div>
 
+    <!-- Meetup Availability Modal -->
     <div id="availabilityModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 800px; width: 95%;">
-            <h2 style="color:var(--gold); margin-top:0;">Meetup Availability</h2>
-            <p style="color:#aaa; font-size:0.9rem; margin-bottom:20px;">Mark your free slots (AM/PM).<br>Host will see when everyone is ready.</p>
+        <div class="modal-content" style="max-width: 820px; width: 95%;">
+            <h2 style="color:var(--gold); margin-top:0;">📅 Meetup Availability</h2>
+            <p style="color:#aaa; font-size:0.9rem; margin-bottom:20px;">Mark your free slots (AM / PM). The host can view consensus slots to schedule your match.</p>
             
             <div id="availGrid" class="avail-grid"></div>
             
@@ -56,44 +89,47 @@
         </div>
     </div>
 
+    <!-- Battle Finale Modal -->
     <div id="battleModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 500px; text-align: left;">
-            <h2 style="text-align:center; color:var(--gold); margin-top:0;">Setup the Finale</h2>
-            <label style="color:#aaa;">Date & Time:</label>
+        <div class="modal-content" style="max-width: 520px; text-align: left;">
+            <h2 style="text-align:center; color:var(--gold); margin-top:0;">⚔️ Schedule the Match</h2>
+            <label style="color:#aaa; font-size:0.85rem;">Date & Time:</label>
             <input type="datetime-local" id="battleDate" style="width:100%; box-sizing:border-box;">
             
-            <label style="color:#aaa; display:block; margin-top:15px;">Format:</label>
-            <select id="battleFormat" style="width:100%; box-sizing:border-box; background:#222; color:white; border:1px solid #444; padding:10px;">
-                <option value="Free-for-All">Free-for-All (Standard)</option>
+            <label style="color:#aaa; display:block; margin-top:15px; font-size:0.85rem;">Match Format:</label>
+            <select id="battleFormat" style="width:100%; box-sizing:border-box;">
+                <option value="Free-for-All">Free-for-All (Standard 4-Player)</option>
                 <option value="1v1 Tournament">1v1 Tournament</option>
                 <option value="Best of 3">Best of 3 Match</option>
                 <option value="Two-Headed Giant">Two-Headed Giant</option>
                 <option value="Custom">Custom</option>
             </select>
-            <input type="text" id="battleFormatCustom" placeholder="Enter custom format..." style="width:100%; box-sizing:border-box; display:none; margin-top:5px;">
+            <input type="text" id="battleFormatCustom" placeholder="Enter custom format..." style="width:100%; box-sizing:border-box; display:none; margin-top:8px;">
 
-            <label style="color:#aaa; display:block; margin-top:15px;">Victor's Prize:</label>
-            <input type="text" id="battlePrize" placeholder="e.g. A Booster Box, Bragging Rights..." style="width:100%; box-sizing:border-box;">
+            <label style="color:#aaa; display:block; margin-top:15px; font-size:0.85rem;">Victor's Prize (Optional):</label>
+            <input type="text" id="battlePrize" placeholder="e.g., Set Booster Pack, Trophy, Bragging Rights..." style="width:100%; box-sizing:border-box;">
 
-            <div style="display: flex; gap: 20px; justify-content: center; margin-top: 25px;">
-                <button id="battleCancel" class="btn-cancel" style="border-radius:6px; font-family: 'Cinzel', serif; font-weight:bold;">Cancel</button>
-                <button id="battleConfirm" class="btn-confirm" style="border-radius:6px; font-family: 'Cinzel', serif; font-weight:bold;">Announce Battle</button>
+            <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px;">
+                <button id="battleCancel" class="btn-cancel" style="flex: 1;">Cancel</button>
+                <button id="battleConfirm" class="btn-confirm" style="flex: 1;">Announce Match</button>
             </div>
         </div>
     </div>
 
+    <!-- Declare Winner Modal -->
     <div id="winnerModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 400px; width: 95%;">
-            <h2 style="color:var(--gold); margin-top:0;">Declare Winner</h2>
-            <p style="color:#aaa; font-size:0.9rem;">Who emerged victorious?</p>
+        <div class="modal-content" style="max-width: 420px; width: 95%;">
+            <h2 style="color:var(--gold); margin-top:0;">🏆 Crown the Victor</h2>
+            <p style="color:#aaa; font-size:0.9rem;">Select the challenger who emerged victorious to record their lifetime win:</p>
             <div id="winnerList" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;"></div>
             <button class="btn-cancel" onclick="document.getElementById('winnerModal').classList.remove('show'); setTimeout(()=>document.getElementById('winnerModal').style.display='none', 300);" style="margin-top:20px; width:100%;">Cancel</button>
         </div>
     </div>
 
+    <!-- Playgroup Leaderboard Modal -->
     <div id="leaderboardModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 550px; width: 95%;">
-            <h2 style="color:var(--gold); margin-top:0;">Playgroup Analytics</h2>
+        <div class="modal-content" style="max-width: 580px; width: 95%;">
+            <h2 style="color:var(--gold); margin-top:0;">📊 Playgroup Analytics</h2>
             <div id="leaderboardContent" style="color: #ccc; font-size: 0.95rem; text-align: left; margin-top: 15px; max-height: 60vh; overflow-y: auto;">
                 Loading...
             </div>
@@ -101,9 +137,10 @@
         </div>
     </div>
 
+    <!-- Burn Log Modal -->
     <div id="burnLogModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 400px; width: 95%;">
-            <h2 style="color:#ff4444; margin-top:0;">Burn Log</h2>
+        <div class="modal-content" style="max-width: 440px; width: 95%;">
+            <h2 style="color:var(--danger); margin-top:0;">🔥 Burn Draft Log</h2>
             <div id="burnLogContent" style="color: #ccc; font-size: 0.95rem; text-align: left; margin-top: 15px; max-height: 60vh; overflow-y: auto;">
                 Loading...
             </div>
@@ -111,313 +148,411 @@
         </div>
     </div>
 
+    <!-- Challenge Rules Modal -->
     <div id="rulesModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 400px; width: 95%; text-align: left;">
-            <h2 style="text-align:center; color:var(--gold); margin-top:0;">Challenge Rules</h2>
-            <div id="rulesList" style="color: #ccc; font-size: 0.95rem; line-height: 1.6; margin-top: 15px; font-family: 'Segoe UI';">
+        <div class="modal-content" style="max-width: 440px; width: 95%; text-align: left;">
+            <h2 style="text-align:center; color:var(--gold); margin-top:0;">📜 Challenge Rules</h2>
+            <div id="rulesList" style="color: #ccc; font-size: 0.95rem; line-height: 1.6; margin-top: 15px; font-family: var(--font-body);">
                 Loading...
             </div>
             <button class="btn-cancel" onclick="document.getElementById('rulesModal').classList.remove('show'); setTimeout(()=>document.getElementById('rulesModal').style.display='none', 300);" style="margin-top:20px; width:100%;">Close</button>
         </div>
     </div>
 
+    <!-- Player Identity Modal -->
     <div id="accountModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 350px; width: 90%;">
+        <div class="modal-content" style="max-width: 380px; width: 90%;">
             <h2 style="color:var(--gold); margin-top:0;">Player Identity</h2>
             
             <div id="loggedOutUI">
-                <p style="color: #888; font-size: 0.85rem; margin-bottom: 20px; font-family: 'Segoe UI', sans-serif;">You are playing as a Guest.<br>Sign in to track stats and save your identity!</p>
-                <div style="display: flex; flex-direction: column; gap: 10px; justify-content: center;">
-                    <button id="loginGoogleBtn" class="select-btn" style="background: white; color: black; font-family: 'Segoe UI'; font-size: 0.9rem;">Sign in with Google</button>
-                    <button id="loginDiscordBtn" class="select-btn" style="background: #5865F2; color: white; border: none; font-family: 'Segoe UI'; font-size: 0.9rem; box-shadow: 0 4px 0 #4752C4;">Sign in with Discord</button>
+                <p style="color: #aaa; font-size: 0.9rem; margin-bottom: 20px;">You are currently playing as a Guest.<br>Sign in to track lifetime stats, save your custom nickname, and keep your history!</p>
+                <div style="display: flex; flex-direction: column; gap: 12px; justify-content: center;">
+                    <button id="loginGoogleBtn" class="auth-provider-btn google-btn">
+                        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v0.11h4.844c-.209 1.125-.843 2.078-1.796 2.717v0.11h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v0.11C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.173 0 7.548 0 9s.347 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.346l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
+                        Sign in with Google
+                    </button>
+                    <button id="loginDiscordBtn" class="auth-provider-btn discord-btn">
+                        <svg width="20" height="15" viewBox="0 0 71 55" fill="white"><path d="M60.1 4.9A58.5 58.5 0 0045.6.4a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.5 37.5 0 0025.6.5a.2.2 0 00-.2-.1A58.4 58.4 0 0010.8 5C1.6 18.6-1 31.9.3 45a.2.2 0 00.1.2 58.8 58.8 0 0017.8 9 .2.2 0 00.2-.1 42 42 0 003.6-5.9.2.2 0 00-.1-.3 38.6 38.6 0 01-5.5-2.6.2.2 0 010-.4c.4-.3.7-.6 1.1-.9a.2.2 0 01.2 0c11.7 5.3 24.3 5.3 35.8 0a.2.2 0 01.2 0c.4.3.8.6 1.1.9a.2.2 0 010 .4 36.6 36.6 0 01-5.5 2.6.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.2.1 58.6 58.6 0 0017.8-9 .2.2 0 00.1-.2c1.5-15.1-2.5-28.3-10.6-40.1zM23.7 37c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 4-2.8 7.2-6.4 7.2zm23.6 0c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 4-2.8 7.2-6.4 7.2z"/></svg>
+                        Sign in with Discord
+                    </button>
                 </div>
             </div>
             
-            <div id="loggedInUI" style="display: none; font-size: 0.9rem; font-family: 'Segoe UI', sans-serif;">
+            <div id="loggedInUI" style="display: none;">
                 <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px; margin-bottom: 20px;">
-                    <img id="authAvatar" src="" alt="Player Avatar" style="width: 60px; height: 60px; border-radius: 50%; display: none; border: 2px solid var(--gold); object-fit: cover;">
-                    <span style="color: #2ecc71; font-size: 1.1rem;">✓ Linked to <span id="authProviderName" style="color: #fff; font-weight: bold;">Account</span></span>
-                    <div style="width: 100%; text-align: left; background: #111; padding: 10px; border-radius: 6px; border: 1px solid #333; box-sizing: border-box;">
-                        <label style="color: #aaa; font-size: 0.8rem; margin-bottom: 5px; display: block; font-family: 'Cinzel', serif;">Display Name</label>
+                    <img id="authAvatar" src="" alt="Player Avatar" class="modal-auth-avatar">
+                    <span style="color: var(--success); font-size: 1rem; font-weight: 600;">✓ Linked with <span id="authProviderName" style="color: #fff; font-weight: bold;">Account</span></span>
+                    
+                    <div style="width: 100%; text-align: left; background: rgba(0,0,0,0.5); padding: 14px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); box-sizing: border-box;">
+                        <label style="color: #aaa; font-size: 0.8rem; margin-bottom: 6px; display: block; font-family: var(--font-display);">Display Name</label>
                         <div style="display: flex; gap: 10px; align-items: center;">
-                            <input type="text" id="customNicknameInput" maxlength="15" style="width: 100%; margin: 0; padding: 8px; font-size: 1rem;">
-                            <button id="saveNicknameBtn" class="select-btn" style="width: auto; padding: 8px 15px; margin: 0; font-size: 0.9rem;">Save</button>
+                            <input type="text" id="customNicknameInput" maxlength="15" style="width: 100%; margin: 0; padding: 10px; font-size: 0.95rem; text-align: left;">
+                            <button id="saveNicknameBtn" class="select-btn" style="width: auto; padding: 10px 18px; margin: 0; font-size: 0.85rem;">Save</button>
                         </div>
                     </div>
                 </div>
-                <button id="myProfileBtn" class="secondary-btn" style="width: 100%; border-radius: 6px; font-family: 'Cinzel', serif; font-weight: bold; margin-bottom: 10px;">My Profile</button>
-                <button id="enableNotificationsBtn" class="secondary-btn" style="width: 100%; border-radius: 6px; font-family: 'Cinzel', serif; font-weight: bold; margin-bottom: 10px; display: none;">🔔 Enable Push Notifications</button>
-                <button id="logoutBtn" class="btn-cancel" style="width: 100%; border-radius: 6px; font-family: 'Cinzel', serif; font-weight: bold;">Sign Out</button>
+                
+                <button id="myProfileBtn" class="secondary-btn" style="width: 100%; margin-bottom: 10px; padding: 12px;">🏆 My Profile & Wins</button>
+                <button id="enableNotificationsBtn" class="secondary-btn" style="width: 100%; margin-bottom: 10px; padding: 12px; display: none;">🔔 Enable Push Notifications</button>
+                <button id="logoutBtn" class="btn-cancel" style="width: 100%; padding: 12px;">Sign Out</button>
             </div>
 
-            <button class="secondary-btn" onclick="document.getElementById('accountModal').classList.remove('show'); setTimeout(()=>document.getElementById('accountModal').style.display='none', 300);" style="margin-top:20px; width:100%;">Close</button>
+            <button class="secondary-btn" onclick="document.getElementById('accountModal').classList.remove('show'); setTimeout(()=>document.getElementById('accountModal').style.display='none', 300);" style="margin-top:20px; width:100%; padding: 10px;">Close</button>
         </div>
     </div>
 
+    <!-- SFX Audio Elements -->
     <audio id="sfx-click" preload="metadata"><source src="click.mp3" type="audio/mpeg"></audio>
     <audio id="sfx-choose" preload="metadata"><source src="choose.mp3" type="audio/mpeg"></audio>
     <audio id="sfx-reveal" preload="metadata"><source src="reveal.mp3" type="audio/mpeg"></audio>
 
-    <div id="audioContainer" style="position: absolute; top: 15px; right: 20px; z-index: 50; display:flex; flex-direction: column; align-items: flex-end;">
-        <button id="mobileSettingsToggle" style="display:none; background: #111; border: 1px solid var(--gold); color: var(--gold); padding: 8px; border-radius: 50%; width: 40px; height: 40px; font-size: 1.2rem; cursor: pointer; box-shadow: 0 0 10px rgba(0,0,0,0.5); z-index: 51;">⚙️</button>
-        <div id="audioControls" style="display:flex; gap: 10px; align-items:center; transition: 0.3s;">
-            <button id="sfxToggle" style="background: #111; border: 1px solid var(--gold); color: var(--gold); padding: 8px 12px; border-radius: 4px; font-size: 11px; font-family: 'Cinzel', serif; font-weight:bold; cursor:pointer;">🔊 SFX</button>
-        </div>
-    </div>
-
-    <div id="globalAccountBtn" onclick="window.openAccountModal()" style="position: absolute; top: 15px; left: 20px; z-index: 50; display:flex; align-items:center; gap:10px; background: rgba(13,13,13,0.9); border: 1px solid var(--gold); padding: 5px 15px; border-radius: 25px; cursor: pointer; transition: 0.3s; box-shadow: 0 0 10px rgba(0,0,0,0.5);">
-        <img id="globalAvatar" src="" alt="Global Avatar" style="width: 24px; height: 24px; border-radius: 50%; display: none; border: 1px solid var(--gold); object-fit: cover;">
-        <span id="globalAccountName" style="color: var(--gold); font-family: 'Cinzel', serif; font-weight: bold; font-size: 0.85rem;">Guest</span>
-    </div>
-
-    <div id="view-landing" class="view-section active">
-        <div class="css-banner"><div class="css-banner-overlay"></div><h1 class="css-banner-text">Commander Draft Challenge</h1></div>
-        <div class="lobby-container">
-            <h2>Enter the Archives</h2>
+    <!-- ==================== VIEW 1: LANDING HUB ==================== -->
+    <main id="view-landing" class="view-section active">
+        <!-- Hero Title Section -->
+        <div class="hero-container">
+            <div class="hero-badge">✦ Interactive EDH & Draft Platform ✦</div>
+            <h1 class="hero-title">COMMANDER DRAFT CHALLENGE</h1>
+            <p class="hero-subtitle">Roll random commanders, enforce custom budgets, build on Moxfield / Archidekt, and battle with your playgroup.</p>
             
-            <button class="secondary-btn" onclick="window.openAccountModal()" style="width: 80%; margin-bottom: 20px; padding: 10px; font-size: 0.9rem;">👤 Manage Player Identity</button>
-
-            <input type="text" id="playerNameInput" placeholder="Enter Your Name" maxlength="15" style="width: 80%;"><br><br>
-            <div style="padding: 20px; background: #111; border-radius: 8px; margin-bottom: 20px;">
-                <h3 style="font-size: 1.2rem; margin-bottom: 10px;">Join a Playgroup</h3>
-                <input type="text" id="roomCodeInput" placeholder="4-Letter Code" maxlength="4" style="text-transform: uppercase; width: 60%; font-size: 1.2rem;"><br>
-                <button class="select-btn" id="joinBtn" style="width: 65%;">Join Playgroup</button>
-            </div>
-            <h3 style="margin: 15px 0;">— OR —</h3>
-            <button class="secondary-btn" id="createBtn" style="width: 70%;">Start New Commander Challenge</button>
-            <button class="select-btn" id="startPrereleasePracticeBtn" style="width: 70%; margin-top: 15px; background: linear-gradient(135deg, #6a0dad 0%, #a020f0 50%, #6a0dad 100%); background-size: 200% auto; animation: goldShimmer 3s linear infinite; color: #fff; box-shadow: 0 4px 0 #4a097d;" onclick="window.startPrereleasePractice()">Start New Prerelease Practice</button>
-            
-
-            <div id="myPlaygroupsContainer" style="display: none; margin-top: 35px; background: #111; border-radius: 8px; padding: 20px;">
-                <h3 style="font-size: 1.2rem; margin-bottom: 15px; color: var(--gold); font-family: 'Cinzel', serif; border-bottom: 1px solid #333; padding-bottom: 10px;">My Active Playgroups</h3>
-                <div id="myPlaygroupsList" style="display: flex; flex-direction: column; gap: 10px;"></div>
+            <!-- Quick Name Setup Card -->
+            <div class="player-identity-bar">
+                <span class="identity-icon">👤</span>
+                <input type="text" id="playerNameInput" placeholder="Enter Your Challenger Name" maxlength="15" class="hero-name-input">
+                <button class="identity-pill-btn" onclick="window.openAccountModal()">Identity & Stats</button>
             </div>
         </div>
-        <div class="global-stats-box">
-            <div style="color: var(--gold); font-family: 'Cinzel', serif; font-weight: bold; margin-bottom: 8px; font-size: 1rem; border-bottom: 1px solid #333; padding-bottom: 5px;">Global Stats</div>
-            <div style="color: #aaa; font-family: 'Segoe UI'; font-size: 0.85rem; margin-bottom: 4px;">Challengers: <span id="stat-players" style="color: #fff; font-weight: bold; float: right; margin-left: 20px;">--</span></div>
-            <div style="color: #aaa; font-family: 'Segoe UI'; font-size: 0.85rem; margin-bottom: 4px;">Active Rooms: <span id="stat-rooms" style="color: #fff; font-weight: bold; float: right; margin-left: 20px;">--</span></div>
-            <div style="color: #aaa; font-family: 'Segoe UI'; font-size: 0.85rem;">Cmdrs Rolled: <span id="stat-rolled" style="color: var(--reroll); font-weight: bold; float: right; margin-left: 20px;">--</span></div>
+
+        <!-- Main Action Cards Grid -->
+        <div class="action-grid-container">
+            <!-- Mode 1: Commander Challenge -->
+            <div class="action-card action-card-primary">
+                <div class="action-card-badge">Full Challenge</div>
+                <div class="action-card-icon">⚔️</div>
+                <h3 class="action-card-title">Commander Draft</h3>
+                <p class="action-card-desc">Host a custom draft with budget caps, blind drafts, power brackets, and automated Scryfall validation.</p>
+                <button class="select-btn action-cta-btn" id="createBtn">Host Challenge</button>
+            </div>
+
+            <!-- Mode 2: Prerelease Practice -->
+            <div class="action-card action-card-sealed">
+                <div class="action-card-badge sealed-badge">6 Booster Packs</div>
+                <div class="action-card-icon">📦</div>
+                <h3 class="action-card-title">Prerelease Practice</h3>
+                <p class="action-card-desc">Simulate authentic 6-booster sealed pools for any Magic: The Gathering set with instant pool generation.</p>
+                <button class="select-btn action-cta-btn sealed-cta" id="startPrereleasePracticeBtn" onclick="window.startPrereleasePractice()">Start Sealed Pool</button>
+            </div>
+
+            <!-- Mode 3: Join Playgroup -->
+            <div class="action-card action-card-join" id="joinCard">
+                <div class="action-card-badge join-badge">Room Code</div>
+                <div class="action-card-icon">🛡️</div>
+                <h3 class="action-card-title">Join Playgroup</h3>
+                <p class="action-card-desc">Enter the 4-letter room code shared by your playgroup host to jump straight into the challenge.</p>
+                <div class="join-input-box">
+                    <input type="text" id="roomCodeInput" placeholder="CODE" maxlength="4" class="room-code-input">
+                    <button class="select-btn join-submit-btn" id="joinBtn">Join</button>
+                </div>
+            </div>
         </div>
-    </div>
 
-    <div id="view-lobby" class="view-section">
-        <div style="text-align: left; width: 100%; max-width: 600px; margin: 50px auto -20px auto; position: relative; z-index: 10;">
-            <button class="secondary-btn" onclick="window.goToMainMenu()" style="padding: 5px 15px; font-size: 0.8rem; border-radius: 4px; border: none; text-decoration: underline; background: transparent;"><span style="font-size: 1.2rem; vertical-align: middle;">🏠</span> Return to Hub</button>
+        <!-- Quick Roll Launcher Card -->
+        <div class="quick-roll-card" onclick="window.quickRollCommander()">
+            <div class="quick-roll-content">
+                <div class="quick-roll-dice">🎲</div>
+                <div class="quick-roll-text">
+                    <h4>Instant Commander Quick Roll</h4>
+                    <p>Not sure what to build? Spin the Archives for a completely randomized commander suggestion with full EDHREC stats!</p>
+                </div>
+            </div>
+            <button class="secondary-btn quick-roll-cta" id="quickRollBtn" onclick="window.quickRollCommander(); event.stopPropagation();">Roll Now</button>
         </div>
-        <div class="lobby-container" style="margin-top: 50px;">
-            <h2>Playgroup Code</h2>
-            <div class="room-code" id="displayRoomCode" onclick="window.copyRoomCode()" title="Click to copy invite link">----</div>
-            <p style="color:#aaa; font-size: 0.8rem; margin-top:-10px;">(Click code to copy invite link)</p>
-            <p id="lobbyCreatedTime" style="color:#555; font-size: 0.75rem; margin-top: 5px; font-family:'Segoe UI';"></p>
-            <h3 id="playerCountDisplay" style="margin-bottom: 10px;">Players Assembled (1/6):</h3>
-            <ul class="player-list" id="lobbyPlayerList"></ul>
 
-            <details style="background: #111; border: 1px solid #444; border-radius: 8px; padding: 15px; text-align: left; margin-bottom: 25px;">
-                <summary style="color: var(--gold); cursor: pointer; font-family: 'Cinzel', serif; font-weight: bold; font-size: 1.1rem; outline: none;">📜 How to Play & Features</summary>
-                <div style="color: #ccc; font-size: 0.95rem; line-height: 1.6; margin-top: 15px; font-family: 'Segoe UI'; border-top: 1px solid #333; padding-top: 10px;">
-                    <p><strong style="color: var(--gold);">1. Setup & Rules:</strong> The Host sets the budget limits (Cmdr & Deck), EDHREC Rank limits, Max Bracket, and Format (Independent vs Pass & Pick). You can also add a Discord Webhook for automated alerts!</p>
-                    <p><strong style="color: var(--gold);">2. Draft Your Commander:</strong> Roll random options, use your allowed Rerolls, or Manual Search for a legal commander. Turn on <strong>Blind Draft</strong> to keep picks secret until everyone locks in!</p>
-                    <p><strong style="color: var(--gold);">3. Build & Seal:</strong> Brew on <strong>Archidekt</strong> or <strong>Moxfield</strong> and submit your link. We automatically verify Legality (100 cards), Price, Salt Score, and Bracket. Lock in your price once you're Battle Ready.</p>
-                    <p><strong style="color: var(--gold);">4. Schedule the Match:</strong> Use the <strong>Availability Calendar</strong> to mark your free days. The Host can lock in a date, format, and prize, sending out Push/Discord notifications.</p>
-                    <p><strong style="color: var(--gold);">5. Crown the Victor:</strong> After the game, the Host clicks <strong>Declare Winner</strong>. This records the victory on the champion's Player Profile, tracks lifetime wins, and resets the lobby for your next draft!</p>
+        <!-- Active Playgroups List -->
+        <div id="myPlaygroupsContainer" class="my-playgroups-container" style="display: none;">
+            <div class="section-divider">
+                <h3 class="section-title">My Active Playgroups</h3>
+            </div>
+            <div id="myPlaygroupsList" class="playgroups-grid"></div>
+        </div>
+
+        <!-- Global Live Statistics Chip Bar -->
+        <div class="global-stats-bar">
+            <div class="stat-chip">
+                <span class="stat-icon">👥</span>
+                <span class="stat-label">Challengers:</span>
+                <span id="stat-players" class="stat-value">--</span>
+            </div>
+            <div class="stat-chip">
+                <span class="stat-icon">🏰</span>
+                <span class="stat-label">Active Rooms:</span>
+                <span id="stat-rooms" class="stat-value">--</span>
+            </div>
+            <div class="stat-chip">
+                <span class="stat-icon">🎲</span>
+                <span class="stat-label">Commanders Rolled:</span>
+                <span id="stat-rolled" class="stat-value highlight">--</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- ==================== VIEW 2: LOBBY ==================== -->
+    <main id="view-lobby" class="view-section">
+        <div class="lobby-view-wrapper">
+            <!-- Return breadcrumb -->
+            <div class="view-top-breadcrumb">
+                <button class="breadcrumb-btn" onclick="window.goToMainMenu()">
+                    <span>🏠</span> Return to Hub
+                </button>
+            </div>
+
+            <div class="lobby-container">
+                <!-- Room Code Hero -->
+                <div class="room-code-card">
+                    <span class="room-code-badge">PLAYGROUP CODE</span>
+                    <div class="room-code" id="displayRoomCode" onclick="window.copyRoomCode()" title="Click to copy invite link">----</div>
+                    <button class="copy-invite-btn" onclick="window.copyRoomCode()">📋 Copy Invite Link</button>
+                    <p id="lobbyCreatedTime" class="room-time-text"></p>
                 </div>
-            </details>
 
-            <div id="hostSettingsUI" class="host-settings" style="display: none;">
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px;">
-                    <h3 style="color: var(--gold); margin: 0; font-family: 'Cinzel', serif; font-size: 1.4rem;">Playgroup Settings</h3>
-                    <button id="resetSettingsBtn" class="host-action-btn clear" style="margin:0; font-size:0.75rem;">↺ Reset</button>
+                <!-- Players Assembled Roster -->
+                <div class="roster-card">
+                    <h3 id="playerCountDisplay" class="roster-title">Players Assembled (1/6):</h3>
+                    <ul class="player-list" id="lobbyPlayerList"></ul>
                 </div>
 
-                <div class="settings-input-group" style="margin-bottom: 20px;">
-                    <label for="settingDraftMode" style="color:#ccc;">Draft Mode:</label>
-                    <select id="settingDraftMode">
-                        <option value="commander_draft" selected>Commander Draft</option>
-                        <option value="set_draft">Set Draft</option>
-                    </select>
-                </div>
-
-                <div id="setDraftContainer" style="display:none; border: 1px solid #444; padding: 15px; border-radius: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.2);">
-                    <h4 style="margin-top:0; color:var(--gold); font-family:Cinzel;">Set Draft Options</h4>
-                    <div class="settings-input-group">
-                        <label for="settingDraftSetInput">Search for a Set:</label>
-                        <input type="text" id="settingDraftSetInput" list="setList" placeholder="e.g., Wilds of Eldraine" autocomplete="off">
-                        <datalist id="setList"></datalist>
+                <!-- How to Play Accordion -->
+                <details class="how-to-play-details">
+                    <summary class="how-to-play-summary">📜 How to Play & Draft Rules</summary>
+                    <div class="how-to-play-body">
+                        <div class="rule-step">
+                            <span class="step-num">1</span>
+                            <div><strong>Setup & Rules:</strong> The Host configures budgets (Commander & Deck), EDHREC Rank boundaries, power bracket limit, and format. Add a Discord Webhook for notifications.</div>
+                        </div>
+                        <div class="rule-step">
+                            <span class="step-num">2</span>
+                            <div><strong>Draft Your Commander:</strong> Roll random options, utilize your allowed slot rerolls, or manually search. Enable <strong>Blind Draft</strong> to keep picks secret until everyone locks in!</div>
+                        </div>
+                        <div class="rule-step">
+                            <span class="step-num">3</span>
+                            <div><strong>Build & Seal:</strong> Brew on <strong>Moxfield</strong> or <strong>Archidekt</strong>. We verify 100-card legality, price, salt score, and power bracket. Lock in when Battle Ready.</div>
+                        </div>
+                        <div class="rule-step">
+                            <span class="step-num">4</span>
+                            <div><strong>Schedule & Battle:</strong> Use the <strong>Availability Calendar</strong> to pick a match time. The Host locks in the date, prize, and format.</div>
+                        </div>
+                        <div class="rule-step">
+                            <span class="step-num">5</span>
+                            <div><strong>Crown the Victor:</strong> The Host clicks <strong>Declare Winner</strong> to award lifetime wins to the champion's profile and reset the lobby for the next challenge!</div>
+                        </div>
                     </div>
+                </details>
+
+                <!-- Host Settings Panel -->
+                <div id="hostSettingsUI" class="host-settings" style="display: none;">
+                    <div class="settings-header-row">
+                        <h3 class="settings-title">⚙️ Playgroup Rules & Settings</h3>
+                        <button id="resetSettingsBtn" class="host-action-btn clear">↺ Reset Defaults</button>
+                    </div>
+
+                    <div class="settings-panel">
+                        <h4>🎮 Mode & Set</h4>
+                        <div class="settings-input-group">
+                            <label for="settingDraftMode">Draft Mode:</label>
+                            <select id="settingDraftMode">
+                                <option value="commander_draft" selected>Commander Draft (Global Archives)</option>
+                                <option value="set_draft">Set Draft (Specific MTG Set)</option>
+                            </select>
+                        </div>
+
+                        <div id="setDraftContainer" style="display:none; margin-top: 15px;">
+                            <label for="settingDraftSetInput">Search for an MTG Set:</label>
+                            <input type="text" id="settingDraftSetInput" list="setList" placeholder="e.g., Wilds of Eldraine, Modern Horizons 3" autocomplete="off">
+                            <datalist id="setList"></datalist>
+                        </div>
+                    </div>
+                    
+                    <div id="commanderSettings">
+                        <div class="settings-panel">
+                            <h4>📝 Drafting Format</h4>
+                            
+                            <div id="draftFormatContainer" class="settings-full">
+                                <label>Format: <span class="tooltip">?<span class="tooltiptext">Independent: Roll alone. Async: Pass packs. Snake: Pick face-up from shared pool. Burn: Secretly eliminate options.</span></span></label>
+                                <select id="settingDraftFormat">
+                                    <option value="independent">Independent (Roll your own)</option>
+                                    <option value="async_draft">Asynchronous Booster Draft</option>
+                                    <option value="snake_draft">Face-Up Snake Draft</option>
+                                    <option value="burn_draft">Blind Elimination Draft</option>
+                                    <option value="prerelease_sealed">Prerelease Sealed Pool</option>
+                                </select>
+                            </div>
+
+                            <div id="selectionModeContainer" class="settings-full">
+                                <label style="margin-top:10px;">Selection Mode: <span class="tooltip">?<span class="tooltiptext">Random: Roll from archives. Manual: Search specific commander. Both: Player choice.</span></span></label>
+                                <select id="settingSelectionMode">
+                                    <option value="both">Both (Random & Manual Search)</option>
+                                    <option value="random">Random Only</option>
+                                    <option value="manual">Manual Only</option>
+                                </select>
+                            </div>
+
+                            <div id="randomSettingsContainer" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; margin-top: 15px;">
+                                <div class="settings-grid">
+                                    <div class="settings-input-group">
+                                        <label id="numOptionsLabel"># Cards Offered (1-5):</label> 
+                                        <select id="settingNumOptions">
+                                            <option value="1">1</option>
+                                            <option value="2">2</option>
+                                            <option value="3" selected>3</option>
+                                            <option value="4">4</option>
+                                            <option value="5">5</option>
+                                        </select>
+                                    </div>
+                                    <div id="snakePoolContainer" class="settings-input-group" style="display:none;">
+                                        <label>Pool Size: <span class="tooltip">?<span class="tooltiptext">Total face-up cards to draft from. (Max 30)</span></span></label>
+                                        <input type="number" id="settingSnakePoolSize" value="15" min="2" max="30">
+                                    </div>
+                                    <div id="rerollsContainer" class="settings-input-group">
+                                        <label>Slot Rerolls: <span class="tooltip">?<span class="tooltiptext">Rerolls allowed per player.</span></span></label> 
+                                        <select id="settingMaxRerolls">
+                                            <option value="0">0</option>
+                                            <option value="1" selected>1</option>
+                                            <option value="2">2</option>
+                                            <option value="3">3</option>
+                                            <option value="4">4</option>
+                                            <option value="5">5</option>
+                                            <option value="10">10</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <label class="toggle-label" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                                <div class="toggle-switch"><input type="checkbox" id="settingBlindDraft"><span class="slider"></span></div>
+                                Blind Draft <span style="color: #888; font-size: 0.8rem; margin-left: 5px;">(Hide commander picks until everyone locks in)</span>
+                            </label>
+                        </div>
+
+                        <div class="settings-panel">
+                            <h4>💰 Budgets & Power Limits</h4>
+                            
+                            <div class="settings-full">
+                                <label>Currency:</label>
+                                <select id="settingCurrency">
+                                    <option value="eur">EUR (€) - Cardmarket</option>
+                                    <option value="usd">USD ($) - TCGPlayer</option>
+                                </select>
+                            </div>
+
+                            <div class="settings-grid" style="margin-top:15px;">
+                                <div class="settings-input-group">
+                                    <label class="toggle-label"><div class="toggle-switch"><input type="checkbox" id="toggleCmdrBudget" checked><span class="slider"></span></div> Cmdr Limit:</label>
+                                    <input type="number" id="settingBudget" value="10">
+                                </div>
+                                <div class="settings-input-group">
+                                    <label class="toggle-label"><div class="toggle-switch"><input type="checkbox" id="toggleDeckBudget" checked><span class="slider"></span></div> Deck Limit:</label>
+                                    <input type="number" id="settingDeckBudget" value="50">
+                                </div>
+                            </div>
+
+                            <label class="toggle-label" style="margin-top: 15px; margin-bottom: 5px;">
+                                <div class="toggle-switch"><input type="checkbox" id="settingIncludeCmdr" checked><span class="slider"></span></div>
+                                Include Commander Cost in Deck Budget
+                            </label>
+
+                            <div class="settings-full" style="margin-top: 15px;">
+                                <label>Max Power Bracket (1-5): <span class="tooltip">?<span class="tooltiptext">Target power level bracket.</span></span></label>
+                                <select id="settingMaxBracket">
+                                    <option value="1">Bracket 1 (Precon / Casual)</option>
+                                    <option value="2">Bracket 2 (Focused)</option>
+                                    <option value="3">Bracket 3 (Optimized)</option>
+                                    <option value="4">Bracket 4 (High Power)</option>
+                                    <option value="5" selected>Bracket 5 (cEDH / No Limit)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="settings-panel">
+                            <h4>🎲 Pool Restrictions</h4>
+
+                            <label class="toggle-label">
+                                <div class="toggle-switch"><input type="checkbox" id="settingNoPartner" checked><span class="slider"></span></div>
+                                Exclude "Partner" Commanders
+                            </label>
+
+                            <label class="toggle-label" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                                <div class="toggle-switch"><input type="checkbox" id="toggleRank" checked><span class="slider"></span></div>
+                                <div style="flex:1;">EDHREC Rank Range <span id="rankRangeInfo" style="color: #888; font-size: 0.8rem; margin-left: 5px;"></span></div>
+                                <span class="tooltip">?<span class="tooltiptext">#1 is most popular. Higher rank = less popular.</span></span>
+                            </label>
+                            <div class="rank-inputs" style="margin-bottom: 10px;">
+                                <label>Worst Rank (#):</label> <input type="number" id="settingMax" value="500">
+                                <label>Best Rank (#):</label> <input type="number" id="settingMin" value="1">
+                            </div>
+                        </div>
+
+                        <div class="settings-panel" id="webhookPanel" style="margin-bottom: 25px;">
+                            <h4>🤖 Discord Webhook</h4>
+                            <div class="settings-full">
+                                <label>Webhook URL (Optional): <span class="tooltip">?<span class="tooltiptext">Channel Settings > Integrations > Webhooks > New Webhook.</span></span></label>
+                                <input type="text" id="settingDiscordWebhook" placeholder="https://discord.com/api/webhooks/...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Host Start Bar -->
+                    <div id="hostActionButtons" class="host-action-bar">
+                        <button class="select-btn start-draft-cta" id="startDraftBtn">Start Draft</button>
+                        <button class="btn-cancel" onclick="window.leaveChallenge()">Leave Lobby</button>
+                    </div>
+                    <div id="livePoolCounter" class="live-pool-text">Calculating eligible commanders...</div>
                 </div>
                 
-                <div id="commanderSettings">
-                <div class="settings-panel">
-                    <h4>📝 Drafting Format</h4>
-                    
-                    <div id="draftFormatContainer" class="settings-full">
-                        <label style="display:flex; justify-content:space-between; color:#ccc;">Format: <span class="tooltip">?<span class="tooltiptext">Independent: Roll alone. Async: Pass packs at your own pace. Snake: Pick face-up from a shared pool. Burn: Secretly eliminate options.</span></span></label>
-                        <select id="settingDraftFormat">
-                            <option value="independent">Independent (Roll your own)</option>
-                            <option value="async_draft">Asynchronous Booster Draft</option>
-                            <option value="snake_draft">Face-Up Snake Draft</option>
-                            <option value="burn_draft">Blind Elimination Draft</option>
-                            <option value="prerelease_sealed">Prerelease Sealed Pool</option>
-                        </select>
-                    </div>
-
-                    <div id="selectionModeContainer" class="settings-full">
-                        <label style="display:flex; justify-content:space-between; color:#ccc; margin-top:10px;">Selection Mode: <span class="tooltip">?<span class="tooltiptext">Random: Forces players to roll from the archives. Manual: Forces players to search for a specific commander. Both: Allows either method.</span></span></label>
-                        <select id="settingSelectionMode">
-                            <option value="both">Both (Random & Manual)</option>
-                            <option value="random">Random Only</option>
-                            <option value="manual">Manual Only</option>
-                        </select>
-                    </div>
-
-                    <div id="randomSettingsContainer" style="border-top: 1px solid #333; padding-top: 15px; margin-top: 15px;">
-                        <div class="settings-grid">
-                            <div class="settings-input-group">
-                                <label id="numOptionsLabel" style="color:#ccc;"># Cards to Select From (1-5):</label> 
-                                <select id="settingNumOptions">
-                                    <option value="1">1</option>
-                                    <option value="2">2</option>
-                                    <option value="3" selected>3</option>
-                                    <option value="4">4</option>
-                                    <option value="5">5</option>
-                                </select>
-                            </div>
-                            <div id="snakePoolContainer" class="settings-input-group" style="display:none;">
-                                <label style="display:flex; justify-content:space-between; color:#ccc;">Total Pool Size: <span class="tooltip">?<span class="tooltiptext">The total number of face-up cards to draft from. (Max 30)</span></span></label>
-                                <input type="number" id="settingSnakePoolSize" value="15" min="2" max="30">
-                            </div>
-                            <div id="rerollsContainer" class="settings-input-group">
-                                <label style="display:flex; justify-content:space-between; color:#ccc;">Slot Rerolls: <span class="tooltip">?<span class="tooltiptext">Number of times a player can reroll a specific commander slot to get a new random option.</span></span></label> 
-                                <select id="settingMaxRerolls">
-                                    <option value="0">0</option>
-                                    <option value="1" selected>1</option>
-                                    <option value="2">2</option>
-                                    <option value="3">3</option>
-                                    <option value="4">4</option>
-                                    <option value="5">5</option>
-                                    <option value="6">6</option>
-                                    <option value="7">7</option>
-                                    <option value="8">8</option>
-                                    <option value="9">9</option>
-                                    <option value="10">10</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <label class="toggle-label" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
-                        <div class="toggle-switch"><input type="checkbox" id="settingBlindDraft"><span class="slider"></span></div>
-                        Blind Draft <span style="color: #888; font-size: 0.8rem; margin-left: 5px;">(Hide picks until locked in)</span>
-                    </label>
-                </div>
-
-                <div class="settings-panel">
-                    <h4>💰 Budgets & Deck Rules</h4>
-                    
-                    <div class="settings-full">
-                        <label style="color:#ccc;">Currency:</label>
-                        <select id="settingCurrency">
-                            <option value="eur">EUR (€)</option>
-                            <option value="usd">USD ($)</option>
-                        </select>
-                    </div>
-
-                    <div class="settings-grid" style="margin-top:15px;">
-                        <div class="settings-input-group">
-                            <label class="toggle-label"><div class="toggle-switch"><input type="checkbox" id="toggleCmdrBudget" checked><span class="slider"></span></div> Cmdr Value:</label>
-                            <input type="number" id="settingBudget" value="10">
-                        </div>
-                        <div class="settings-input-group">
-                            <label class="toggle-label"><div class="toggle-switch"><input type="checkbox" id="toggleDeckBudget" checked><span class="slider"></span></div> Deck Limit:</label>
-                            <input type="number" id="settingDeckBudget" value="50">
-                        </div>
-                    </div>
-
-                    <label class="toggle-label" style="margin-top: 15px; margin-bottom: 5px;">
-                        <div class="toggle-switch"><input type="checkbox" id="settingIncludeCmdr" checked><span class="slider"></span></div>
-                        Include Commander Cost in Deck Budget
-                    </label>
-
-                    <div class="settings-full" style="margin-top: 15px;">
-                        <label style="display:flex; justify-content:space-between; color:#ccc;">Max Bracket (1-5): <span class="tooltip">?<span class="tooltiptext">For informational purposes only. Displays target power level bracket.</span></span></label>
-                        <select id="settingMaxBracket">
-                            <option value="1">Bracket 1</option>
-                            <option value="2">Bracket 2</option>
-                            <option value="3">Bracket 3</option>
-                            <option value="4">Bracket 4</option>
-                            <option value="5" selected>Bracket 5</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="settings-panel">
-                    <h4>🎲 Pool Restrictions</h4>
-
-                    <label class="toggle-label">
-                        <div class="toggle-switch"><input type="checkbox" id="settingNoPartner" checked><span class="slider"></span></div>
-                        Exclude "Partner" Commanders
-                    </label>
-
-                    <label class="toggle-label" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
-                        <div class="toggle-switch"><input type="checkbox" id="toggleRank" checked><span class="slider"></span></div>
-                        <div style="flex:1;">EDHREC Rank Range <span id="rankRangeInfo" style="color: #888; font-size: 0.8rem; margin-left: 5px;"></span></div>
-                        <span class="tooltip">?<span class="tooltiptext">Filter by popularity. #1 is the most popular. Higher rank = less popular.</span></span>
-                    </label>
-                    <div class="rank-inputs" style="margin-bottom: 10px;">
-                        <label style="color:#aaa;">Highest Rank:</label> <input type="number" id="settingMax" value="500" title="Numerically highest (e.g., 500)">
-                        <label style="color:#aaa;">Lowest Rank:</label> <input type="number" id="settingMin" value="1" title="Numerically lowest (e.g., 1)">
-                    </div>
-                </div>
-
-                <div class="settings-panel" id="webhookPanel" style="margin-bottom: 25px;">
-                    <h4>🤖 Integrations</h4>
-                    <div class="settings-full">
-                        <label style="display:flex; justify-content:space-between; color:#ccc;">Discord Webhook (Optional): <span class="tooltip">?<span class="tooltiptext">In Discord: Edit Channel ⚙️ > Integrations > Webhooks > New Webhook. Copy URL here!</span></span></label>
-                        <input type="text" id="settingDiscordWebhook" placeholder="https://discord.com/api/webhooks/...">
-                    </div>
-                </div>
-                </div>
-
-                <div id="hostActionButtons" style="display: flex; gap: 10px;">
-                    <button class="select-btn" id="startDraftBtn" style="flex: 2; font-size: 1.1rem; padding: 15px; margin: 0;">Start Draft</button>
-                    <button class="btn-cancel" onclick="window.leaveChallenge()" style="flex: 1; font-size: 1.1rem; padding: 15px; margin: 0; border-radius: 6px; font-family: 'Cinzel', serif; font-weight: bold;">Cancel</button>
-                </div>
-                <div id="livePoolCounter" style="text-align:center; color:#aaa; font-size:0.9rem; margin-top:10px; font-family:'Segoe UI';">Calculating eligible commanders...</div>
+                <p id="waitingMessage" class="waiting-host-text" style="display:none;">Waiting for Host to configure rules and begin the draft...</p>
             </div>
-            <p id="waitingMessage" style="display:none; color:var(--gold); font-family: 'Cinzel', serif;">Waiting for Host to Start...</p>
         </div>
-    </div>
+    </main>
 
-    <div id="view-dashboard" class="view-section">
-        <div class="css-banner" style="height: 140px; margin-bottom: 20px;"><div class="css-banner-overlay"></div><h1 class="css-banner-text" style="font-size: 2.2rem;">Commander Draft Challenge</h1></div>
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <h2 id="dashRoomHeader" style="margin: 0 0 5px 0; cursor: pointer;" onclick="window.copyRoomCode()" title="Click to copy invite link">Playgroup: <span id="dashRoomCode" style="color:var(--arcane);"></span></h2>
-            <p id="dashCreatedTime" style="color:#555; font-size: 0.75rem; margin-top: 0; margin-bottom: 10px; font-family:'Segoe UI';"></p>
-            <div id="battleInfoDisplay"></div>
-            <div class="dashboard-actions" style="align-items: center;">
-                <button class="secondary-btn" onclick="window.copyMatchSummary()" style="padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold;">📋 Summary</button>
-                <button class="secondary-btn" onclick="window.openLeaderboard()" style="padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold; border-color:#e67e22; color:#e67e22;">📊 Leaderboard</button>
-                <button id="burnLogBtn" class="secondary-btn" onclick="window.openBurnLog()" style="display:none; padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold; border-color:#ff4444; color:#ff9999;">🔥 Burn Log</button>
-                <button class="secondary-btn" onclick="window.openRulesModal()" style="padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold; border-color:#6a0dad; color:#e0b0ff;">📜 Rules</button>
-                <button class="secondary-btn" onclick="window.openAvailability()" style="padding: 8px 15px; font-size: 0.9rem; border-radius: 4px; font-family: 'Cinzel', serif; font-weight:bold; border-color:#2ecc71; color:#2ecc71;">📅 Availability</button>
-                <div class="dropdown">
-                    <button id="moreActionsBtn" class="secondary-btn" style="border-color: #888; color: #ccc;">•••</button>
-                    <div id="moreActionsDropdown" class="dropdown-content">
-                        <a href="#" onclick="window.goToMainMenu(); return false;">🏠 Return to Hub</a>
-                        <a href="#" id="resetLobbyDropdownBtn" onclick="window.resetToLobby(); return false;" style="display: none;">🔄 Reset Lobby</a>
-                        <a href="#" id="refreshAllDropdownBtn" onclick="window.refreshAllPrices(); return false;" style="display: none;">🔄 Refresh All Decks</a>
-                        <a href="#" onclick="window.leaveChallenge(); return false;" class="danger-link">🚪 Leave Playgroup</a>
+    <!-- ==================== VIEW 3: DASHBOARD ==================== -->
+    <main id="view-dashboard" class="view-section">
+        <div class="dashboard-wrapper">
+            <!-- Header & Action Ribbon -->
+            <div class="dashboard-header-card">
+                <h2 id="dashRoomHeader" class="dash-room-title" onclick="window.copyRoomCode()" title="Click to copy invite link">
+                    Playgroup: <span id="dashRoomCode" style="color:var(--gold);"></span>
+                </h2>
+                <p id="dashCreatedTime" class="room-time-text"></p>
+                
+                <div id="battleInfoDisplay"></div>
+
+                <!-- Segmented Action Navigation Chips -->
+                <div class="dashboard-action-ribbon">
+                    <button class="action-chip" onclick="window.copyMatchSummary()">📋 Match Summary</button>
+                    <button class="action-chip analytics-chip" onclick="window.openLeaderboard()">📊 Leaderboard</button>
+                    <button id="burnLogBtn" class="action-chip burn-chip" onclick="window.openBurnLog()" style="display:none;">🔥 Burn Log</button>
+                    <button class="action-chip rules-chip" onclick="window.openRulesModal()">📜 Rules</button>
+                    <button class="action-chip avail-chip" onclick="window.openAvailability()">📅 Availability</button>
+                    
+                    <div class="dropdown">
+                        <button id="moreActionsBtn" class="action-chip more-chip">••• Menu</button>
+                        <div id="moreActionsDropdown" class="dropdown-content">
+                            <a href="#" onclick="window.goToMainMenu(); return false;">🏠 Return to Hub</a>
+                            <a href="#" id="resetLobbyDropdownBtn" onclick="window.resetToLobby(); return false;" style="display: none;">🔄 Reset Lobby</a>
+                            <a href="#" id="refreshAllDropdownBtn" onclick="window.refreshAllPrices(); return false;" style="display: none;">🔄 Refresh All Prices</a>
+                            <a href="#" onclick="window.leaveChallenge(); return false;" class="danger-link">🚪 Leave Playgroup</a>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <div id="dash-scroll-left" class="scroll-hint left">‹</div>
-        <div id="dash-scroll-right" class="scroll-hint right">›</div>
-        <div class="dashboard" id="dynamicDashboard"></div>
-    </div>
 
-    <div id="view-admin" class="view-section">
+            <!-- Dynamic Challenger Cards Container -->
+            <div id="dash-scroll-left" class="scroll-hint left">‹</div>
+            <div id="dash-scroll-right" class="scroll-hint right">›</div>
+            <div class="dashboard" id="dynamicDashboard"></div>
+        </div>
+    </main>
+
+    <!-- ==================== VIEW 4: ADMIN CONSOLE ==================== -->
+    <main id="view-admin" class="view-section">
         <div class="lobby-container" style="max-width: 900px; margin: 50px auto 40px auto;">
             <h2>Admin Console</h2>
             <div style="display: flex; justify-content: space-between; margin-bottom: 15px; align-items: center; flex-wrap: wrap; gap: 10px;">
@@ -430,32 +565,41 @@
             </div>
             <div id="adminRoomList" style="text-align: center; color: #aaa;">Loading Archives...</div>
         </div>
-    </div>
+    </main>
 
-    <div id="view-profile" class="view-section">
-        <!-- Content will be generated by profile.js -->
-    </div>
+    <!-- ==================== VIEW 5: CHALLENGER PROFILE ==================== -->
+    <main id="view-profile" class="view-section">
+        <!-- Content will be rendered dynamically by profile.js -->
+    </main>
 
-    <div id="view-hall-of-fame" class="view-section">
-        <!-- Content will be generated by profile.js -->
-    </div>
+    <!-- ==================== VIEW 6: HALL OF FAME ==================== -->
+    <main id="view-hall-of-fame" class="view-section">
+        <!-- Content will be rendered dynamically by profile.js -->
+    </main>
 
-    <div id="view-player" class="view-section">
-        <h1 id="playerTitle">Challenge</h1>
-        <div id="player-scroll-left" class="scroll-hint left">‹</div>
-        <div id="player-scroll-right" class="scroll-hint right">›</div>
-        <div id="content">Gathering Card Data...</div>
-        <a class="secondary-btn" style="display:inline-block; padding: 10px 20px; border-radius: 6px; margin-top: 50px;" onclick="window.closePlayerView()">← Return to Dashboard</a>
-    </div>
+    <!-- ==================== VIEW 7: DRAFTING / PLAYER VIEW ==================== -->
+    <main id="view-player" class="view-section">
+        <div class="player-view-wrapper">
+            <h1 id="playerTitle" class="player-view-title">Drafting Stage</h1>
+            <div id="player-scroll-left" class="scroll-hint left">‹</div>
+            <div id="player-scroll-right" class="scroll-hint right">›</div>
+            <div id="content" class="options-container">Gathering Card Data...</div>
+            
+            <div style="margin-top: 40px; margin-bottom: 30px;">
+                <button class="secondary-btn return-dash-btn" onclick="window.closePlayerView()">← Return to Dashboard</button>
+            </div>
+        </div>
+    </main>
 
-    <div style="margin-top: 50px; color: #555; font-size: 0.75rem; max-width: 800px; margin-left: auto; margin-right: auto; line-height: 1.5; padding-bottom: 30px;">
-        Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
-    </div>
+    <!-- Footer Disclaimer -->
+    <footer class="app-footer">
+        <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
+        <span class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v0.11</span>
+    </footer>
 
-    <div style="position: fixed; bottom: 5px; right: 10px; color: #444; font-size: 0.7rem; font-family: 'Segoe UI', sans-serif; cursor: pointer; opacity: 0.5;" onclick="window.enterAdminMode()" title="Admin Access">v0.10</div>
-    
-    <button id="installPwaBtn" class="select-btn" style="display: none; position: fixed; bottom: 30px; right: 20px; z-index: 1000; padding: 10px 20px; font-size: 0.9rem; border-radius: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.9);">📱 Install App</button>
+    <!-- PWA Install Button -->
+    <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=0.10"></script>
+    <script type="module" src="./script.js?v=0.11"></script>
 </body>
 </html>

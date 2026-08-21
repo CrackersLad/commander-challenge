@@ -1,114 +1,18 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.10';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.10';
-import { getArchives } from './data-service.js?v=0.10';
-import { initDeckActionsModule } from './deck-actions.js?v=0.10';
-import { initRoomActionsModule } from './room-actions.js?v=0.10';
-import { initPlayerViewModule } from './player-view.js?v=0.10';
-import { initAdminModule } from './admin.js?v=0.10';
-import { initCalendarModule } from './calendar.js?v=0.10';
-import { initAuthModule } from './auth.js?v=0.10';
-import { initHubModule } from './hub.js?v=0.10';
-import { initProfileModule } from './profile.js?v=0.10';
+import { db, auth, functions } from './firebase-setup.js?v=0.11';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.11';
+import { getArchives } from './data-service.js?v=0.11';
+import { initDeckActionsModule } from './deck-actions.js?v=0.11';
+import { initRoomActionsModule } from './room-actions.js?v=0.11';
+import { initPlayerViewModule } from './player-view.js?v=0.11';
+import { initAdminModule } from './admin.js?v=0.11';
+import { initCalendarModule } from './calendar.js?v=0.11';
+import { initAuthModule } from './auth.js?v=0.11';
+import { initHubModule } from './hub.js?v=0.11';
+import { initProfileModule } from './profile.js?v=0.11';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 // Optimize for mobile/WebView: Ensure viewport is set correctly
-
-// To revert the premium theme, simply comment out or remove the following line.
-document.body.classList.add('theme-premium');
-let viewportMeta = document.querySelector('meta[name="viewport"]');
-if (!viewportMeta) {
-    viewportMeta = document.createElement('meta');
-    viewportMeta.name = "viewport";
-    document.head.appendChild(viewportMeta);
-}
-// Ensure viewport-fit=cover is present for safe area insets (notches/system bars)
-viewportMeta.content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover";
-
-// Inject safe area padding for native app wrappers
-const safeAreaStyle = document.createElement('style');
-// BEST PRACTICE: Android WebViews notoriously crash when evaluating CSS max() with env().
-// To guarantee the padding never collapses, we assign a solid 40px standard height for Android.
-const isAndroid = /android/i.test(navigator.userAgent || navigator.vendor || window.opera);
-const topPadding = isAndroid ? '40px' : 'env(safe-area-inset-top, 0px)';
-const bottomPadding = isAndroid ? '20px' : 'env(safe-area-inset-bottom, 0px)';
-
-safeAreaStyle.innerHTML = `
-    :root {
-        --safe-area-top: ${topPadding};
-        --safe-area-bottom: ${bottomPadding};
-    }
-    html, body {
-        max-width: 100%;
-        overflow-x: hidden;
-    }
-    * {
-        box-sizing: border-box;
-    }
-    body {
-        padding-top: var(--safe-area-top) !important;
-        padding-bottom: var(--safe-area-bottom) !important;
-        padding-left: calc(15px + env(safe-area-inset-left, 0px)) !important;
-        padding-right: calc(15px + env(safe-area-inset-right, 0px)) !important;
-    }
-    /* Push down absolute positioned header buttons so they are clickable */
-    #audioContainer, #globalAccountBtn {
-        top: calc(15px + var(--safe-area-top)) !important;
-    }
-    .modal-overlay {
-        padding-top: var(--safe-area-top) !important;
-        padding-bottom: var(--safe-area-bottom) !important;
-    }
-        /* UI Polish: Interactions & Animations */
-        .select-btn, .secondary-btn, .auth-sm-btn, .host-action-btn, .flip-btn {
-            transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease !important;
-            cursor: pointer;
-        }
-        .select-btn:active, .secondary-btn:active, .auth-sm-btn:active, .flip-btn:active {
-            transform: scale(0.95) !important;
-            filter: brightness(1.2);
-        }
-        .card {
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
-        }
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
-        }
-        .modal-content {
-            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease !important;
-        }
-        .modal-overlay:not(.show) .modal-content {
-            transform: scale(0.95);
-            opacity: 0;
-        }
-        @keyframes slideUpFade {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        /* Modern Visuals & Aesthetics */
-        .card {
-            background: rgba(26, 26, 26, 0.75) !important;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(212, 175, 55, 0.2) !important;
-            border-radius: 12px;
-        }
-        .modal-content, .battle-info {
-            background: rgba(20, 20, 20, 0.85) !important;
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid rgba(212, 175, 55, 0.3) !important;
-            border-radius: 12px;
-        }
-        
-        /* Advanced Settings Progressive Disclosure */
-        .hide-advanced .advanced-section {
-            display: none !important;
-        }
-`;
-document.head.appendChild(safeAreaStyle);
 
 let currentRoom = localStorage.getItem('roomCode') || null;
 let currentPlayerId = localStorage.getItem('playerId') || 'temp_' + Date.now().toString();
@@ -314,6 +218,7 @@ const sfxToggle = document.getElementById('sfxToggle');
 let isSfxMuted = localStorage.getItem('draft_sfx') === 'true';
 
 function applyAudioUI() {
+    if (!sfxToggle) return;
     if (isSfxMuted) {
         sfxToggle.innerText = "🔇 SFX"; sfxToggle.style.color = "#ff9999"; sfxToggle.style.borderColor = "#ff4444";
     } else {
@@ -322,12 +227,12 @@ function applyAudioUI() {
 }
 applyAudioUI();
 
-const mobileSettingsToggle = document.getElementById('mobileSettingsToggle');
-if (mobileSettingsToggle) {
-    mobileSettingsToggle.onclick = () => {
-        const controls = document.getElementById('audioControls');
-        if(controls) controls.classList.toggle('show');
-        playSound('sfx-click');
+if (sfxToggle) {
+    sfxToggle.onclick = () => {
+        isSfxMuted = !isSfxMuted;
+        localStorage.setItem('draft_sfx', isSfxMuted ? 'true' : 'false');
+        applyAudioUI();
+        if (!isSfxMuted) playSound('sfx-click');
     };
 }
 
@@ -510,6 +415,18 @@ function switchView(viewId, pushState = true) {
     if (viewEl) viewEl.classList.add('active');
     window.scrollTo(0, 0);
     document.body.scrollTop = 0;
+
+    // Update navbar room context
+    const navRoomBadge = document.getElementById('navRoomBadge');
+    const navRoomCode = document.getElementById('navRoomCode');
+    if (navRoomBadge && navRoomCode) {
+        if (currentRoom && (viewId === 'view-lobby' || viewId === 'view-dashboard' || viewId === 'view-player')) {
+            navRoomCode.innerText = currentRoom;
+            navRoomBadge.style.display = 'flex';
+        } else {
+            navRoomBadge.style.display = 'none';
+        }
+    }
 
     if (pushState) {
         window.history.pushState({ viewId }, '', `#${viewId}`);
@@ -888,13 +805,17 @@ function trackJoinedRoom(code) {
     }
 }
 
-document.getElementById('createBtn').onclick = async () => {
-    // This function is now dynamically replaced by the DOMContentLoaded listener
-    // to ensure the correct button text and actions are set up.
-    // The original logic is moved into window.startCommanderChallenge.
-};
+const createBtn = document.getElementById('createBtn');
+if (createBtn) {
+    createBtn.onclick = () => window.startCommanderChallenge();
+}
 
-window.startCommanderChallenge = async () => { // This function is called by the modified button
+const startPrereleasePracticeBtn = document.getElementById('startPrereleasePracticeBtn');
+if (startPrereleasePracticeBtn) {
+    startPrereleasePracticeBtn.onclick = () => window.startPrereleasePractice();
+}
+
+window.startCommanderChallenge = async () => {
     playSound('sfx-click');
 
     const name = document.getElementById('playerNameInput').value.trim();
@@ -920,7 +841,6 @@ window.startCommanderChallenge = async () => { // This function is called by the
     initLobby();
 };
 
-// This new function is called by the new button we're creating
 window.startPrereleasePractice = async () => {
     playSound('sfx-click');
 
@@ -932,11 +852,11 @@ window.startPrereleasePractice = async () => {
 
     // Default settings for prerelease sealed
     const defaultSettings = {
-        draftFormat: 'prerelease_sealed', // This is the key to the new functionality
-        draftMode: 'prerelease_sealed', // Also set draftMode for client-side logic
-        numOptions: 1, maxRerolls: 0, selectionMode: 'manual', // Force these for sealed
-        budget: 0, deckBudget: 0, minRank: 0, maxRank: 0, noPartner: false, blindDraft: false, // Disable filters
-        status: 'waiting', createdAt: Date.now(), packsPerPlayer: 6, packSize: 15 // Standard prerelease pack counts
+        draftFormat: 'prerelease_sealed',
+        draftMode: 'prerelease_sealed',
+        numOptions: 1, maxRerolls: 0, selectionMode: 'manual',
+        budget: 0, deckBudget: 0, minRank: 0, maxRank: 0, noPartner: false, blindDraft: false,
+        status: 'waiting', createdAt: Date.now(), packsPerPlayer: 6, packSize: 15
     };
     await set(ref(db, `rooms/${roomCode}/settings`), defaultSettings);
     
@@ -950,31 +870,6 @@ window.startPrereleasePractice = async () => {
     trackJoinedRoom(roomCode);
     initLobby();
 };
-
-// DOM Manipulation to create the buttons and dropdown options without manual HTML editing
-document.addEventListener('DOMContentLoaded', () => {
-    const createBtn = document.getElementById('createBtn');
-    if (createBtn) {
-        createBtn.innerHTML = 'Start New Commander Challenge';
-        createBtn.onclick = () => window.startCommanderChallenge();
-        
-        if (!document.getElementById('startPrereleasePracticeBtn')) {
-            const prereleaseBtn = document.createElement('button');
-            prereleaseBtn.id = 'startPrereleasePracticeBtn';
-            prereleaseBtn.className = 'select-btn';
-            prereleaseBtn.style.cssText = 'width: 70%; margin-top: 15px; background: linear-gradient(135deg, #6a0dad 0%, #a020f0 50%, #6a0dad 100%); background-size: 200% auto; animation: goldShimmer 3s linear infinite; color: #fff; box-shadow: 0 4px 0 #4a097d;';
-            prereleaseBtn.innerHTML = 'Start New Prerelease Practice';
-            prereleaseBtn.onclick = () => window.startPrereleasePractice();
-            createBtn.parentNode.insertBefore(prereleaseBtn, createBtn.nextSibling);
-        }
-    }
-
-    const draftFormatDropdown = document.getElementById('settingDraftFormat');
-    if (draftFormatDropdown && !Array.from(draftFormatDropdown.options).some(opt => opt.value === 'prerelease_sealed')) {
-        const prereleaseOption = new Option('Prerelease Sealed Pool', 'prerelease_sealed');
-        draftFormatDropdown.add(prereleaseOption);
-    }
-});
 
 document.getElementById('joinBtn').onclick = async () => {
     playSound('sfx-click');
@@ -2035,7 +1930,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.10').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.11').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
