@@ -1,14 +1,15 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.14';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.14';
-import { getArchives } from './data-service.js?v=0.14';
-import { initDeckActionsModule } from './deck-actions.js?v=0.14';
-import { initRoomActionsModule } from './room-actions.js?v=0.14';
-import { initPlayerViewModule } from './player-view.js?v=0.14';
-import { initAdminModule } from './admin.js?v=0.14';
-import { initCalendarModule } from './calendar.js?v=0.14';
-import { initAuthModule } from './auth.js?v=0.14';
-import { initHubModule } from './hub.js?v=0.14';
-import { initProfileModule } from './profile.js?v=0.14';
+import { db, auth, functions } from './firebase-setup.js?v=0.15';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.15';
+import { getArchives } from './data-service.js?v=0.15';
+import { initDeckActionsModule } from './deck-actions.js?v=0.15';
+import { initRoomActionsModule } from './room-actions.js?v=0.15';
+import { initPlayerViewModule } from './player-view.js?v=0.15';
+import { initAdminModule } from './admin.js?v=0.15';
+import { initCalendarModule } from './calendar.js?v=0.15';
+import { initAuthModule } from './auth.js?v=0.15';
+import { initHubModule } from './hub.js?v=0.15';
+import { initProfileModule } from './profile.js?v=0.15';
+import { initSealedModule } from './sealed.js?v=0.15';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -1788,12 +1789,13 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.14').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.15').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
 initRoomActionsModule(utils, state);
 initPlayerViewModule(utils, state);
+initSealedModule(utils, state);
 
 // --- PWA SERVICE WORKER REGISTRATION ---
 if ('serviceWorker' in navigator) {

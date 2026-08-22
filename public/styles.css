@@ -2184,6 +2184,11 @@ select:focus {
     padding: 25px 20px 60px 20px;
 }
 
+.sealed-panel {
+    width: 100%;
+    animation: viewFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 .sealed-card-tile {
     background: rgba(18, 14, 28, 0.75);
     border: 1px solid rgba(255, 255, 255, 0.08);

@@ -3,8 +3,8 @@
 // Completely isolated from Commander Challenge
 // ============================================================================
 
-import { db, auth } from './firebase-setup.js';
-import { ref, set, get, update, onValue, off } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { db, auth } from './firebase-setup.js?v=0.15';
+import { ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 let currentSealedPool = [];
 let currentSealedSet = { code: 'dsk', name: 'Duskmourn: House of Horror' };
@@ -14,8 +14,7 @@ let currentSort = 'color';
 let currentFilter = 'all';
 let simulatedDeck = [];
 let drawnHand = [];
-let activeSealedRoom = null;
-let sealedRoomListener = null;
+let globalUtils = null;
 
 // Helper: Sanitize HTML
 function esc(str) {
@@ -25,27 +24,41 @@ function esc(str) {
     );
 }
 
-// Helper: Toast
-function sealedToast(msg, isError = false) {
-    const toast = document.getElementById('toast');
-    if (!toast) return;
-    toast.innerText = msg;
-    toast.className = 'toast show ' + (isError ? 'error' : 'success');
-    setTimeout(() => toast.classList.remove('show'), 3500);
-}
-
 // Sound effect helper
 function playSfx(id) {
-    try {
-        const isMuted = localStorage.getItem('draft_sfx') === 'true';
-        if (isMuted) return;
-        const el = document.getElementById(id);
-        if (el) { el.currentTime = 0; el.play().catch(() => {}); }
-    } catch (e) {}
+    if (globalUtils && globalUtils.playSound) {
+        globalUtils.playSound(id);
+    } else {
+        try {
+            const el = document.getElementById(id);
+            if (el) { el.currentTime = 0; el.play().catch(() => {}); }
+        } catch (e) {}
+    }
 }
 
-// 1. Preload Scryfall Sets for Autocomplete
-export async function initSealedModule() {
+// Toast helper
+function sealedToast(msg, isError = false) {
+    if (globalUtils && globalUtils.showToast) {
+        globalUtils.showToast(msg, isError);
+    } else {
+        const toast = document.getElementById('toast');
+        if (!toast) return;
+        toast.innerText = msg;
+        toast.className = 'toast show ' + (isError ? 'error' : 'success');
+        setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+}
+
+// 1. Initialize Sealed Module
+export async function initSealedModule(utils, state) {
+    globalUtils = utils;
+
+    // Window bindings
+    window.openSealedDraftHub = () => openSealedHub();
+    window.startPrereleasePractice = () => openSealedHub();
+
+    setupSealedEventListeners();
+
     try {
         const datalist = document.getElementById('sealedSetList');
         const res = await fetch('https://api.scryfall.com/sets', {
@@ -69,8 +82,6 @@ export async function initSealedModule() {
     } catch (e) {
         console.warn("Could not load Scryfall sets list for sealed:", e);
     }
-
-    setupSealedEventListeners();
 }
 
 // Resolve Set Input to Code & Full Name
@@ -159,8 +170,10 @@ function setupSealedEventListeners() {
     if (newPoolBtn) {
         newPoolBtn.onclick = () => {
             playSfx('sfx-click');
-            document.getElementById('sealedLobbyPanel').style.display = 'block';
-            document.getElementById('sealedPoolViewerPanel').style.display = 'none';
+            const lobbyPanel = document.getElementById('sealedLobbyPanel');
+            const viewerPanel = document.getElementById('sealedPoolViewerPanel');
+            if (lobbyPanel) lobbyPanel.style.display = 'block';
+            if (viewerPanel) viewerPanel.style.display = 'none';
         };
     }
 
@@ -169,14 +182,13 @@ function setupSealedEventListeners() {
     if (backBtn) {
         backBtn.onclick = () => {
             playSfx('sfx-click');
-            if (activeSealedRoom && sealedRoomListener) {
-                off(ref(db, `sealed_rooms/${activeSealedRoom}`));
-                activeSealedRoom = null;
+            if (globalUtils && globalUtils.switchView) {
+                globalUtils.switchView('view-landing');
+            } else {
+                document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+                const landing = document.getElementById('view-landing');
+                if (landing) landing.classList.add('active');
             }
-            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
-            const landing = document.getElementById('view-landing');
-            if (landing) landing.classList.add('active');
-            window.history.pushState({ viewId: 'view-landing' }, '', '#view-landing');
         };
     }
 }
@@ -184,11 +196,15 @@ function setupSealedEventListeners() {
 // 3. Open Standalone Sealed Hub View
 export function openSealedHub() {
     playSfx('sfx-click');
-    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
-    const sealedView = document.getElementById('view-sealed');
-    if (sealedView) sealedView.classList.add('active');
-    window.history.pushState({ viewId: 'view-sealed' }, '', '#view-sealed');
-    window.scrollTo(0, 0);
+    if (globalUtils && globalUtils.switchView) {
+        globalUtils.switchView('view-sealed');
+    } else {
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        const sealedView = document.getElementById('view-sealed');
+        if (sealedView) sealedView.classList.add('active');
+        window.history.pushState({ viewId: 'view-sealed' }, '', '#view-sealed');
+        window.scrollTo(0, 0);
+    }
 
     // Show setup panel, hide viewer initially until generated
     const lobbyPanel = document.getElementById('sealedLobbyPanel');
@@ -204,8 +220,6 @@ export function openSealedHub() {
         if (dskBtn) dskBtn.classList.add('active');
     }
 }
-window.openSealedDraftHub = openSealedHub;
-window.startPrereleasePractice = openSealedHub;
 
 // 4. Fetch Booster Cards and Generate 85-Card Pool
 export async function startSoloSealedPool(setObj) {
@@ -221,11 +235,14 @@ export async function startSoloSealedPool(setObj) {
         currentSealedSet = setObj;
 
         // Transition from Setup to Pool Viewer
-        document.getElementById('sealedLobbyPanel').style.display = 'none';
-        document.getElementById('sealedPoolViewerPanel').style.display = 'block';
+        const lobbyPanel = document.getElementById('sealedLobbyPanel');
+        const viewerPanel = document.getElementById('sealedPoolViewerPanel');
+        if (lobbyPanel) lobbyPanel.style.display = 'none';
+        if (viewerPanel) viewerPanel.style.display = 'block';
 
         // Update Viewer Header
-        document.getElementById('sealedViewerSetTitle').innerText = `${setObj.name} (${setObj.code.toUpperCase()})`;
+        const headerTitle = document.getElementById('sealedViewerSetTitle');
+        if (headerTitle) headerTitle.innerText = `${setObj.name} (${setObj.code.toUpperCase()})`;
         
         renderSealedStats();
         renderSealedCards();
@@ -248,55 +265,56 @@ async function generateAuthenticSealedPool(setCode) {
     const fetchHeaders = { 'Accept': 'application/json' };
 
     let sUrl = `https://api.scryfall.com/cards/search?q=set%3A${cleanSet}+is%3Abooster+-is:basic`;
-    let res = await fetch(sUrl, { headers: fetchHeaders });
-    
-    if (!res.ok) {
-        sUrl = `https://api.scryfall.com/cards/search?q=set%3A${cleanSet}+-is:basic`;
-        res = await fetch(sUrl, { headers: fetchHeaders });
-    }
-
-    if (!res.ok) {
-        sUrl = `https://api.scryfall.com/cards/search?q=set%3A${cleanSet}`;
-        res = await fetch(sUrl, { headers: fetchHeaders });
-    }
-
-    if (!res.ok) {
-        throw new Error(`Could not find cards for set code "${setCode}". Please check the set code.`);
-    }
-
-    const commons = [];
-    const uncommons = [];
+    const allCards = [];
     const rares = [];
     const mythics = [];
-    const allCards = [];
+    const uncommons = [];
+    const commons = [];
 
-    while (sUrl) {
-        if (!res) res = await fetch(sUrl, { headers: fetchHeaders });
-        if (!res.ok) break;
+    let pagesFetched = 0;
+    while (sUrl && pagesFetched < 8) {
+        pagesFetched++;
+        let res = await fetch(sUrl, { headers: fetchHeaders });
+        
+        if (!res.ok) {
+            // Fallback: search set cards directly if is:booster tag is unavailable
+            if (pagesFetched === 1) {
+                sUrl = `https://api.scryfall.com/cards/search?q=set%3A${cleanSet}+-is:basic`;
+                res = await fetch(sUrl, { headers: fetchHeaders });
+                if (!res.ok) throw new Error(`Could not load cards for set "${setCode}" from Scryfall.`);
+            } else {
+                break;
+            }
+        }
 
         const data = await res.json();
-        if (data.data && Array.isArray(data.data)) {
+        if (data.data) {
             data.data.forEach(c => {
-                const img = c.image_uris?.normal || c.card_faces?.[0]?.image_uris?.normal || 'card_back.webp';
-                const formatted = {
+                if (c.layout === 'token' || c.layout === 'art_series') return;
+                
+                const cardObj = {
+                    id: c.id,
                     name: c.name,
-                    image_uris: { normal: img },
-                    card_faces: c.card_faces ? c.card_faces.map(f => ({ image_uris: { normal: f.image_uris?.normal || img } })) : null,
-                    prices: { usd: parseFloat(c.prices?.usd || 0), eur: parseFloat(c.prices?.eur || 0) },
-                    color_identity: c.color_identity || [],
-                    scryfall_uri: c.scryfall_uri || "https://scryfall.com",
+                    rarity: c.rarity,
                     cmc: c.cmc || 0,
-                    type_line: c.type_line || "",
-                    rarity: c.rarity || 'common',
-                    set: (c.set || setCode).toUpperCase(),
-                    collector_number: c.collector_number || ''
+                    mana_cost: c.mana_cost || '',
+                    type_line: c.type_line || '',
+                    colors: c.colors || [],
+                    color_identity: c.color_identity || [],
+                    prices: {
+                        eur: c.prices?.eur ? parseFloat(c.prices.eur) : null,
+                        usd: c.prices?.usd ? parseFloat(c.prices.usd) : null
+                    },
+                    image_uris: c.image_uris || (c.card_faces && c.card_faces[0] ? c.card_faces[0].image_uris : null),
+                    collector_number: c.collector_number,
+                    set: c.set
                 };
-                allCards.push(formatted);
-                if (c.rarity === 'common') commons.push(formatted);
-                else if (c.rarity === 'uncommon') uncommons.push(formatted);
-                else if (c.rarity === 'rare') rares.push(formatted);
-                else if (c.rarity === 'mythic') mythics.push(formatted);
-                else commons.push(formatted);
+
+                allCards.push(cardObj);
+                if (c.rarity === 'mythic') mythics.push(cardObj);
+                else if (c.rarity === 'rare') rares.push(cardObj);
+                else if (c.rarity === 'uncommon') uncommons.push(cardObj);
+                else commons.push(cardObj);
             });
         }
         sUrl = data.has_more ? data.next_page : null;
@@ -544,8 +562,3 @@ window.selectSealedCommander = (cardName) => {
         sealedToast(`👑 Selected ${card.name} as your Sealed Commander!`);
     }
 };
-
-// Auto-initialize when loaded
-document.addEventListener('DOMContentLoaded', () => {
-    initSealedModule();
-});
