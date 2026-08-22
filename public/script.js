@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.13';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.13';
-import { getArchives } from './data-service.js?v=0.13';
-import { initDeckActionsModule } from './deck-actions.js?v=0.13';
-import { initRoomActionsModule } from './room-actions.js?v=0.13';
-import { initPlayerViewModule } from './player-view.js?v=0.13';
-import { initAdminModule } from './admin.js?v=0.13';
-import { initCalendarModule } from './calendar.js?v=0.13';
-import { initAuthModule } from './auth.js?v=0.13';
-import { initHubModule } from './hub.js?v=0.13';
-import { initProfileModule } from './profile.js?v=0.13';
+import { db, auth, functions } from './firebase-setup.js?v=0.14';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.14';
+import { getArchives } from './data-service.js?v=0.14';
+import { initDeckActionsModule } from './deck-actions.js?v=0.14';
+import { initRoomActionsModule } from './room-actions.js?v=0.14';
+import { initPlayerViewModule } from './player-view.js?v=0.14';
+import { initAdminModule } from './admin.js?v=0.14';
+import { initCalendarModule } from './calendar.js?v=0.14';
+import { initAuthModule } from './auth.js?v=0.14';
+import { initHubModule } from './hub.js?v=0.14';
+import { initProfileModule } from './profile.js?v=0.14';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -272,17 +272,9 @@ const commanderSettings = document.getElementById('commanderSettings');
 
 function updateSettingsVisibility() {
     const draftFormatEl = document.getElementById('settingDraftFormat');
-    const draftModeEl = document.getElementById('settingDraftMode');
     const draftFormat = draftFormatEl?.value || 'independent';
-    const draftMode = draftModeEl?.value || 'commander_draft';
-
-    const isPrereleaseSealed = draftFormat === 'prerelease_sealed';
-    const isSpecificSet = isPrereleaseSealed || draftMode === 'set_draft';
     const isInteractive = draftFormat !== 'independent';
 
-    const cardSourceContainer = document.getElementById('cardSourceContainer');
-    const setDraftContainer = document.getElementById('setDraftContainer');
-    const commanderSettings = document.getElementById('commanderSettings');
     const selectionModeContainer = document.getElementById('selectionModeContainer');
     const rerollsContainer = document.getElementById('rerollsContainer');
     const randomSettingsEl = document.getElementById('randomSettingsContainer');
@@ -293,75 +285,28 @@ function updateSettingsVisibility() {
     const selectionModeEl = document.getElementById('settingSelectionMode');
     const blindDraftToggle = document.getElementById('settingBlindDraft')?.closest('.toggle-label');
 
-    // Dynamic solo vs multiplayer guidance text
-    const sealedInfoText = document.getElementById('sealedInfoText');
-    if (sealedInfoText) {
-        const count = document.querySelectorAll('#lobbyPlayerList li').length || 1;
-        if (count === 1) {
-            sealedInfoText.innerHTML = `ℹ️ <strong>Solo Sealed Simulator:</strong> You are starting the draft alone, you will get a simulated set of picks and a final set of cards you can export at the end or test draws.`;
-        } else {
-            sealedInfoText.innerHTML = `👥 <strong>Playgroup Sealed Draft:</strong> All ${count} assembled challengers will receive a unique 6-booster sealed pool (85 cards) to build limited decks and battle.`;
-        }
-    }
+    if (selectionModeContainer) selectionModeContainer.style.display = isInteractive ? 'none' : 'block';
+    if (rerollsContainer) rerollsContainer.style.display = isInteractive ? 'none' : 'flex';
+    if (randomSettingsEl) randomSettingsEl.style.display = 'block';
+    if (snakePoolContainer) snakePoolContainer.style.display = (draftFormat === 'snake_draft') ? 'flex' : 'none';
+    if (numOptsContainer) numOptsContainer.style.display = 'flex';
+    if (numOptionsLabel) numOptionsLabel.innerText = (draftFormat === 'snake_draft') ? "Picks per Player (1-5):" : (isInteractive ? "Pack Size (1-5):" : "# Cards to Select From (1-5):");
+    if (selectionModeEl) selectionModeEl.disabled = false;
+    if (numOptsEl) numOptsEl.disabled = false;
+    if (blindDraftToggle) blindDraftToggle.style.display = 'flex';
 
-    if (isPrereleaseSealed) {
-        if (cardSourceContainer) cardSourceContainer.style.display = 'none';
-        if (setDraftContainer) setDraftContainer.style.display = 'block';
-        if (commanderSettings) commanderSettings.style.display = 'none';
-    } else if (isSpecificSet) {
-        if (cardSourceContainer) cardSourceContainer.style.display = 'block';
-        if (setDraftContainer) setDraftContainer.style.display = 'block';
-        if (commanderSettings) commanderSettings.style.display = 'none';
-    } else {
-        // Global Archives (Independent, Async, Snake, Burn)
-        if (cardSourceContainer) cardSourceContainer.style.display = 'block';
-        if (setDraftContainer) setDraftContainer.style.display = 'none';
-        if (commanderSettings) commanderSettings.style.display = 'block';
-        if (selectionModeContainer) selectionModeContainer.style.display = 'block';
-        if (rerollsContainer) rerollsContainer.style.display = 'flex';
-        if (randomSettingsEl) randomSettingsEl.style.display = 'block';
-        if (snakePoolContainer) snakePoolContainer.style.display = (draftFormat === 'snake_draft') ? 'flex' : 'none';
-        if (numOptsContainer) numOptsContainer.style.display = 'flex';
-        if (numOptionsLabel) numOptionsLabel.innerText = (draftFormat === 'snake_draft') ? "Picks per Player (1-5):" : (isInteractive ? "Pack Size (1-5):" : "# Cards to Select From (1-5):");
-        if (selectionModeEl) selectionModeEl.disabled = false;
-        if (numOptsEl) numOptsEl.disabled = false;
-        if (blindDraftToggle) blindDraftToggle.style.display = 'flex';
-
-        if (draftFormat === 'burn_draft' && numOptsEl) {
-            numOptsEl.options[0].disabled = true;
-            if (numOptsEl.value === '1') { numOptsEl.value = '2'; }
-        } else if (numOptsEl && numOptsEl.options[0]) {
-            numOptsEl.options[0].disabled = false;
-        }
+    if (draftFormat === 'burn_draft' && numOptsEl) {
+        numOptsEl.options[0].disabled = true;
+        if (numOptsEl.value === '1') { numOptsEl.value = '2'; }
+    } else if (numOptsEl && numOptsEl.options[0]) {
+        numOptsEl.options[0].disabled = false;
     }
 }
 
-// Quick Set Button Click Handlers
-function setupQuickSetButtons() {
-    document.querySelectorAll('.quick-set-btn').forEach(btn => {
-        btn.onclick = () => {
-            playSound('sfx-click');
-            const setInput = document.getElementById('settingDraftSetInput');
-            if (setInput) {
-                setInput.value = btn.dataset.name || btn.dataset.code;
-                document.querySelectorAll('.quick-set-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                if (isHost && currentRoom) {
-                    update(ref(db, `rooms/${currentRoom}/settings`), {
-                        draftSet: btn.dataset.code,
-                        draftSetName: btn.dataset.name
-                    });
-                }
-            }
-        };
-    });
-}
-setupQuickSetButtons();
-
-const draftModeEl = document.getElementById('settingDraftMode');
-if (draftModeEl) draftModeEl.addEventListener('change', updateSettingsVisibility);
-if (draftFormatEl) draftFormatEl.addEventListener('change', updateSettingsVisibility);
-if (selectionModeEl) selectionModeEl.addEventListener('change', updateSettingsVisibility);
+const draftFormatSelect = document.getElementById('settingDraftFormat');
+if (draftFormatSelect) draftFormatSelect.addEventListener('change', updateSettingsVisibility);
+const selModeSelect = document.getElementById('settingSelectionMode');
+if (selModeSelect) selModeSelect.addEventListener('change', updateSettingsVisibility);
 updateSettingsVisibility();
 
 window.setupAdvancedSettings = () => {
@@ -898,36 +843,13 @@ window.startCommanderChallenge = async () => {
     initLobby();
 };
 
-window.startPrereleasePractice = async () => {
+window.startPrereleasePractice = () => {
     playSound('sfx-click');
-
-    const name = document.getElementById('playerNameInput').value.trim();
-    if(!name) return showToast("Enter a name first!", true);
-    const safeName = sanitizeHTML(name);
-    const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const pId = currentPlayerId; 
-
-    // Default settings for prerelease sealed
-    const defaultSettings = {
-        draftFormat: 'prerelease_sealed',
-        draftMode: 'prerelease_sealed',
-        draftSet: 'dsk',
-        draftSetName: 'Duskmourn: House of Horror',
-        numOptions: 1, maxRerolls: 0, selectionMode: 'manual',
-        budget: 0, deckBudget: 0, minRank: 0, maxRank: 0, noPartner: false, blindDraft: false,
-        status: 'waiting', createdAt: Date.now(), packsPerPlayer: 6, packSize: 15
-    };
-    await set(ref(db, `rooms/${roomCode}/settings`), defaultSettings);
-    
-    const hostPayload = { name: safeName, isHost: true, avatar: currentPlayerAvatar || null };
-    if (auth.currentUser) hostPayload.uid = auth.currentUser.uid;
-    await set(ref(db, `rooms/${roomCode}/players/${pId}`), hostPayload);
-
-    localStorage.setItem('roomCode', roomCode); localStorage.setItem('playerId', pId); localStorage.setItem('playerName', safeName); localStorage.setItem('isHost', 'true');
-    if (!auth.currentUser || auth.currentUser.isAnonymous) localStorage.setItem('guestName', safeName);
-    currentRoom = roomCode; currentPlayerId = pId; currentPlayerName = safeName; isHost = true;
-    trackJoinedRoom(roomCode);
-    initLobby();
+    if (window.openSealedDraftHub) {
+        window.openSealedDraftHub();
+    } else {
+        switchView('view-sealed');
+    }
 };
 
 document.getElementById('joinBtn').onclick = async () => {
@@ -1009,24 +931,6 @@ document.getElementById('joinBtn').onclick = async () => {
 
 function syncSettingsToUI(s) {
     if (!s) return;
-    const isSealed = s.draftMode === 'prerelease_sealed' || s.draftFormat === 'prerelease_sealed';
-    if (document.getElementById('settingDraftMode')) {
-        document.getElementById('settingDraftMode').value = isSealed ? 'prerelease_sealed' : (s.draftMode || 'commander_draft');
-    }
-    if (document.getElementById('settingDraftSetInput')) {
-        const set = scryfallSets.find(set => set.code.toLowerCase() === (s.draftSet || '').toLowerCase());
-        document.getElementById('settingDraftSetInput').value = set ? set.name : (s.draftSetName || s.draftSet || 'Duskmourn: House of Horror');
-    }
-    
-    // Highlight matching quick chip
-    document.querySelectorAll('.quick-set-btn').forEach(btn => {
-        if (s.draftSet && (btn.dataset.code.toLowerCase() === s.draftSet.toLowerCase() || btn.dataset.name === s.draftSetName)) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
-    });
-
     if (document.getElementById('settingDraftFormat')) document.getElementById('settingDraftFormat').value = s.draftFormat || 'independent';
     if (document.getElementById('settingSelectionMode')) document.getElementById('settingSelectionMode').value = s.selectionMode || 'both';
     if (document.getElementById('settingCurrency')) document.getElementById('settingCurrency').value = s.currency || 'eur';
@@ -1044,23 +948,6 @@ function syncSettingsToUI(s) {
     if (document.getElementById('toggleCmdrBudget')) document.getElementById('toggleCmdrBudget').checked = s.budget > 0;
     if (document.getElementById('toggleDeckBudget')) document.getElementById('toggleDeckBudget').checked = s.deckBudget > 0;
     if (document.getElementById('toggleRank')) document.getElementById('toggleRank').checked = (s.minRank > 0 || s.maxRank > 0);
-
-    // Special handling for Prerelease Sealed
-    if (isSealed) {
-        if (document.getElementById('settingSelectionMode')) document.getElementById('settingSelectionMode').value = 'manual';
-        if (document.getElementById('settingNumOptions')) document.getElementById('settingNumOptions').value = 1;
-        if (document.getElementById('settingMaxRerolls')) document.getElementById('settingMaxRerolls').value = 0;
-        
-        ['toggleCmdrBudget', 'toggleDeckBudget', 'toggleRank'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) { el.checked = false; el.disabled = true; }
-        });
-        ['settingBudget', 'settingDeckBudget', 'settingMin', 'settingMax', 'settingNoPartner', 'settingBlindDraft'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) { el.disabled = true; el.style.opacity = '0.5'; }
-        });
-        if (document.getElementById('setDraftContainer')) document.getElementById('setDraftContainer').style.display = 'block';
-    }
 
     updateSettingsVisibility(); 
     ['toggleCmdrBudget', 'toggleDeckBudget', 'toggleRank'].forEach(id => { 
@@ -1250,10 +1137,8 @@ function autoSaveSettings() {
         const snakePoolSize = Math.min(30, Math.max(2, parseInt(document.getElementById('settingSnakePoolSize')?.value) || 15));
 
         const updates = {
-            draftMode: isPrereleaseSealed ? 'prerelease_sealed' : (isSetDraft ? 'set_draft' : draftMode),
+            draftMode: 'commander_draft',
             draftFormat: draftFormat,
-            draftSet: draftSet,
-            draftSetName: draftSetName,
             budget: b,
             currency: c,
             deckBudget: dbudget,
@@ -1288,51 +1173,34 @@ document.getElementById('startDraftBtn').onclick = async () => {
     btn.innerHTML = '<span class="mana-spinner"></span> Initializing...';
 
     const draftFormat = document.getElementById('settingDraftFormat')?.value || 'independent';
-    const draftMode = document.getElementById('settingDraftMode')?.value || 'commander_draft';
-    const isPrereleaseSealed = draftFormat === 'prerelease_sealed';
-    const isSetDraft = isPrereleaseSealed || draftMode === 'set_draft';
-
-    let draftSet = null;
-    let draftSetName = null;
-
-    if (isSetDraft) {
-        const inputEl = document.getElementById('settingDraftSetInput');
-        const resolved = resolveClientSet(inputEl ? inputEl.value : '');
-        draftSet = resolved.code;
-        draftSetName = resolved.name;
-        if (inputEl) inputEl.value = resolved.name;
-    }
-
     const limitCmdr = document.getElementById('toggleCmdrBudget') ? document.getElementById('toggleCmdrBudget').checked : true;
     const limitDeck = document.getElementById('toggleDeckBudget') ? document.getElementById('toggleDeckBudget').checked : true;
     const limitRank = document.getElementById('toggleRank') ? document.getElementById('toggleRank').checked : true;
 
     const bVal = document.getElementById('settingBudget')?.value;
-    const b = isPrereleaseSealed ? 0 : (!limitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal)));
+    const b = !limitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal));
     const c = document.getElementById('settingCurrency')?.value || 'eur';
     const dbVal = document.getElementById('settingDeckBudget')?.value;
-    const dbudget = isPrereleaseSealed ? 0 : (!limitDeck ? 0 : (dbVal === '' || isNaN(parseFloat(dbVal)) ? 50 : parseFloat(dbVal)));
+    const dbudget = !limitDeck ? 0 : (dbVal === '' || isNaN(parseFloat(dbVal)) ? 50 : parseFloat(dbVal));
     const incCmdr = document.getElementById('settingIncludeCmdr')?.checked !== false;
 
     const minVal = document.getElementById('settingMin')?.value;
     const maxVal = document.getElementById('settingMax')?.value;
-    const maxR = isPrereleaseSealed ? 0 : (!limitRank ? 0 : (minVal === '' || isNaN(parseInt(minVal)) ? 1 : parseInt(minVal)));
-    const minR = isPrereleaseSealed ? 0 : (!limitRank ? 0 : (maxVal === '' || isNaN(parseInt(maxVal)) ? 500 : parseInt(maxVal)));
-    const noPartner = isPrereleaseSealed ? false : (document.getElementById('settingNoPartner')?.checked || false); 
-    const numOpts = isPrereleaseSealed ? 1 : Math.min(5, Math.max(1, parseInt(document.getElementById('settingNumOptions')?.value) || 3));
-    const maxRr = isPrereleaseSealed ? 0 : Math.max(0, parseInt(document.getElementById('settingMaxRerolls')?.value) || 1);
-    const selMode = isPrereleaseSealed ? 'manual' : (document.getElementById('settingSelectionMode')?.value || 'both');
-    const blind = isPrereleaseSealed ? false : (document.getElementById('settingBlindDraft')?.checked || false);
+    const maxR = !limitRank ? 0 : (minVal === '' || isNaN(parseInt(minVal)) ? 1 : parseInt(minVal));
+    const minR = !limitRank ? 0 : (maxVal === '' || isNaN(parseInt(maxVal)) ? 500 : parseInt(maxVal));
+    const noPartner = document.getElementById('settingNoPartner')?.checked || false; 
+    const numOpts = Math.min(5, Math.max(1, parseInt(document.getElementById('settingNumOptions')?.value) || 3));
+    const maxRr = Math.max(0, parseInt(document.getElementById('settingMaxRerolls')?.value) || 1);
+    const selMode = document.getElementById('settingSelectionMode')?.value || 'both';
+    const blind = document.getElementById('settingBlindDraft')?.checked || false;
 
     const maxBracket = parseInt(document.getElementById('settingMaxBracket')?.value) || 5;
     const snakePoolSize = Math.min(30, Math.max(2, parseInt(document.getElementById('settingSnakePoolSize')?.value) || 15));
     const webhookUrl = document.getElementById('settingDiscordWebhook') ? document.getElementById('settingDiscordWebhook').value.trim() : '';
 
     const settingsPayload = {
-        draftMode: isPrereleaseSealed ? 'prerelease_sealed' : (isSetDraft ? 'set_draft' : draftMode),
+        draftMode: 'commander_draft',
         draftFormat: draftFormat,
-        draftSet: draftSet,
-        draftSetName: draftSetName,
         budget: b,
         currency: c,
         deckBudget: dbudget,
@@ -1352,7 +1220,7 @@ document.getElementById('startDraftBtn').onclick = async () => {
     await set(ref(db, `webhooks/${currentRoom}/url`), webhookUrl || null);
     
     try {
-        if (isPrereleaseSealed || draftFormat !== 'independent') {
+        if (draftFormat !== 'independent') {
             const startDraftFn = httpsCallable(functions, 'hostStartInteractiveDraft');
             await startDraftFn({ roomId: currentRoom, settings: settingsPayload });
         } else {
@@ -1920,7 +1788,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.13').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.14').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
