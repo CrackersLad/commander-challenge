@@ -328,21 +328,6 @@ button:disabled {
     box-shadow: 0 1px 0 var(--gold-dark);
 }
 
-/* Arcane Purple CTA */
-.sealed-cta {
-    background: linear-gradient(135deg, #7b1fa2 0%, #ba68c8 50%, #7b1fa2 100%) !important;
-    background-size: 200% auto !important;
-    color: #fff !important;
-    box-shadow: 0 4px 0 #4a0072, 0 6px 18px rgba(123, 31, 162, 0.4) !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6) !important;
-}
-
-.sealed-cta:hover:not(:disabled) {
-    background: #ffffff !important;
-    color: #4a0072 !important;
-    box-shadow: 0 0 25px var(--arcane-bright), 0 4px 0 #4a0072 !important;
-}
-
 /* Secondary Glass Button */
 .secondary-btn {
     background: rgba(18, 18, 26, 0.7);
@@ -590,12 +575,12 @@ select:focus {
     box-shadow: 0 0 12px var(--gold-glow);
 }
 
-/* 3-Card Action Grid */
+/* 2-Card Action Grid */
 .action-grid-container {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 24px;
-    max-width: 1040px;
+    max-width: 820px;
     margin: 0 auto 30px auto;
 }
 
@@ -624,15 +609,6 @@ select:focus {
     border-color: rgba(212, 175, 55, 0.45);
 }
 
-.action-card-sealed {
-    border-color: rgba(142, 36, 170, 0.45);
-}
-
-.action-card-sealed:hover {
-    border-color: var(--arcane-bright);
-    box-shadow: var(--shadow-lg), 0 0 30px var(--arcane-glow);
-}
-
 .action-card-badge {
     position: absolute;
     top: -12px;
@@ -645,11 +621,6 @@ select:focus {
     text-transform: uppercase;
     letter-spacing: 1px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-}
-
-.action-card-badge.sealed-badge {
-    background: var(--arcane-bright);
-    color: #fff;
 }
 
 .action-card-badge.join-badge {
@@ -1969,7 +1940,7 @@ select:focus {
     .rank-inputs input { width: 45%; }
 }
 
-/* --- Prerelease Sealed & Draft Hover Effects --- */
+/* --- Card Hover & Interactive Effects --- */
 .pool-card-wrapper {
     position: relative;
     display: inline-block;
@@ -2024,7 +1995,7 @@ select:focus {
     position: relative;
 }
 
-/* --- Quick Set Chips & Sealed Pool Styles --- */
+/* --- Quick Set Chips --- */
 .quick-set-btn {
     background: rgba(22, 22, 32, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -2053,322 +2024,4 @@ select:focus {
     color: #000;
     border-color: var(--gold-dark);
     font-weight: 700;
-}
-
-/* Sealed Pool Header & Action Bar */
-.sealed-header-wrapper {
-    width: 100%;
-    margin-bottom: 25px;
-    background: var(--card-bg);
-    border: 1px solid var(--card-border-gold);
-    border-radius: var(--radius-lg);
-    padding: 24px;
-    box-shadow: var(--shadow-md);
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
-}
-
-.sealed-title {
-    font-size: 1.8rem;
-    color: var(--gold);
-    margin-bottom: 6px;
-}
-
-.sealed-stats-row {
-    display: flex;
-    justify-content: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin: 15px 0;
-}
-
-.sealed-stat-chip {
-    background: rgba(10, 10, 15, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 5px 12px;
-    border-radius: var(--radius-full);
-    font-size: 0.82rem;
-    color: #bbb;
-    font-weight: 600;
-}
-
-.sealed-stat-chip.highlight-gold {
-    border-color: rgba(212, 175, 55, 0.4);
-    color: var(--gold);
-}
-
-.sealed-stat-chip.highlight-arcane {
-    border-color: rgba(186, 104, 200, 0.4);
-    color: var(--arcane-bright);
-}
-
-.sealed-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-    align-items: center;
-    margin-top: 15px;
-    padding-top: 15px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.toolbar-btn {
-    padding: 8px 16px;
-    font-size: 0.85rem;
-    border-radius: var(--radius-full);
-}
-
-.sealed-filter-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: center;
-    margin-top: 12px;
-}
-
-.filter-chip-btn {
-    background: rgba(15, 15, 22, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #aaa;
-    padding: 5px 14px;
-    border-radius: var(--radius-full);
-    font-size: 0.8rem;
-    cursor: pointer;
-    font-family: var(--font-body);
-    font-weight: 600;
-    transition: all 0.2s ease;
-}
-
-.filter-chip-btn:hover {
-    background: rgba(30, 30, 42, 0.95);
-    color: #fff;
-    border-color: var(--gold);
-}
-
-.filter-chip-btn.active {
-    background: var(--gold);
-    color: #000;
-    border-color: var(--gold-dark);
-}
-
-/* Hand Simulator Modal & Pool Cards */
-.hand-sim-cards-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-    gap: 10px;
-    margin: 20px 0;
-    max-height: 55vh;
-    overflow-y: auto;
-    padding: 5px;
-}
-
-.hand-card-img {
-    width: 100%;
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-    transition: transform 0.2s ease;
-}
-
-.hand-card-img:hover {
-    transform: scale(1.06);
-    border-color: var(--gold);
-    z-index: 10;
-}
-
-/* Standalone Sealed View & Tiles */
-.sealed-view-wrapper {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 25px 20px 60px 20px;
-}
-
-.sealed-panel {
-    width: 100%;
-    animation: viewFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.sealed-card-tile {
-    background: rgba(18, 14, 28, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-}
-
-.sealed-card-tile:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
-    border-color: rgba(186, 104, 200, 0.5);
-}
-
-.sealed-card-tile.rare {
-    border-color: rgba(255, 215, 0, 0.35);
-}
-
-.sealed-card-tile.mythic {
-    border-color: rgba(255, 110, 64, 0.5);
-}
-
-.sealed-card-tile.promo-foil {
-    border-color: #ffd700;
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.35);
-}
-
-.sealed-card-img-wrapper {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 5 / 7;
-    background: #0d0b14;
-    overflow: hidden;
-}
-
-.sealed-card-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-    transition: transform 0.3s ease;
-}
-
-.sealed-card-tile:hover .sealed-card-img {
-    transform: scale(1.04);
-}
-
-.sealed-promo-badge {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    background: linear-gradient(135deg, #ffd700, #ff8f00);
-    color: #000;
-    font-size: 0.68rem;
-    font-weight: 800;
-    padding: 3px 8px;
-    border-radius: 12px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.6);
-    z-index: 2;
-}
-
-.sealed-rarity-pill {
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    font-size: 0.62rem;
-    font-weight: 800;
-    padding: 2px 6px;
-    border-radius: 4px;
-    text-transform: uppercase;
-    background: rgba(0,0,0,0.75);
-    border: 1px solid rgba(255,255,255,0.2);
-    color: #fff;
-    z-index: 2;
-}
-
-.sealed-rarity-pill.rare {
-    color: #ffd700;
-    border-color: #ffd700;
-}
-
-.sealed-rarity-pill.mythic {
-    color: #ff6e40;
-    border-color: #ff6e40;
-}
-
-.sealed-rarity-pill.uncommon {
-    color: #b0bec5;
-    border-color: #b0bec5;
-}
-
-.sealed-rarity-pill.common {
-    color: #888;
-}
-
-.sealed-card-details {
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex-grow: 1;
-    justify-content: space-between;
-}
-
-.sealed-card-name {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #fff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.sealed-card-meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.72rem;
-    color: #aaa;
-}
-
-.sealed-card-type {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 110px;
-}
-
-.sealed-card-price {
-    font-weight: 700;
-    color: var(--gold);
-}
-
-.sealed-select-cmdr-btn {
-    margin-top: 6px;
-    width: 100%;
-    background: linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,160,0,0.25));
-    border: 1px solid var(--gold);
-    color: var(--gold-bright);
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 5px 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.sealed-select-cmdr-btn:hover {
-    background: var(--gold);
-    color: #000;
-}
-
-.hand-sim-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 120px;
-}
-
-.hand-sim-img {
-    width: 100%;
-    border-radius: 6px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.6);
-    transition: transform 0.2s ease;
-}
-
-.hand-sim-img:hover {
-    transform: scale(1.08);
-}
-
-.hand-sim-name {
-    font-size: 0.72rem;
-    color: #ccc;
-    margin-top: 4px;
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    width: 100%;
 }

@@ -1,15 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.15';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.15';
-import { getArchives } from './data-service.js?v=0.15';
-import { initDeckActionsModule } from './deck-actions.js?v=0.15';
-import { initRoomActionsModule } from './room-actions.js?v=0.15';
-import { initPlayerViewModule } from './player-view.js?v=0.15';
-import { initAdminModule } from './admin.js?v=0.15';
-import { initCalendarModule } from './calendar.js?v=0.15';
-import { initAuthModule } from './auth.js?v=0.15';
-import { initHubModule } from './hub.js?v=0.15';
-import { initProfileModule } from './profile.js?v=0.15';
-import { initSealedModule } from './sealed.js?v=0.15';
+import { db, auth, functions } from './firebase-setup.js?v=0.16';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.16';
+import { getArchives } from './data-service.js?v=0.16';
+import { initDeckActionsModule } from './deck-actions.js?v=0.16';
+import { initRoomActionsModule } from './room-actions.js?v=0.16';
+import { initPlayerViewModule } from './player-view.js?v=0.16';
+import { initAdminModule } from './admin.js?v=0.16';
+import { initCalendarModule } from './calendar.js?v=0.16';
+import { initAuthModule } from './auth.js?v=0.16';
+import { initHubModule } from './hub.js?v=0.16';
+import { initProfileModule } from './profile.js?v=0.16';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -454,20 +453,9 @@ window.openRulesModal = async () => {
         let curr = s.currency === 'usd' ? '$' : '€';
         let formatName = 'Independent';
         if (s.draftFormat === 'async_draft') formatName = 'Asynchronous Booster Draft';
-        if (s.draftFormat === 'prerelease_sealed') formatName = 'Prerelease Sealed Pool (6 Boosters / 85 Cards)';
         if (s.draftFormat === 'snake_draft') formatName = 'Face-Up Snake Draft';
         if (s.draftFormat === 'burn_draft') formatName = 'Blind Elimination Draft';
 
-        if (s.draftFormat === 'prerelease_sealed') {
-            listDiv.innerHTML = `
-                <p style="margin: 8px 0;"><strong style="color:var(--gold);">Format:</strong> ${formatName}</p>
-                <p style="margin: 8px 0;"><strong style="color:var(--gold);">Set:</strong> ${s.draftSetName || (s.draftSet ? s.draftSet.toUpperCase() : 'Duskmourn')}</p>
-                <p style="margin: 8px 0;"><strong style="color:var(--gold);">Booster Packs:</strong> 6 Packs (84 Cards) + 1 Foil Promo</p>
-                <p style="margin: 8px 0;"><strong style="color:var(--gold);">Pool Size:</strong> 85 Total Cards</p>
-            `;
-            return;
-        }
-        
         let html = `
             <p style="margin: 8px 0;"><strong style="color:var(--gold);">Format:</strong> ${formatName}</p>
             ${s.draftSet ? `<p style="margin: 8px 0;"><strong style="color:var(--gold);">Set:</strong> ${s.draftSetName || s.draftSet.toUpperCase()}</p>` : ''}
@@ -813,44 +801,8 @@ if (createBtn) {
     createBtn.onclick = () => window.startCommanderChallenge();
 }
 
-const startPrereleasePracticeBtn = document.getElementById('startPrereleasePracticeBtn');
-if (startPrereleasePracticeBtn) {
-    startPrereleasePracticeBtn.onclick = () => window.startPrereleasePractice();
-}
-
-window.startCommanderChallenge = async () => {
-    playSound('sfx-click');
-
-    const name = document.getElementById('playerNameInput').value.trim();
-    if(!name) return showToast("Enter a name first!", true);
-    const safeName = sanitizeHTML(name);
-    const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const pId = currentPlayerId; 
-
-    const savedSettingsStr = localStorage.getItem('hostDefaultSettings');
-    const defaultSettings = savedSettingsStr ? JSON.parse(savedSettingsStr) : { budget: 10, currency: 'eur', deckBudget: 50, includeCmdr: true, maxRank: 1, minRank: 500, noPartner: true, numOptions: 3, maxRerolls: 1, selectionMode: 'both', draftFormat: 'independent', maxBracket: 5 };
-    defaultSettings.status = 'waiting';
-    defaultSettings.createdAt = Date.now();
-    await set(ref(db, `rooms/${roomCode}/settings`), defaultSettings);
-    
-    const hostPayload = { name: safeName, isHost: true, avatar: currentPlayerAvatar || null };
-    if (auth.currentUser) hostPayload.uid = auth.currentUser.uid;
-    await set(ref(db, `rooms/${roomCode}/players/${pId}`), hostPayload);
-
-    localStorage.setItem('roomCode', roomCode); localStorage.setItem('playerId', pId); localStorage.setItem('playerName', safeName); localStorage.setItem('isHost', 'true');
-    if (!auth.currentUser || auth.currentUser.isAnonymous) localStorage.setItem('guestName', safeName);
-    currentRoom = roomCode; currentPlayerId = pId; currentPlayerName = safeName; isHost = true;
     trackJoinedRoom(roomCode);
     initLobby();
-};
-
-window.startPrereleasePractice = () => {
-    playSound('sfx-click');
-    if (window.openSealedDraftHub) {
-        window.openSealedDraftHub();
-    } else {
-        switchView('view-sealed');
-    }
 };
 
 document.getElementById('joinBtn').onclick = async () => {
@@ -1030,8 +982,6 @@ function initLobby() {
         
         const playerEntries = Object.entries(players);
         document.getElementById('playerCountDisplay').innerText = `Players Assembled (${playerEntries.length}/6):`;
-
-        // Update solo vs multiplayer dynamic text in sealed info box
         updateSettingsVisibility();
 
         const currentUser = auth.currentUser;
@@ -1100,8 +1050,7 @@ function autoSaveSettings() {
     autoSaveTimeout = setTimeout(async () => {
         const draftFormat = document.getElementById('settingDraftFormat')?.value || 'independent';
         const draftMode = document.getElementById('settingDraftMode')?.value || 'commander_draft';
-        const isPrereleaseSealed = draftFormat === 'prerelease_sealed';
-        const isSetDraft = isPrereleaseSealed || draftMode === 'set_draft';
+        const isSetDraft = draftMode === 'set_draft';
 
         let draftSet = null;
         let draftSetName = null;
@@ -1118,21 +1067,21 @@ function autoSaveSettings() {
         const limitRank = document.getElementById('toggleRank') ? document.getElementById('toggleRank').checked : true;
 
         const bVal = document.getElementById('settingBudget')?.value;
-        const b = isPrereleaseSealed ? 0 : (!limitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal)));
+        const b = !limitCmdr ? 0 : (bVal === '' || isNaN(parseFloat(bVal)) ? 10 : parseFloat(bVal));
         const c = document.getElementById('settingCurrency')?.value || 'eur';
         const dbVal = document.getElementById('settingDeckBudget')?.value;
-        const dbudget = isPrereleaseSealed ? 0 : (!limitDeck ? 0 : (dbVal === '' || isNaN(parseFloat(dbVal)) ? 50 : parseFloat(dbVal)));
+        const dbudget = !limitDeck ? 0 : (dbVal === '' || isNaN(parseFloat(dbVal)) ? 50 : parseFloat(dbVal));
         const incCmdr = document.getElementById('settingIncludeCmdr')?.checked !== false;
 
         const minVal = document.getElementById('settingMin')?.value;
         const maxVal = document.getElementById('settingMax')?.value;
-        const maxR = isPrereleaseSealed ? 0 : (!limitRank ? 0 : (minVal === '' || isNaN(parseInt(minVal)) ? 1 : parseInt(minVal)));
-        const minR = isPrereleaseSealed ? 0 : (!limitRank ? 0 : (maxVal === '' || isNaN(parseInt(maxVal)) ? 500 : parseInt(maxVal)));
-        const noPartner = isPrereleaseSealed ? false : (document.getElementById('settingNoPartner')?.checked || false);
-        const numOpts = isPrereleaseSealed ? 1 : Math.min(5, Math.max(1, parseInt(document.getElementById('settingNumOptions')?.value) || 3));
-        const maxRr = isPrereleaseSealed ? 0 : Math.max(0, parseInt(document.getElementById('settingMaxRerolls')?.value) || 1);
-        const selMode = isPrereleaseSealed ? 'manual' : (document.getElementById('settingSelectionMode')?.value || 'both');
-        const blind = isPrereleaseSealed ? false : (document.getElementById('settingBlindDraft')?.checked || false);
+        const maxR = !limitRank ? 0 : (minVal === '' || isNaN(parseInt(minVal)) ? 1 : parseInt(minVal));
+        const minR = !limitRank ? 0 : (maxVal === '' || isNaN(parseInt(maxVal)) ? 500 : parseInt(maxVal));
+        const noPartner = document.getElementById('settingNoPartner')?.checked || false;
+        const numOpts = Math.min(5, Math.max(1, parseInt(document.getElementById('settingNumOptions')?.value) || 3));
+        const maxRr = Math.max(0, parseInt(document.getElementById('settingMaxRerolls')?.value) || 1);
+        const selMode = document.getElementById('settingSelectionMode')?.value || 'both';
+        const blind = document.getElementById('settingBlindDraft')?.checked || false;
 
         const maxBracket = parseInt(document.getElementById('settingMaxBracket')?.value) || 5;
         const snakePoolSize = Math.min(30, Math.max(2, parseInt(document.getElementById('settingSnakePoolSize')?.value) || 15));
@@ -1789,13 +1738,12 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.15').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.16').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
 initRoomActionsModule(utils, state);
 initPlayerViewModule(utils, state);
-initSealedModule(utils, state);
 
 // --- PWA SERVICE WORKER REGISTRATION ---
 if ('serviceWorker' in navigator) {

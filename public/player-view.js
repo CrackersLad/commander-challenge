@@ -1,5 +1,5 @@
-import { db, functions } from './firebase-setup.js?v=0.15';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.15';
+import { db, functions } from './firebase-setup.js?v=0.16';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.16';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -160,51 +160,6 @@ export function initPlayerViewModule(utils, state) {
         }, 300);
     }
 
-    async function renderPrereleaseSealedPool(container, s, playerSealedPool) {
-        container.innerHTML = `
-            <div style="width:100%; text-align:center; margin-bottom: 20px;">
-                <h2 style="color:var(--gold); font-family:Cinzel;">Prerelease Sealed Pool</h2>
-                <p style="color:#aaa;">Select your commander from the cards you opened!</p>
-            </div>
-            <div id="sealedPoolGrid" style="display:flex; flex-wrap:wrap; justify-content:center; gap:15px; width:100%;"></div>
-        `;
-        const sealedPoolGrid = document.getElementById('sealedPoolGrid');
-
-        playerSealedPool.forEach((card, i) => {
-            let img1 = card.image_uris?.normal || (card.card_faces && card.card_faces[0].image_uris?.normal) || card.image1;
-            let img2 = (card.card_faces && card.card_faces[1] && card.card_faces[1].image_uris?.normal) || card.image2 || null;
-            let priceString = "Price N/A";
-            if (card.prices) { if (s.currency === 'eur' && card.prices.eur !== 9999) priceString = `€${card.prices.eur}`; else if (s.currency === 'usd' && card.prices.usd !== 9999) priceString = `$${card.prices.usd}`; }
-            
-            const safeCardName = sanitizeHTML(card.name);
-            const edhrecSlug = safeCardName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-            const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
-            
-            const cardDiv = document.createElement('div');
-            cardDiv.className = 'option-card revealed'; // Use 'revealed' class for styling
-            cardDiv.style.transition = 'none'; // Disable animation for initial render
-            cardDiv.style.transform = 'none';
-            cardDiv.style.opacity = '1';
-            
-            let imageHtml = img2 ? `<div class="scene"><div class="card-3d" id="sealed-card3d-${i}"><a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" style="display:block;" class="card-face card-face-front"><img src="${sanitizeHTML(img1)}" class="commander-img" loading="lazy"></a><a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" style="display:block;" class="card-face card-face-back"><img src="${sanitizeHTML(img2)}" class="commander-img" loading="lazy"></a></div></div><button class="flip-btn" onclick="window.flipCard3D('sealed-card3d-${i}', event)">🔄 Flip Card</button>` : `<a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')"><img id="sealed-img-${i}" src="${sanitizeHTML(img1)}" class="commander-img" loading="lazy"></a>`;
-
-            cardDiv.innerHTML = `
-                ${imageHtml}
-                <p class="price-tag" style="margin-top: 15px;">${priceString}</p>
-                <div class="mana-container">${getColorBadges(card.color_identity)}</div>
-                <p class="rank-tag" style="color:var(--gold); font-weight:bold; font-size: 1rem; margin-bottom: 15px;">EDHREC Rank: #${card.display_rank || 'Unranked'}</p>
-                <button class="select-btn" data-idx="${i}">Select ${safeCardName}</button>
-            `;
-            cardDiv.querySelector('.select-btn').onclick = () => {
-                playSound('sfx-click'); showConfirm("Seal Your Champion?", `Are you sure you want to lock in ${card.name} as your commander? This choice is final.`, () => {
-                    playSound('sfx-choose'); update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), { selected: card.name, image: img1, display_rank: card.display_rank, scryfall_uri: card.scryfall_uri, color_identity: card.color_identity || [], generated: null, rerollCount: 0, sealedPool: null });
-                });
-            };
-            sealedPoolGrid.appendChild(cardDiv);
-        });
-        attachScrollListener('content', 'player-scroll-left', 'player-scroll-right');
-    }
-
     function renderSelectionScreen(list, currentRerollCount, maxRerollsAllowed, s) {
         const container = document.getElementById('content'); const isInitialRender = container.querySelectorAll('.option-card').length === 0;
         const canReroll = currentRerollCount < maxRerollsAllowed; const rerollsRemaining = maxRerollsAllowed - currentRerollCount;
@@ -264,9 +219,9 @@ export function initPlayerViewModule(utils, state) {
 
     async function renderInteractiveDraft(activeDraft, container, s, players) {
         if (activeDraft.isComplete) { container.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; margin-top:50px;"><h2 style="color:var(--gold); font-family:Cinzel;">Finalizing Draft...</h2><span class="mana-spinner"></span></div>`; return; }
-        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=0.15'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=0.15'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=0.15'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
+        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=0.16'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=0.16'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=0.16'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
     }
 
     function renderFinalSelection(list, s) {
@@ -374,320 +329,6 @@ export function initPlayerViewModule(utils, state) {
         };
     }
 
-    function renderPrereleaseSealedPool(container, s, sealedPool) {
-        if (!sealedPool || !Array.isArray(sealedPool) || sealedPool.length === 0) {
-            container.innerHTML = `<div style="text-align:center; padding:30px;"><h2 style="color:var(--gold); font-family:Cinzel;">Generating Sealed Pool...</h2><span class="mana-spinner"></span></div>`;
-            return;
-        }
-
-        let currentSort = 'color';
-        let currentFilter = 'all';
-        let sortedCards = [...sealedPool];
-
-        // Categorization & Counts
-        const mythics = sealedPool.filter(c => c.rarity === 'mythic').length;
-        const rares = sealedPool.filter(c => c.rarity === 'rare').length;
-        const uncommons = sealedPool.filter(c => c.rarity === 'uncommon').length;
-        const commons = sealedPool.filter(c => c.rarity === 'common').length;
-        const legendaries = sealedPool.filter(c => {
-            const tl = (c.type_line || '').toLowerCase();
-            return tl.includes('legendary') && (tl.includes('creature') || tl.includes('planeswalker'));
-        });
-
-        // Function to export to clipboard in MTG text / Arena format
-        const exportPoolToClipboard = () => {
-            playSound('sfx-click');
-            const counts = {};
-            sealedPool.forEach(c => {
-                const name = c.name || 'Unknown';
-                counts[name] = (counts[name] || 0) + 1;
-            });
-            let exportText = `// Prerelease Sealed Pool (${sealedPool.length} Cards)\n`;
-            if (s.draftSetName || s.draftSet) exportText += `// Set: ${s.draftSetName || s.draftSet.toUpperCase()}\n\n`;
-            
-            Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0])).forEach(([name, count]) => {
-                exportText += `${count} ${name}\n`;
-            });
-
-            navigator.clipboard.writeText(exportText).then(() => {
-                showToast(`Sealed Pool (${sealedPool.length} cards) copied to clipboard!`, false, 3500, true);
-            }).catch(() => {
-                showToast("Could not copy to clipboard. Please copy manually.", true);
-            });
-        };
-
-        // Interactive Hand Simulator (Test Draws)
-        const openHandSimulator = () => {
-            playSound('sfx-click');
-            const existingModal = document.getElementById('handSimModal');
-            if (existingModal) existingModal.remove();
-
-            let currentHand = [];
-            let remainingDeck = [...sealedPool];
-
-            const drawInitialHand = () => {
-                remainingDeck = [...sealedPool].sort(() => Math.random() - 0.5);
-                currentHand = remainingDeck.splice(0, 7);
-            };
-            drawInitialHand();
-
-            const simModal = document.createElement('div');
-            simModal.id = 'handSimModal';
-            simModal.className = 'modal-overlay show';
-            simModal.style.display = 'flex';
-            simModal.style.zIndex = '6000';
-
-            const updateModalUI = () => {
-                simModal.innerHTML = `
-                    <div class="modal-content" style="max-width: 750px; width: 95%; max-height: 90vh;">
-                        <h2 style="color:var(--gold); font-family:Cinzel; margin-top:0;">🧪 Starting Hand Simulator</h2>
-                        <p style="color:#aaa; font-size:0.88rem; margin-bottom:10px;">
-                            Drawn: <strong style="color:#fff;">${currentHand.length} cards</strong> • Remaining in Pool: <strong style="color:var(--gold);">${remainingDeck.length} cards</strong>
-                        </p>
-                        
-                        <div class="hand-sim-cards-grid">
-                            ${currentHand.map((c) => {
-                                const img = c.image_uris?.normal || (c.card_faces && c.card_faces[0]?.image_uris?.normal) || c.image1;
-                                return `
-                                    <div style="text-align:center;">
-                                        <img src="${sanitizeHTML(img)}" class="hand-card-img" title="${sanitizeHTML(c.name)}" loading="lazy">
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-
-                        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:15px;">
-                            <button id="simMulliganBtn" class="select-btn" style="padding:10px 18px; font-size:0.85rem;">🔄 Mulligan (New 7)</button>
-                            <button id="simDrawCardBtn" class="secondary-btn" style="padding:10px 18px; font-size:0.85rem;" ${remainingDeck.length === 0 ? 'disabled' : ''}>🃏 Draw Card (+1)</button>
-                            <button id="simCloseBtn" class="btn-cancel" style="padding:10px 18px; font-size:0.85rem;">Close</button>
-                        </div>
-                    </div>
-                `;
-
-                document.getElementById('simMulliganBtn').onclick = () => {
-                    playSound('sfx-choose');
-                    drawInitialHand();
-                    updateModalUI();
-                };
-                document.getElementById('simDrawCardBtn').onclick = () => {
-                    if (remainingDeck.length > 0) {
-                        playSound('sfx-click');
-                        currentHand.push(remainingDeck.shift());
-                        updateModalUI();
-                    }
-                };
-                document.getElementById('simCloseBtn').onclick = () => {
-                    playSound('sfx-click');
-                    simModal.classList.remove('show');
-                    setTimeout(() => simModal.remove(), 300);
-                };
-            };
-
-            document.body.appendChild(simModal);
-            updateModalUI();
-        };
-
-        const sortCards = () => {
-            const colorOrder = { 'W': 1, 'U': 2, 'B': 3, 'R': 4, 'G': 5, 'C': 6 };
-            const rarityOrder = { 'mythic': 1, 'rare': 2, 'uncommon': 3, 'common': 4 };
-            const typeOrder = {
-                'Creature': 1, 'Planeswalker': 2, 'Battle': 3, 'Instant': 4, 'Sorcery': 5,
-                'Artifact': 6, 'Enchantment': 7, 'Land': 8
-            };
-
-            sortedCards.sort((a, b) => {
-                if (currentSort === 'color') {
-                    const aCol = (a.color_identity && a.color_identity.length > 0) ? a.color_identity[0] : 'C';
-                    const bCol = (b.color_identity && b.color_identity.length > 0) ? b.color_identity[0] : 'C';
-                    if (colorOrder[aCol] !== colorOrder[bCol]) return (colorOrder[aCol] || 99) - (colorOrder[bCol] || 99);
-                    return (a.cmc || 0) - (b.cmc || 0);
-                }
-                if (currentSort === 'cmc') {
-                    if ((a.cmc || 0) !== (b.cmc || 0)) return (a.cmc || 0) - (b.cmc || 0);
-                    return a.name.localeCompare(b.name);
-                }
-                if (currentSort === 'rarity') {
-                    const aR = rarityOrder[a.rarity] || 99;
-                    const bR = rarityOrder[b.rarity] || 99;
-                    if (aR !== bR) return aR - bR;
-                    return a.name.localeCompare(b.name);
-                }
-                if (currentSort === 'type') {
-                    const aType = (a.type_line || '').split(' — ')[0];
-                    const bType = (b.type_line || '').split(' — ')[0];
-                    const aO = Object.keys(typeOrder).find(t => aType.includes(t)) || 'Other';
-                    const bO = Object.keys(typeOrder).find(t => bType.includes(t)) || 'Other';
-                    if (typeOrder[aO] !== typeOrder[bO]) return (typeOrder[aO] || 99) - (typeOrder[bO] || 99);
-                    return a.name.localeCompare(b.name);
-                }
-                return a.name.localeCompare(b.name);
-            });
-        };
-
-        const render = () => {
-            sortCards();
-
-            // Filter logic
-            const filteredCards = sortedCards.filter(c => {
-                const tl = (c.type_line || '').toLowerCase();
-                if (currentFilter === 'commander') return tl.includes('legendary') && (tl.includes('creature') || tl.includes('planeswalker'));
-                if (currentFilter === 'creature') return tl.includes('creature');
-                if (currentFilter === 'spell') return tl.includes('instant') || tl.includes('sorcery');
-                if (currentFilter === 'artifact_enchantment') return tl.includes('artifact') || tl.includes('enchantment');
-                if (currentFilter === 'land') return tl.includes('land');
-                return true;
-            });
-
-            const setName = s.draftSetName || (s.draftSet ? s.draftSet.toUpperCase() : 'MTG Set');
-
-            let html = `
-                <div class="sealed-header-wrapper">
-                    <h2 class="sealed-title">📦 ${sanitizeHTML(setName)} Sealed Pool</h2>
-                    <p style="color:#aaa; font-size:0.92rem; margin:0 auto; max-width:650px;">
-                        You have opened a 6-booster sealed pool (${sealedPool.length} cards total). Sort and filter your pool, test opening hands, export to Moxfield/Arena, or pick your Commander!
-                    </p>
-
-                    <!-- Pool Stats Breakdown -->
-                    <div class="sealed-stats-row">
-                        <span class="sealed-stat-chip highlight-arcane">🌟 Rares / Mythics: ${rares + mythics}</span>
-                        <span class="sealed-stat-chip">🔷 Uncommons: ${uncommons}</span>
-                        <span class="sealed-stat-chip">⚪ Commons: ${commons}</span>
-                        <span class="sealed-stat-chip highlight-gold">👑 Potential Commanders: ${legendaries.length}</span>
-                    </div>
-
-                    <!-- Action Toolbar -->
-                    <div class="sealed-toolbar">
-                        <button id="exportPoolBtn" class="secondary-btn toolbar-btn">📥 Export Card List</button>
-                        <button id="handSimBtn" class="secondary-btn toolbar-btn" style="border-color:var(--arcane-bright); color:var(--arcane-bright);">🧪 Test Draw Hand</button>
-                        <button id="moxfieldImportBtn" class="secondary-btn toolbar-btn" style="border-color:#dfb2f4; color:#dfb2f4;">☕ Open in Moxfield</button>
-                    </div>
-
-                    <!-- Sort Controls -->
-                    <div style="display:flex; justify-content:center; gap:8px; margin-top:14px; flex-wrap:wrap;">
-                        <button class="filter-chip-btn sort-chip-btn ${currentSort === 'color' ? 'active' : ''}" data-sort="color">Sort: Color</button>
-                        <button class="filter-chip-btn sort-chip-btn ${currentSort === 'cmc' ? 'active' : ''}" data-sort="cmc">Sort: Cost (CMC)</button>
-                        <button class="filter-chip-btn sort-chip-btn ${currentSort === 'rarity' ? 'active' : ''}" data-sort="rarity">Sort: Rarity</button>
-                        <button class="filter-chip-btn sort-chip-btn ${currentSort === 'type' ? 'active' : ''}" data-sort="type">Sort: Type</button>
-                        <button class="filter-chip-btn sort-chip-btn ${currentSort === 'name' ? 'active' : ''}" data-sort="name">Sort: Name</button>
-                    </div>
-
-                    <!-- Filter Chips -->
-                    <div class="sealed-filter-bar">
-                        <button class="filter-chip-btn filter-type-btn ${currentFilter === 'all' ? 'active' : ''}" data-filter="all">All (${sealedPool.length})</button>
-                        <button class="filter-chip-btn filter-type-btn ${currentFilter === 'commander' ? 'active' : ''}" data-filter="commander" style="color:var(--gold);">👑 Commanders (${legendaries.length})</button>
-                        <button class="filter-chip-btn filter-type-btn ${currentFilter === 'creature' ? 'active' : ''}" data-filter="creature">Creatures</button>
-                        <button class="filter-chip-btn filter-type-btn ${currentFilter === 'spell' ? 'active' : ''}" data-filter="spell">Instants & Sorceries</button>
-                        <button class="filter-chip-btn filter-type-btn ${currentFilter === 'artifact_enchantment' ? 'active' : ''}" data-filter="artifact_enchantment">Artifacts & Enchantments</button>
-                        <button class="filter-chip-btn filter-type-btn ${currentFilter === 'land' ? 'active' : ''}" data-filter="land">Lands</button>
-                    </div>
-                </div>
-
-                <!-- Cards Grid -->
-                <div id="sealedPoolCardsGrid" style="display:flex; flex-wrap:wrap; justify-content:center; gap:16px; width:100%;">
-            `;
-
-            if (filteredCards.length === 0) {
-                html += `<div style="padding:40px; color:#888; text-align:center;">No cards match the selected filter.</div>`;
-            } else {
-                filteredCards.forEach((card, idx) => {
-                    const img1 = card.image_uris?.normal || (card.card_faces && card.card_faces[0]?.image_uris?.normal) || card.image1;
-                    const img2 = (card.card_faces && card.card_faces[1]?.image_uris?.normal) || card.image2 || null;
-                    const safeName = sanitizeHTML(card.name);
-                    const tl = (card.type_line || '').toLowerCase();
-                    const isLegendary = tl.includes('legendary') && (tl.includes('creature') || tl.includes('planeswalker'));
-                    const rarityColor = card.rarity === 'mythic' ? '#ff6600' : (card.rarity === 'rare' ? 'var(--gold)' : (card.rarity === 'uncommon' ? '#88ccff' : '#bbb'));
-
-                    let imageHtml = img2 
-                        ? `<div class="scene"><div class="card-3d" id="sealed-card3d-${idx}"><a href="${card.scryfall_uri}" target="_blank" onclick="playSound('sfx-click')" style="display:block;" class="card-face card-face-front"><img src="${sanitizeHTML(img1)}" class="commander-img" loading="lazy"></a><a href="${card.scryfall_uri}" target="_blank" onclick="playSound('sfx-click')" style="display:block;" class="card-face card-face-back"><img src="${sanitizeHTML(img2)}" class="commander-img" loading="lazy"></a></div></div><button class="flip-btn" onclick="window.flipCard3D('sealed-card3d-${idx}', event)">🔄 Flip Card</button>`
-                        : `<a href="${card.scryfall_uri}" target="_blank" onclick="playSound('sfx-click')" title="View on Scryfall"><img src="${sanitizeHTML(img1)}" class="commander-img" loading="lazy"></a>`;
-
-                    html += `
-                        <div class="option-card revealed" style="width:230px; padding:16px; transition:none; transform:none; opacity:1; border-color:${isLegendary ? 'var(--gold)' : 'rgba(255,255,255,0.12)'};">
-                            ${imageHtml}
-                            <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
-                                <span style="font-size:0.75rem; text-transform:uppercase; font-weight:700; color:${rarityColor};">${card.rarity || 'common'}</span>
-                                <div class="mana-container" style="margin-bottom:0;">${getColorBadges(card.color_identity)}</div>
-                            </div>
-                            <p style="color:#ddd; font-size:0.85rem; margin:6px 0; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${safeName}">${safeName}</p>
-                            
-                            ${(isLegendary || tl.includes('creature')) ? `
-                                <button class="select-btn choose-sealed-cmdr-btn" data-card-name="${safeName}" data-card-img="${sanitizeHTML(img1)}" data-card-uri="${card.scryfall_uri || ''}" style="width:100%; padding:8px 10px; font-size:0.78rem; margin-top:8px; ${isLegendary ? '' : 'background:#333; color:#ccc; box-shadow:none;'}">
-                                    ⭐ Choose as Commander
-                                </button>
-                            ` : ''}
-                        </div>
-                    `;
-                });
-            }
-
-            html += `</div>`;
-            container.innerHTML = html;
-
-            // Bind Event Listeners
-            const exportBtn = document.getElementById('exportPoolBtn');
-            if (exportBtn) exportBtn.onclick = exportPoolToClipboard;
-
-            const handBtn = document.getElementById('handSimBtn');
-            if (handBtn) handBtn.onclick = openHandSimulator;
-
-            const moxBtn = document.getElementById('moxfieldImportBtn');
-            if (moxBtn) {
-                moxBtn.onclick = () => {
-                    playSound('sfx-click');
-                    const counts = {};
-                    sealedPool.forEach(c => { counts[c.name] = (counts[c.name] || 0) + 1; });
-                    let poolText = '';
-                    Object.entries(counts).forEach(([name, count]) => { poolText += `${count} ${name}\n`; });
-                    window.open(`https://www.moxfield.com/import?c=${encodeURIComponent(poolText)}`, '_blank');
-                    showToast("Opening Moxfield Importer with your sealed pool...", false, 3000, true);
-                };
-            }
-
-            document.querySelectorAll('.sort-chip-btn').forEach(btn => {
-                btn.onclick = () => {
-                    playSound('sfx-click');
-                    currentSort = btn.dataset.sort;
-                    render();
-                };
-            });
-
-            document.querySelectorAll('.filter-type-btn').forEach(btn => {
-                btn.onclick = () => {
-                    playSound('sfx-click');
-                    currentFilter = btn.dataset.filter;
-                    render();
-                };
-            });
-
-            document.querySelectorAll('.choose-sealed-cmdr-btn').forEach(btn => {
-                btn.onclick = () => {
-                    playSound('sfx-click');
-                    const cardName = btn.dataset.cardName;
-                    const cardImg = btn.dataset.cardImg;
-                    const scryUri = btn.dataset.cardUri;
-                    const cardObj = sealedPool.find(c => c.name === cardName) || {};
-
-                    showConfirm("Seal Your Champion?", `Lock in ${cardName} as your Commander for this challenge?`, async () => {
-                        playSound('sfx-choose');
-                        await update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), {
-                            selected: cardName,
-                            image: cardImg,
-                            display_rank: cardObj.display_rank || null,
-                            scryfall_uri: scryUri,
-                            color_identity: cardObj.color_identity || [],
-                            isLegal: true,
-                            deckPrice: 0,
-                            lockedDeckPrice: 0
-                        });
-                        showToast(`Commander ${cardName} locked in!`, false, 3000, true);
-                    });
-                };
-            });
-        };
-
-        render();
-    }
-
     window.flipCard3D = (cardId, event) => { if(event) { event.preventDefault(); event.stopPropagation(); } playSound('sfx-click'); const card = document.getElementById(cardId); if (card) card.classList.toggle('is-flipped'); };
 
     window.interactiveDraftAction = async (actionType, payload, event) => {
@@ -705,9 +346,9 @@ export function initPlayerViewModule(utils, state) {
                 await new Promise(r => setTimeout(r, 550));
             }
         }
-        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=0.15'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=0.15'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=0.15'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
+        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=0.16'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=0.16'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=0.16'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
     };
 
     window.openPlayerView = async () => {
@@ -722,13 +363,6 @@ export function initPlayerViewModule(utils, state) {
             const roomData = snap.val() || {}; const currentS = roomData.settings || s; const data = roomData.players?.[state.currentPlayerId] || {}; const activeDraft = roomData.activeDraft;
             if (!document.getElementById('view-player').classList.contains('active')) return;
             const container = document.getElementById('content');
-
-            const sealedPool = data.sealedPool || activeDraft?.playerPools?.[state.currentPlayerId];
-            if ((activeDraft?.draftMode === 'prerelease_sealed' || currentS.draftFormat === 'prerelease_sealed' || currentS.draftMode === 'prerelease_sealed') && sealedPool && !data.selected) {
-                isSearchingManually = false;
-                renderPrereleaseSealedPool(container, currentS, sealedPool);
-                return;
-            }
 
             if (data.selected) { isSearchingManually = false; renderFinalForm(data); }
             else if (activeDraft && currentS.draftFormat !== 'independent') { isSearchingManually = false; renderInteractiveDraft(activeDraft, container, currentS, roomData.players); }

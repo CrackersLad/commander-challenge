@@ -168,7 +168,7 @@
                 <p style="color: #aaa; font-size: 0.9rem; margin-bottom: 20px;">You are currently playing as a Guest.<br>Sign in to track lifetime stats, save your custom nickname, and keep your history!</p>
                 <div style="display: flex; flex-direction: column; gap: 12px; justify-content: center;">
                     <button id="loginGoogleBtn" class="auth-provider-btn google-btn">
-                        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v0.15h4.844c-.209 1.125-.843 2.078-1.796 2.717v0.15h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v0.15C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.173 0 7.548 0 9s.347 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.346l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
+                        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v0.16h4.844c-.209 1.125-.843 2.078-1.796 2.717v0.16h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v0.16C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.173 0 7.548 0 9s.347 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.346l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
                         Sign in with Google
                     </button>
                     <button id="loginDiscordBtn" class="auth-provider-btn discord-btn">
@@ -233,16 +233,7 @@
                 <button class="select-btn action-cta-btn" id="createBtn">Host Challenge</button>
             </div>
 
-            <!-- Mode 2: Prerelease Practice -->
-            <div class="action-card action-card-sealed">
-                <div class="action-card-badge sealed-badge">6 Booster Packs</div>
-                <div class="action-card-icon">📦</div>
-                <h3 class="action-card-title">Prerelease Practice</h3>
-                <p class="action-card-desc">Simulate authentic 6-booster sealed pools for any Magic: The Gathering set with instant pool generation.</p>
-                <button class="select-btn action-cta-btn sealed-cta" id="startPrereleasePracticeBtn" onclick="window.startPrereleasePractice()">Start Sealed Pool</button>
-            </div>
-
-            <!-- Mode 3: Join Playgroup -->
+            <!-- Mode 2: Join Playgroup -->
             <div class="action-card action-card-join" id="joinCard">
                 <div class="action-card-badge join-badge">Room Code</div>
                 <div class="action-card-icon">🛡️</div>
@@ -581,142 +572,15 @@
         </div>
     </main>
 
-    <!-- ==================== VIEW 8: STANDALONE PRERELEASE & SEALED DRAFT ==================== -->
-    <main id="view-sealed" class="view-section">
-        <div class="sealed-view-wrapper">
-            <!-- 1. Lobby & Set Selection Panel -->
-            <div id="sealedLobbyPanel" class="sealed-panel" style="display: block;">
-                <div class="hero-container" style="margin-bottom: 25px;">
-                    <div class="hero-badge" style="border-color: rgba(186, 104, 200, 0.6); color: #ce93d8;">📦 MTG Booster Simulator 📦</div>
-                    <h1 class="hero-title" style="background: linear-gradient(135deg, #ba68c8, #ab47bc, #ffd54f); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">PRERELEASE & SEALED DRAFT</h1>
-                    <p class="hero-subtitle">Open authentic 6-pack Magic: The Gathering booster pools with realistic rarity collation (1 Rare/Mythic, 3 Uncommons, 10 Commons + 1 Foil Promo per pack). Build decks, test draw hands, and export directly to Moxfield!</p>
-                </div>
-
-                <div class="action-card" style="max-width: 720px; margin: 0 auto; text-align: left; background: rgba(22, 16, 32, 0.85); border: 1px solid rgba(186, 104, 200, 0.35); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                    <h3 style="color: var(--gold); margin-top: 0; font-size: 1.25rem;">🔮 Choose MTG Set to Open</h3>
-                    
-                    <div style="margin: 15px 0;">
-                        <label for="sealedSetSearchInput" style="display: block; font-weight: 600; margin-bottom: 8px; color: #ddd;">Search Any Magic: The Gathering Set:</label>
-                        <input type="text" id="sealedSetSearchInput" list="sealedSetList" placeholder="Type set name or code (e.g. Duskmourn, Bloomburrow, Modern Horizons 3...)" class="hero-name-input" style="width: 100%;" autocomplete="off">
-                        <datalist id="sealedSetList"></datalist>
-                    </div>
-
-                    <!-- Popular 1-Click Set Pills -->
-                    <div style="margin: 20px 0 15px 0;">
-                        <span style="font-size: 0.8rem; color: #aaa; display: block; margin-bottom: 8px; font-weight: 600;">Popular & Recent Sets:</span>
-                        <div class="quick-set-chips" style="display: flex; flex-wrap: wrap; gap: 8px;">
-                            <button type="button" class="quick-set-btn sealed-quick-btn active" data-code="dsk" data-name="Duskmourn: House of Horror">🔮 Duskmourn</button>
-                            <button type="button" class="quick-set-btn sealed-quick-btn" data-code="blb" data-name="Bloomburrow">🐾 Bloomburrow</button>
-                            <button type="button" class="quick-set-btn sealed-quick-btn" data-code="mh3" data-name="Modern Horizons 3">⚡ MH3</button>
-                            <button type="button" class="quick-set-btn sealed-quick-btn" data-code="otj" data-name="Outlaws of Thunder Junction">🤠 Outlaws</button>
-                            <button type="button" class="quick-set-btn sealed-quick-btn" data-code="lci" data-name="The Lost Caverns of Ixalan">🦖 Ixalan</button>
-                            <button type="button" class="quick-set-btn sealed-quick-btn" data-code="woe" data-name="Wilds of Eldraine">🧚 Eldraine</button>
-                            <button type="button" class="quick-set-btn sealed-quick-btn" data-code="cmm" data-name="Commander Masters">👑 Cmdr Masters</button>
-                            <button type="button" class="quick-set-btn sealed-quick-btn" data-code="fdn" data-name="Foundations">🏛️ Foundations</button>
-                            <button type="button" class="quick-set-btn sealed-quick-btn" data-code="inr" data-name="Innistrad Remastered">💀 Innistrad Remastered</button>
-                        </div>
-                    </div>
-
-                    <!-- Solo Simulator Guidance Notice -->
-                    <div class="sealed-info-box" style="margin: 20px 0; background: rgba(142, 36, 170, 0.15); border: 1px solid rgba(186, 104, 200, 0.45); border-radius: var(--radius-sm); padding: 14px 16px; font-size: 0.92rem; line-height: 1.5; color: #f3e5f5;">
-                        ℹ️ <strong>Solo Sealed Simulator:</strong> You are starting the draft alone, you will get a simulated set of picks and a final set of cards you can export at the end or test draws.
-                    </div>
-
-                    <div style="display: flex; gap: 12px; margin-top: 25px; flex-wrap: wrap;">
-                        <button id="sealedSoloGenerateBtn" class="select-btn action-cta-btn sealed-cta" style="flex: 2; min-width: 220px; font-size: 1.05rem; padding: 14px;">
-                            📦 Open 6-Pack Sealed Pool (Instant)
-                        </button>
-                        <button id="sealedBackToHubBtn" class="secondary-btn" style="flex: 1; min-width: 140px; padding: 14px;">
-                            ← Back to Hub
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 2. Sealed Pool Deckbuilder & Workspace Panel -->
-            <div id="sealedPoolViewerPanel" class="sealed-panel" style="display: none;">
-                <!-- Header Toolbar -->
-                <div class="sealed-header-wrapper" style="background: rgba(18, 14, 28, 0.85); border: 1px solid rgba(186, 104, 200, 0.3); border-radius: var(--radius-md); padding: 18px 24px; margin-bottom: 20px; backdrop-filter: blur(12px);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-                        <div>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <h2 id="sealedViewerSetTitle" style="margin: 0; color: #fff; font-size: 1.4rem;">Duskmourn: House of Horror (DSK)</h2>
-                                <span class="sealed-badge" style="background: linear-gradient(135deg, #7b1fa2, #ab47bc); color: #fff; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold;">6 BOOSTERS / 85 CARDS</span>
-                            </div>
-                            <p style="margin: 4px 0 0 0; color: #aaa; font-size: 0.85rem;">Prerelease Sealed Pool Simulation • Authentic Rarity Collation</p>
-                        </div>
-
-                        <!-- Action Controls -->
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            <button id="sealedExportBtn" class="host-action-btn copy" title="Copy card list to clipboard">📥 Export Pool</button>
-                            <button id="sealedSimHandBtn" class="host-action-btn edit" title="Simulate 7-card opening hands">🧪 Test Draw Hand</button>
-                            <button onclick="window.open('https://www.moxfield.com/decks/new', '_blank')" class="host-action-btn secondary" title="Open Moxfield">☕ Open Moxfield</button>
-                            <button id="sealedNewPoolBtn" class="host-action-btn clear" title="Open a new sealed pool">🔄 New Pool</button>
-                        </div>
-                    </div>
-
-                    <!-- Visual Breakdown Stats Bar -->
-                    <div id="sealedPoolStatsBar" class="sealed-stats-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px;"></div>
-                </div>
-
-                <!-- Sorter & Filter Toolbar -->
-                <div class="sealed-filter-toolbar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; background: rgba(10, 8, 16, 0.6); padding: 12px 18px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.06);">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <label for="sealedSortSelect" style="color: var(--gold); font-size: 0.85rem; font-weight: 600;">Sort By:</label>
-                        <select id="sealedSortSelect" style="background: #1a1528; border: 1px solid rgba(186, 104, 200, 0.4); color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer;">
-                            <option value="color">Color (WUBRG)</option>
-                            <option value="cmc">Mana Value (CMC)</option>
-                            <option value="rarity">Rarity (Mythic → Common)</option>
-                            <option value="type">Card Type</option>
-                            <option value="name">Card Name (A-Z)</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-chips-container" style="display: flex; flex-wrap: wrap; gap: 6px;">
-                        <button class="filter-chip-btn sealed-filter-chip active" data-filter="all">All Cards</button>
-                        <button class="filter-chip-btn sealed-filter-chip" data-filter="commanders">👑 Commanders</button>
-                        <button class="filter-chip-btn sealed-filter-chip" data-filter="creatures">⚔️ Creatures</button>
-                        <button class="filter-chip-btn sealed-filter-chip" data-filter="spells">⚡ Spells</button>
-                        <button class="filter-chip-btn sealed-filter-chip" data-filter="artifacts_enchantments">🔮 Artifacts & Enchants</button>
-                        <button class="filter-chip-btn sealed-filter-chip" data-filter="lands">🌲 Lands</button>
-                    </div>
-                </div>
-
-                <!-- Cards Grid -->
-                <div id="sealedCardsGrid" class="sealed-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-top: 15px;"></div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Test Hand Draw Simulator Modal -->
-    <div id="sealedHandModal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 960px; width: 95%; background: #120e1e; border: 1px solid rgba(186, 104, 200, 0.4); border-radius: var(--radius-md);">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 15px;">
-                <h3 style="margin: 0; color: var(--gold); font-size: 1.25rem;">🧪 Starting Hand Simulator (7 Cards)</h3>
-                <span id="sealedDeckCount" style="color: #aaa; font-size: 0.85rem;"></span>
-            </div>
-
-            <div id="sealedDrawnHandCards" class="hand-sim-cards-grid" style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; min-height: 260px; margin: 15px 0;"></div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; flex-wrap: wrap; gap: 10px;">
-                <div style="display: flex; gap: 10px;">
-                    <button class="secondary-btn" onclick="window.mulliganSimHand()" style="border-color: #ba68c8; color: #f3e5f5;">🔄 Mulligan (New 7)</button>
-                    <button class="secondary-btn" onclick="window.drawSimCard()" style="border-color: var(--gold); color: var(--gold);">🃏 Draw Card (+1)</button>
-                </div>
-                <button class="secondary-btn" onclick="window.closeHandSimulator()" style="padding: 8px 18px;">Close</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
-        <span class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v0.15</span>
+        <span class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v0.16</span>
     </footer>
 
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=0.15"></script>
+    <script type="module" src="./script.js?v=0.16"></script>
 </body>
 </html>
