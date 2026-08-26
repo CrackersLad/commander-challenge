@@ -24,7 +24,7 @@
         (function() {
             var currentHost = window.location.hostname;
             var primaryDomain = 'edhchallenge.com';
-            if (currentHost !== primaryDomain && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
+            if (currentHost.endsWith('firebaseapp.com') || currentHost.endsWith('web.app')) {
                 window.location.replace('https://' + primaryDomain + window.location.pathname + window.location.search);
             }
         })();
@@ -168,7 +168,7 @@
                 <p style="color: #aaa; font-size: 0.9rem; margin-bottom: 20px;">You are currently playing as a Guest.<br>Sign in to track lifetime stats, save your custom nickname, and keep your history!</p>
                 <div style="display: flex; flex-direction: column; gap: 12px; justify-content: center;">
                     <button id="loginGoogleBtn" class="auth-provider-btn google-btn">
-                        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v0.16h4.844c-.209 1.125-.843 2.078-1.796 2.717v0.16h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v0.16C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.173 0 7.548 0 9s.347 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.346l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
+                        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v0.17h4.844c-.209 1.125-.843 2.078-1.796 2.717v0.17h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v0.17C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.173 0 7.548 0 9s.347 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.346l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
                         Sign in with Google
                     </button>
                     <button id="loginDiscordBtn" class="auth-provider-btn discord-btn">
@@ -396,22 +396,12 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div id="commanderSettings">
-                                            <option value="4">4</option>
-                                            <option value="5">5</option>
-                                            <option value="10">10</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
 
-                            <label class="toggle-label" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
-                                <div class="toggle-switch"><input type="checkbox" id="settingBlindDraft"><span class="slider"></span></div>
-                                Blind Draft <span style="color: #888; font-size: 0.8rem; margin-left: 5px;">(Hide commander picks until everyone locks in)</span>
-                            </label>
-                        </div>
+                        <label class="toggle-label" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                            <div class="toggle-switch"><input type="checkbox" id="settingBlindDraft"><span class="slider"></span></div>
+                            Blind Draft <span style="color: #888; font-size: 0.8rem; margin-left: 5px;">(Hide commander picks until everyone locks in)</span>
+                        </label>
+                    </div>
 
                         <div class="settings-panel">
                             <h4>💰 Budgets & Power Limits</h4>
@@ -478,7 +468,6 @@
                                 <input type="text" id="settingDiscordWebhook" placeholder="https://discord.com/api/webhooks/...">
                             </div>
                         </div>
-                    </div>
 
                     <!-- Host Start Bar -->
                     <div id="hostActionButtons" class="host-action-bar">
@@ -575,12 +564,12 @@
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
-        <span class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v0.16</span>
+        <span class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v0.17</span>
     </footer>
 
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=0.16"></script>
+    <script type="module" src="./script.js?v=0.17"></script>
 </body>
 </html>
