@@ -41,6 +41,13 @@
     --shadow-lg: 0 16px 45px rgba(0, 0, 0, 0.85);
     --shadow-gold: 0 0 25px rgba(212, 175, 55, 0.35);
     --shadow-arcane: 0 0 25px rgba(142, 36, 170, 0.4);
+
+    /* Safe Area Insets for Mobile / PWA / Capacitor */
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --nav-height: calc(62px + var(--sat));
 }
 
 /* --- Base & Reset --- */
@@ -55,6 +62,7 @@ html {
     overscroll-behavior: none;
     width: 100%;
     height: 100%;
+    height: 100dvh;
     overflow: hidden;
     background-color: var(--obsidian);
 }
@@ -67,7 +75,7 @@ body {
     line-height: 1.6;
     text-align: center;
     margin: 0;
-    padding: 75px 20px 40px 20px; /* Top padding accommodates fixed navbar */
+    padding: calc(var(--nav-height) + 16px) max(16px, var(--sar)) max(35px, var(--sab)) max(16px, var(--sal));
     background-image: 
         radial-gradient(circle at 50% 0%, rgba(142, 36, 170, 0.18) 0%, transparent 60%),
         radial-gradient(circle at 10% 20%, rgba(212, 175, 55, 0.08) 0%, transparent 40%),
@@ -75,6 +83,7 @@ body {
         linear-gradient(to bottom, #0d0d14 0%, #08080c 100%);
     width: 100%;
     height: 100%;
+    height: 100dvh;
     overflow-y: auto;
     overflow-x: hidden;
     box-sizing: border-box;
@@ -82,6 +91,12 @@ body {
     user-select: none;
     cursor: default;
     overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+input, textarea, select, [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
 }
 
 img {
@@ -121,17 +136,18 @@ a:hover {
     top: 0;
     left: 0;
     right: 0;
-    height: 62px;
-    background: rgba(10, 10, 15, 0.85);
+    height: var(--nav-height);
+    background: rgba(10, 10, 15, 0.88);
     -webkit-backdrop-filter: blur(16px);
     backdrop-filter: blur(16px);
     border-bottom: 1px solid rgba(212, 175, 55, 0.25);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 24px;
+    padding: var(--sat) max(18px, var(--sar)) 0 max(18px, var(--sal));
     z-index: 1000;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+    box-sizing: border-box;
 }
 
 .nav-left, .nav-right {
@@ -420,7 +436,7 @@ select {
     color: #fff;
     outline: none;
     font-family: var(--font-body);
-    font-size: 0.95rem;
+    font-size: 16px;
     text-align: center;
     transition: all 0.25s ease;
     -webkit-backdrop-filter: blur(8px);
@@ -797,8 +813,10 @@ select:focus {
    VIEW 2: LOBBY & ROSTER
    ========================================================================== */
 .lobby-view-wrapper {
-    max-width: 840px;
+    max-width: 1100px;
     margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .lobby-container {
@@ -886,8 +904,8 @@ select:focus {
 .player-list {
     list-style: none;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
 }
 
 .player-list li {
@@ -1121,8 +1139,10 @@ select:focus {
    VIEW 3: DASHBOARD & ARMORY
    ========================================================================== */
 .dashboard-wrapper {
-    max-width: 1200px;
+    max-width: 1520px;
     margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .dashboard-header-card {
@@ -1184,19 +1204,17 @@ select:focus {
 .action-chip.burn-chip { border-color: rgba(255, 71, 87, 0.4); color: #ff9999; }
 .action-chip.burn-chip:hover { background: var(--danger); color: #fff; }
 
-/* Dynamic Dashboard Carousel */
+/* Responsive Dashboard Challenger Cards */
 .dashboard {
     display: flex;
-    gap: 28px;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding: 15px 30px 30px 30px;
-    cursor: grab;
-    scroll-behavior: smooth;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: stretch;
+    padding: 15px 10px 30px 10px;
+    width: 100%;
+    box-sizing: border-box;
 }
-
-.dashboard .card:first-child { margin-left: auto; }
-.dashboard .card:last-child { margin-right: auto; }
 
 .card {
     background: var(--card-bg);
@@ -1205,13 +1223,15 @@ select:focus {
     border: 1px solid var(--card-border-gold);
     border-top: 2px solid var(--gold);
     border-radius: var(--radius-lg);
-    padding: 24px;
-    width: 300px;
+    padding: 22px 18px;
+    flex: 1 1 270px;
+    max-width: 320px;
+    min-width: 250px;
     box-shadow: var(--shadow-lg), inset 0 0 20px rgba(0, 0, 0, 0.6);
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease;
     position: relative;
-    flex-shrink: 0;
     text-align: center;
+    box-sizing: border-box;
 }
 
 .card:hover {
@@ -1288,12 +1308,72 @@ select:focus {
     border: 1px solid #111;
     box-shadow: 0 0 4px rgba(0,0,0,0.8);
 }
-.presence-online {
-    background-color: var(--success);
-    box-shadow: 0 0 8px rgba(46, 204, 113, 0.8);
+.presence-dot.online { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
+.presence-dot.offline { background: #7f8c8d; }
+
+.status-text {
+    font-size: 0.92rem;
+    margin: 8px 0;
+    color: #ccc;
 }
-.presence-offline {
-    background-color: #666;
+
+.status-text strong {
+    color: #fff;
+}
+
+.deck-link {
+    display: inline-block;
+    color: var(--gold);
+    font-weight: bold;
+    margin-top: 10px;
+    font-size: 0.9rem;
+    border-bottom: 1px dashed var(--gold);
+    padding-bottom: 2px;
+}
+
+.deck-link:hover {
+    color: #fff;
+    border-bottom-style: solid;
+}
+
+.player-actions {
+    margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.player-actions button {
+    width: 100%;
+}
+
+.player-actions input {
+    width: 100%;
+    margin-bottom: 6px;
+}
+
+.search-results-box {
+    background: rgba(10, 10, 15, 0.95);
+    border: 1px solid var(--gold);
+    border-radius: var(--radius-sm);
+    max-height: 160px;
+    overflow-y: auto;
+    margin-top: 6px;
+    text-align: left;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+}
+
+.search-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.85rem;
+    transition: background 0.2s ease;
+}
+
+.search-item:hover {
+    background: rgba(212, 175, 55, 0.2);
+    color: #fff;
 }
 
 /* Battle Scheduled Card */
@@ -1319,34 +1399,42 @@ select:focus {
 .dropdown-content {
     display: none;
     position: absolute;
-    background-color: rgba(20, 20, 28, 0.96);
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
-    min-width: 200px;
-    box-shadow: var(--shadow-lg);
-    z-index: 200;
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(212, 175, 55, 0.35);
     right: 0;
+    top: calc(100% + 8px);
+    background: rgba(15, 15, 22, 0.96);
+    min-width: 200px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.9);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--gold);
+    z-index: 100;
     overflow: hidden;
-    margin-top: 6px;
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
 }
 
 .dropdown-content a {
-    color: #ccc;
+    color: #eee;
     padding: 12px 18px;
     text-decoration: none;
-    display: block;
-    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     font-family: var(--font-body);
     font-size: 0.9rem;
-    font-weight: 600;
-    transition: background-color 0.2s ease, color 0.2s ease;
+    font-weight: 500;
+    text-align: left;
+    transition: all 0.2s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dropdown-content a:last-child {
+    border-bottom: none;
 }
 
 .dropdown-content a:hover {
-    background-color: rgba(212, 175, 55, 0.18);
-    color: #fff;
+    background: rgba(212, 175, 55, 0.2);
+    color: var(--gold);
+    padding-left: 22px;
 }
 
 .dropdown-content a.danger-link {
@@ -1354,8 +1442,8 @@ select:focus {
 }
 
 .dropdown-content a.danger-link:hover {
-    background-color: rgba(255, 71, 87, 0.25);
-    color: #fff;
+    background: rgba(255, 71, 87, 0.25);
+    color: #ff4757;
 }
 
 .dropdown.show .dropdown-content {
@@ -1367,8 +1455,10 @@ select:focus {
    VIEW 7: DRAFTING / PLAYER VIEW
    ========================================================================== */
 .player-view-wrapper {
-    max-width: 1100px;
+    max-width: 1520px;
     margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .player-view-title {
@@ -1380,23 +1470,28 @@ select:focus {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 28px;
+    gap: 24px;
     margin-top: 25px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .option-card {
     background: var(--card-bg);
     -webkit-backdrop-filter: blur(14px);
     backdrop-filter: blur(14px);
-    padding: 24px;
+    padding: 22px 18px;
     border-radius: var(--radius-lg);
     border: 1px solid var(--card-border-gold);
     border-top: 2px solid var(--gold);
-    width: 320px;
+    flex: 1 1 270px;
+    max-width: 320px;
+    min-width: 250px;
     box-shadow: var(--shadow-lg), inset 0 0 20px rgba(0,0,0,0.5);
     opacity: 0;
     transform: translateY(20px);
     transition: opacity 0.45s ease, transform 0.45s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    box-sizing: border-box;
 }
 
 .option-card.revealed {
@@ -1516,7 +1611,7 @@ select:focus {
     position: fixed;
     z-index: 10000;
     left: 50%;
-    top: 20px;
+    top: calc(var(--sat) + 15px);
     transform: translateX(-50%);
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.95);
     font-family: var(--font-display);
@@ -1531,7 +1626,7 @@ select:focus {
 .toast.show {
     visibility: visible;
     opacity: 1;
-    top: 35px;
+    top: calc(var(--sat) + 28px);
 }
 
 .toast.error {
@@ -1553,6 +1648,7 @@ select:focus {
     left: 0;
     width: 100%;
     height: 100%;
+    height: 100dvh;
     background: rgba(0, 0, 0, 0.85);
     z-index: 5000;
     align-items: center;
@@ -1561,6 +1657,8 @@ select:focus {
     transition: opacity 0.3s ease;
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
+    padding: max(16px, var(--sat)) max(16px, var(--sar)) max(16px, var(--sab)) max(16px, var(--sal));
+    box-sizing: border-box;
 }
 
 .modal-overlay.show {
@@ -1574,15 +1672,18 @@ select:focus {
     backdrop-filter: blur(18px);
     border: 1px solid var(--gold);
     border-top: 2px solid var(--gold);
-    padding: 32px;
+    padding: 28px 24px;
     border-radius: var(--radius-lg);
     max-width: 440px;
+    width: 100%;
     text-align: center;
     box-shadow: var(--shadow-lg), 0 0 35px var(--arcane-glow);
     transform: translateY(-20px) scale(0.97);
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    max-height: 90vh;
+    max-height: calc(100dvh - var(--sat) - var(--sab) - 30px);
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
 }
 
 .modal-overlay.show .modal-content {
@@ -1833,13 +1934,14 @@ select:focus {
 
 @media (max-width: 768px) {
     body {
-        padding-top: 70px;
-        padding-left: 14px;
-        padding-right: 14px;
+        padding-top: calc(var(--nav-height) + 14px);
+        padding-left: max(14px, var(--sal));
+        padding-right: max(14px, var(--sar));
+        padding-bottom: max(35px, var(--sab));
     }
 
     .master-navbar {
-        padding: 0 14px;
+        padding: var(--sat) max(14px, var(--sar)) 0 max(14px, var(--sal));
     }
 
     .hero-title {
@@ -1922,6 +2024,36 @@ select:focus {
     }
     .options-container > .option-card:last-child {
         margin-right: calc(50% - min(42.5vw, 160px)) !important;
+    }
+}
+
+@media (max-width: 440px) {
+    .nav-brand-text {
+        font-size: 0.95rem;
+        letter-spacing: 1px;
+    }
+    .nav-account-pill {
+        padding: 4px 10px;
+    }
+    .nav-account-name {
+        font-size: 0.78rem;
+        max-width: 80px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .nav-icon-btn {
+        padding: 5px 9px;
+        font-size: 0.75rem;
+    }
+    .hero-title {
+        font-size: 1.65rem;
+    }
+    .player-identity-bar {
+        padding: 6px 10px;
+    }
+    .action-card {
+        padding: 22px 16px;
     }
 }
 

@@ -76,13 +76,31 @@ const copyRecursiveSync = (src, dest) => {
     }
 };
 
+const syncPlatformAssets = (src, dest) => {
+    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+
+    const preservedFiles = new Set(['cordova.js', 'cordova_plugins.js', 'plugins', 'capacitor.config.json']);
+    const destItems = fs.readdirSync(dest);
+    for (const item of destItems) {
+        if (preservedFiles.has(item)) continue;
+        const srcItemPath = path.join(src, item);
+        const destItemPath = path.join(dest, item);
+        if (!fs.existsSync(srcItemPath)) {
+            fs.rmSync(destItemPath, { recursive: true, force: true });
+            console.log(`  Removed stale native asset: ${item}`);
+        }
+    }
+
+    copyRecursiveSync(src, dest);
+};
+
 const publicPath = path.join(__dirname, '..', 'public');
 const androidAssetsPath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'assets', 'public');
 const iosAssetsPath = path.join(__dirname, '..', 'ios', 'App', 'App', 'public');
 
 console.log('\n🔄 Syncing web assets to native platforms...');
 
-if (fs.existsSync(path.dirname(androidAssetsPath))) copyRecursiveSync(publicPath, androidAssetsPath);
-if (fs.existsSync(path.dirname(iosAssetsPath))) copyRecursiveSync(publicPath, iosAssetsPath);
+if (fs.existsSync(path.dirname(androidAssetsPath))) syncPlatformAssets(publicPath, androidAssetsPath);
+if (fs.existsSync(path.dirname(iosAssetsPath))) syncPlatformAssets(publicPath, iosAssetsPath);
 
 console.log('✅ Asset sync complete.');
