@@ -1,4 +1,4 @@
-import { functions } from './firebase-setup.js?v=0.37';
+import { functions } from './firebase-setup.js?v=0.38';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 // Official Game Changers for Moxfield fallback (excluding casual staples like Sol Ring)
@@ -45,25 +45,25 @@ const EXTRA_TURNS_SET = new Set([
     "temporal trespass", "part the waterveil", "plea for power"
 ]);
 
-export function isCardInMainboard(item, categoriesMap) {
+export function isCardInMainboard(item, categoriesMap = {}) {
     const cardCategories = item.categories || [];
     if (cardCategories.length === 0) return true;
 
-    // Explicitly exclude any known sideboard, maybeboard, or token category names
-    const excludedNames = ['sideboard', 'maybeboard', 'side', 'maybe', 'tokens & extras', 'tokens', 'extras', 'considering', 'wishboard', 'to add', 'binder', 'cuts'];
-    for (let catName of cardCategories) {
-        const lower = String(catName).toLowerCase().trim();
-        if (excludedNames.includes(lower)) return false;
-    }
+    // Strict Non-Deck Category Names that must ALWAYS be excluded from everything
+    const strictExcludedNames = ['sideboard', 'maybeboard', 'side', 'maybe', 'considering', 'wishboard', 'binder', 'cuts'];
 
-    // If deck has category definitions, enforce includedInDeck flags
-    if (categoriesMap && Object.keys(categoriesMap).length > 0) {
-        for (let catName of cardCategories) {
-            if (categoriesMap[catName] && categoriesMap[catName].includedInDeck === false) {
-                return false;
-            }
+    for (let cat of cardCategories) {
+        const catName = typeof cat === 'string' ? cat : (cat.name || '');
+        const lower = catName.toLowerCase().trim();
+        
+        // Always exclude strictly non-deck named boards
+        if (strictExcludedNames.includes(lower)) return false;
+
+        // If defined in Archidekt category metadata, check includedInDeck flag
+        const catObj = categoriesMap[catName] || categoriesMap[lower];
+        if (catObj && catObj.includedInDeck === false) {
+            return false;
         }
-        return cardCategories.some(catName => categoriesMap[catName]?.includedInDeck === true);
     }
 
     return true;
@@ -175,7 +175,10 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
             const categoriesMap = {};
             if (Array.isArray(data.categories)) {
                 data.categories.forEach(cat => {
-                    categoriesMap[cat.name] = cat;
+                    if (cat && cat.name) {
+                        categoriesMap[cat.name] = cat;
+                        categoriesMap[cat.name.toLowerCase().trim()] = cat;
+                    }
                 });
             }
 
