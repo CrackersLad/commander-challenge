@@ -1,20 +1,6 @@
 {
-  "dependencies": {
-    "@capacitor-firebase/authentication": "^8.2.0",
-    "@capacitor/android": "^8.3.1",
-    "@capacitor/app": "^8.1.0",
-    "@capacitor/browser": "^8.0.3",
-    "@capacitor/cli": "^8.3.1",
-    "@capacitor/core": "^8.3.1",
-    "@capacitor/haptics": "^8.0.2",
-    "@capacitor/ios": "^8.3.1",
-    "@capacitor/push-notifications": "^8.0.3",
-    "@capacitor/splash-screen": "^8.0.1",
-    "@capacitor/status-bar": "^8.0.2"
-  },
-  "devDependencies": {
-    "@capacitor/assets": "^3.0.5"
-  },
+  "name": "commander-challenge",
+  "private": true,
   "scripts": {
     "version": "node functions/build.js",
     "version:major": "node functions/build.js major",

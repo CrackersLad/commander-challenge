@@ -1,4 +1,4 @@
-import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=0.21';
+import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=0.22';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithRedirect, linkWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
@@ -194,44 +194,26 @@ export function initAuthModule(utils, state) {
                 }
             };
 
-            if (window.Capacitor && window.Capacitor.Plugins.PushNotifications) {
-                window.Capacitor.Plugins.PushNotifications.checkPermissions().then(status => {
-                    updateUIState(status.receive);
-                    if (status.receive === 'granted') requestPushPermissions(uid, true);
-                });
-            } else if ('Notification' in window) {
+            if ('Notification' in window) {
                 updateUIState(Notification.permission);
                 if (Notification.permission === 'granted') requestPushPermissions(uid, true);
             } else {
-                const isNative = window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() !== 'web';
-                if (isNative) {
-                    enableNotificationsBtn.innerText = '❌ Push Plugin Missing';
-                    enableNotificationsBtn.style.opacity = '0.7';
-                    enableNotificationsBtn.onclick = () => {
-                        playSound('sfx-click');
-                        showToast("Developer Error: @capacitor/push-notifications is not installed or synced.", true, 6000);
-                    };
-                    return;
-                }
-                enableNotificationsBtn.innerText = '📱 App Install Required for Push';
+                enableNotificationsBtn.innerText = '📱 Push Not Supported';
                 enableNotificationsBtn.style.opacity = '0.7';
                 enableNotificationsBtn.onclick = () => {
                     playSound('sfx-click');
-                    showToast("To enable notifications on iOS Safari, tap 'Share' then 'Add to Home Screen'.", false, 6000, true);
+                    showToast("To enable notifications on iOS, tap 'Share' then 'Add to Home Screen'.", false, 6000, true);
                 };
                 return;
             }
             enableNotificationsBtn.onclick = async () => {
                 playSound('sfx-click');
                 if (enableNotificationsBtn.innerText.includes('Blocked')) {
-                    showToast("Blocked by OS. Please open device Settings to allow notifications.", true, 4000);
+                    showToast("Blocked by browser/OS. Please open site settings to allow notifications.", true, 4000);
                     return;
                 }
                 await requestPushPermissions(uid);
-                if (window.Capacitor && window.Capacitor.Plugins.PushNotifications) {
-                    const st = await window.Capacitor.Plugins.PushNotifications.checkPermissions();
-                    updateUIState(st.receive);
-                } else if ('Notification' in window) {
+                if ('Notification' in window) {
                     updateUIState(Notification.permission);
                 }
             };
@@ -248,75 +230,40 @@ export function initAuthModule(utils, state) {
             const profile = snap.val() || {};
             const finalName = profile.nickname || fallbackName || "Player";
             
-            const nickInput = document.getElementById('customNicknameInput');
-            if (nickInput && document.activeElement !== nickInput) nickInput.value = finalName;
-            
-            const globalAccountName = document.getElementById('globalAccountName');
-            if (globalAccountName) globalAccountName.innerText = finalName;
-
-            if (finalName && finalName !== "Player") {
-                state.currentPlayerName = finalName;
-                localStorage.setItem('playerName', finalName);
-                const playerNameInput = document.getElementById('playerNameInput');
-                if (playerNameInput && document.activeElement !== playerNameInput) {
-                    playerNameInput.value = finalName;
-                }
+            let wins = 0;
+            if (profile.wins !== undefined && profile.wins !== null) wins = profile.wins;
+            else {
+                const winsSnap = await get(ref(db, `users/${uid}/wins`));
+                if (winsSnap.exists()) wins = winsSnap.val();
             }
 
-            await syncRoomsWithIdentity(finalName, bestAvatar, uid);
-        }, (err) => console.warn("Profile read skipped:", err.message));
+            const winHistory = profile.winHistory || [];
+            updateAccountUI(finalName, bestAvatar, wins, winHistory);
+            
+            if (state.currentPlayerId && auth.currentUser && auth.currentUser.uid === uid) {
+                state.currentPlayerName = finalName;
+                state.currentPlayerAvatar = bestAvatar;
+                localStorage.setItem('playerName', finalName);
+                if (document.getElementById('playerNameInput') && !document.getElementById('playerNameInput').value.trim()) {
+                    document.getElementById('playerNameInput').value = finalName;
+                }
+                await syncNameToCurrentRoom(finalName, bestAvatar);
+            }
+        });
     }
 
-    async function syncRoomsWithIdentity(finalName, avatar, uid) {
+    function updateAccountUI(name, avatar, wins, winHistory) {
+        const globalAccountName = document.getElementById('globalAccountName');
+        if (globalAccountName) globalAccountName.innerText = name;
+    }
+
+    async function syncNameToCurrentRoom(newName, bestAvatar) {
+        if (!state.currentRoom || !state.currentPlayerId) return;
         try {
-            if (!state.currentPlayerId) return;
-
-            let roomsToUpdate = [];
-            const savedRooms = localStorage.getItem('joinedRooms');
-            if (savedRooms) {
-                roomsToUpdate = JSON.parse(savedRooms);
-            } else if (state.currentRoom) {
-                roomsToUpdate = [state.currentRoom];
-            }
-
-            if (roomsToUpdate.length === 0) {
-                if (document.getElementById('view-landing').classList.contains('active')) window.loadMyPlaygroups();
-                return;
-            }
-
-            // Create a single multi-path update payload for the root level
-            const rootUpdates = {};
-            const gName = localStorage.getItem('guestName') || finalName || "Player";
-            
-            let validJoinedRooms = [];
-            
-            // Check if rooms still exist to prevent "ghost rooms" from recreating
-            const existenceChecks = await Promise.all(
-                roomsToUpdate.map(code => get(ref(db, `rooms/${code}/settings`)).then(snap => ({ code, exists: snap.exists() })))
-            );
-            
-            existenceChecks.forEach(({ code, exists }) => {
-                if (exists) {
-                    validJoinedRooms.push(code);
-                    const pathPrefix = `rooms/${code}/players/${state.currentPlayerId}`;
-                    rootUpdates[`${pathPrefix}/name`] = uid ? finalName : gName;
-                    rootUpdates[`${pathPrefix}/avatar`] = avatar || null;
-                    rootUpdates[`${pathPrefix}/uid`] = uid || null;
-                    if (uid) rootUpdates[`${pathPrefix}/guestName`] = gName;
-                }
-            });
-
-            if (savedRooms) {
-                localStorage.setItem('joinedRooms', JSON.stringify(validJoinedRooms));
-            }
-            
-            // Send the entire batch at once without downloading any room data!
-            if (Object.keys(rootUpdates).length > 0) {
-                await update(ref(db), rootUpdates);
-            }
-
-            if (document.getElementById('view-landing').classList.contains('active')) {
-                window.loadMyPlaygroups();
+            const pRef = ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`);
+            const pSnap = await get(pRef);
+            if (pSnap.exists()) {
+                await update(pRef, { name: newName, avatar: bestAvatar || null });
             }
         } catch (e) {
             console.error("Room sync error:", e);
@@ -327,67 +274,6 @@ export function initAuthModule(utils, state) {
         const modal = document.getElementById('accountModal');
         try {
             const user = auth.currentUser;
-            const isNativePlatform = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
-
-            if (isNativePlatform) {
-                if (!window.Capacitor.Plugins || !window.Capacitor.Plugins.FirebaseAuthentication) {
-                    showToast("Native authentication plugins not available in this build.", true);
-                    return;
-                }
-
-                if (provider.providerId === 'google.com') {
-                    let result;
-                    try {
-                        result = await window.Capacitor.Plugins.FirebaseAuthentication.signInWithGoogle({
-                            clientId: "579721236208-53ml1vqsosjb4cglpo3etka31l1f8l1e.apps.googleusercontent.com",
-                            serverClientId: "579721236208-53ml1vqsosjb4cglpo3etka31l1f8l1e.apps.googleusercontent.com"
-                        });
-                    } catch (nativeErr) {
-                        console.error("Native Auth Error:", nativeErr);
-                        // Silently ignore if the user just closed the login popup
-                        if (!String(nativeErr.message).toLowerCase().includes("cancel")) {
-                            showToast("Google Sign-In failed.", true);
-                        }
-                        return;
-                    }
-
-                    if (!result || !result.credential || !result.credential.idToken) {
-                        showToast("Error: Google Sign-In succeeded but returned no ID Token.", true);
-                        return;
-                    }
-
-                    let credential;
-                    try {
-                        credential = GoogleAuthProvider.credential(result.credential.idToken);
-                        if (user && user.isAnonymous) {
-                            await linkWithCredential(user, credential);
-                            showToast("Account linked! Your stats are saved.", false, 3000, true);
-                        } else {
-                            await signInWithCredential(auth, credential);
-                        }
-                    } catch (fbErr) {
-                        if (fbErr.code === 'auth/credential-already-in-use' && credential) {
-                            try {
-                                await signInWithCredential(auth, credential);
-                                showToast("Logged into existing account.", false, 3000, true);
-                            } catch (signInErr) {
-                                showToast("Login Error: " + (signInErr.message || "Failed to sign in"), true);
-                            }
-                        } else {
-                            showToast("Firebase Error: " + (fbErr.message || "Authentication error"), true);
-                        }
-                    }
-                } else {
-                    if (user && user.isAnonymous) {
-                        await linkWithRedirect(user, provider);
-                    } else {
-                        await signInWithRedirect(auth, provider);
-                    }
-                }
-                return;
-            }
-
-            // Web authentication flow (Desktop & Mobile web browsers)
             if (user && user.isAnonymous) {
                 await linkWithPopup(user, provider);
                 showToast("Account linked! Your stats are saved.", false, 3000, true);
@@ -443,8 +329,7 @@ export function initAuthModule(utils, state) {
                         await update(ref(db, `users/${auth.currentUser.uid}/profile`), { nickname: newName });
                         showToast("Display name updated!", false, 3000, true);
                     } catch (e) {
-                        console.error("Save name error:", e);
-                        showToast("Failed to update name: " + e.message, true);
+                        showToast("Error updating name: " + e.message, true);
                     } finally {
                         saveNickBtn.innerText = "Save";
                         saveNickBtn.disabled = false;
@@ -453,25 +338,28 @@ export function initAuthModule(utils, state) {
             };
         }
 
-        const loginBtn = document.getElementById('loginGoogleBtn');
-        if (loginBtn) loginBtn.onclick = () => handleLogin(googleProvider);
-        
-        const loginDiscordBtn = document.getElementById('loginDiscordBtn');
-        if (loginDiscordBtn) loginDiscordBtn.onclick = () => handleLogin(discordProvider);
-
-        const logoutBtn = document.getElementById('logoutBtn');
-        if (logoutBtn) {
-            logoutBtn.onclick = () => {
+        const loginGoogleBtn = document.getElementById('loginGoogleBtn');
+        if (loginGoogleBtn) {
+            loginGoogleBtn.onclick = () => {
                 playSound('sfx-click');
-                window.isExplicitSignOut = true;
-                signOut(auth).then(() => {
-                    const modal = document.getElementById('accountModal');
-                    if (modal) {
-                        modal.classList.remove('show');
-                        setTimeout(() => modal.style.display = 'none', 300);
-                    }
-                    showToast("Reverted to Guest Mode.", false, 3000, true);
-                });
+                handleLogin(googleProvider);
+            };
+        }
+
+        const loginDiscordBtn = document.getElementById('loginDiscordBtn');
+        if (loginDiscordBtn) {
+            loginDiscordBtn.onclick = () => {
+                playSound('sfx-click');
+                handleLogin(discordProvider);
+            };
+        }
+
+        const signOutBtn = document.getElementById('signOutBtn');
+        if (signOutBtn) {
+            signOutBtn.onclick = async () => {
+                playSound('sfx-click');
+                await signOut(auth);
+                window.location.reload();
             };
         }
     }
@@ -480,58 +368,6 @@ export function initAuthModule(utils, state) {
 
     async function requestPushPermissions(uid, silent = false) {
         try {
-            if (window.Capacitor && window.Capacitor.Plugins.PushNotifications) {
-                const PushNotifications = window.Capacitor.Plugins.PushNotifications;
-                let permStatus = await PushNotifications.checkPermissions();
-                if (permStatus.receive === 'prompt') {
-                    if (silent) return;
-                    permStatus = await PushNotifications.requestPermissions();
-                }
-                if (permStatus.receive !== 'granted') {
-                    if (!silent) showToast("Notification permission denied.", true);
-                    return;
-                }
-                
-                await PushNotifications.removeAllListeners();
-
-                if (window.Capacitor.getPlatform() === 'android') {
-                    try {
-                        await PushNotifications.createChannel({
-                            id: 'default',
-                            name: 'General Alerts',
-                            description: 'Notifications for challenge events',
-                            importance: 5,
-                            visibility: 1
-                        });
-                    } catch(e) { console.warn("Channel init error:", e); }
-                }
-
-                PushNotifications.addListener('registration', async (token) => {
-                    const platform = window.Capacitor ? window.Capacitor.getPlatform() : 'mobile';
-                    await update(ref(db, `users/${uid}/fcmTokens`), { [token.value]: platform });
-                    if (!silent) showToast("Push Notifications synced!", false, 3000, true);
-                    const btn = document.getElementById('enableNotificationsBtn');
-                    if (btn) {
-                        btn.innerHTML = '✅ Notifications Enabled <span style="font-size:0.8em; opacity:0.8;">(Tap to re-sync)</span>';
-                        btn.disabled = false;
-                        btn.style.opacity = '1';
-                    }
-                });
-                PushNotifications.addListener('registrationError', (error) => {
-                    if (!silent) showToast("Failed to generate native token.", true);
-                });
-                PushNotifications.addListener('pushNotificationReceived', (notification) => {
-                    showToast(`🔔 ${notification.title}: ${notification.body}`, false, 5000, true);
-                });
-                PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-                    const data = action.notification.data;
-                    if (data && data.url) window.location.href = data.url;
-                });
-                
-                await PushNotifications.register();
-                return;
-            }
-
             if (!('Notification' in window)) {
                 if (!silent) showToast("Push not supported here.", true);
                 return;
@@ -550,21 +386,12 @@ export function initAuthModule(utils, state) {
                 const messaging = getMessaging(app);
                 const swRegistration = await navigator.serviceWorker.getRegistration();
 
-                // NOTE: You must generate a VAPID key in the Firebase Console (Project Settings > Cloud Messaging > Web configuration)
-                // Replace 'YOUR_VAPID_KEY_HERE' below with your actual key.
                 const token = await getToken(messaging, { vapidKey: 'BMk1hzKGyWMBxOCWrSPB2-xb3zF5BakEb4kU5_Gq2_gSsDaZZ3hJ9rhcNkj43sxsItODXdq-2Rph-XhcAl2EFVA', serviceWorkerRegistration: swRegistration });
                 
                 if (token) {
                     await update(ref(db, `users/${uid}/fcmTokens`), { [token]: 'web' });
                     if (!silent) showToast("Push Notifications synced!", false, 3000, true);
-                    const btn = document.getElementById('enableNotificationsBtn');
-                    if (btn) {
-                        btn.innerHTML = '✅ Notifications Enabled <span style="font-size:0.8em; opacity:0.8;">(Tap to re-sync)</span>';
-                        btn.disabled = false;
-                        btn.style.opacity = '1';
-                    }
                     
-                    // Listen for foreground messages (when user has the app open)
                     onMessage(messaging, (payload) => {
                         showToast(`🔔 ${payload.notification?.title}: ${payload.notification?.body}`, false, 5000, true);
                     });

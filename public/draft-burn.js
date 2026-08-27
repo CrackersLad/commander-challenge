@@ -1,4 +1,4 @@
-import { db } from './firebase-setup.js?v=0.21';
+import { db } from './firebase-setup.js?v=0.22';
 import { ref, runTransaction, update, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function renderBurnDraft(activeDraft, container, s, currentPlayerId, players, utils) {

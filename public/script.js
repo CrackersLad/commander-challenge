@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.21';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.21';
-import { getArchives } from './data-service.js?v=0.21';
-import { initDeckActionsModule } from './deck-actions.js?v=0.21';
-import { initRoomActionsModule } from './room-actions.js?v=0.21';
-import { initPlayerViewModule } from './player-view.js?v=0.21';
-import { initAdminModule } from './admin.js?v=0.21';
-import { initCalendarModule } from './calendar.js?v=0.21';
-import { initAuthModule } from './auth.js?v=0.21';
-import { initHubModule } from './hub.js?v=0.21';
-import { initProfileModule } from './profile.js?v=0.21';
+import { db, auth, functions } from './firebase-setup.js?v=0.22';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.22';
+import { getArchives } from './data-service.js?v=0.22';
+import { initDeckActionsModule } from './deck-actions.js?v=0.22';
+import { initRoomActionsModule } from './room-actions.js?v=0.22';
+import { initPlayerViewModule } from './player-view.js?v=0.22';
+import { initAdminModule } from './admin.js?v=0.22';
+import { initCalendarModule } from './calendar.js?v=0.22';
+import { initAuthModule } from './auth.js?v=0.22';
+import { initHubModule } from './hub.js?v=0.22';
+import { initProfileModule } from './profile.js?v=0.22';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -368,13 +368,12 @@ window.setupAdvancedSettings = () => {
 };
 
 export function playSound(soundId) {
-    // Haptics (Physical Vibration)
-    if (window.Capacitor && window.Capacitor.Plugins.Haptics) {
-        const Haptics = window.Capacitor.Plugins.Haptics;
+    // Web Vibration Haptics for mobile browsers
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
         if (soundId === 'sfx-choose' || soundId === 'sfx-reveal') {
-            Haptics.impact({ style: 'HEAVY' }).catch(()=>{});
+            try { navigator.vibrate(50); } catch(e) {}
         } else {
-            Haptics.impact({ style: 'LIGHT' }).catch(()=>{});
+            try { navigator.vibrate(20); } catch(e) {}
         }
     }
 
@@ -1761,7 +1760,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.21').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.22').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
