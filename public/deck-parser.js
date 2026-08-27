@@ -1,4 +1,4 @@
-import { functions } from './firebase-setup.js?v=0.35';
+import { functions } from './firebase-setup.js?v=0.36';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 // Official Game Changers for Moxfield fallback (excluding casual staples like Sol Ring)
@@ -45,7 +45,31 @@ const EXTRA_TURNS_SET = new Set([
     "temporal trespass", "part the waterveil", "plea for power"
 ]);
 
-export function calculateBracket(deckData, site, cardNames = []) {
+export function isCardInMainboard(item, categoriesMap) {
+    const cardCategories = item.categories || [];
+    if (cardCategories.length === 0) return true;
+
+    // Explicitly exclude any known sideboard, maybeboard, or token category names
+    const excludedNames = ['sideboard', 'maybeboard', 'side', 'maybe', 'tokens & extras', 'tokens', 'extras', 'considering', 'wishboard', 'to add', 'binder', 'cuts'];
+    for (let catName of cardCategories) {
+        const lower = String(catName).toLowerCase().trim();
+        if (excludedNames.includes(lower)) return false;
+    }
+
+    // If deck has category definitions, enforce includedInDeck flags
+    if (categoriesMap && Object.keys(categoriesMap).length > 0) {
+        for (let catName of cardCategories) {
+            if (categoriesMap[catName] && categoriesMap[catName].includedInDeck === false) {
+                return false;
+            }
+        }
+        return cardCategories.some(catName => categoriesMap[catName]?.includedInDeck === true);
+    }
+
+    return true;
+}
+
+export function calculateBracket(deckData, site, mainboardCards = [], cardNames = []) {
     // Tier 1: User-set bracket in Archidekt / Moxfield metadata
     if (deckData.edhBracket && !isNaN(parseInt(deckData.edhBracket, 10))) {
         return Math.min(5, Math.max(1, parseInt(deckData.edhBracket, 10)));
@@ -73,21 +97,20 @@ export function calculateBracket(deckData, site, cardNames = []) {
     if (titleMatch) return parseInt(titleMatch[1], 10);
     if (/\bcedh\b/i.test(deckTitle)) return 5;
 
-    // Tier 2: Automated Card Evaluation
+    // Tier 2: Automated Card Evaluation (ONLY on legal mainboard cards)
     let gcCount = 0;
     let mldCount = 0;
     let turnCount = 0;
     let atomicCombos = 0;
 
-    if (site === 'Archidekt' && Array.isArray(deckData.cards)) {
-        // Use Archidekt native card flags directly
-        const oracleIdMap = {};
-        deckData.cards.forEach(c => {
+    if (site === 'Archidekt' && Array.isArray(mainboardCards)) {
+        const mainboardOracleIdMap = {};
+        mainboardCards.forEach(c => {
             const id = c.card?.oracleCard?.id || c.card?.oracleCardId;
-            if (id) oracleIdMap[id] = true;
+            if (id) mainboardOracleIdMap[id] = true;
         });
 
-        deckData.cards.forEach(item => {
+        mainboardCards.forEach(item => {
             const c = item.card;
             const oracle = c?.oracleCard || {};
             const qty = parseInt(item.quantity || 1, 10);
@@ -97,7 +120,8 @@ export function calculateBracket(deckData, site, cardNames = []) {
             if (oracle.extraTurns || c?.extraTurns) turnCount += qty;
 
             const combos = item.atomicCombos || oracle.atomicCombos || [];
-            if (combos.length && combos.some(comboId => oracleIdMap[comboId])) atomicCombos += qty;
+            // Combo only active if ALL combo pieces are in the mainboard!
+            if (combos.length && combos.some(comboId => mainboardOracleIdMap[comboId])) atomicCombos += qty;
         });
     } else {
         // Moxfield or flat card name list
@@ -147,8 +171,18 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
         if (safeUrl.includes("archidekt.com")) {
             const data = await fetchDeckFromAPI(safeUrl);
 
-            // Compute Bracket using 3-tier hierarchy
-            deckBracket = calculateBracket(data, "Archidekt");
+            // Filter out Sideboards, Maybeboards, and non-deck categories strictly
+            const categoriesMap = {};
+            if (Array.isArray(data.categories)) {
+                data.categories.forEach(cat => {
+                    categoriesMap[cat.name] = cat;
+                });
+            }
+
+            const mainboardCards = (data.cards || []).filter(item => isCardInMainboard(item, categoriesMap));
+
+            // Compute Bracket strictly on mainboard cards
+            deckBracket = calculateBracket(data, "Archidekt", mainboardCards);
 
             const commanderNameParts = selectedCommanderName ? selectedCommanderName.split(' // ') : [];
             
@@ -156,7 +190,14 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
                 const lowerSelected = selectedCommanderName.toLowerCase().trim();
                 const partsLower = commanderNameParts.map(p => p.toLowerCase().trim());
 
-                const commanderInDeck = data.cards.some(item => {
+                const commanderInDeck = mainboardCards.some(item => {
+                    const cardName = item.card?.oracleCard?.name || item.card?.name;
+                    if (!cardName) return false;
+                    const lowerC = cardName.toLowerCase().trim();
+                    return lowerC === lowerSelected || partsLower.includes(lowerC);
+                }) || (data.cards || []).some(item => {
+                    const isTagged = item.categories?.some(cat => ['commander', 'commanders'].includes(cat.toLowerCase()));
+                    if (!isTagged) return false;
                     const cardName = item.card?.oracleCard?.name || item.card?.name;
                     if (!cardName) return false;
                     const lowerC = cardName.toLowerCase().trim();
@@ -166,22 +207,18 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
                 if (!commanderInDeck) return { error: `Validation Failed: Commander "${selectedCommanderName}" not found in deck.` };
 
                 try {
-                    let cmdrItem = data.cards.find(item => {
+                    let cmdrItem = (data.cards || []).find(item => {
                         const cName = item.card?.oracleCard?.name || item.card?.name;
                         if (!cName) return false;
                         const lowerC = cName.toLowerCase().trim();
                         const isTagged = item.categories?.some(cat => ['commander', 'commanders'].includes(cat.toLowerCase()));
                         return isTagged && (lowerC === lowerSelected || partsLower.includes(lowerC));
+                    }) || mainboardCards.find(item => {
+                        const cName = item.card?.oracleCard?.name || item.card?.name;
+                        if (!cName) return false;
+                        const lowerC = cName.toLowerCase().trim();
+                        return lowerC === lowerSelected || partsLower.includes(lowerC);
                     });
-
-                    if (!cmdrItem) {
-                        cmdrItem = data.cards.find(item => {
-                            const cName = item.card?.oracleCard?.name || item.card?.name;
-                            if (!cName) return false;
-                            const lowerC = cName.toLowerCase().trim();
-                            return lowerC === lowerSelected || partsLower.includes(lowerC);
-                        });
-                    }
 
                     if (cmdrItem && cmdrItem.card) {
                         const setCode = cmdrItem.card.edition?.editioncode;
@@ -198,64 +235,42 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
                 } catch (e) { console.error("Art lookup failed:", e); }
             }
 
-            // --- Category & Deck Size Logic ---
-            const mainboardCategoryNames = new Set();
-            const hasDefinedCategories = data.categories && data.categories.length > 0;
+            // Calculate price, salt, and size STRICTLY from mainboard cards
+            mainboardCards.forEach(item => {
+                let cardName = item.card?.oracleCard?.name || item.card?.name || "Unknown";
+                const isCommander = item.categories?.some(cat => ["commander", "commanders"].includes(cat.toLowerCase()));
 
-            if (hasDefinedCategories) {
-                data.categories.forEach(cat => {
-                    if (cat.includedInDeck) {
-                        mainboardCategoryNames.add(cat.name);
-                    }
-                });
-            }
+                const qty = parseInt(item.quantity || 1, 10);
+                deckSize += qty;
+                let cardSalt = parseFloat(item.card?.salt ?? item.card?.oracleCard?.salt ?? item.oracleCard?.salt ?? 0) || 0;
+                deckSalt += (cardSalt * qty);
 
-            if (data.cards) {
-                data.cards.forEach(item => {
-                    const cardCategories = item.categories || [];
-                    let isMainboard = false;
+                if (isCommander && !includeCommander) return;
+                if (basicLands.includes(cardName)) return;
 
-                    if (!hasDefinedCategories || cardCategories.length === 0) {
-                        isMainboard = true;
-                    } else {
-                        isMainboard = cardCategories.some(catName => mainboardCategoryNames.has(catName));
-                    }
+                let isFoil = item.isFoil === true || String(item.modifier || "").toLowerCase().includes("foil");
+                let p = item.card?.prices;
+                let price = 0;
+                if (p) {
+                    if (currency === 'eur') price = isFoil ? (parseFloat(p.cmfoil ?? p.cm_foil ?? p.cmFoil ?? 0) || parseFloat(p.cm ?? p.cardmarket ?? p.eur ?? 0) || 0) : parseFloat(p.cm ?? p.cardmarket ?? p.eur ?? 0) || 0;
+                    else price = isFoil ? (parseFloat(p.tcgFoil ?? p.tcg_foil ?? 0) || parseFloat(p.tcg ?? p.ck ?? p.usd ?? 0) || 0) : parseFloat(p.tcg ?? p.ck ?? p.usd ?? 0) || 0;
+                }
+                total += (price * (item.quantity || 1));
+            });
 
-                    if (!isMainboard) return;
-
-                    let cardName = item.card?.oracleCard?.name || item.card?.name || "Unknown";
-                    const isCommander = item.categories?.some(cat => ["commander", "commanders"].includes(cat.toLowerCase()));
-
-                    const qty = parseInt(item.quantity || 1, 10);
-                    deckSize += qty;
-                    let cardSalt = parseFloat(item.card?.salt ?? item.card?.oracleCard?.salt ?? item.oracleCard?.salt ?? 0) || 0;
-                    deckSalt += (cardSalt * qty);
-
-                    if (isCommander && !includeCommander) return;
-                    if (basicLands.includes(cardName)) return;
-
-                    let isFoil = item.isFoil === true || String(item.modifier || "").toLowerCase().includes("foil");
-                    let p = item.card?.prices;
-                    let price = 0;
-                    if (p) {
-                        if (currency === 'eur') price = isFoil ? (parseFloat(p.cmfoil ?? p.cm_foil ?? p.cmFoil ?? 0) || parseFloat(p.cm ?? p.cardmarket ?? p.eur ?? 0) || 0) : parseFloat(p.cm ?? p.cardmarket ?? p.eur ?? 0) || 0;
-                        else price = isFoil ? (parseFloat(p.tcgFoil ?? p.tcg_foil ?? 0) || parseFloat(p.tcg ?? p.ck ?? p.usd ?? 0) || 0) : parseFloat(p.tcg ?? p.ck ?? p.usd ?? 0) || 0;
-                    }
-                    total += (price * (item.quantity || 1));
-                });
-            }
             return { total: total, site: "Archidekt", isLegal: deckSize >= 98 && deckSize <= 101, deckSize: deckSize, commanderArt: commanderArt, deckSalt: deckSalt, deckBracket: deckBracket };
         } else if (safeUrl.includes("moxfield.com")) {
             const data = await fetchDeckFromAPI(safeUrl);
             
+            // STRICTLY Mainboard, Commanders, and Companions (EXCLUDES Sideboard & Maybeboard)
             let allCards = [];
             if (data.mainboard) allCards.push(...Object.values(data.mainboard).map(c => ({...c, board: 'mainboard'})));
             if (data.commanders) allCards.push(...Object.values(data.commanders).map(c => ({...c, board: 'commander'})));
             if (data.companions) allCards.push(...Object.values(data.companions).map(c => ({...c, board: 'companion'})));
 
-            // Compute Bracket using 3-tier hierarchy
+            // Compute Bracket using 3-tier hierarchy on mainboard only
             const allCardNames = allCards.map(c => c.card?.name || '').filter(Boolean);
-            deckBracket = calculateBracket(data, "Moxfield", allCardNames);
+            deckBracket = calculateBracket(data, "Moxfield", [], allCardNames);
 
             const commanderNameParts = selectedCommanderName ? selectedCommanderName.split(' // ') : [];
 
