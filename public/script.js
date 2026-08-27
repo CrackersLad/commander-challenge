@@ -1,14 +1,17 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.36';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.36';
-import { getArchives } from './data-service.js?v=0.36';
-import { initDeckActionsModule } from './deck-actions.js?v=0.36';
-import { initRoomActionsModule } from './room-actions.js?v=0.36';
-import { initPlayerViewModule } from './player-view.js?v=0.36';
-import { initAdminModule } from './admin.js?v=0.36';
-import { initCalendarModule } from './calendar.js?v=0.36';
-import { initAuthModule } from './auth.js?v=0.36';
-import { initHubModule } from './hub.js?v=0.36';
-import { initProfileModule } from './profile.js?v=0.36';
+import { db, auth, functions } from './firebase-setup.js?v=0.37';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.37';
+import { getArchives } from './data-service.js?v=0.37';
+import { initDeckActionsModule } from './deck-actions.js?v=0.37';
+import { initRoomActionsModule } from './room-actions.js?v=0.37';
+import { initPlayerViewModule } from './player-view.js?v=0.37';
+import { initAdminModule } from './admin.js?v=0.37';
+import { initCalendarModule } from './calendar.js?v=0.37';
+import { initAuthModule } from './auth.js?v=0.37';
+import { initHubModule } from './hub.js?v=0.37';
+import { initProfileModule } from './profile.js?v=0.37';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=0.37';
+import { initWarRoom, openWarRoom } from './war-room.js?v=0.37';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=0.37';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -1326,12 +1329,20 @@ function initDashboard() {
                 </div>
             ` : '';
 
+            let calSyncHtml = `
+                <div class="calendar-sync-row">
+                    <a href="${buildGoogleCalendarUrl(meetup, currentRoom)}" target="_blank" rel="noopener noreferrer" class="cal-sync-btn cal-google" onclick="playSound('sfx-click')">📅 Google Calendar</a>
+                    <button type="button" class="cal-sync-btn cal-ics" id="downloadIcsBtn">📥 Apple / Outlook (.ics)</button>
+                </div>
+            `;
+
             battleInfoEl.innerHTML = `
                 <div class="battle-info">
                     <h3 style="color:var(--gold); font-family:Cinzel; margin:0 0 10px 0;">⚔️ BATTLE SCHEDULED ⚔️</h3>
                     <div style="font-size:1.1rem; color:white; margin-bottom:5px;"><strong>${dateStr} @ ${timeStr}</strong></div>
                     <div style="color:#ccc; margin-bottom:5px;">Format: <span style="color:var(--gold);">${sanitizeHTML(meetup.format)}</span></div>
                     <div style="color:#ccc;">Prize: <span style="color:#2ecc71;">${sanitizeHTML(meetup.prize)}</span></div>
+                    ${calSyncHtml}
                     ${cantMakeItHtml}
                     <button id="toggleCantMakeItBtn" class="select-btn" style="margin-top: 15px; padding: 8px 15px; font-size: 0.9rem; background-color: ${isCantMakeIt ? '#444' : '#ff4444'}; border-color: ${isCantMakeIt ? '#666' : '#ff4444'};">
                         ${isCantMakeIt ? "I can make it now" : "I can no longer make it"}
@@ -1339,6 +1350,14 @@ function initDashboard() {
                     ${hostControls}
                 </div>
             `;
+            const icsBtn = document.getElementById('downloadIcsBtn');
+            if (icsBtn) {
+                icsBtn.onclick = () => {
+                    playSound('sfx-click');
+                    downloadIcsFile(meetup, currentRoom);
+                    showToast("Downloaded .ics calendar invite!", false, 2500, true);
+                };
+            }
             document.getElementById('toggleCantMakeItBtn').onclick = async () => {
                 playSound('sfx-click');
                 await update(ref(db, `rooms/${currentRoom}/meetup/cantMakeIt`), { [currentPlayerId]: isCantMakeIt ? null : true });
@@ -1754,12 +1773,45 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.36').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.37').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
 initRoomActionsModule(utils, state);
 initPlayerViewModule(utils, state);
+initCardInspector();
+initWarRoom(db, state, utils);
+
+window.triggerWarRoomModal = async () => {
+    playSound('sfx-click');
+    if (!currentRoom) return;
+    try {
+        const snap = await get(ref(db, `rooms/${currentRoom}`));
+        const roomData = snap.val();
+        if (roomData) {
+            openWarRoom(roomData, state, utils);
+        } else {
+            showToast("Could not load playgroup details.", true);
+        }
+    } catch(e) {
+        showToast("Error opening War Room: " + e.message, true);
+    }
+};
+
+window.testLobbyDiscordWebhook = async () => {
+    playSound('sfx-click');
+    const input = document.getElementById('settingDiscordWebhook');
+    const url = input ? input.value.trim() : '';
+    if (!url) return showToast("Please enter a Discord Webhook URL first.", true);
+    
+    showToast("Sending test Discord webhook notification...", false, 0);
+    try {
+        await testDiscordWebhook(url, currentRoom);
+        showToast("✅ Discord test message sent successfully!", false, 3000, true);
+    } catch (e) {
+        showToast("❌ Discord test failed: " + e.message, true);
+    }
+};
 
 // --- PWA SERVICE WORKER REGISTRATION ---
 if ('serviceWorker' in navigator) {

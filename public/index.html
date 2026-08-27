@@ -29,7 +29,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=0.36">
+    <link rel="stylesheet" href="styles.css?v=0.37">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -474,6 +474,7 @@
                             <div class="settings-full">
                                 <label>Webhook URL (Optional): <span class="tooltip">?<span class="tooltiptext">Channel Settings > Integrations > Webhooks > New Webhook.</span></span></label>
                                 <input type="text" id="settingDiscordWebhook" placeholder="https://discord.com/api/webhooks/...">
+                                <button type="button" class="webhook-test-btn" onclick="window.testLobbyDiscordWebhook()">🔔 Send Test Notification</button>
                             </div>
                         </div>
 
@@ -504,8 +505,9 @@
 
                 <!-- Segmented Action Navigation Chips -->
                 <div class="dashboard-action-ribbon">
+                    <button class="action-chip war-room-chip" onclick="window.triggerWarRoomModal()" style="background: rgba(212, 175, 55, 0.15); border-color: var(--gold); color: var(--gold);">📊 War Room</button>
                     <button class="action-chip" onclick="window.copyMatchSummary()">📋 Match Summary</button>
-                    <button class="action-chip analytics-chip" onclick="window.openLeaderboard()">📊 Leaderboard</button>
+                    <button class="action-chip analytics-chip" onclick="window.openLeaderboard()">🏆 Leaderboard</button>
                     <button id="burnLogBtn" class="action-chip burn-chip" onclick="window.openBurnLog()" style="display:none;">🔥 Burn Log</button>
                     <button class="action-chip rules-chip" onclick="window.openRulesModal()">📜 Rules</button>
                     <button class="action-chip avail-chip" onclick="window.openAvailability()">📅 Availability</button>
@@ -578,6 +580,6 @@
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=0.36"></script>
+    <script type="module" src="./script.js?v=0.37"></script>
 </body>
 </html>
