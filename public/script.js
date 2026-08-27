@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.31';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.31';
-import { getArchives } from './data-service.js?v=0.31';
-import { initDeckActionsModule } from './deck-actions.js?v=0.31';
-import { initRoomActionsModule } from './room-actions.js?v=0.31';
-import { initPlayerViewModule } from './player-view.js?v=0.31';
-import { initAdminModule } from './admin.js?v=0.31';
-import { initCalendarModule } from './calendar.js?v=0.31';
-import { initAuthModule } from './auth.js?v=0.31';
-import { initHubModule } from './hub.js?v=0.31';
-import { initProfileModule } from './profile.js?v=0.31';
+import { db, auth, functions } from './firebase-setup.js?v=0.32';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.32';
+import { getArchives } from './data-service.js?v=0.32';
+import { initDeckActionsModule } from './deck-actions.js?v=0.32';
+import { initRoomActionsModule } from './room-actions.js?v=0.32';
+import { initPlayerViewModule } from './player-view.js?v=0.32';
+import { initAdminModule } from './admin.js?v=0.32';
+import { initCalendarModule } from './calendar.js?v=0.32';
+import { initAuthModule } from './auth.js?v=0.32';
+import { initHubModule } from './hub.js?v=0.32';
+import { initProfileModule } from './profile.js?v=0.32';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -706,14 +706,16 @@ window.copyMatchSummary = async () => {
         let nameLabel = `${roleIcon}${trophyIcon} **${p.name}**`;
 
         if (p.selected) {
+            let curr = data.settings?.currency === 'usd' ? '$' : '€';
+            let priceText = p.lockedDeckPrice !== undefined ? ` (🔒 ${curr}${p.lockedDeckPrice.toFixed(2)})` : (p.deckPrice ? ` (${curr}${p.deckPrice.toFixed(2)})` : '');
+            let saltText = p.deckSalt !== undefined ? ` [☣️ Salt: ${Number(p.deckSalt).toFixed(1)}]` : '';
+            let legalText = p.deck ? (p.isLegal ? ' [✅ Legal]' : ' [⚠️ Illegal]') : '';
+
             if (hideInfo) {
-                text += `${nameLabel}: ??? (Mysterious Commander)\n   🔗 (Link hidden)\n\n`;
+                text += `${nameLabel}: ??? (Mysterious Commander)${priceText}${saltText}${legalText}\n   🔗 (Link hidden in Blind Draft)\n\n`;
             } else {
-                let curr = data.settings?.currency === 'usd' ? '$' : '€';
-                let priceText = p.lockedDeckPrice !== undefined ? `(🔒 ${curr}${p.lockedDeckPrice.toFixed(2)})` : (p.deckPrice ? `(${curr}${p.deckPrice.toFixed(2)})` : '');
-                let saltText = p.deckSalt !== undefined ? ` [☣️ Salt: ${Number(p.deckSalt).toFixed(1)}]` : '';
                 const deckLink = p.deck ? `<${p.deck}>` : 'No Link';
-                text += `${nameLabel}: **${p.selected}** ${priceText}${saltText}\n   🔗 ${deckLink}\n\n`;
+                text += `${nameLabel}: **${p.selected}**${priceText}${saltText}${legalText}\n   🔗 ${deckLink}\n\n`;
             }
         }
         else text += `${nameLabel}: Drafting...\n\n`;
@@ -1538,72 +1540,69 @@ function initDashboard() {
             if (pData.deck) {
                 const hideInfo = isBlind && !allLocked && id !== currentPlayerId;
                 
-                if (hideInfo) {
+                if (pData.deckPrice !== undefined) {
+                    let maxBudget = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
+                    let currSym = data.settings.currency === 'eur' ? '€' : '$';
+                    let checkPrice = pData.lockedDeckPrice !== undefined ? pData.lockedDeckPrice : (pData.deckPrice || 0);
+                    let isOver = maxBudget !== 0 && checkPrice > maxBudget;
+                    let priceColor = isOver ? "#ff4444" : "#2ecc71";
+                    let check = isOver ? "❌ Over Budget" : "✅ OK";
+
+                    let cmdrLogic = data.settings.includeCmdr !== false ? "Includes Commander cost." : "Excludes Commander cost.";
+                    let tooltipLogic = `Excludes Basic Lands and Side/Maybeboards. ${cmdrLogic}`;
+
+                    let legalIcon = pData.isLegal ? "✅" : "⚠️";
+                    let legalText = pData.isLegal ? "Legal (100 Cards)" : `Illegal (${pData.deckSize || '?'} Cards)`;
+                    
+                    let saltHtml = '';
+                    if (pData.deckSalt !== undefined && pData.deckSalt !== null && !isNaN(pData.deckSalt)) {
+                        if (isSaltiest) {
+                            saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #39ff14; font-weight:bold; text-shadow: 0 0 8px rgba(57,255,20,0.5);">☣️ Saltiest: ${Number(pData.deckSalt).toFixed(2)}</p>`;
+                        } else {
+                            saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #ccc;">🧂 Salt Score: ${Number(pData.deckSalt).toFixed(2)}</p>`;
+                        }
+                    } else if (id === currentPlayerId) {
+                        saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #aaa;">🧂 Salt Score: <span style="cursor:pointer; color:#d4af37; text-decoration:underline;" onclick="window.refreshMyDeckPrice()">Refresh to calculate</span></p>`;
+                    } else {
+                        saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #aaa;">🧂 Salt Score: N/A (Needs refresh)</p>`;
+                    }
+
+                    if (pData.deckBracket !== undefined && pData.deckBracket !== null) {
+                        const maxBracket = data.settings.maxBracket !== undefined ? parseFloat(data.settings.maxBracket) : 0;
+                        const isOverBracket = maxBracket > 0 && pData.deckBracket > maxBracket;
+                        saltHtml += `<p style="margin: 2px 0 0 0; font-size: 0.85rem; color: #ccc;">Power Bracket: ${pData.deckBracket}</p>`;
+                        if (isOverBracket) {
+                            saltHtml += `<p style="margin: 2px 0 0 0; font-size: 0.85rem; font-weight:bold; color: #ffae42;">⚠️ Over Bracket (Lobby Limit: ${maxBracket})</p>`;
+                        }
+                    }
+
+                    let lockedHtml = '';
+                    if (pData.lockedDeckPrice !== undefined) {
+                        lockedHtml = `<p style="margin: 5px 0 0 0; font-size: 0.95rem; color: #d4af37; font-weight:bold;">🔒 Locked Price: ${currSym}${pData.lockedDeckPrice.toFixed(2)}</p>`;
+                    }
+
                     armoryInfoHtml += `
-                        <div style="background: #111; border: 1px dashed #444; border-radius: 6px; padding: 10px; margin-top: 15px;">
-                            <p style="margin: 0; font-size: 0.85rem; color: #888; font-style: italic; text-align: center;">Deck details hidden until all commanders are revealed.</p>
+                        <div style="background: #000; border: 1px solid #333; border-radius: 6px; padding: 10px; margin-top: 15px;">
+                            <div style="margin: 0; font-size: 0.9rem; color: #aaa; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                Deck Total
+                                <div class="tooltip" style="width: 14px; height: 14px; font-size: 10px; line-height: 12px; cursor: help;">?
+                                    <span class="tooltiptext">${tooltipLogic}</span>
+                                </div>
+                            </div>
+                            <p style="margin: 5px 0 0 0; font-size: 1.1rem; color: ${(maxBudget !== 0 && pData.deckPrice > maxBudget) ? '#ff4444' : '#2ecc71'}; font-weight:bold;">${isMostExpensive ? '💎 Highest:' : 'Current:'} ${currSym}${pData.deckPrice.toFixed(2)}</p>
+                            ${lockedHtml}
+                            <p style="margin: 5px 0 0 0; font-size: 0.85rem; font-weight:bold; color: ${priceColor};">${check} ${maxBudget === 0 ? '(No Limit)' : `(Limit: ${currSym}${maxBudget})`}</p>
+                            <p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #ccc;">${legalIcon} ${legalText}</p>
+                            ${saltHtml}
                         </div>
                     `;
                 } else {
-                    if (pData.deckPrice !== undefined) {
-                        let maxBudget = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
-                        let currSym = data.settings.currency === 'eur' ? '€' : '$';
-                        let checkPrice = pData.lockedDeckPrice !== undefined ? pData.lockedDeckPrice : (pData.deckPrice || 0);
-                        let isOver = maxBudget !== 0 && checkPrice > maxBudget;
-                        let priceColor = isOver ? "#ff4444" : "#2ecc71";
-                        let check = isOver ? "❌ Over Budget" : "✅ OK";
+                    armoryInfoHtml += `<p style="margin: 15px 0 5px 0; font-size: 0.9rem; color: #aaa;">Deck Price: Calculating...</p>`;
+                }
 
-                        let cmdrLogic = data.settings.includeCmdr !== false ? "Includes Commander cost." : "Excludes Commander cost.";
-                        let tooltipLogic = `Excludes Basic Lands and Side/Maybeboards. ${cmdrLogic}`;
-
-                        let legalIcon = pData.isLegal ? "✅" : "⚠️";
-                        let legalText = pData.isLegal ? "Legal (100 Cards)" : `Illegal (${pData.deckSize || '?'} Cards)`;
-                        
-                        let saltHtml = '';
-                        if (pData.deckSalt !== undefined && pData.deckSalt !== null && !isNaN(pData.deckSalt)) {
-                            if (isSaltiest) {
-                                saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.9rem; color: #39ff14; font-weight:bold; text-shadow: 0 0 8px rgba(57,255,20,0.5);">☣️ Saltiest: ${Number(pData.deckSalt).toFixed(2)}</p>`;
-                            } else {
-                                saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #ccc;">🧂 Salt Score: ${Number(pData.deckSalt).toFixed(2)}</p>`;
-                            }
-                        } else if (id === currentPlayerId) {
-                            saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #aaa;">🧂 Salt Score: <span style="cursor:pointer; color:#d4af37; text-decoration:underline;" onclick="window.refreshMyDeckPrice()">Refresh to calculate</span></p>`;
-                        } else {
-                            saltHtml = `<p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #aaa;">🧂 Salt Score: N/A (Needs refresh)</p>`;
-                        }
-
-                        if (pData.deckBracket !== undefined && pData.deckBracket !== null) {
-                            const maxBracket = data.settings.maxBracket !== undefined ? parseFloat(data.settings.maxBracket) : 0;
-                            const isOverBracket = maxBracket > 0 && pData.deckBracket > maxBracket;
-                            saltHtml += `<p style="margin: 2px 0 0 0; font-size: 0.85rem; color: #ccc;">Power Bracket: ${pData.deckBracket}</p>`;
-                            if (isOverBracket) {
-                                saltHtml += `<p style="margin: 2px 0 0 0; font-size: 0.85rem; font-weight:bold; color: #ffae42;">⚠️ Over Bracket (Lobby Limit: ${maxBracket})</p>`;
-                            }
-                        }
-
-                        let lockedHtml = '';
-                        if (pData.lockedDeckPrice !== undefined) {
-                            lockedHtml = `<p style="margin: 5px 0 0 0; font-size: 0.95rem; color: #d4af37; font-weight:bold;">🔒 Locked Price: ${currSym}${pData.lockedDeckPrice.toFixed(2)}</p>`;
-                        }
-
-                        armoryInfoHtml += `
-                            <div style="background: #000; border: 1px solid #333; border-radius: 6px; padding: 10px; margin-top: 15px;">
-                                <div style="margin: 0; font-size: 0.9rem; color: #aaa; display: flex; align-items: center; justify-content: center; gap: 5px;">
-                                    Deck Total
-                                    <div class="tooltip" style="width: 14px; height: 14px; font-size: 10px; line-height: 12px; cursor: help;">?
-                                        <span class="tooltiptext">${tooltipLogic}</span>
-                                    </div>
-                                </div>
-                                <p style="margin: 5px 0 0 0; font-size: 1.1rem; color: ${(maxBudget !== 0 && pData.deckPrice > maxBudget) ? '#ff4444' : '#2ecc71'}; font-weight:bold;">${isMostExpensive ? '💎 Highest:' : 'Current:'} ${currSym}${pData.deckPrice.toFixed(2)}</p>
-                                ${lockedHtml}
-                                <p style="margin: 5px 0 0 0; font-size: 0.85rem; font-weight:bold; color: ${priceColor};">${check} ${maxBudget === 0 ? '(No Limit)' : `(Limit: ${currSym}${maxBudget})`}</p>
-                                <p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #ccc;">${legalIcon} ${legalText}</p>
-                                ${saltHtml}
-                            </div>
-                        `;
-                    } else {
-                        armoryInfoHtml += `<p style="margin: 15px 0 5px 0; font-size: 0.9rem; color: #aaa;">Deck Price: Calculating...</p>`;
-                    }
+                if (hideInfo) {
+                    armoryInfoHtml += `<p style="margin: 10px 0 0 0; font-size: 0.82rem; color: #888; font-style: italic;">🔒 Deck URL Hidden (Blind Draft)</p>`;
+                } else {
                     armoryInfoHtml += `<br><a href="${sanitizeHTML(pData.deck)}" target="_blank" style="font-size: 0.85rem; color:#d4af37;" onclick="playSound('sfx-click')">View Deck</a>`;
                 }
             }
@@ -1740,7 +1739,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.31').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.32').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

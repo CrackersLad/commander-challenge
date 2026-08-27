@@ -1,4 +1,4 @@
-import { db, functions } from './firebase-setup.js?v=0.31';
+import { db, functions } from './firebase-setup.js?v=0.32';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -93,13 +93,13 @@ export function initRoomActionsModule(utils, state) {
             let nameLabel = `${roleIcon}${trophyIcon} **${p.name}**`;
 
             if (p.selected) {
-                if (hideInfo) text += `${nameLabel}: ??? (Mysterious Commander)\n   🔗 (Link hidden)\n\n`;
-                else {
-                    let curr = data.settings?.currency === 'usd' ? '$' : '€';
-                    let priceText = p.lockedDeckPrice !== undefined ? `(🔒 ${curr}${p.lockedDeckPrice.toFixed(2)})` : (p.deckPrice ? `(${curr}${p.deckPrice.toFixed(2)})` : '');
-                    let saltText = p.deckSalt !== undefined ? ` [☣️ Salt: ${Number(p.deckSalt).toFixed(1)}]` : '';
-                    text += `${nameLabel}: ${p.selected} ${priceText}${saltText}\n   🔗 ${p.deck || 'No Link'}\n\n`;
-                }
+                let curr = data.settings?.currency === 'usd' ? '$' : '€';
+                let priceText = p.lockedDeckPrice !== undefined ? ` (🔒 ${curr}${p.lockedDeckPrice.toFixed(2)})` : (p.deckPrice ? ` (${curr}${p.deckPrice.toFixed(2)})` : '');
+                let saltText = p.deckSalt !== undefined ? ` [☣️ Salt: ${Number(p.deckSalt).toFixed(1)}]` : '';
+                let legalText = p.deck ? (p.isLegal ? ' [✅ Legal]' : ' [⚠️ Illegal]') : '';
+
+                if (hideInfo) text += `${nameLabel}: ??? (Mysterious Commander)${priceText}${saltText}${legalText}\n   🔗 (Link hidden in Blind Draft)\n\n`;
+                else text += `${nameLabel}: ${p.selected}${priceText}${saltText}${legalText}\n   🔗 ${p.deck || 'No Link'}\n\n`;
             } else text += `${nameLabel}: Drafting...\n\n`;
         });
 
