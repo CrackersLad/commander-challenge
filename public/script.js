@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.23';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.23';
-import { getArchives } from './data-service.js?v=0.23';
-import { initDeckActionsModule } from './deck-actions.js?v=0.23';
-import { initRoomActionsModule } from './room-actions.js?v=0.23';
-import { initPlayerViewModule } from './player-view.js?v=0.23';
-import { initAdminModule } from './admin.js?v=0.23';
-import { initCalendarModule } from './calendar.js?v=0.23';
-import { initAuthModule } from './auth.js?v=0.23';
-import { initHubModule } from './hub.js?v=0.23';
-import { initProfileModule } from './profile.js?v=0.23';
+import { db, auth, functions } from './firebase-setup.js?v=0.24';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.24';
+import { getArchives } from './data-service.js?v=0.24';
+import { initDeckActionsModule } from './deck-actions.js?v=0.24';
+import { initRoomActionsModule } from './room-actions.js?v=0.24';
+import { initPlayerViewModule } from './player-view.js?v=0.24';
+import { initAdminModule } from './admin.js?v=0.24';
+import { initCalendarModule } from './calendar.js?v=0.24';
+import { initAuthModule } from './auth.js?v=0.24';
+import { initHubModule } from './hub.js?v=0.24';
+import { initProfileModule } from './profile.js?v=0.24';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -21,64 +21,6 @@ let currentPlayerAvatar = localStorage.getItem('playerAvatar') || null;
 let isHost = localStorage.getItem('isHost') === 'true';
 
 // --- GLOBAL EVENT LISTENERS ---
-
-// Kill the native Android/iOS stretch and bounce effect completely
-let touchStartY = 0;
-let touchStartX = 0;
-let touchDirection = null;
-document.addEventListener('touchstart', e => {
-    if (!e.touches || !e.touches[0]) return;
-    touchStartY = e.touches[0].clientY;
-    touchStartX = e.touches[0].clientX;
-    touchDirection = null;
-}, { passive: false });
-
-document.addEventListener('touchmove', e => {
-    if (!e.touches || !e.touches[0]) return;
-
-    const touchY = e.touches[0].clientY;
-    const touchX = e.touches[0].clientX;
-    const deltaY = touchY - touchStartY;
-    const deltaX = touchX - touchStartX;
-
-    // Give a slightly larger buffer before locking in the swipe axis
-    if (touchDirection === null) {
-        if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
-            // Require a much stronger horizontal angle to lock into horizontal mode.
-            // This allows diagonal thumb swipes to correctly register as vertical scrolling!
-            touchDirection = Math.abs(deltaX) > Math.abs(deltaY) * 1.5 ? 'horizontal' : 'vertical';
-        } else {
-            return; // Ignore tiny wiggles so we don't preventDefault the wrong axis
-        }
-    }
-
-    if (touchDirection === 'horizontal') {
-        const horizontalEl = e.target.closest('.dashboard, #content, [style*="overflow-x: auto"], [style*="overflow-x:auto"]');
-        if (horizontalEl) {
-            const isAtLeft = horizontalEl.scrollLeft <= 0;
-            const isAtRight = horizontalEl.scrollWidth - horizontalEl.scrollLeft <= horizontalEl.clientWidth + 1;
-            
-            if (isAtLeft && deltaX > 0) e.preventDefault();
-            if (isAtRight && deltaX < 0) e.preventDefault();
-        } else {
-            e.preventDefault();
-        }
-    } else {
-        let el = e.target.closest('.avail-grid, #searchResults, #winHistoryList, #leaderboardContent, #burnLogContent');
-        if (!el) el = document.body;
-
-        // Use robust properties to guarantee calculations across all mobile webviews
-        const scrollTop = el === document.body ? (document.documentElement.scrollTop || document.body.scrollTop) : el.scrollTop;
-        const scrollHeight = el === document.body ? Math.max(document.documentElement.scrollHeight, document.body.scrollHeight) : el.scrollHeight;
-        const clientHeight = el === document.body ? Math.max(document.documentElement.clientHeight, document.body.clientHeight) : el.clientHeight;
-
-        const isAtTop = scrollTop <= 0;
-        const isAtBottom = scrollHeight - scrollTop <= clientHeight + 1;
-
-        if (isAtTop && deltaY > 0) e.preventDefault();
-        if (isAtBottom && deltaY < 0) e.preventDefault();
-    }
-}, { passive: false });
 
 document.addEventListener('click', function(event) {
     // Dropdown toggle logic
@@ -1760,7 +1702,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.23').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.24').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

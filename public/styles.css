@@ -61,7 +61,6 @@
 html {
     width: 100%;
     min-height: 100%;
-    overflow-x: hidden;
     background-color: var(--obsidian);
 }
 
@@ -82,10 +81,7 @@ body {
     width: 100%;
     min-height: 100%;
     min-height: 100dvh;
-    overflow-x: hidden;
     box-sizing: border-box;
-    -webkit-user-select: none;
-    user-select: none;
     cursor: default;
     -webkit-overflow-scrolling: touch;
 }
