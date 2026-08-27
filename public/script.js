@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.32';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.32';
-import { getArchives } from './data-service.js?v=0.32';
-import { initDeckActionsModule } from './deck-actions.js?v=0.32';
-import { initRoomActionsModule } from './room-actions.js?v=0.32';
-import { initPlayerViewModule } from './player-view.js?v=0.32';
-import { initAdminModule } from './admin.js?v=0.32';
-import { initCalendarModule } from './calendar.js?v=0.32';
-import { initAuthModule } from './auth.js?v=0.32';
-import { initHubModule } from './hub.js?v=0.32';
-import { initProfileModule } from './profile.js?v=0.32';
+import { db, auth, functions } from './firebase-setup.js?v=0.33';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.33';
+import { getArchives } from './data-service.js?v=0.33';
+import { initDeckActionsModule } from './deck-actions.js?v=0.33';
+import { initRoomActionsModule } from './room-actions.js?v=0.33';
+import { initPlayerViewModule } from './player-view.js?v=0.33';
+import { initAdminModule } from './admin.js?v=0.33';
+import { initCalendarModule } from './calendar.js?v=0.33';
+import { initAuthModule } from './auth.js?v=0.33';
+import { initHubModule } from './hub.js?v=0.33';
+import { initProfileModule } from './profile.js?v=0.33';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -1365,9 +1365,12 @@ function initDashboard() {
         const pValues = Object.values(players);
         if (pValues.length > 0) {
             const maxBudget = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
+            const maxBracket = data.settings.maxBracket !== undefined ? parseFloat(data.settings.maxBracket) : 0;
             allReady = pValues.every(p => {
                 let checkPrice = p.lockedDeckPrice !== undefined ? p.lockedDeckPrice : (p.deckPrice || 0);
-                return p.deck && p.isLegal === true && (maxBudget === 0 || checkPrice <= maxBudget);
+                let isUnderBudget = maxBudget === 0 || checkPrice <= maxBudget;
+                let isUnderBracket = maxBracket === 0 || !p.deckBracket || p.deckBracket <= maxBracket;
+                return p.deck && p.isLegal === true && isUnderBudget && isUnderBracket;
             });
             
             pValues.forEach(p => {
@@ -1434,8 +1437,11 @@ function initDashboard() {
             if (!p.selected) return 0; // Drafting / Waiting
             if (!p.deck) return 1; // Commander Chosen
             let maxBudget = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
+            let maxBracket = data.settings.maxBracket !== undefined ? parseFloat(data.settings.maxBracket) : 0;
             let checkPrice = p.lockedDeckPrice !== undefined ? p.lockedDeckPrice : (p.deckPrice || 0);
-            let isReady = p.isLegal === true && (maxBudget === 0 || checkPrice <= maxBudget);
+            let isUnderBudget = maxBudget === 0 || checkPrice <= maxBudget;
+            let isUnderBracket = maxBracket === 0 || !p.deckBracket || p.deckBracket <= maxBracket;
+            let isReady = p.isLegal === true && isUnderBudget && isUnderBracket;
             return isReady ? 3 : 2; // Ready (3) vs Deck Sealed (2)
         };
 
@@ -1455,11 +1461,16 @@ function initDashboard() {
             let statusHtml = `<span class="status-badge status-waiting">Waiting...</span>`;
             if (pData.deck) {
                 let maxBudget = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
+                let maxBracket = data.settings.maxBracket !== undefined ? parseFloat(data.settings.maxBracket) : 0;
                 let isLegal = pData.isLegal === true;
                 let checkPrice = pData.lockedDeckPrice !== undefined ? pData.lockedDeckPrice : (pData.deckPrice || 0);
                 let isUnderBudget = maxBudget === 0 || checkPrice <= maxBudget;
-                if (isLegal && isUnderBudget) {
+                let isUnderBracket = maxBracket === 0 || !pData.deckBracket || pData.deckBracket <= maxBracket;
+
+                if (isLegal && isUnderBudget && isUnderBracket) {
                     statusHtml = `<span class="status-badge status-sealed" style="background:var(--gold); color:black; border-color:white; box-shadow:0 0 10px var(--gold);">Ready for Battle!</span>`;
+                } else if (!isUnderBracket && pData.deckBracket) {
+                    statusHtml = `<span class="status-badge" style="background:rgba(255, 68, 68, 0.2); color:#ff6666; border:1px solid #ff4444;">Over Power Bracket (${pData.deckBracket} > ${maxBracket})</span>`;
                 } else {
                     statusHtml = `<span class="status-badge status-sealed">Deck Sealed</span>`;
                 }
@@ -1542,6 +1553,7 @@ function initDashboard() {
                 
                 if (pData.deckPrice !== undefined) {
                     let maxBudget = data.settings.deckBudget !== undefined ? parseFloat(data.settings.deckBudget) : 50;
+                    let maxBracket = data.settings.maxBracket !== undefined ? parseFloat(data.settings.maxBracket) : 0;
                     let currSym = data.settings.currency === 'eur' ? '€' : '$';
                     let checkPrice = pData.lockedDeckPrice !== undefined ? pData.lockedDeckPrice : (pData.deckPrice || 0);
                     let isOver = maxBudget !== 0 && checkPrice > maxBudget;
@@ -1551,8 +1563,11 @@ function initDashboard() {
                     let cmdrLogic = data.settings.includeCmdr !== false ? "Includes Commander cost." : "Excludes Commander cost.";
                     let tooltipLogic = `Excludes Basic Lands and Side/Maybeboards. ${cmdrLogic}`;
 
-                    let legalIcon = pData.isLegal ? "✅" : "⚠️";
-                    let legalText = pData.isLegal ? "Legal (100 Cards)" : `Illegal (${pData.deckSize || '?'} Cards)`;
+                    let isSizeLegal = (pData.deckSize >= 98 && pData.deckSize <= 101) || (pData.isLegal && !pData.deckSize);
+                    let isOverBracket = maxBracket > 0 && pData.deckBracket && pData.deckBracket > maxBracket;
+                    let isDeckLegal = isSizeLegal && !isOverBracket;
+                    let legalIcon = isDeckLegal ? "✅" : "⚠️";
+                    let legalText = !isSizeLegal ? `Illegal (${pData.deckSize || '?'} Cards)` : (isOverBracket ? `Illegal (Bracket ${pData.deckBracket} > Max ${maxBracket})` : `Legal (100 Cards)`);
                     
                     let saltHtml = '';
                     if (pData.deckSalt !== undefined && pData.deckSalt !== null && !isNaN(pData.deckSalt)) {
@@ -1568,11 +1583,11 @@ function initDashboard() {
                     }
 
                     if (pData.deckBracket !== undefined && pData.deckBracket !== null) {
-                        const maxBracket = data.settings.maxBracket !== undefined ? parseFloat(data.settings.maxBracket) : 0;
-                        const isOverBracket = maxBracket > 0 && pData.deckBracket > maxBracket;
-                        saltHtml += `<p style="margin: 2px 0 0 0; font-size: 0.85rem; color: #ccc;">Power Bracket: ${pData.deckBracket}</p>`;
-                        if (isOverBracket) {
-                            saltHtml += `<p style="margin: 2px 0 0 0; font-size: 0.85rem; font-weight:bold; color: #ffae42;">⚠️ Over Bracket (Lobby Limit: ${maxBracket})</p>`;
+                        const isOverB = maxBracket > 0 && pData.deckBracket > maxBracket;
+                        const bracketColor = isOverB ? "#ff4444" : "var(--gold)";
+                        saltHtml += `<p style="margin: 2px 0 0 0; font-size: 0.85rem; color: ${bracketColor}; font-weight: 600;">Power Bracket: ${pData.deckBracket} ${maxBracket > 0 ? `(Limit: ${maxBracket})` : ''}</p>`;
+                        if (isOverB) {
+                            saltHtml += `<p style="margin: 2px 0 0 0; font-size: 0.82rem; font-weight:bold; color: #ff6666;">❌ Over Power Bracket Limit</p>`;
                         }
                     }
 
@@ -1739,7 +1754,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.32').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.33').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

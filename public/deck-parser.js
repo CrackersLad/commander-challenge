@@ -1,5 +1,131 @@
-import { functions } from './firebase-setup.js?v=0.32';
+import { functions } from './firebase-setup.js?v=0.33';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
+
+// Official Game Changers & Format Staples for Bracket Estimation (WotC & Archidekt)
+const GAME_CHANGERS_SET = new Set([
+    "ad nauseam", "ancient tomb", "apocalypse chimera", "armageddon", "bolas's citadel",
+    "brain freeze", "cataclysm", "channel", "chrome mox", "consecrated sphinx",
+    "craterhoof behemoth", "cyclonic rift", "deflecting swat", "demonic consultation",
+    "demonic tutor", "dockside extortionist", "doomsday", "drannith magistrate",
+    "eladamri's call", "enlightened tutor", "esper sentinel", "expropriate",
+    "fallaji archaeologist", "fierce guardianship", "finale of devastation",
+    "flusterstorm", "food chain", "force of despair", "force of negation",
+    "force of vigor", "force of will", "gaea's cradle", "gamble",
+    "ghyrson starn, kelermorph", "gilded drake", "god-pharaoh's statue",
+    "grand abolisher", "grim monolith", "hullbreacher", "imperial seal",
+    "intuition", "isochron scepter", "jeska's will", "jeweled lotus",
+    "jokulhaups", "karn, the great creator", "kinnan, bonder prodigy",
+    "koll, the forgemaster", "koma, cosmos serpent", "korvold, fae-cursed king",
+    "krark, the thumbless", "kroxa, titan of death's hunger", "leovold, emissary of trest",
+    "lion's eye diamond", "lotus petal", "mana crypt", "mana drain", "mana vault",
+    "mental misstep", "mindbreak trap", "mishra's workshop", "mox diamond",
+    "mox opal", "mystical tutor", "narset, parter of veils", "nature's will",
+    "necropotence", "notion thief", "najeela, the blade-blossom", "opposition agent",
+    "orcish bowmasters", "pact of negation", "peer into the abyss", "phyrexian altar",
+    "pollywog symbiote", "possession", "prossh, skyraider of kher", "protean hulk",
+    "radha, heart of keld", "razaketh, the foulblooded", "rhystic study",
+    "roaming throne", "rograkh, son of rogahh", "serra ascendant", "silence",
+    "smothering tithe", "sol ring", "staff of domination", "stasis", "survival of the fittest",
+    "swan song", "sword of feast and famine", "sylvan library", "tainted pact",
+    "teferi, hero of dominaria", "teferi, time raveler", "teferi's protection",
+    "thassa's oracle", "the great henge", "the one ring", "time sieve",
+    "time stretch", "time warp", "timetwister", "tivit, seller of secrets",
+    "tooth and nail", "torment of hailfire", "toxic deluge", "triumph of the hordes",
+    "trouble in pairs", "underworld breach", "urza, lord high artificer",
+    "vampiric tutor", "vorinclex, voice of hunger", "wheel of fortune",
+    "windfall", "winter orb", "worldly tutor", "yuriko, the tiger's shadow"
+]);
+
+const MASS_LAND_DENIAL_SET = new Set([
+    "armageddon", "cataclysm", "jokulhaups", "obliterate", "ravages of war",
+    "ruination", "decree of annihilation", "fall of the thran", "impending disaster",
+    "sunder", "wildfire", "devastating dreams", "worldfire"
+]);
+
+const EXTRA_TURNS_SET = new Set([
+    "time warp", "time stretch", "expropriate", "temporal manipulation",
+    "capture of jingzhou", "nexus of fate", "beacon of tomorrows",
+    "karn's temporal sundering", "alrund's epiphany", "walk the aeons",
+    "temporal trespass", "part the waterveil", "plea for power"
+]);
+
+export function calculateBracket(deckData, site, cardNames = []) {
+    // Tier 1: User-set bracket in Archidekt / Moxfield metadata
+    if (deckData.edhBracket && !isNaN(parseInt(deckData.edhBracket, 10))) {
+        return Math.min(5, Math.max(1, parseInt(deckData.edhBracket, 10)));
+    }
+    if (deckData.powerLevel && !isNaN(parseFloat(deckData.powerLevel))) {
+        let p = parseFloat(deckData.powerLevel);
+        return Math.min(5, Math.max(1, p <= 5 ? Math.round(p) : Math.ceil(p / 2)));
+    }
+
+    const userTags = [];
+    if (Array.isArray(deckData.deckTags)) deckData.deckTags.forEach(t => userTags.push(t.name || t));
+    if (Array.isArray(deckData.hubs)) deckData.hubs.forEach(h => userTags.push(h.name || h));
+    if (Array.isArray(deckData.authorTags)) deckData.authorTags.forEach(t => userTags.push(t));
+
+    for (let tag of userTags) {
+        let str = String(tag).toLowerCase().trim();
+        let match = str.match(/bracket\s*([1-5])/i) || str.match(/\bb([1-5])\b/i);
+        if (match) return parseInt(match[1], 10);
+        if (str === 'cedh') return 5;
+        if (str === 'precon') return 2;
+    }
+
+    const deckTitle = deckData.name || '';
+    let titleMatch = deckTitle.match(/bracket\s*([1-5])/i) || deckTitle.match(/\bb([1-5])\b/i);
+    if (titleMatch) return parseInt(titleMatch[1], 10);
+    if (/\bcedh\b/i.test(deckTitle)) return 5;
+
+    // Tier 2: Automated Official Card Evaluation (Archidekt / WotC Bracket Formula)
+    let gcCount = 0;
+    let mldCount = 0;
+    let turnCount = 0;
+    let atomicCombos = 0;
+
+    if (site === 'Archidekt' && Array.isArray(deckData.cards)) {
+        const oracleIdMap = {};
+        deckData.cards.forEach(c => {
+            const id = c.card?.oracleCard?.id || c.card?.oracleCardId;
+            if (id) oracleIdMap[id] = true;
+        });
+
+        deckData.cards.forEach(item => {
+            const c = item.card;
+            const oracle = c?.oracleCard || {};
+            const qty = parseInt(item.quantity || 1, 10);
+            const name = (oracle.name || c?.name || '').toLowerCase().trim();
+
+            if (oracle.gameChanger || c?.gameChanger || GAME_CHANGERS_SET.has(name)) gcCount += qty;
+            if (oracle.massLandDenial || c?.massLandDenial || MASS_LAND_DENIAL_SET.has(name)) mldCount += qty;
+            if (oracle.extraTurns || c?.extraTurns || EXTRA_TURNS_SET.has(name)) turnCount += qty;
+
+            const combos = item.atomicCombos || oracle.atomicCombos || [];
+            if (combos.length && combos.some(comboId => oracleIdMap[comboId])) atomicCombos += qty;
+        });
+    } else {
+        // Moxfield or flat card name list
+        for (let rawName of cardNames) {
+            let name = String(rawName).toLowerCase().trim();
+            if (GAME_CHANGERS_SET.has(name)) gcCount++;
+            if (MASS_LAND_DENIAL_SET.has(name)) mldCount++;
+            if (EXTRA_TURNS_SET.has(name)) turnCount++;
+        }
+    }
+
+    const isCleanCasual = gcCount < 1 && mldCount < 1 && atomicCombos < 1 && turnCount < 2;
+    if (isCleanCasual) {
+        // Tier 3 fallback: clean casual decks default to lowest viable bracket (2)
+        return 2;
+    }
+    if (gcCount < 4 && mldCount < 1 && atomicCombos < 1) {
+        return 3;
+    }
+    if (gcCount >= 8 || atomicCombos >= 2) {
+        return 5;
+    }
+    return 4;
+}
 
 async function fetchDeckFromAPI(deckUrl) {
     try {
@@ -22,17 +148,15 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
         let deckSize = 0;
         let deckSalt = 0;
         let commanderArt = null;
-        let deckBracket = null; // This will hold the 1-10 power level from the deck site
+        let deckBracket = 2; // Default integer baseline
         
         if (safeUrl.includes("archidekt.com")) {
             const data = await fetchDeckFromAPI(safeUrl);
 
-            const commanderNameParts = selectedCommanderName ? selectedCommanderName.split(' // ') : [];
+            // Compute Bracket using 3-tier hierarchy
+            deckBracket = calculateBracket(data, "Archidekt");
 
-            // Archidekt has a built-in 'powerLevel' property in their API response
-            if (data.powerLevel && !isNaN(parseFloat(data.powerLevel))) {
-                deckBracket = parseFloat(data.powerLevel);
-            }
+            const commanderNameParts = selectedCommanderName ? selectedCommanderName.split(' // ') : [];
             
             if (selectedCommanderName) {
                 const lowerSelected = selectedCommanderName.toLowerCase().trim();
@@ -81,13 +205,11 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
             }
 
             // --- Category & Deck Size Logic ---
-            // Determine which cards are part of the main deck.
             const mainboardCategoryNames = new Set();
             const hasDefinedCategories = data.categories && data.categories.length > 0;
 
             if (hasDefinedCategories) {
                 data.categories.forEach(cat => {
-                    // The `includedInDeck` property is the source of truth from Archidekt's API.
                     if (cat.includedInDeck) {
                         mainboardCategoryNames.add(cat.name);
                     }
@@ -100,15 +222,12 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
                     let isMainboard = false;
 
                     if (!hasDefinedCategories || cardCategories.length === 0) {
-                        // If no categories are defined for the deck, OR if this specific card is uncategorized,
-                        // Archidekt considers it part of the main deck.
                         isMainboard = true;
                     } else {
-                        // If the card has categories, check if any of them are valid mainboard categories.
                         isMainboard = cardCategories.some(catName => mainboardCategoryNames.has(catName));
                     }
 
-                    if (!isMainboard) return; // Skip card if it's not in the main deck (e.g., sideboard, maybeboard).
+                    if (!isMainboard) return;
 
                     let cardName = item.card?.oracleCard?.name || item.card?.name || "Unknown";
                     const isCommander = item.categories?.some(cat => ["commander", "commanders"].includes(cat.toLowerCase()));
@@ -119,7 +238,7 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
                     deckSalt += (cardSalt * qty);
 
                     if (isCommander && !includeCommander) return;
-                    if (basicLands.includes(cardName)) return; // Excludes basic lands from PRICE, but keeps them in deckSize
+                    if (basicLands.includes(cardName)) return;
 
                     let isFoil = item.isFoil === true || String(item.modifier || "").toLowerCase().includes("foil");
                     let p = item.card?.prices;
@@ -134,17 +253,17 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
             return { total: total, site: "Archidekt", isLegal: deckSize >= 98 && deckSize <= 101, deckSize: deckSize, commanderArt: commanderArt, deckSalt: deckSalt, deckBracket: deckBracket };
         } else if (safeUrl.includes("moxfield.com")) {
             const data = await fetchDeckFromAPI(safeUrl);
-            const commanderNameParts = selectedCommanderName ? selectedCommanderName.split(' // ') : [];
-
-            // Moxfield has a built-in 'powerLevel' property in their API response
-            if (data.powerLevel && !isNaN(parseFloat(data.powerLevel))) {
-                deckBracket = parseFloat(data.powerLevel);
-            }
             
             let allCards = [];
             if (data.mainboard) allCards.push(...Object.values(data.mainboard).map(c => ({...c, board: 'mainboard'})));
             if (data.commanders) allCards.push(...Object.values(data.commanders).map(c => ({...c, board: 'commander'})));
             if (data.companions) allCards.push(...Object.values(data.companions).map(c => ({...c, board: 'companion'})));
+
+            // Compute Bracket using 3-tier hierarchy
+            const allCardNames = allCards.map(c => c.card?.name || '').filter(Boolean);
+            deckBracket = calculateBracket(data, "Moxfield", allCardNames);
+
+            const commanderNameParts = selectedCommanderName ? selectedCommanderName.split(' // ') : [];
 
             if (selectedCommanderName) {
                 const lowerSelected = selectedCommanderName.toLowerCase().trim();
@@ -166,7 +285,7 @@ export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, s
                 deckSize += qty;
                 deckSalt += ((parseFloat(item.card?.salt ?? 0) || 0) * qty);
                 if (item.board === 'commander' && !includeCommander) return;
-                if (basicLands.includes(item.card?.name || "Unknown")) return; // Excludes basic lands from PRICE
+                if (basicLands.includes(item.card?.name || "Unknown")) return;
 
                 let isFoil = item.finish === "foil" || item.finish === "etched" || item.isFoil === true;
                 let p = item.card?.prices;

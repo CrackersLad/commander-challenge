@@ -1,5 +1,5 @@
-import { db } from './firebase-setup.js?v=0.32';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.32';
+import { db } from './firebase-setup.js?v=0.33';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.33';
 import { ref, get, update } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initDeckActionsModule(utils, state) {
@@ -21,11 +21,16 @@ export function initDeckActionsModule(utils, state) {
         try {
             const res = await fetchDeckPriceLocal(myData.deck, settings.currency || 'eur', settings.includeCmdr !== false, myData.selected);
             if (res && !res.error) {
-                let updates = { deckPrice: res.total, isLegal: res.isLegal, deckSize: res.deckSize, deckSalt: res.deckSalt, deckBracket: res.deckBracket };
+                const maxDeckBudget = settings.deckBudget !== undefined ? parseFloat(settings.deckBudget) : 50;
+                const maxBracket = settings.maxBracket !== undefined ? parseFloat(settings.maxBracket) : 0;
+                const isSizeLegal = res.isLegal === true;
+                const isBracketLegal = maxBracket === 0 || !res.deckBracket || res.deckBracket <= maxBracket;
+                const overallLegal = isSizeLegal && isBracketLegal;
+
+                let updates = { deckPrice: res.total, isLegal: overallLegal, deckSize: res.deckSize, deckSalt: res.deckSalt, deckBracket: res.deckBracket };
                 if (res.commanderArt) updates.image = res.commanderArt;
 
-                const maxDeckBudget = settings.deckBudget !== undefined ? parseFloat(settings.deckBudget) : 50;
-                const isNowReady = res.isLegal && (maxDeckBudget === 0 || res.total <= maxDeckBudget);
+                const isNowReady = overallLegal && (maxDeckBudget === 0 || res.total <= maxDeckBudget);
                 if (isNowReady && myData.lockedDeckPrice === undefined) updates.lockedDeckPrice = res.total;
 
                 await update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), updates);
@@ -71,15 +76,20 @@ export function initDeckActionsModule(utils, state) {
                 try {
                     const res = await fetchDeckPriceLocal(pData.deck, settings.currency || 'eur', settings.includeCmdr !== false, pData.selected);
                     if (res && !res.error) {
+                        const maxDeckBudget = settings.deckBudget !== undefined ? parseFloat(settings.deckBudget) : 50;
+                        const maxBracket = settings.maxBracket !== undefined ? parseFloat(settings.maxBracket) : 0;
+                        const isSizeLegal = res.isLegal === true;
+                        const isBracketLegal = maxBracket === 0 || !res.deckBracket || res.deckBracket <= maxBracket;
+                        const overallLegal = isSizeLegal && isBracketLegal;
+
                         updates[`rooms/${state.currentRoom}/players/${pId}/deckPrice`] = res.total || 0;
-                        updates[`rooms/${state.currentRoom}/players/${pId}/isLegal`] = res.isLegal;
+                        updates[`rooms/${state.currentRoom}/players/${pId}/isLegal`] = overallLegal;
                         updates[`rooms/${state.currentRoom}/players/${pId}/deckSize`] = res.deckSize;
                         updates[`rooms/${state.currentRoom}/players/${pId}/deckSalt`] = res.deckSalt;
                         updates[`rooms/${state.currentRoom}/players/${pId}/deckBracket`] = res.deckBracket;
                         if (res.commanderArt) updates[`rooms/${state.currentRoom}/players/${pId}/image`] = res.commanderArt;
 
-                        const maxDeckBudget = settings.deckBudget !== undefined ? parseFloat(settings.deckBudget) : 50;
-                        const isNowReady = res.isLegal && (maxDeckBudget === 0 || (res.total || 0) <= maxDeckBudget);
+                        const isNowReady = overallLegal && (maxDeckBudget === 0 || (res.total || 0) <= maxDeckBudget);
                         if (isNowReady && pData.lockedDeckPrice === undefined) updates[`rooms/${state.currentRoom}/players/${pId}/lockedDeckPrice`] = res.total || 0;
                         
                         updatedCount++;

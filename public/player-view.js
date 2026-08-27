@@ -1,5 +1,5 @@
-import { db, functions } from './firebase-setup.js?v=0.32';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.32';
+import { db, functions } from './firebase-setup.js?v=0.33';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.33';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -219,9 +219,9 @@ export function initPlayerViewModule(utils, state) {
 
     async function renderInteractiveDraft(activeDraft, container, s, players) {
         if (activeDraft.isComplete) { container.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; margin-top:50px;"><h2 style="color:var(--gold); font-family:Cinzel;">Finalizing Draft...</h2><span class="mana-spinner"></span></div>`; return; }
-        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=0.32'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=0.32'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=0.32'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
+        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=0.33'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=0.33'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=0.33'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
     }
 
     function renderFinalSelection(list, s) {
@@ -309,14 +309,27 @@ export function initPlayerViewModule(utils, state) {
                 const btn = document.getElementById('saveDeckBtn'); btn.innerHTML = '<span class="mana-spinner"></span> Calculating...'; btn.disabled = true;
                 showToast(lowerLink.includes("moxfield.com") ? "Calculating deck price... (Moxfield APIs may take a few seconds)" : "Calculating deck price...", false, 0);
                 try {
-                    const s = (await get(ref(db, `rooms/${state.currentRoom}/settings`))).val();
+                    const s = (await get(ref(db, `rooms/${state.currentRoom}/settings`))).val() || {};
                     const res = await fetchDeckPriceLocal(link, s.currency, s.includeCmdr, data.selected);
                     if (res.error) { showToast(res.error, true); } else {
-                        let updates = { deck: link, deckPrice: res.total || 0, isLegal: res.isLegal, deckSize: res.deckSize, deckSalt: res.deckSalt, deckBracket: res.deckBracket };
+                        const maxDeckBudget = s.deckBudget !== undefined ? parseFloat(s.deckBudget) : 50;
+                        const maxBracket = s.maxBracket !== undefined ? parseFloat(s.maxBracket) : 0;
+                        const isSizeLegal = res.isLegal === true;
+                        const isBracketLegal = maxBracket === 0 || !res.deckBracket || res.deckBracket <= maxBracket;
+                        const overallLegal = isSizeLegal && isBracketLegal;
+                        const isUnderBudget = maxDeckBudget === 0 || (res.total || 0) <= maxDeckBudget;
+
+                        let updates = { deck: link, deckPrice: res.total || 0, isLegal: overallLegal, deckSize: res.deckSize, deckSalt: res.deckSalt, deckBracket: res.deckBracket };
                         if (res.commanderArt) updates.image = res.commanderArt;
-                        if (res.isLegal && ((s.deckBudget !== undefined ? parseFloat(s.deckBudget) : 50) === 0 || (res.total || 0) <= (s.deckBudget !== undefined ? parseFloat(s.deckBudget) : 50)) && data.lockedDeckPrice === undefined) updates.lockedDeckPrice = res.total || 0;
+                        if (overallLegal && isUnderBudget && data.lockedDeckPrice === undefined) updates.lockedDeckPrice = res.total || 0;
                         await update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), updates);
-                        showToast("Deck sealed and priced!", false, 3000, true); setTimeout(() => window.closePlayerView(), 1000); 
+                        
+                        if (!isBracketLegal) {
+                            showToast(`Deck saved! ⚠️ Note: Deck is Bracket ${res.deckBracket}, exceeding lobby limit of ${maxBracket}.`, true, 5000);
+                        } else {
+                            showToast("Deck sealed and priced!", false, 3000, true);
+                        }
+                        setTimeout(() => window.closePlayerView(), 1200); 
                     }
                 } catch (e) { showToast("Calculation failed. Check URL.", true); } finally { btn.innerHTML = "Save & Calculate Price"; btn.disabled = false; }
             } else {
@@ -346,9 +359,9 @@ export function initPlayerViewModule(utils, state) {
                 await new Promise(r => setTimeout(r, 550));
             }
         }
-        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=0.32'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=0.32'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=0.32'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
+        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=0.33'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=0.33'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=0.33'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
     };
 
     window.openPlayerView = async () => {
