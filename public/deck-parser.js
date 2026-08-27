@@ -1,31 +1,27 @@
-import { functions } from './firebase-setup.js?v=0.33';
+import { functions } from './firebase-setup.js?v=0.34';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
-// Official Game Changers & Format Staples for Bracket Estimation (WotC & Archidekt)
-const GAME_CHANGERS_SET = new Set([
+// Official Game Changers for Moxfield fallback (excluding casual staples like Sol Ring)
+const MOXFIELD_GAME_CHANGERS_SET = new Set([
     "ad nauseam", "ancient tomb", "apocalypse chimera", "armageddon", "bolas's citadel",
     "brain freeze", "cataclysm", "channel", "chrome mox", "consecrated sphinx",
     "craterhoof behemoth", "cyclonic rift", "deflecting swat", "demonic consultation",
     "demonic tutor", "dockside extortionist", "doomsday", "drannith magistrate",
     "eladamri's call", "enlightened tutor", "esper sentinel", "expropriate",
-    "fallaji archaeologist", "fierce guardianship", "finale of devastation",
-    "flusterstorm", "food chain", "force of despair", "force of negation",
-    "force of vigor", "force of will", "gaea's cradle", "gamble",
-    "ghyrson starn, kelermorph", "gilded drake", "god-pharaoh's statue",
-    "grand abolisher", "grim monolith", "hullbreacher", "imperial seal",
-    "intuition", "isochron scepter", "jeska's will", "jeweled lotus",
-    "jokulhaups", "karn, the great creator", "kinnan, bonder prodigy",
+    "fierce guardianship", "finale of devastation", "flusterstorm", "food chain",
+    "force of despair", "force of negation", "force of vigor", "force of will", "gaea's cradle",
+    "gamble", "gilded drake", "god-pharaoh's statue", "grand abolisher", "grim monolith",
+    "hullbreacher", "imperial seal", "intuition", "isochron scepter", "jeska's will",
+    "jeweled lotus", "jokulhaups", "karn, the great creator", "kinnan, bonder prodigy",
     "koll, the forgemaster", "koma, cosmos serpent", "korvold, fae-cursed king",
     "krark, the thumbless", "kroxa, titan of death's hunger", "leovold, emissary of trest",
     "lion's eye diamond", "lotus petal", "mana crypt", "mana drain", "mana vault",
-    "mental misstep", "mindbreak trap", "mishra's workshop", "mox diamond",
-    "mox opal", "mystical tutor", "narset, parter of veils", "nature's will",
-    "necropotence", "notion thief", "najeela, the blade-blossom", "opposition agent",
-    "orcish bowmasters", "pact of negation", "peer into the abyss", "phyrexian altar",
-    "pollywog symbiote", "possession", "prossh, skyraider of kher", "protean hulk",
-    "radha, heart of keld", "razaketh, the foulblooded", "rhystic study",
-    "roaming throne", "rograkh, son of rogahh", "serra ascendant", "silence",
-    "smothering tithe", "sol ring", "staff of domination", "stasis", "survival of the fittest",
+    "mental misstep", "mindbreak trap", "mishra's workshop", "mox diamond", "mox opal",
+    "mystical tutor", "narset, parter of veils", "nature's will", "necropotence",
+    "notion thief", "najeela, the blade-blossom", "opposition agent", "orcish bowmasters",
+    "pact of negation", "peer into the abyss", "phyrexian altar", "prossh, skyraider of kher",
+    "protean hulk", "razaketh, the foulblooded", "rhystic study", "serra ascendant",
+    "silence", "smothering tithe", "staff of domination", "stasis", "survival of the fittest",
     "swan song", "sword of feast and famine", "sylvan library", "tainted pact",
     "teferi, hero of dominaria", "teferi, time raveler", "teferi's protection",
     "thassa's oracle", "the great henge", "the one ring", "time sieve",
@@ -77,13 +73,14 @@ export function calculateBracket(deckData, site, cardNames = []) {
     if (titleMatch) return parseInt(titleMatch[1], 10);
     if (/\bcedh\b/i.test(deckTitle)) return 5;
 
-    // Tier 2: Automated Official Card Evaluation (Archidekt / WotC Bracket Formula)
+    // Tier 2: Automated Card Evaluation
     let gcCount = 0;
     let mldCount = 0;
     let turnCount = 0;
     let atomicCombos = 0;
 
     if (site === 'Archidekt' && Array.isArray(deckData.cards)) {
+        // Use Archidekt native card flags directly
         const oracleIdMap = {};
         deckData.cards.forEach(c => {
             const id = c.card?.oracleCard?.id || c.card?.oracleCardId;
@@ -94,11 +91,10 @@ export function calculateBracket(deckData, site, cardNames = []) {
             const c = item.card;
             const oracle = c?.oracleCard || {};
             const qty = parseInt(item.quantity || 1, 10);
-            const name = (oracle.name || c?.name || '').toLowerCase().trim();
 
-            if (oracle.gameChanger || c?.gameChanger || GAME_CHANGERS_SET.has(name)) gcCount += qty;
-            if (oracle.massLandDenial || c?.massLandDenial || MASS_LAND_DENIAL_SET.has(name)) mldCount += qty;
-            if (oracle.extraTurns || c?.extraTurns || EXTRA_TURNS_SET.has(name)) turnCount += qty;
+            if (oracle.gameChanger || c?.gameChanger) gcCount += qty;
+            if (oracle.massLandDenial || c?.massLandDenial) mldCount += qty;
+            if (oracle.extraTurns || c?.extraTurns) turnCount += qty;
 
             const combos = item.atomicCombos || oracle.atomicCombos || [];
             if (combos.length && combos.some(comboId => oracleIdMap[comboId])) atomicCombos += qty;
@@ -107,7 +103,7 @@ export function calculateBracket(deckData, site, cardNames = []) {
         // Moxfield or flat card name list
         for (let rawName of cardNames) {
             let name = String(rawName).toLowerCase().trim();
-            if (GAME_CHANGERS_SET.has(name)) gcCount++;
+            if (MOXFIELD_GAME_CHANGERS_SET.has(name)) gcCount++;
             if (MASS_LAND_DENIAL_SET.has(name)) mldCount++;
             if (EXTRA_TURNS_SET.has(name)) turnCount++;
         }
@@ -115,16 +111,15 @@ export function calculateBracket(deckData, site, cardNames = []) {
 
     const isCleanCasual = gcCount < 1 && mldCount < 1 && atomicCombos < 1 && turnCount < 2;
     if (isCleanCasual) {
-        // Tier 3 fallback: clean casual decks default to lowest viable bracket (2)
-        return 2;
+        return 2; // Lowest viable baseline (Core / Casual)
     }
     if (gcCount < 4 && mldCount < 1 && atomicCombos < 1) {
-        return 3;
+        return 3; // Upgraded Casual
     }
     if (gcCount >= 8 || atomicCombos >= 2) {
-        return 5;
+        return 5; // cEDH / Max Power
     }
-    return 4;
+    return 4; // High Power
 }
 
 async function fetchDeckFromAPI(deckUrl) {
