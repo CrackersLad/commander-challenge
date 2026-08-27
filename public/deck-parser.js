@@ -1,4 +1,4 @@
-import { functions } from './firebase-setup.js?v=0.34';
+import { functions } from './firebase-setup.js?v=0.35';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 // Official Game Changers for Moxfield fallback (excluding casual staples like Sol Ring)
@@ -109,17 +109,16 @@ export function calculateBracket(deckData, site, cardNames = []) {
         }
     }
 
-    const isCleanCasual = gcCount < 1 && mldCount < 1 && atomicCombos < 1 && turnCount < 2;
-    if (isCleanCasual) {
-        return 2; // Lowest viable baseline (Core / Casual)
-    }
-    if (gcCount < 4 && mldCount < 1 && atomicCombos < 1) {
-        return 3; // Upgraded Casual
-    }
-    if (gcCount >= 8 || atomicCombos >= 2) {
+    if (gcCount >= 8) {
         return 5; // cEDH / Max Power
     }
-    return 4; // High Power
+    if (atomicCombos >= 1 || gcCount >= 4 || mldCount >= 1 || turnCount >= 2) {
+        return 4; // High Power / 2-Card Infinite Combos / MLD / Heavy Game Changers
+    }
+    if (gcCount >= 1) {
+        return 3; // Upgraded Casual (1-3 Game Changers)
+    }
+    return 2; // Core Casual (Lowest viable baseline)
 }
 
 async function fetchDeckFromAPI(deckUrl) {
