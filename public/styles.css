@@ -59,11 +59,9 @@
 }
 
 html {
-    overscroll-behavior: none;
     width: 100%;
-    height: 100%;
-    height: 100dvh;
-    overflow: hidden;
+    min-height: 100%;
+    overflow-x: hidden;
     background-color: var(--obsidian);
 }
 
@@ -75,22 +73,20 @@ body {
     line-height: 1.6;
     text-align: center;
     margin: 0;
-    padding: calc(var(--nav-height) + 16px) max(16px, var(--sar)) max(35px, var(--sab)) max(16px, var(--sal));
+    padding: calc(var(--nav-height) + 14px) max(12px, var(--sar)) max(35px, var(--sab)) max(12px, var(--sal));
     background-image: 
         radial-gradient(circle at 50% 0%, rgba(142, 36, 170, 0.18) 0%, transparent 60%),
         radial-gradient(circle at 10% 20%, rgba(212, 175, 55, 0.08) 0%, transparent 40%),
         radial-gradient(circle at 90% 30%, rgba(142, 36, 170, 0.12) 0%, transparent 50%),
         linear-gradient(to bottom, #0d0d14 0%, #08080c 100%);
     width: 100%;
-    height: 100%;
-    height: 100dvh;
-    overflow-y: auto;
+    min-height: 100%;
+    min-height: 100dvh;
     overflow-x: hidden;
     box-sizing: border-box;
     -webkit-user-select: none;
     user-select: none;
     cursor: default;
-    overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
 }
 
@@ -2027,6 +2023,25 @@ select:focus {
     }
 }
 
+@media (max-width: 600px) {
+    .settings-grid { grid-template-columns: 1fr; gap: 10px; }
+    .rank-inputs { justify-content: space-between; }
+    .rank-inputs input { width: 45%; }
+    .lobby-container { padding: 18px 12px; }
+    .room-code-card { padding: 16px 12px; margin-bottom: 18px; }
+    .room-code { font-size: 2.2rem; letter-spacing: 4px; }
+    .settings-panel { padding: 16px 12px; }
+    .player-list { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+    .player-list li { padding: 8px 10px; font-size: 0.88rem; }
+    .host-actions { flex-direction: column; gap: 10px; }
+    .host-actions button { width: 100%; }
+    .lobby-view-wrapper, .landing-wrapper, .deck-builder-wrapper, .dashboard-wrapper, .player-view-wrapper {
+        width: 100%;
+        max-width: 100%;
+        padding: 0 4px;
+    }
+}
+
 @media (max-width: 440px) {
     .nav-brand-text {
         font-size: 0.95rem;
@@ -2051,9 +2066,14 @@ select:focus {
     }
     .player-identity-bar {
         padding: 6px 10px;
+        width: 100%;
     }
     .action-card {
-        padding: 22px 16px;
+        padding: 20px 14px;
+    }
+    .room-code {
+        font-size: 1.9rem;
+        letter-spacing: 3px;
     }
 }
 
@@ -2064,12 +2084,6 @@ select:focus {
 @keyframes bounceRight {
     0%, 100% { transform: translateY(-50%) translateX(0); }
     50% { transform: translateY(-50%) translateX(8px); }
-}
-
-@media (max-width: 600px) {
-    .settings-grid { grid-template-columns: 1fr; gap: 10px; }
-    .rank-inputs { justify-content: space-between; }
-    .rank-inputs input { width: 45%; }
 }
 
 /* --- Card Hover & Interactive Effects --- */

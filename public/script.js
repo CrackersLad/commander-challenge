@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.22';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.22';
-import { getArchives } from './data-service.js?v=0.22';
-import { initDeckActionsModule } from './deck-actions.js?v=0.22';
-import { initRoomActionsModule } from './room-actions.js?v=0.22';
-import { initPlayerViewModule } from './player-view.js?v=0.22';
-import { initAdminModule } from './admin.js?v=0.22';
-import { initCalendarModule } from './calendar.js?v=0.22';
-import { initAuthModule } from './auth.js?v=0.22';
-import { initHubModule } from './hub.js?v=0.22';
-import { initProfileModule } from './profile.js?v=0.22';
+import { db, auth, functions } from './firebase-setup.js?v=0.23';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.23';
+import { getArchives } from './data-service.js?v=0.23';
+import { initDeckActionsModule } from './deck-actions.js?v=0.23';
+import { initRoomActionsModule } from './room-actions.js?v=0.23';
+import { initPlayerViewModule } from './player-view.js?v=0.23';
+import { initAdminModule } from './admin.js?v=0.23';
+import { initCalendarModule } from './calendar.js?v=0.23';
+import { initAuthModule } from './auth.js?v=0.23';
+import { initHubModule } from './hub.js?v=0.23';
+import { initProfileModule } from './profile.js?v=0.23';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -1760,7 +1760,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.22').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.23').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
@@ -1772,7 +1772,8 @@ if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/service-worker.js')
             .then(registration => {
-                console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                registration.update();
+                console.log('ServiceWorker registered & checked for update.');
             }, err => {
                 console.log('ServiceWorker registration failed: ', err);
             });

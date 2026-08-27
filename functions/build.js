@@ -43,4 +43,12 @@ if (fs.existsSync(publicDir)) {
     }
 }
 
+const swPath = path.join(__dirname, '..', 'public', 'service-worker.js');
+if (fs.existsSync(swPath)) {
+    let swContent = fs.readFileSync(swPath, 'utf8');
+    swContent = swContent.replace(/(CACHE_NAME\s*=\s*['"]cmdr-draft-cache-v)[^'"]+(['"])/, `$1${newVersion}$2`);
+    fs.writeFileSync(swPath, swContent);
+    console.log(`Updated CACHE_NAME in service-worker.js to cmdr-draft-cache-v${newVersion}`);
+}
+
 console.log('✅ Web build and version bump complete.');

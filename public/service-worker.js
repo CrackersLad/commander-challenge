@@ -1,11 +1,26 @@
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'cmdr-draft-cache-v11';
+const CACHE_NAME = 'cmdr-draft-cache-v0.23';
 const urlsToCache = [
   '/',
   '/index.html',
+  '/styles.css',
   '/script.js',
+  '/auth.js',
+  '/hub.js',
+  '/admin.js',
+  '/player-view.js',
+  '/firebase-setup.js',
+  '/room-actions.js',
+  '/deck-actions.js',
+  '/deck-builder-view.js',
+  '/deck-parser.js',
+  '/draft-async.js',
+  '/draft-burn.js',
+  '/draft-snake.js',
+  '/profile.js',
+  '/calendar.js',
   '/click.mp3',
   '/choose.mp3',
   '/reveal.mp3',
@@ -46,7 +61,6 @@ self.addEventListener('notificationclick', event => {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windowClients => {
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
-        // Focus the app tab if it is already open
         if (client.url.includes(urlToOpen) && 'focus' in client) {
           return client.focus();
         }
@@ -57,14 +71,12 @@ self.addEventListener('notificationclick', event => {
 });
 
 self.addEventListener('install', event => {
-  self.skipWaiting(); // Force the waiting service worker to become active immediately
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        // When installing, we force a network request to bypass the browser's HTTP cache.
-        // This ensures we are caching the latest versions of the files.
         const requests = urlsToCache.map(url => new Request(url, { cache: 'reload' }));
-        return cache.addAll(requests);
+        return cache.addAll(requests).catch(err => console.warn('PWA Precache error:', err));
       })
   );
 });
@@ -72,42 +84,55 @@ self.addEventListener('install', event => {
 self.addEventListener('fetch', event => {
     if (event.request.method !== 'GET') return;
 
+    // Navigation requests (HTML pages): NETWORK FIRST so users never get stuck on stale versions
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request)
+                .then(networkResponse => {
+                    if (networkResponse && networkResponse.status === 200) {
+                        const responseClone = networkResponse.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+                    }
+                    return networkResponse;
+                })
+                .catch(() => {
+                    return caches.match('/index.html') || caches.match(event.request);
+                })
+        );
+        return;
+    }
+
     const url = new URL(event.request.url);
     const isCoreAsset = urlsToCache.includes(url.pathname);
 
-    // For core app shell files, use a "Stale-While-Revalidate" strategy.
-    // This serves the cached version for speed, then updates the cache in the background.
     if (isCoreAsset) {
         event.respondWith(
             caches.open(CACHE_NAME).then(cache => {
                 return cache.match(event.request).then(cachedResponse => {
                     const fetchPromise = fetch(event.request).then(networkResponse => {
-                        // Only cache valid, successful (200) responses.
                         if (networkResponse && networkResponse.status === 200) {
                             cache.put(event.request, networkResponse.clone());
                         }
                         return networkResponse;
-                    });
-                    // Return cached response immediately, and let the fetch happen in the background.
+                    }).catch(() => {});
                     return cachedResponse || fetchPromise;
                 });
             })
         );
-    } // For other requests, the browser's default network behavior is sufficient.
+    }
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(self.clients.claim()); // Take control of all pages immediately
-  const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          if (!cacheWhitelist.includes(cacheName)) {
+          if (cacheName !== CACHE_NAME) {
+            console.log('Purging stale cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
 });
