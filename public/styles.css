@@ -449,6 +449,9 @@ select:focus {
    ========================================================================== */
 .view-section {
     display: none;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     animation: viewFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -467,6 +470,7 @@ select:focus {
     width: 100%;
     max-width: 820px;
     margin: 0 auto 15px auto;
+    box-sizing: border-box;
 }
 
 .breadcrumb-btn {
@@ -494,8 +498,10 @@ select:focus {
    ========================================================================== */
 .hero-container {
     max-width: 860px;
-    margin: 15px auto 35px auto;
+    width: 100%;
+    margin: 15px auto 30px auto;
     text-align: center;
+    box-sizing: border-box;
 }
 
 .hero-badge {
@@ -520,14 +526,17 @@ select:focus {
     color: var(--gold);
     letter-spacing: 2px;
     text-shadow: 0 4px 15px rgba(0,0,0,0.9), 0 0 35px var(--gold-glow);
+    word-break: break-word;
 }
 
 .hero-subtitle {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     color: #bbb;
     max-width: 680px;
+    width: 100%;
     margin: 0 auto 25px auto;
     line-height: 1.5;
+    box-sizing: border-box;
 }
 
 /* Player Identity Setup Bar */
@@ -535,32 +544,38 @@ select:focus {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 8px;
     max-width: 480px;
+    width: 100%;
     margin: 0 auto;
     background: rgba(18, 18, 26, 0.85);
     border: 1px solid rgba(212, 175, 55, 0.35);
-    padding: 8px 14px;
+    padding: 6px 12px;
     border-radius: var(--radius-full);
     box-shadow: var(--shadow-md), 0 0 20px var(--gold-subtle);
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
+    box-sizing: border-box;
 }
 
 .identity-icon {
     font-size: 1.2rem;
+    flex-shrink: 0;
 }
 
 .hero-name-input {
-    flex: 1;
+    flex: 1 1 0%;
+    min-width: 0;
+    width: 100%;
     background: transparent !important;
     border: none !important;
     color: #fff !important;
-    font-size: 1rem !important;
+    font-size: 0.95rem !important;
     font-weight: 600;
     padding: 6px 8px !important;
     text-align: left !important;
     box-shadow: none !important;
+    box-sizing: border-box;
 }
 
 .identity-pill-btn {
@@ -575,6 +590,7 @@ select:focus {
     font-weight: bold;
     white-space: nowrap;
     transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 
 .identity-pill-btn:hover {
@@ -587,16 +603,18 @@ select:focus {
 .action-grid-container {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 24px;
+    gap: 20px;
     max-width: 820px;
+    width: 100%;
     margin: 0 auto 30px auto;
+    box-sizing: border-box;
 }
 
 .action-card {
     background: var(--card-bg);
     border: 1px solid var(--card-border-gold);
     border-radius: var(--radius-lg);
-    padding: 30px 24px;
+    padding: 26px 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -605,10 +623,13 @@ select:focus {
     transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease;
     -webkit-backdrop-filter: blur(14px);
     backdrop-filter: blur(14px);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .action-card:hover {
-    transform: translateY(-8px);
+    transform: translateY(-5px);
     box-shadow: var(--shadow-lg), 0 0 30px var(--gold-subtle);
     border-color: var(--gold);
 }
@@ -639,27 +660,28 @@ select:focus {
 
 .action-card-icon {
     font-size: 2.6rem;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
 .action-card-title {
     font-size: 1.35rem;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     color: #fff;
 }
 
 .action-card-desc {
     color: #aaa;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     line-height: 1.45;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     flex-grow: 1;
 }
 
 .action-cta-btn {
     width: 100%;
-    padding: 14px;
+    padding: 13px;
     font-size: 0.95rem;
+    box-sizing: border-box;
 }
 
 /* Join Playgroup Box */
@@ -667,30 +689,36 @@ select:focus {
     display: flex;
     gap: 8px;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .room-code-input {
-    flex: 1;
+    flex: 1 1 0%;
+    min-width: 0;
+    width: 100%;
     text-transform: uppercase;
-    font-size: 1.1rem !important;
+    font-size: 1.05rem !important;
     font-weight: 700;
     letter-spacing: 2px;
-    padding: 12px !important;
+    padding: 11px 12px !important;
+    box-sizing: border-box;
 }
 
 .join-submit-btn {
-    padding: 12px 20px !important;
+    padding: 11px 18px !important;
     font-size: 0.9rem !important;
+    flex-shrink: 0;
 }
 
 /* Quick Roll Banner */
 .quick-roll-card {
     max-width: 1040px;
-    margin: 0 auto 35px auto;
+    width: 100%;
+    margin: 0 auto 30px auto;
     background: linear-gradient(135deg, rgba(25, 20, 35, 0.85) 0%, rgba(35, 25, 55, 0.85) 100%);
     border: 1px solid rgba(186, 104, 200, 0.35);
     border-radius: var(--radius-md);
-    padding: 20px 28px;
+    padding: 20px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -700,6 +728,7 @@ select:focus {
     transition: all 0.3s ease;
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
+    box-sizing: border-box;
 }
 
 .quick-roll-card:hover {
@@ -711,12 +740,13 @@ select:focus {
 .quick-roll-content {
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: 16px;
     text-align: left;
 }
 
 .quick-roll-dice {
     font-size: 2.4rem;
+    flex-shrink: 0;
 }
 
 .quick-roll-text h4 {
@@ -732,10 +762,11 @@ select:focus {
 }
 
 .quick-roll-cta {
-    padding: 12px 24px;
+    padding: 12px 22px;
     white-space: nowrap;
     border-color: var(--arcane-bright);
     color: var(--arcane-bright);
+    flex-shrink: 0;
 }
 
 .quick-roll-cta:hover {
@@ -746,14 +777,16 @@ select:focus {
 /* Active Playgroups Grid */
 .my-playgroups-container {
     max-width: 1040px;
-    margin: 0 auto 35px auto;
+    width: 100%;
+    margin: 0 auto 30px auto;
     text-align: left;
+    box-sizing: border-box;
 }
 
 .section-divider {
     border-bottom: 1px solid rgba(212, 175, 55, 0.25);
     padding-bottom: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 
 .section-title {
@@ -763,8 +796,84 @@ select:focus {
 
 .playgroups-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.playgroup-rejoin-card {
+    background: rgba(18, 18, 26, 0.85);
+    border: 1px solid var(--card-border-gold);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.25s ease;
+    box-shadow: var(--shadow-sm);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}
+
+.playgroup-rejoin-card:hover {
+    border-color: var(--gold);
+    background: rgba(30, 25, 40, 0.95);
+    box-shadow: var(--shadow-md), 0 0 20px var(--gold-subtle);
+    transform: translateY(-2px);
+}
+
+.playgroup-card-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.playgroup-card-code {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--gold);
+    letter-spacing: 3px;
+    text-shadow: 0 0 15px var(--gold-glow);
+}
+
+.playgroup-card-players {
+    font-size: 0.78rem;
+    color: #888;
+}
+
+.playgroup-card-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.playgroup-card-host {
+    font-size: 0.82rem;
+    color: #bbb;
+}
+
+.playgroup-card-host span {
+    color: #fff;
+    font-weight: 600;
+}
+
+.playgroup-card-status {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid currentColor;
 }
 
 /* Global Statistics Bar */
@@ -772,9 +881,10 @@ select:focus {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 20px;
+    gap: 16px;
     max-width: 780px;
-    margin: 30px auto 10px auto;
+    width: 100%;
+    margin: 25px auto 10px auto;
     background: rgba(14, 14, 20, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.1);
     padding: 10px 20px;
@@ -782,6 +892,7 @@ select:focus {
     box-shadow: var(--shadow-sm);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
+    box-sizing: border-box;
 }
 
 .stat-chip {
@@ -1920,20 +2031,22 @@ select:focus {
 @media (max-width: 900px) {
     .action-grid-container {
         grid-template-columns: 1fr;
-        max-width: 480px;
+        max-width: 540px;
+        width: 100%;
     }
 }
 
 @media (max-width: 768px) {
     body {
-        padding-top: calc(var(--nav-height) + 14px);
-        padding-left: max(14px, var(--sal));
-        padding-right: max(14px, var(--sar));
+        padding-top: calc(var(--nav-height) + 12px);
+        padding-left: max(10px, var(--sal));
+        padding-right: max(10px, var(--sar));
         padding-bottom: max(35px, var(--sab));
+        overflow-x: hidden;
     }
 
     .master-navbar {
-        padding: var(--sat) max(14px, var(--sar)) 0 max(14px, var(--sal));
+        padding: var(--sat) max(10px, var(--sar)) 0 max(10px, var(--sal));
     }
 
     .hero-title {
@@ -1944,27 +2057,45 @@ select:focus {
         font-size: 0.95rem;
     }
 
+    .action-grid-container {
+        grid-template-columns: 1fr;
+        max-width: 100%;
+        width: 100%;
+        gap: 16px;
+    }
+
     .scroll-hint { display: block; }
     .scroll-hint.left { left: 5px; animation: bounceLeft 1.5s infinite; }
     .scroll-hint.right { right: 5px; animation: bounceRight 1.5s infinite; }
 
     .lobby-container {
-        padding: 24px 16px;
+        padding: 22px 14px;
     }
 
     .quick-roll-card {
         flex-direction: column;
         text-align: center;
+        padding: 18px 16px;
+        width: 100%;
+        max-width: 100%;
     }
     .quick-roll-content {
         flex-direction: column;
         text-align: center;
     }
 
+    .playgroups-grid {
+        grid-template-columns: 1fr;
+        width: 100%;
+    }
+
     .global-stats-bar {
         flex-direction: column;
         gap: 8px;
         border-radius: var(--radius-md);
+        width: 100%;
+        max-width: 100%;
+        padding: 12px 16px;
     }
 
     /* Carousel Snapping for mobile */
@@ -2031,10 +2162,13 @@ select:focus {
     .player-list li { padding: 8px 10px; font-size: 0.88rem; }
     .host-actions { flex-direction: column; gap: 10px; }
     .host-actions button { width: 100%; }
-    .lobby-view-wrapper, .landing-wrapper, .deck-builder-wrapper, .dashboard-wrapper, .player-view-wrapper {
+    .host-action-bar { flex-direction: column; gap: 10px; width: 100%; }
+    .start-draft-cta { width: 100%; }
+    .lobby-view-wrapper, .landing-wrapper, .deck-builder-wrapper, .dashboard-wrapper, .player-view-wrapper, .stats-wrapper {
         width: 100%;
         max-width: 100%;
-        padding: 0 4px;
+        padding: 0 2px;
+        box-sizing: border-box;
     }
 }
 
@@ -2063,9 +2197,12 @@ select:focus {
     .player-identity-bar {
         padding: 6px 10px;
         width: 100%;
+        max-width: 100%;
     }
     .action-card {
         padding: 20px 14px;
+        width: 100%;
+        max-width: 100%;
     }
     .room-code {
         font-size: 1.9rem;

@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=0.24';
+import { db, auth } from './firebase-setup.js?v=0.25';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -141,16 +141,35 @@ export function initHubModule(utils, state, coreUi) {
             const rooms = snap.val() || {};
             const activeRooms = [];
 
+            let joinedRoomsList = [];
+            try {
+                joinedRoomsList = JSON.parse(localStorage.getItem('joinedRooms') || '[]');
+            } catch(e) {}
+            const currentSavedRoom = localStorage.getItem('roomCode') || state.currentRoom;
+            const currentName = (state.currentPlayerName || localStorage.getItem('playerName') || '').trim().toLowerCase();
+            const currentUid = auth.currentUser ? auth.currentUser.uid : null;
+
             Object.entries(rooms).forEach(([code, data]) => {
-                if (!data.settings) return; // Skip ghost rooms
+                if (!data.settings || !data.players) return; // Skip ghost rooms
                 let matched = false;
-                if (data.players && data.players[state.currentPlayerId]) {
+
+                // 1. Direct Player ID match
+                if (data.players[state.currentPlayerId]) {
                     matched = true;
-                } else if (auth.currentUser && !auth.currentUser.isAnonymous && data.players) {
-                    // Check if any player in the room is linked to this user's UID, or if the ID itself is the UID (legacy sessions)
-                    const isLinked = Object.keys(data.players).some(id => id === auth.currentUser.uid || data.players[id].uid === auth.currentUser.uid);
-                    if (isLinked) matched = true;
                 }
+                // 2. Logged in UID match
+                else if (currentUid && Object.entries(data.players).some(([id, p]) => id === currentUid || p.uid === currentUid)) {
+                    matched = true;
+                }
+                // 3. Saved room in local joined history or current room
+                else if (joinedRoomsList.includes(code) || currentSavedRoom === code) {
+                    matched = true;
+                }
+                // 4. Name match in active playgroup
+                else if (currentName && currentName !== 'player' && Object.values(data.players).some(p => p.name && p.name.trim().toLowerCase() === currentName)) {
+                    matched = true;
+                }
+
                 if (matched) activeRooms.push({ code, data });
             });
 
@@ -181,19 +200,21 @@ export function initHubModule(utils, state, coreUi) {
                 renderedCodes.add(room.code);
                 
                 const hostName = Object.values(room.data.players).find(p => p.isHost)?.name || "Unknown";
-                const status = room.data.settings?.status === 'rolling' ? (room.data.settings?.draftFormat === 'prerelease_sealed' ? 'Prerelease' : 'Drafting') : 'Waiting';
-                const color = status === 'Drafting' ? 'var(--reroll)' : '#aaa';
+                const playerCount = Object.keys(room.data.players || {}).length;
+                const status = room.data.settings?.status === 'rolling' ? 'Drafting' : 'Waiting';
+                const statusColor = status === 'Drafting' ? 'var(--reroll)' : '#2ecc71';
                 
-                const btn = document.createElement('button');
-                btn.className = 'select-btn playgroup-rejoin-btn';
-                btn.style.padding = '12px 15px';
-                btn.style.fontSize = '0.95rem';
+                const btn = document.createElement('div');
+                btn.className = 'playgroup-rejoin-card';
                 
                 btn.innerHTML = `
-                    <span class="playgroup-rejoin-btn-code">${room.code}</span>
-                    <div class="playgroup-rejoin-btn-details">
-                        <div class="host">Host: <span>${sanitizeHTML(hostName)}</span></div>
-                        <div class="status" style="color:${color};">${status}</div>
+                    <div class="playgroup-card-left">
+                        <span class="playgroup-card-code">${room.code}</span>
+                        <span class="playgroup-card-players">👥 ${playerCount}/6 Players</span>
+                    </div>
+                    <div class="playgroup-card-right">
+                        <div class="playgroup-card-host">Host: <span>${sanitizeHTML(hostName)}</span></div>
+                        <div class="playgroup-card-status" style="color:${statusColor}; border-color:${statusColor};">${status}</div>
                     </div>
                 `;
                 

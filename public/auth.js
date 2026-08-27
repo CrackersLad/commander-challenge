@@ -1,4 +1,4 @@
-import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=0.24';
+import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=0.25';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithRedirect, linkWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
@@ -248,6 +248,10 @@ export function initAuthModule(utils, state) {
                     document.getElementById('playerNameInput').value = finalName;
                 }
                 await syncNameToCurrentRoom(finalName, bestAvatar);
+            }
+
+            if (document.getElementById('view-landing')?.classList.contains('active') && window.loadMyPlaygroups) {
+                window.loadMyPlaygroups();
             }
         });
     }
