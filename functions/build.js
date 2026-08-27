@@ -23,8 +23,10 @@ console.log(`Version bumped to ${newVersion}`);
 
 const indexPath = path.join(__dirname, '..', 'public', 'index.html');
 let indexHtml = fs.readFileSync(indexPath, 'utf8');
-indexHtml = indexHtml.replace(/(v)\d+\.\d+/g, `v${newVersion}`);
-indexHtml = indexHtml.replace(/(\.js\?v=)\d+\.\d+/g, `$1${newVersion}`);
+indexHtml = indexHtml.replace(/(styles\.css\?v=)[^"']+/g, `$1${newVersion}`);
+indexHtml = indexHtml.replace(/(script\.js\?v=)[^"']+/g, `$1${newVersion}`);
+indexHtml = indexHtml.replace(/(\.js\?v=)[^"']+/g, `$1${newVersion}`);
+indexHtml = indexHtml.replace(/(<span id="appVersion">v?)[^<]+(<\/span>)/g, `$1${newVersion}$2`);
 fs.writeFileSync(indexPath, indexHtml);
 
 console.log(`Updated version in index.html to ${newVersion}`);

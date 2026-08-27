@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'cmdr-draft-cache-v0.27';
+const CACHE_NAME = 'cmdr-draft-cache-v0.28';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -84,42 +84,23 @@ self.addEventListener('install', event => {
 self.addEventListener('fetch', event => {
     if (event.request.method !== 'GET') return;
 
-    // Navigation requests (HTML pages): NETWORK FIRST so users never get stuck on stale versions
-    if (event.request.mode === 'navigate') {
-        event.respondWith(
-            fetch(event.request)
-                .then(networkResponse => {
-                    if (networkResponse && networkResponse.status === 200) {
-                        const responseClone = networkResponse.clone();
-                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
-                    }
-                    return networkResponse;
-                })
-                .catch(() => {
-                    return caches.match('/index.html') || caches.match(event.request);
-                })
-        );
-        return;
-    }
-
-    const url = new URL(event.request.url);
-    const isCoreAsset = urlsToCache.includes(url.pathname);
-
-    if (isCoreAsset) {
-        event.respondWith(
-            caches.open(CACHE_NAME).then(cache => {
-                return cache.match(event.request).then(cachedResponse => {
-                    const fetchPromise = fetch(event.request).then(networkResponse => {
-                        if (networkResponse && networkResponse.status === 200) {
-                            cache.put(event.request, networkResponse.clone());
-                        }
-                        return networkResponse;
-                    }).catch(() => {});
-                    return cachedResponse || fetchPromise;
+    // Network-First for everything: always serve fresh assets when online
+    event.respondWith(
+        fetch(event.request)
+            .then(networkResponse => {
+                if (networkResponse && networkResponse.status === 200) {
+                    const responseClone = networkResponse.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+                }
+                return networkResponse;
+            })
+            .catch(() => {
+                return caches.match(event.request).then(cached => {
+                    if (cached) return cached;
+                    if (event.request.mode === 'navigate') return caches.match('/index.html');
                 });
             })
-        );
-    }
+    );
 });
 
 self.addEventListener('activate', event => {
