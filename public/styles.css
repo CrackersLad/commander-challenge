@@ -310,6 +310,8 @@ button:disabled {
     cursor: not-allowed !important;
     transform: none !important;
     box-shadow: none !important;
+}
+
 /* Gold Primary CTA */
 .select-btn {
     background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 50%, var(--gold) 100%);
