@@ -134,9 +134,7 @@ a:hover {
     left: 0;
     right: 0;
     height: var(--nav-height);
-    background: rgba(10, 10, 15, 0.88);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
+    background: rgba(10, 10, 15, 0.96);
     border-bottom: 1px solid rgba(212, 175, 55, 0.25);
     display: flex;
     align-items: center;
@@ -312,27 +310,19 @@ button:disabled {
     cursor: not-allowed !important;
     transform: none !important;
     box-shadow: none !important;
-}
-
-/* Gold Shimmer Primary CTA */
+/* Gold Primary CTA */
 .select-btn {
     background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 50%, var(--gold) 100%);
-    background-size: 200% auto;
-    animation: goldShimmer 3.5s linear infinite;
     color: #0b0b0e;
-    box-shadow: 0 4px 0 var(--gold-dark), 0 6px 18px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 4px 0 var(--gold-dark), 0 4px 12px rgba(0, 0, 0, 0.5);
     text-shadow: 0 1px 1px rgba(255, 255, 255, 0.4);
-}
-
-@keyframes goldShimmer {
-    0% { background-position: 0% center; }
-    100% { background-position: 200% center; }
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .select-btn:hover:not(:disabled) {
     background: #ffffff;
     color: #000000;
-    box-shadow: 0 0 25px var(--gold), 0 4px 0 var(--gold-dark);
+    box-shadow: 0 0 18px var(--gold), 0 4px 0 var(--gold-dark);
     transform: translateY(-2px);
 }
 
@@ -343,18 +333,17 @@ button:disabled {
 
 /* Secondary Glass Button */
 .secondary-btn {
-    background: rgba(18, 18, 26, 0.7);
+    background: rgba(22, 22, 32, 0.9);
     color: var(--gold);
     border: 1.5px solid var(--gold);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .secondary-btn:hover:not(:disabled) {
     background: var(--gold);
     color: #000;
-    box-shadow: 0 0 22px var(--gold-glow);
+    box-shadow: 0 0 18px var(--gold-glow);
     transform: translateY(-2px);
 }
 
@@ -429,15 +418,13 @@ select {
     padding: 12px 16px;
     border-radius: var(--radius-sm);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    background: rgba(12, 12, 18, 0.85);
+    background: rgba(14, 14, 20, 0.95);
     color: #fff;
     outline: none;
     font-family: var(--font-body);
     font-size: 16px;
     text-align: center;
-    transition: all 0.25s ease;
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 input[type="text"]:focus,
@@ -557,13 +544,11 @@ select:focus {
     max-width: 480px;
     width: 100%;
     margin: 0 auto;
-    background: rgba(18, 18, 26, 0.85);
+    background: rgba(18, 18, 26, 0.95);
     border: 1px solid rgba(212, 175, 55, 0.35);
     padding: 5px 10px;
     border-radius: var(--radius-full);
     box-shadow: var(--shadow-md), 0 0 20px var(--gold-subtle);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
     box-sizing: border-box;
 }
 
@@ -620,7 +605,7 @@ select:focus {
 }
 
 .action-card {
-    background: var(--card-bg);
+    background: rgba(18, 18, 26, 0.96);
     border: 1px solid var(--card-border-gold);
     border-radius: var(--radius-lg);
     padding: 22px 16px;
@@ -629,9 +614,7 @@ select:focus {
     align-items: center;
     position: relative;
     box-shadow: var(--shadow-lg), inset 0 0 25px rgba(0, 0, 0, 0.6);
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease;
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
+    transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
@@ -724,7 +707,7 @@ select:focus {
     max-width: 1040px;
     width: 100%;
     margin: 0 auto 24px auto;
-    background: linear-gradient(135deg, rgba(25, 20, 35, 0.85) 0%, rgba(35, 25, 55, 0.85) 100%);
+    background: linear-gradient(135deg, rgba(25, 20, 35, 0.95) 0%, rgba(35, 25, 55, 0.95) 100%);
     border: 1px solid rgba(186, 104, 200, 0.35);
     border-radius: var(--radius-md);
     padding: 18px 20px;
@@ -734,9 +717,7 @@ select:focus {
     gap: 16px;
     cursor: pointer;
     box-shadow: var(--shadow-md), 0 0 20px rgba(142, 36, 170, 0.2);
-    transition: all 0.3s ease;
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
     box-sizing: border-box;
 }
 
@@ -826,10 +807,8 @@ select:focus {
     box-sizing: border-box;
     cursor: pointer;
     text-align: left;
-    transition: all 0.25s ease;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
     box-shadow: var(--shadow-sm);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
 }
 
 .playgroup-rejoin-card:hover {
@@ -897,13 +876,11 @@ select:focus {
     max-width: 780px;
     width: 100%;
     margin: 20px auto 10px auto;
-    background: rgba(14, 14, 20, 0.85);
+    background: rgba(14, 14, 20, 0.95);
     border: 1px solid rgba(255, 255, 255, 0.1);
     padding: 10px 14px;
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-sm);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
     box-sizing: border-box;
 }
 
@@ -935,13 +912,11 @@ select:focus {
 }
 
 .lobby-container {
-    background: var(--card-bg);
+    background: rgba(18, 18, 26, 0.96);
     border: 1px solid var(--card-border-gold);
     border-radius: var(--radius-lg);
     padding: 35px;
     box-shadow: var(--shadow-lg);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
 }
 
 .room-code-card {
@@ -1007,6 +982,8 @@ select:focus {
     margin-bottom: 25px;
     text-align: left;
     width: 100%;
+    max-width: 100%;
+    overflow: hidden;
     box-sizing: border-box;
 }
 
@@ -1018,58 +995,69 @@ select:focus {
     margin-bottom: 12px;
 }
 
+#lobbyPlayerList,
+#lobbyPlayerList.player-list,
 .player-list {
     list-style: none;
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    gap: 12px;
-    padding: 6px 4px 14px 4px;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    gap: 14px;
+    padding: 8px 4px 16px 4px;
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x mandatory;
     box-sizing: border-box;
     width: 100%;
 }
 
+#lobbyPlayerList::-webkit-scrollbar,
 .player-list::-webkit-scrollbar {
     height: 6px;
 }
+#lobbyPlayerList::-webkit-scrollbar-track,
 .player-list::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.35);
     border-radius: 6px;
 }
+#lobbyPlayerList::-webkit-scrollbar-thumb,
 .player-list::-webkit-scrollbar-thumb {
-    background: rgba(212, 175, 55, 0.4);
+    background: rgba(212, 175, 55, 0.45);
     border-radius: 6px;
 }
+#lobbyPlayerList::-webkit-scrollbar-thumb:hover,
 .player-list::-webkit-scrollbar-thumb:hover {
     background: var(--gold);
 }
 
+#lobbyPlayerList li,
+#lobbyPlayerList.player-list li,
 .player-list li {
-    flex: 0 0 auto;
-    width: 200px;
-    background: rgba(14, 14, 20, 0.85);
+    flex: 0 0 220px !important;
+    width: 220px !important;
+    max-width: 220px !important;
+    background: rgba(14, 14, 22, 0.95);
     border: 1px solid var(--card-border-gold);
     border-radius: var(--radius-md);
-    padding: 12px 14px;
-    display: flex;
+    padding: 14px 16px;
+    display: flex !important;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: 10px;
     color: #eee;
     font-size: 0.92rem;
     font-weight: 500;
     scroll-snap-align: start;
     box-shadow: var(--shadow-sm);
-    transition: all 0.2s ease;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
     box-sizing: border-box;
 }
 
+#lobbyPlayerList li:hover,
 .player-list li:hover {
     border-color: var(--gold);
-    background: rgba(24, 20, 35, 0.95);
+    background: rgba(24, 20, 35, 0.98);
     box-shadow: var(--shadow-md), 0 0 15px var(--gold-subtle);
     transform: translateY(-2px);
 }
@@ -1363,14 +1351,12 @@ select:focus {
 }
 
 .dashboard-header-card {
-    background: var(--card-bg);
+    background: rgba(18, 18, 26, 0.96);
     border: 1px solid var(--card-border-gold);
     border-radius: var(--radius-lg);
     padding: 24px 30px;
     margin-bottom: 25px;
     box-shadow: var(--shadow-md);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
 }
 
 .dash-room-title {
@@ -1434,9 +1420,7 @@ select:focus {
 }
 
 .card {
-    background: var(--card-bg);
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
+    background: rgba(18, 18, 26, 0.96);
     border: 1px solid var(--card-border-gold);
     border-top: 2px solid var(--gold);
     border-radius: var(--radius-lg);
@@ -1445,7 +1429,7 @@ select:focus {
     max-width: 320px;
     min-width: 250px;
     box-shadow: var(--shadow-lg), inset 0 0 20px rgba(0, 0, 0, 0.6);
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+    transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
     position: relative;
     text-align: center;
     box-sizing: border-box;
@@ -1618,15 +1602,13 @@ select:focus {
     position: absolute;
     right: 0;
     top: calc(100% + 8px);
-    background: rgba(15, 15, 22, 0.96);
+    background: rgba(15, 15, 22, 0.98);
     min-width: 200px;
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.9);
     border-radius: var(--radius-md);
     border: 1px solid var(--gold);
     z-index: 100;
     overflow: hidden;
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
 }
 
 .dropdown-content a {
@@ -1694,9 +1676,7 @@ select:focus {
 }
 
 .option-card {
-    background: var(--card-bg);
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
+    background: rgba(18, 18, 26, 0.96);
     padding: 22px 18px;
     border-radius: var(--radius-lg);
     border: 1px solid var(--card-border-gold);
@@ -1820,7 +1800,7 @@ select:focus {
     visibility: hidden;
     min-width: 280px;
     max-width: 90vw;
-    background-color: rgba(18, 18, 26, 0.96);
+    background-color: rgba(18, 18, 26, 0.98);
     color: #fff;
     text-align: center;
     border-radius: var(--radius-md);
@@ -1836,8 +1816,6 @@ select:focus {
     opacity: 0;
     transition: opacity 0.3s ease, top 0.3s ease;
     border: 1px solid var(--gold);
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
 }
 
 .toast.show {
@@ -1871,9 +1849,7 @@ select:focus {
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity 0.3s ease;
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
+    transition: opacity 0.25s ease;
     padding: max(16px, var(--sat)) max(16px, var(--sar)) max(16px, var(--sab)) max(16px, var(--sal));
     box-sizing: border-box;
 }
@@ -1884,9 +1860,7 @@ select:focus {
 }
 
 .modal-content {
-    background: var(--card-bg);
-    -webkit-backdrop-filter: blur(18px);
-    backdrop-filter: blur(18px);
+    background: rgba(18, 18, 26, 0.98);
     border: 1px solid var(--gold);
     border-top: 2px solid var(--gold);
     padding: 28px 24px;
@@ -1896,7 +1870,7 @@ select:focus {
     text-align: center;
     box-shadow: var(--shadow-lg), 0 0 35px var(--arcane-glow);
     transform: translateY(-20px) scale(0.97);
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform 0.25s ease;
     max-height: calc(100dvh - var(--sat) - var(--sab) - 30px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -2276,7 +2250,7 @@ select:focus {
     .room-code-card { padding: 16px 12px; margin-bottom: 18px; }
     .room-code { font-size: 2.2rem; letter-spacing: 4px; }
     .settings-panel { padding: 16px 12px; }
-    .player-list li { width: 175px; padding: 10px 12px; font-size: 0.88rem; }
+    #lobbyPlayerList li, .player-list li { flex: 0 0 175px !important; width: 175px !important; max-width: 175px !important; padding: 10px 12px; font-size: 0.88rem; }
     .host-actions { flex-direction: column; gap: 10px; }
     .host-actions button { width: 100%; }
     .host-action-bar { flex-direction: column; gap: 10px; width: 100%; }
