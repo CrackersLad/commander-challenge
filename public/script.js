@@ -1,14 +1,14 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.30';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.30';
-import { getArchives } from './data-service.js?v=0.30';
-import { initDeckActionsModule } from './deck-actions.js?v=0.30';
-import { initRoomActionsModule } from './room-actions.js?v=0.30';
-import { initPlayerViewModule } from './player-view.js?v=0.30';
-import { initAdminModule } from './admin.js?v=0.30';
-import { initCalendarModule } from './calendar.js?v=0.30';
-import { initAuthModule } from './auth.js?v=0.30';
-import { initHubModule } from './hub.js?v=0.30';
-import { initProfileModule } from './profile.js?v=0.30';
+import { db, auth, functions } from './firebase-setup.js?v=0.31';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.31';
+import { getArchives } from './data-service.js?v=0.31';
+import { initDeckActionsModule } from './deck-actions.js?v=0.31';
+import { initRoomActionsModule } from './room-actions.js?v=0.31';
+import { initPlayerViewModule } from './player-view.js?v=0.31';
+import { initAdminModule } from './admin.js?v=0.31';
+import { initCalendarModule } from './calendar.js?v=0.31';
+import { initAuthModule } from './auth.js?v=0.31';
+import { initHubModule } from './hub.js?v=0.31';
+import { initProfileModule } from './profile.js?v=0.31';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -951,6 +951,7 @@ function initLobby() {
         const currentUser = auth.currentUser;
         playerEntries.forEach(([id, p]) => {
             const li = document.createElement('li');
+            li.className = 'lobby-player-card';
             const isMe = id === currentPlayerId;
             const canKick = isHost && !isMe;
             const safePlayerName = sanitizeHTML(p.name);
@@ -980,9 +981,46 @@ function initLobby() {
             playersList.appendChild(li);
         });
 
+        // Always fill open slots up to 6 so the 6-player horizontal carousel is visually obvious and interactive
+        const maxSlots = 6;
+        for (let i = playerEntries.length + 1; i <= maxSlots; i++) {
+            const openLi = document.createElement('li');
+            openLi.className = 'lobby-player-card lobby-slot-open';
+            openLi.onclick = () => window.copyRoomCode();
+            openLi.title = "Click to copy invite link";
+            openLi.innerHTML = `
+                <div class="lobby-player-info">
+                    <div class="lobby-player-avatar open-avatar">➕</div>
+                    <div class="open-slot-text">
+                        <span class="lobby-player-name open-title">Slot ${i}</span>
+                        <span class="open-subtitle">Waiting for player...</span>
+                    </div>
+                </div>
+            `;
+            playersList.appendChild(openLi);
+        }
+
         if (data.settings) syncSettingsToUI(data.settings);
     });
 }
+
+window.scrollLobbyCarousel = (direction) => {
+    const el = document.getElementById('lobbyPlayerList');
+    if (el) {
+        playSound('sfx-click');
+        const scrollAmount = (el.clientWidth > 400 ? 240 : 190) * direction;
+        el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+};
+
+window.scrollDashCarousel = (direction) => {
+    const el = document.getElementById('dynamicDashboard');
+    if (el) {
+        playSound('sfx-click');
+        const scrollAmount = 300 * direction;
+        el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+};
 
 function setupLimitToggle(toggleId, inputIds) {
     const toggle = document.getElementById(toggleId);
@@ -1702,7 +1740,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.30').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.31').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

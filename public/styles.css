@@ -989,12 +989,56 @@ select:focus {
     box-sizing: border-box;
 }
 
+.roster-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+}
+
 .roster-title {
     font-size: 1.15rem;
     color: var(--gold);
-    border-bottom: 1px solid rgba(212, 175, 55, 0.2);
-    padding-bottom: 8px;
-    margin-bottom: 12px;
+    margin: 0;
+}
+
+.carousel-nav-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.carousel-nav-btn {
+    background: rgba(22, 22, 32, 0.9);
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+.carousel-nav-btn:hover {
+    background: var(--gold);
+    color: #000;
+    box-shadow: 0 0 12px var(--gold-glow);
+    transform: scale(1.08);
+}
+
+.carousel-track-container {
+    width: 100%;
+    overflow: hidden;
+    position: relative;
 }
 
 #lobbyPlayerList,
@@ -1007,7 +1051,7 @@ select:focus {
     overflow-x: auto !important;
     overflow-y: hidden !important;
     gap: 14px;
-    padding: 8px 4px 16px 4px;
+    padding: 8px 4px 18px 4px;
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x mandatory;
     box-sizing: border-box;
@@ -1062,6 +1106,48 @@ select:focus {
     background: rgba(24, 20, 35, 0.98);
     box-shadow: var(--shadow-md), 0 0 15px var(--gold-subtle);
     transform: translateY(-2px);
+}
+
+/* Open Slot in Lobby */
+.lobby-slot-open {
+    border: 1.5px dashed rgba(212, 175, 55, 0.35) !important;
+    background: rgba(14, 14, 20, 0.5) !important;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: all 0.25s ease !important;
+}
+
+.lobby-slot-open:hover {
+    border-color: var(--gold) !important;
+    background: rgba(25, 20, 35, 0.8) !important;
+    opacity: 1 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px var(--gold-subtle) !important;
+}
+
+.open-avatar {
+    background: rgba(212, 175, 55, 0.1) !important;
+    border: 1px dashed var(--gold) !important;
+    color: var(--gold);
+    font-size: 0.95rem !important;
+}
+
+.open-slot-text {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    gap: 1px;
+}
+
+.open-title {
+    font-size: 0.88rem;
+    color: #ccc;
+    font-weight: 600;
+}
+
+.open-subtitle {
+    font-size: 0.72rem;
+    color: #888;
 }
 
 .lobby-player-info {
@@ -2194,16 +2280,21 @@ select:focus {
 
     /* Carousel Snapping for mobile dashboard */
     .dashboard {
-        padding: 15px 0 !important;
+        padding: 15px 10px !important;
         gap: 18px !important;
         scroll-snap-type: x mandatory;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch;
+        justify-content: flex-start !important;
         box-sizing: border-box !important;
         width: 100% !important;
     }
     .dashboard > .card {
         box-sizing: border-box !important;
-        width: 85vw !important;
-        max-width: 320px !important;
+        width: 82vw !important;
+        max-width: 310px !important;
         padding: 20px 16px !important;
         scroll-snap-align: center;
         margin: 0 !important;

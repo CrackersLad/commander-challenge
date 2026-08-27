@@ -29,7 +29,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=0.30">
+    <link rel="stylesheet" href="styles.css?v=0.31">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -305,10 +305,18 @@
                     <p id="lobbyCreatedTime" class="room-time-text"></p>
                 </div>
 
-                <!-- Players Assembled Roster -->
+                <!-- Players Assembled Roster Carousel -->
                 <div class="roster-card">
-                    <h3 id="playerCountDisplay" class="roster-title">Players Assembled (1/6):</h3>
-                    <ul class="player-list" id="lobbyPlayerList"></ul>
+                    <div class="roster-header-row">
+                        <h3 id="playerCountDisplay" class="roster-title">Players Assembled (1/6):</h3>
+                        <div class="carousel-nav-btns">
+                            <button type="button" class="carousel-nav-btn" onclick="window.scrollLobbyCarousel(-1)" title="Scroll Left">‹</button>
+                            <button type="button" class="carousel-nav-btn" onclick="window.scrollLobbyCarousel(1)" title="Scroll Right">›</button>
+                        </div>
+                    </div>
+                    <div class="carousel-track-container">
+                        <ul class="player-list" id="lobbyPlayerList"></ul>
+                    </div>
                 </div>
 
                 <!-- How to Play Accordion -->
@@ -570,6 +578,6 @@
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=0.30"></script>
+    <script type="module" src="./script.js?v=0.31"></script>
 </body>
 </html>

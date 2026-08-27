@@ -1,4 +1,4 @@
-import { db } from './firebase-setup.js?v=0.30';
+import { db } from './firebase-setup.js?v=0.31';
 import { ref, runTransaction, update, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function renderAsyncDraft(activeDraft, container, s, currentPlayerId, players, utils) {
