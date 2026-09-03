@@ -5638,6 +5638,238 @@ select:focus {
     margin: 0 auto;
 }
 
+/* Deck Workspace Layout & Duplicate Copies */
+.card-copies-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: #ffd700;
+    color: #000;
+    font-weight: 900;
+    font-size: 0.85rem;
+    padding: 2px 7px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+    z-index: 5;
+    border: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+.deck-sort-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 12px 18px;
+    margin: 20px 0;
+}
+
+.deck-sort-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sort-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-right: 4px;
+}
+
+.deck-filter-pill {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ccc;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.deck-filter-pill:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.deck-filter-pill.active {
+    background: var(--gold);
+    color: #000;
+    border-color: var(--gold);
+    font-weight: 700;
+}
+
+.deck-quick-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-compact {
+    padding: 6px 12px !important;
+    font-size: 0.8rem !important;
+    border-radius: 8px !important;
+}
+
+/* Sections: Main Deck vs Sideboard */
+.deck-section-container {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+
+.main-deck-section {
+    border-color: rgba(230, 184, 0, 0.25);
+}
+
+.sideboard-section {
+    border-color: rgba(147, 197, 253, 0.2);
+}
+
+.section-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 10px;
+}
+
+.section-header-row h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    color: #fff;
+}
+
+.section-hint {
+    font-size: 0.82rem;
+    color: #888;
+}
+
+.empty-deck-notice {
+    background: rgba(255, 255, 255, 0.02);
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.empty-deck-notice:hover {
+    border-color: var(--gold);
+    background: rgba(230, 184, 0, 0.04);
+}
+
+.notice-icon {
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.empty-deck-notice h4 {
+    margin: 0 0 6px;
+    color: var(--gold);
+    font-size: 1.1rem;
+}
+
+.empty-deck-notice p {
+    margin: 0;
+    color: #aaa;
+    font-size: 0.9rem;
+}
+
+.deck-card-action-btn {
+    width: 100%;
+    margin-top: 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.deck-card-action-btn.add-btn {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.deck-card-action-btn.add-btn:hover {
+    background: #22c55e;
+    color: #000;
+}
+
+.deck-card-action-btn.remove-btn {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.deck-card-action-btn.remove-btn:hover {
+    background: #ef4444;
+    color: #fff;
+}
+
+/* Mana Pip Chips */
+.mana-pips-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pips-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.pip-chip {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.pip-W { color: #fef08a; border-color: rgba(254, 240, 138, 0.3); }
+.pip-U { color: #93c5fd; border-color: rgba(147, 197, 253, 0.3); }
+.pip-B { color: #cbd5e1; border-color: rgba(203, 213, 225, 0.3); }
+.pip-R { color: #fca5a5; border-color: rgba(252, 165, 165, 0.3); }
+.pip-G { color: #86efac; border-color: rgba(134, 239, 172, 0.3); }
+
+.auto-land-link {
+    background: none;
+    border: none;
+    color: var(--gold);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+    margin-left: 8px;
+}
+.auto-land-link:hover {
+    color: #fff;
+}
+.land-adder-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
 
 @media (max-width: 900px) {
     .draft-hub-grid {

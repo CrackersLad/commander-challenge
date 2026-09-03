@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.9';
+import { db, auth } from './firebase-setup.js?v=4.10';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -17,7 +17,7 @@ import {
     generateCollectorBoosterPack, 
     getCardPrice,
     formatCurrency 
-} from './booster-simulator.js?v=4.9';
+} from './booster-simulator.js?v=4.10';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -32,6 +32,8 @@ let localDraftTab = 'pick'; // 'pick' or 'deck'
 let myDraftedPool = [];
 let addedBasicLands = { W: 0, U: 0, B: 0, R: 0, G: 0 };
 let myCommanderCard = null;
+let mainDeckUids = new Set();
+let deckSortMode = 'cmc'; // 'cmc', 'color', 'rarity', 'type', 'name'
 
 // Format Definitions & Rules
 export const DRAFT_FORMATS = {
@@ -158,6 +160,12 @@ export function initBoosterDraftModule(utils, state) {
     window.pickRochesterCard = pickRochesterCard;
     window.addDraftBasicLand = addDraftBasicLand;
     window.removeDraftBasicLand = removeDraftBasicLand;
+    window.addCardToMainDeck = addCardToMainDeck;
+    window.removeCardFromMainDeck = removeCardFromMainDeck;
+    window.addAllCardsToDeck = addAllCardsToDeck;
+    window.clearMainDeck = clearMainDeck;
+    window.setDeckSortMode = setDeckSortMode;
+    window.autoAddBasicLands = autoAddBasicLands;
     window.copyDraftDecklist = copyDraftDecklist;
     window.inspectDraftCard = (cardIdentifier) => {
         if (window.openCardInspector) {
@@ -643,6 +651,24 @@ function renderDraftLobbyView(room, root) {
     `;
 }
 
+// Helper to calculate or parse card converted mana cost (CMC)
+function getCardCmc(card) {
+    if (typeof card?.cmc === 'number') return card.cmc;
+    if (!card?.mana_cost) return 0;
+    const matches = card.mana_cost.match(/\{([^}]+)\}/g) || [];
+    let total = 0;
+    matches.forEach(m => {
+        const inner = m.replace(/[{}]/g, '');
+        const num = parseInt(inner, 10);
+        if (!isNaN(num)) total += num;
+        else if (['W', 'U', 'B', 'R', 'G', 'C'].includes(inner)) total += 1;
+        else if (inner.includes('/')) total += 1;
+        else if (inner === 'X') total += 0;
+        else total += 1;
+    });
+    return total;
+}
+
 // Sanitize card object to strip undefineds and bulky metadata for Firebase Realtime Database
 function sanitizeDraftCard(card) {
     if (!card) return null;
@@ -650,6 +676,7 @@ function sanitizeDraftCard(card) {
         id: String(card.id || Math.random().toString(36).substring(2, 9)),
         name: String(card.name || 'Unknown'),
         mana_cost: card.mana_cost || '',
+        cmc: getCardCmc(card),
         type_line: card.type_line || '',
         oracle_text: card.oracle_text || '',
         rarity: card.rarity || 'common',
@@ -839,7 +866,10 @@ function renderDraftActiveSessionView(room, root) {
     const player = getPlayerIdentity();
     const playerData = room.players?.[player.id] || {};
     const formatConfig = DRAFT_FORMATS[room.format] || DRAFT_FORMATS.commander_draft;
-    myDraftedPool = playerData.pool || [];
+    myDraftedPool = (playerData.pool || []).map((c, idx) => {
+        if (!c.uid) c.uid = `${c.id || 'card'}_${idx}_${c.name}`;
+        return c;
+    });
 
     const activePack = playerData.currentPack || [];
     let roundDisplay = `Round ${room.currentRound || 1} of ${room.totalRounds || room.packsPerPlayer}`;
@@ -1583,26 +1613,124 @@ function switchDraftTab(tab) {
     }
 }
 
+// Helper to group cards by name & foil finish
+function groupCardsForDeckDisplay(cards) {
+    const groups = new Map();
+    cards.forEach(c => {
+        const key = `${c.name}___${c.isFoil ? 'foil' : 'normal'}`;
+        if (!groups.has(key)) {
+            groups.set(key, { card: c, count: 1, uids: [c.uid] });
+        } else {
+            const grp = groups.get(key);
+            grp.count++;
+            grp.uids.push(c.uid);
+        }
+    });
+    return Array.from(groups.values());
+}
+
+// Helper to sort card groups
+function sortCardGroups(groups, sortMode) {
+    const rarityOrder = { mythic: 1, rare: 2, uncommon: 3, common: 4 };
+    const colorOrder = { W: 1, U: 2, B: 3, R: 4, G: 5, MULTI: 6, C: 7, LAND: 8 };
+
+    const getColorKey = (card) => {
+        if ((card.type_line || '').toLowerCase().includes('land')) return 'LAND';
+        const colors = card.colors || card.color_identity || [];
+        if (colors.length === 0) return 'C';
+        if (colors.length > 1) return 'MULTI';
+        return colors[0];
+    };
+
+    const getTypeOrder = (card) => {
+        const t = (card.type_line || '').toLowerCase();
+        if (t.includes('creature')) return 1;
+        if (t.includes('planeswalker')) return 2;
+        if (t.includes('instant')) return 3;
+        if (t.includes('sorcery')) return 4;
+        if (t.includes('artifact')) return 5;
+        if (t.includes('enchantment')) return 6;
+        if (t.includes('land')) return 7;
+        return 8;
+    };
+
+    return [...groups].sort((a, b) => {
+        const cardA = a.card;
+        const cardB = b.card;
+
+        if (sortMode === 'cmc') {
+            const cmcA = getCardCmc(cardA);
+            const cmcB = getCardCmc(cardB);
+            if (cmcA !== cmcB) return cmcA - cmcB;
+            return cardA.name.localeCompare(cardB.name);
+        }
+        if (sortMode === 'color') {
+            const cA = colorOrder[getColorKey(cardA)] || 9;
+            const cB = colorOrder[getColorKey(cardB)] || 9;
+            if (cA !== cB) return cA - cB;
+            return getCardCmc(cardA) - getCardCmc(cardB);
+        }
+        if (sortMode === 'rarity') {
+            const rA = rarityOrder[cardA.rarity] || 5;
+            const rB = rarityOrder[cardB.rarity] || 5;
+            if (rA !== rB) return rA - rB;
+            return getCardCmc(cardA) - getCardCmc(cardB);
+        }
+        if (sortMode === 'type') {
+            const tA = getTypeOrder(cardA);
+            const tB = getTypeOrder(cardB);
+            if (tA !== tB) return tA - tB;
+            return getCardCmc(cardA) - getCardCmc(cardB);
+        }
+        if (sortMode === 'name') {
+            return cardA.name.localeCompare(cardB.name);
+        }
+        return 0;
+    });
+}
+
 // Render Deckbuilding Workspace
 function renderDraftDeckWorkspace(pool, formatId) {
     const isCommander = formatId === 'commander_draft';
     const targetDeckSize = isCommander ? 60 : 40;
 
-    // Calculate curve & color counts
+    // Ensure all pool items have uids
+    pool.forEach((c, idx) => {
+        if (!c.uid) c.uid = `${c.id || 'card'}_${idx}_${c.name}`;
+    });
+
+    const mainDeckCards = pool.filter(c => mainDeckUids.has(c.uid));
+    const sideboardCards = pool.filter(c => !mainDeckUids.has(c.uid));
+
+    // Groups with copy counts
+    const mainGroups = groupCardsForDeckDisplay(mainDeckCards);
+    const sideGroups = groupCardsForDeckDisplay(sideboardCards);
+
+    const sortedMain = sortCardGroups(mainGroups, deckSortMode);
+    const sortedSide = sortCardGroups(sideGroups, deckSortMode);
+
+    // Calculate curve for main deck non-land cards (or pool non-lands if deck is empty)
+    const activeCurveCards = mainDeckCards.length > 0 ? mainDeckCards : pool;
     const curve = [0, 0, 0, 0, 0, 0, 0]; // 0, 1, 2, 3, 4, 5, 6+
-    const colors = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+    activeCurveCards.forEach(c => {
+        if (!(c.type_line || '').toLowerCase().includes('land')) {
+            const cmc = Math.min(6, Math.floor(getCardCmc(c)));
+            curve[cmc]++;
+        }
+    });
 
-    pool.forEach(c => {
-        const cmc = Math.min(6, Math.floor(c.cmc || 0));
-        curve[cmc]++;
-
-        const id = c.color_identity || [];
-        if (id.length === 0) colors.C++;
-        else id.forEach(col => { if (colors[col] !== undefined) colors[col]++; });
+    // Calculate colored mana pips in mana cost
+    const pips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+    activeCurveCards.forEach(c => {
+        const cost = c.mana_cost || '';
+        ['W', 'U', 'B', 'R', 'G'].forEach(col => {
+            const matches = cost.match(new RegExp(col, 'g'));
+            if (matches) pips[col] += matches.length;
+        });
     });
 
     const totalLands = Object.values(addedBasicLands).reduce((a, b) => a + b, 0);
-    const totalDeckCards = pool.length + totalLands;
+    const totalDeckCards = mainDeckCards.length + totalLands;
 
     return `
         <div class="draft-deck-workspace">
@@ -1613,23 +1741,41 @@ function renderDraftDeckWorkspace(pool, formatId) {
                     <span class="deck-size-counter ${totalDeckCards >= targetDeckSize ? 'valid' : 'under'}">
                         ${totalDeckCards} / ${targetDeckSize} Cards
                     </span>
-                    <span class="deck-subtext">(${pool.length} Spells + ${totalLands} Basic Lands)</span>
+                    <span class="deck-subtext">(${mainDeckCards.length} Spells + ${totalLands} Basic Lands)</span>
                 </div>
 
                 <!-- Mana Curve Bars -->
                 <div class="mana-curve-chart">
-                    ${curve.map((count, cmc) => `
-                        <div class="curve-bar-col">
-                            <span class="curve-count">${count}</span>
-                            <div class="curve-bar" style="height: ${Math.min(100, count * 14)}px;"></div>
-                            <span class="curve-label">${cmc === 6 ? '6+' : cmc}</span>
-                        </div>
-                    `).join('')}
+                    <span class="analytics-title">Mana Curve ${mainDeckCards.length > 0 ? '(Deck)' : '(Pool)'}</span>
+                    <div class="curve-bars-row">
+                        ${curve.map((count, cmc) => `
+                            <div class="curve-bar-col">
+                                <span class="curve-count">${count}</span>
+                                <div class="curve-bar" style="height: ${Math.min(55, count * 10)}px;"></div>
+                                <span class="curve-label">${cmc === 6 ? '6+' : cmc}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <!-- Colored Mana Symbols Pip Breakdown -->
+                <div class="mana-pips-box">
+                    <span class="analytics-title">Colored Mana Pips</span>
+                    <div class="pips-row">
+                        <span class="pip-chip pip-W" title="White Mana Symbols">☀️ ${pips.W}</span>
+                        <span class="pip-chip pip-U" title="Blue Mana Symbols">💧 ${pips.U}</span>
+                        <span class="pip-chip pip-B" title="Black Mana Symbols">💀 ${pips.B}</span>
+                        <span class="pip-chip pip-R" title="Red Mana Symbols">🔥 ${pips.R}</span>
+                        <span class="pip-chip pip-G" title="Green Mana Symbols">🌲 ${pips.G}</span>
+                    </div>
                 </div>
 
                 <!-- Land Adder Controls -->
                 <div class="land-adder-box">
-                    <span class="land-adder-title">Basic Lands (+/-)</span>
+                    <div class="land-adder-header">
+                        <span class="analytics-title">Basic Lands (${totalLands})</span>
+                        <button class="auto-land-link" onclick="window.autoAddBasicLands('${formatId}')">⚡ Auto</button>
+                    </div>
                     <div class="land-pills-row">
                         ${['W', 'U', 'B', 'R', 'G'].map(land => `
                             <div class="land-pill land-${land}">
@@ -1645,28 +1791,192 @@ function renderDraftDeckWorkspace(pool, formatId) {
                 </div>
 
                 <!-- Export CTA -->
-                <button class="select-btn export-deck-cta" onclick="window.copyDraftDecklist()">
-                    📋 Copy Decklist
-                </button>
+                <div class="deck-export-col">
+                    <button class="select-btn export-deck-cta" onclick="window.copyDraftDecklist()">
+                        📋 Copy Decklist
+                    </button>
+                </div>
             </div>
 
-            <!-- Pool Cards Grid -->
-            <div class="draft-pool-grid">
-                ${pool.map((card, idx) => `
-                    <div class="draft-card-item ${card.isFoil ? 'is-foil' : ''}" onclick="window.inspectDraftCard('${card.id}')">
-                        <div class="draft-card-img-wrapper">
-                            <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
-                            ${card.isFoil ? '<div class="booster-foil-overlay"></div><span class="booster-foil-tag">FOIL</span>' : ''}
-                            <span class="booster-rarity-pill rarity-${card.rarity}">${card.rarity.toUpperCase()}</span>
-                        </div>
-                        <div class="draft-card-footer">
-                            <div class="draft-card-name" title="${card.name}">${card.name}</div>
-                        </div>
+            <!-- Sort & Quick Action Toolbar -->
+            <div class="deck-sort-toolbar">
+                <div class="deck-sort-group">
+                    <span class="sort-label">Sort Cards:</span>
+                    <button class="deck-filter-pill ${deckSortMode === 'cmc' ? 'active' : ''}" onclick="window.setDeckSortMode('cmc')">🔢 Mana Cost</button>
+                    <button class="deck-filter-pill ${deckSortMode === 'color' ? 'active' : ''}" onclick="window.setDeckSortMode('color')">🎨 Color</button>
+                    <button class="deck-filter-pill ${deckSortMode === 'rarity' ? 'active' : ''}" onclick="window.setDeckSortMode('rarity')">💎 Rarity</button>
+                    <button class="deck-filter-pill ${deckSortMode === 'type' ? 'active' : ''}" onclick="window.setDeckSortMode('type')">🃏 Card Type</button>
+                    <button class="deck-filter-pill ${deckSortMode === 'name' ? 'active' : ''}" onclick="window.setDeckSortMode('name')">🔤 Name A-Z</button>
+                </div>
+                <div class="deck-quick-actions">
+                    <button class="secondary-btn btn-compact" onclick="window.autoAddBasicLands('${formatId}')">⚡ Auto Lands</button>
+                    <button class="secondary-btn btn-compact" onclick="window.addAllCardsToDeck()">➕ Add All</button>
+                    <button class="secondary-btn btn-compact" onclick="window.clearMainDeck()">🧹 Clear Deck</button>
+                </div>
+            </div>
+
+            <!-- SECTION 1: MAIN DECK -->
+            <div class="deck-section-container main-deck-section">
+                <div class="section-header-row">
+                    <h3>🎴 Main Deck (${mainDeckCards.length} Spells + ${totalLands} Lands = ${totalDeckCards} / ${targetDeckSize})</h3>
+                    <span class="section-hint">Click card or "Remove" to move to Sideboard</span>
+                </div>
+                ${sortedMain.length === 0 ? `
+                    <div class="empty-deck-notice" onclick="window.addAllCardsToDeck()">
+                        <span class="notice-icon">📥</span>
+                        <h4>Main Deck is empty (0 cards)</h4>
+                        <p>Click on any card in your <strong>Sideboard / Pool</strong> below to add it, or click <strong>➕ Add All</strong> to start with your whole pool.</p>
                     </div>
-                `).join('')}
+                ` : `
+                    <div class="draft-pool-grid">
+                        ${sortedMain.map(({ card, count }) => `
+                            <div class="draft-card-item in-main-deck ${card.isFoil ? 'is-foil' : ''}" 
+                                 onclick="window.removeCardFromMainDeck('${card.name.replace(/'/g, "\\'")}')">
+                                <div class="draft-card-img-wrapper">
+                                    <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
+                                    ${count > 1 ? `<div class="card-copies-badge">${count}x</div>` : ''}
+                                    ${card.isFoil ? '<div class="booster-foil-overlay"></div><span class="booster-foil-tag">FOIL</span>' : ''}
+                                    <span class="booster-rarity-pill rarity-${card.rarity}">${card.rarity.toUpperCase()}</span>
+                                    <button type="button" class="inspect-mini-btn" onclick="event.stopPropagation(); window.inspectDraftCard('${card.id}')" title="Inspect 3D">🔍</button>
+                                </div>
+                                <div class="draft-card-footer">
+                                    <div class="draft-card-name" title="${card.name}">${card.name}</div>
+                                    <button type="button" class="deck-card-action-btn remove-btn">Remove -</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `}
+            </div>
+
+            <!-- SECTION 2: SIDEBOARD / UNUSED POOL -->
+            <div class="deck-section-container sideboard-section">
+                <div class="section-header-row">
+                    <h3>📦 Sideboard & Available Pool (${sideboardCards.length} cards)</h3>
+                    <span class="section-hint">Click card or "+ Add" to put into Main Deck</span>
+                </div>
+                ${sortedSide.length === 0 ? `
+                    <div class="empty-deck-notice">
+                        <p>All drafted cards are currently in your Main Deck.</p>
+                    </div>
+                ` : `
+                    <div class="draft-pool-grid">
+                        ${sortedSide.map(({ card, count }) => `
+                            <div class="draft-card-item in-sideboard ${card.isFoil ? 'is-foil' : ''}" 
+                                 onclick="window.addCardToMainDeck('${card.name.replace(/'/g, "\\'")}')">
+                                <div class="draft-card-img-wrapper">
+                                    <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
+                                    ${count > 1 ? `<div class="card-copies-badge">${count}x</div>` : ''}
+                                    ${card.isFoil ? '<div class="booster-foil-overlay"></div><span class="booster-foil-tag">FOIL</span>' : ''}
+                                    <span class="booster-rarity-pill rarity-${card.rarity}">${card.rarity.toUpperCase()}</span>
+                                    <button type="button" class="inspect-mini-btn" onclick="event.stopPropagation(); window.inspectDraftCard('${card.id}')" title="Inspect 3D">🔍</button>
+                                </div>
+                                <div class="draft-card-footer">
+                                    <div class="draft-card-name" title="${card.name}">${card.name}</div>
+                                    <button type="button" class="deck-card-action-btn add-btn">+ Add (${count})</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `}
             </div>
         </div>
     `;
+}
+
+// Add/Remove cards between Main Deck and Sideboard
+function addCardToMainDeck(cardName) {
+    const unselectedCard = myDraftedPool.find(c => c.name === cardName && !mainDeckUids.has(c.uid));
+    if (unselectedCard) {
+        mainDeckUids.add(unselectedCard.uid);
+        if (draftUtils?.playSound) draftUtils.playSound('sfx-click');
+        const root = document.getElementById('boosterDraftRoot');
+        if (root && currentDraftData) renderActiveDraftRoomView(currentDraftData);
+    }
+}
+
+function removeCardFromMainDeck(cardName) {
+    const selectedCard = myDraftedPool.find(c => c.name === cardName && mainDeckUids.has(c.uid));
+    if (selectedCard) {
+        mainDeckUids.delete(selectedCard.uid);
+        if (draftUtils?.playSound) draftUtils.playSound('sfx-click');
+        const root = document.getElementById('boosterDraftRoot');
+        if (root && currentDraftData) renderActiveDraftRoomView(currentDraftData);
+    }
+}
+
+function addAllCardsToDeck() {
+    myDraftedPool.forEach(c => mainDeckUids.add(c.uid));
+    if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
+    const root = document.getElementById('boosterDraftRoot');
+    if (root && currentDraftData) renderActiveDraftRoomView(currentDraftData);
+}
+
+function clearMainDeck() {
+    mainDeckUids.clear();
+    if (draftUtils?.playSound) draftUtils.playSound('sfx-click');
+    const root = document.getElementById('boosterDraftRoot');
+    if (root && currentDraftData) renderActiveDraftRoomView(currentDraftData);
+}
+
+function setDeckSortMode(mode) {
+    deckSortMode = mode;
+    const root = document.getElementById('boosterDraftRoot');
+    if (root && currentDraftData) renderActiveDraftRoomView(currentDraftData);
+}
+
+// Auto-add basic lands matching deck color curve
+function autoAddBasicLands(formatId) {
+    const targetSize = formatId === 'commander_draft' ? 60 : 40;
+    const mainCards = myDraftedPool.filter(c => mainDeckUids.has(c.uid));
+    const spellCount = mainCards.length;
+    const landsNeeded = Math.max(0, targetSize - spellCount);
+
+    if (landsNeeded === 0) {
+        addedBasicLands = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+        const root = document.getElementById('boosterDraftRoot');
+        if (root && currentDraftData) renderActiveDraftRoomView(currentDraftData);
+        return;
+    }
+
+    const pips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+    mainCards.forEach(c => {
+        const cost = c.mana_cost || '';
+        ['W', 'U', 'B', 'R', 'G'].forEach(col => {
+            const matches = cost.match(new RegExp(col, 'g'));
+            if (matches) pips[col] += matches.length;
+        });
+    });
+
+    const totalPips = Object.values(pips).reduce((a, b) => a + b, 0);
+
+    if (totalPips === 0) {
+        const split = Math.floor(landsNeeded / 2);
+        addedBasicLands = { W: split, U: landsNeeded - split, B: 0, R: 0, G: 0 };
+    } else {
+        const newLands = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+        let assigned = 0;
+        ['W', 'U', 'B', 'R', 'G'].forEach(col => {
+            if (pips[col] > 0) {
+                const count = Math.round((pips[col] / totalPips) * landsNeeded);
+                newLands[col] = count;
+                assigned += count;
+            }
+        });
+
+        let diff = landsNeeded - assigned;
+        if (diff !== 0) {
+            const highestColor = Object.entries(pips).sort((a, b) => b[1] - a[1])[0][0];
+            newLands[highestColor] = Math.max(0, newLands[highestColor] + diff);
+        }
+        addedBasicLands = newLands;
+    }
+
+    if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
+    if (draftUtils?.showToast) draftUtils.showToast(`✨ Auto-added ${landsNeeded} basic lands matching your deck!`, false, 2500);
+
+    const root = document.getElementById('boosterDraftRoot');
+    if (root && currentDraftData) renderActiveDraftRoomView(currentDraftData);
 }
 
 // Basic land controls
@@ -1684,16 +1994,16 @@ function removeDraftBasicLand(color) {
 
 // Copy Decklist to Clipboard
 function copyDraftDecklist() {
-    const lines = [];
     const landNames = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
+    const lines = ['// Main Deck'];
 
-    // Group cards by name
-    const counts = {};
-    myDraftedPool.forEach(c => {
-        counts[c.name] = (counts[c.name] || 0) + 1;
+    const mainDeckCards = myDraftedPool.filter(c => mainDeckUids.has(c.uid));
+    const mainCounts = {};
+    mainDeckCards.forEach(c => {
+        mainCounts[c.name] = (mainCounts[c.name] || 0) + 1;
     });
 
-    Object.entries(counts).forEach(([name, count]) => {
+    Object.entries(mainCounts).forEach(([name, count]) => {
         lines.push(`${count} ${name}`);
     });
 
@@ -1701,9 +2011,22 @@ function copyDraftDecklist() {
         if (count > 0) lines.push(`${count} ${landNames[sym]}`);
     });
 
+    const sideboardCards = myDraftedPool.filter(c => !mainDeckUids.has(c.uid));
+    if (sideboardCards.length > 0) {
+        lines.push('');
+        lines.push('// Sideboard');
+        const sideCounts = {};
+        sideboardCards.forEach(c => {
+            sideCounts[c.name] = (sideCounts[c.name] || 0) + 1;
+        });
+        Object.entries(sideCounts).forEach(([name, count]) => {
+            lines.push(`${count} ${name}`);
+        });
+    }
+
     const deckText = lines.join('\n');
     navigator.clipboard.writeText(deckText).then(() => {
-        if (draftUtils?.showToast) draftUtils.showToast("📋 Decklist copied to clipboard (Moxfield/MTGA format)!", false, 3000);
+        if (draftUtils?.showToast) draftUtils.showToast("📋 Deck & Sideboard copied to clipboard (Moxfield/MTGA format)!", false, 3000);
         else alert("Decklist copied to clipboard!");
     });
 }
@@ -1738,7 +2061,10 @@ function renderDraftDeckbuildingView(room, root) {
     const player = getPlayerIdentity();
     const playerData = room.players?.[player.id] || {};
     const formatConfig = DRAFT_FORMATS[room.format] || DRAFT_FORMATS.commander_draft;
-    myDraftedPool = playerData.pool || [];
+    myDraftedPool = (playerData.pool || []).map((c, idx) => {
+        if (!c.uid) c.uid = `${c.id || 'card'}_${idx}_${c.name}`;
+        return c;
+    });
 
     root.innerHTML = `
         <div class="booster-draft-container">
