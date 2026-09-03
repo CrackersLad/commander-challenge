@@ -29,7 +29,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=0.38">
+    <link rel="stylesheet" href="styles.css?v=0.39">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -51,6 +51,7 @@
         </div>
 
         <div class="nav-right">
+            <button class="nav-icon-btn booster-nav-btn" onclick="window.openBoosterSimulator()" title="Booster Simulator">📦 Booster Sim</button>
             <div id="audioContainer" class="nav-audio-box">
                 <button id="sfxToggle" class="nav-icon-btn" title="Toggle Sound Effects">🔊 SFX</button>
             </div>
@@ -243,6 +244,15 @@
                     <input type="text" id="roomCodeInput" placeholder="CODE" maxlength="4" class="room-code-input">
                     <button class="select-btn join-submit-btn" id="joinBtn">Join</button>
                 </div>
+            </div>
+
+            <!-- Mode 3: Booster Simulator -->
+            <div class="action-card action-card-booster" onclick="window.openBoosterSimulator()">
+                <div class="action-card-badge booster-badge">Market Simulator</div>
+                <div class="action-card-icon">📦</div>
+                <h3 class="action-card-title">Booster Simulator</h3>
+                <p class="action-card-desc">Simulate opening single booster packs or full 36-pack boxes for any MTG set. Features live market pricing, realistic foils, and profit/loss tracking!</p>
+                <button class="select-btn action-cta-btn" onclick="window.openBoosterSimulator(); event.stopPropagation();">Crack Boosters</button>
             </div>
         </div>
 
@@ -571,6 +581,160 @@
         </div>
     </main>
 
+    <!-- ==================== VIEW 8: BOOSTER PACK & BOX SIMULATOR ==================== -->
+    <main id="view-booster-simulator" class="view-section">
+        <div class="booster-sim-wrapper">
+            <!-- Return breadcrumb -->
+            <div class="view-top-breadcrumb">
+                <button class="breadcrumb-btn" onclick="window.goToMainMenu()">
+                    <span>🏠</span> Return to Hub
+                </button>
+            </div>
+
+            <!-- Hero Title -->
+            <div class="booster-hero-header">
+                <div class="hero-badge">✦ MTG Pack & Box Cracker ✦</div>
+                <h1 class="hero-title booster-title">BOOSTER SIMULATOR</h1>
+                <p class="hero-subtitle">Crack authentic packs & 36-pack boxes from any Magic set with realistic collation, holographic foils, live market prices, and profit/loss analytics.</p>
+            </div>
+
+            <!-- Booster Simulator Controls Card -->
+            <div class="booster-control-card">
+                <div class="booster-control-grid">
+                    <!-- Set Selection Column -->
+                    <div class="booster-field-group">
+                        <label for="boosterSetInput" class="booster-field-label">
+                            <span>📦 Select Set:</span>
+                            <span class="tooltip">?<span class="tooltiptext">Search by set name or code (e.g., Bloomburrow, Modern Horizons 3, Duskmourn).</span></span>
+                        </label>
+                        <div class="booster-input-with-datalist">
+                            <input type="text" id="boosterSetInput" list="boosterSetDatalist" placeholder="Duskmourn: House of Horror (DSK)" autocomplete="off">
+                            <datalist id="boosterSetDatalist"></datalist>
+                        </div>
+                        <!-- Popular Quick-Select Set Chips -->
+                        <div class="booster-quick-sets" id="boosterQuickSets">
+                            <button type="button" class="quick-set-chip active" data-set="dsk">Duskmourn (DSK)</button>
+                            <button type="button" class="quick-set-chip" data-set="blb">Bloomburrow (BLB)</button>
+                            <button type="button" class="quick-set-chip" data-set="mh3">MH3</button>
+                            <button type="button" class="quick-set-chip" data-set="otj">Outlaws (OTJ)</button>
+                            <button type="button" class="quick-set-chip" data-set="2x2">2X2</button>
+                            <button type="button" class="quick-set-chip" data-set="ltr">LotR (LTR)</button>
+                            <button type="button" class="quick-set-chip" data-set="cmr">CMR</button>
+                        </div>
+                    </div>
+
+                    <!-- Market Selection Column -->
+                    <div class="booster-field-group">
+                        <label for="boosterMarketSelect" class="booster-field-label">
+                            <span>💰 Market / Price Source:</span>
+                            <span class="tooltip">?<span class="tooltiptext">Choose the market to pull live card prices and item benchmarks from.</span></span>
+                        </label>
+                        <select id="boosterMarketSelect">
+                            <option value="usd" selected>TCGplayer Market (USD $)</option>
+                            <option value="eur">Cardmarket (EUR €)</option>
+                            <option value="tix">Cardhoarder / MTGO (TIX)</option>
+                        </select>
+                        <div class="booster-set-info-row" id="boosterSelectedSetBadge">
+                            <span class="set-icon-code">DSK</span>
+                            <span class="set-name-text">Duskmourn: House of Horror</span>
+                        </div>
+                    </div>
+
+                    <!-- Product Edition & Format -->
+                    <div class="booster-field-group">
+                        <label class="booster-field-label">
+                            <span>✨ Booster Edition:</span>
+                            <span class="tooltip">?<span class="tooltiptext">Play/Draft: Standard booster. Collector: Premium foils, borderless & showcase cards!</span></span>
+                        </label>
+                        <div class="booster-segmented-switch booster-edition-switch">
+                            <label class="segmented-option">
+                                <input type="radio" name="boosterPackEdition" id="boosterEditionPlay" value="play" checked>
+                                <span class="segmented-pill">Play / Draft</span>
+                            </label>
+                            <label class="segmented-option">
+                                <input type="radio" name="boosterPackEdition" id="boosterEditionCollector" value="collector">
+                                <span class="segmented-pill">✨ Collector</span>
+                            </label>
+                        </div>
+
+                        <label class="booster-field-label" style="margin-top: 10px;">
+                            <span>🎁 Quantity:</span>
+                        </label>
+                        <div class="booster-segmented-switch">
+                            <label class="segmented-option">
+                                <input type="radio" name="boosterProductMode" id="boosterModePack" value="pack" checked>
+                                <span class="segmented-pill">Single Pack</span>
+                            </label>
+                            <label class="segmented-option">
+                                <input type="radio" name="boosterProductMode" id="boosterModeBox" value="box">
+                                <span class="segmented-pill" id="boosterBoxPillLabel">Booster Box (36)</span>
+                            </label>
+                        </div>
+
+                        <!-- Cost Input & Benchmark Display -->
+                        <div class="booster-cost-container">
+                            <div class="cost-header-row">
+                                <span class="cost-title-label">Market Item Cost:</span>
+                                <span class="cost-edit-hint">(Auto-calculated, editable)</span>
+                            </div>
+                            <div class="booster-cost-input-box">
+                                <span id="boosterCostCurrency" class="cost-currency-symbol">$</span>
+                                <input type="number" id="boosterCostInput" step="0.01" min="0" value="4.99">
+                            </div>
+                            <div id="boosterItemLabel" class="cost-sublabel">Play Booster (14 Cards)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Big Open CTA Button -->
+                <div class="booster-cta-row">
+                    <button id="boosterOpenBtn" class="select-btn booster-open-cta">
+                        <span>⚡ OPEN SINGLE PACK ⚡</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Full-Screen / Modal Opening Animation Overlay -->
+            <div id="boosterAnimationOverlay" class="booster-anim-overlay" style="display: none;"></div>
+
+            <!-- Results & Analytics Stage -->
+            <div id="boosterResultsStage" class="booster-results-stage" style="display: none;">
+                <!-- Filter and Sort Bar -->
+                <div class="booster-results-toolbar">
+                    <div class="toolbar-left">
+                        <span class="toolbar-label">Order By:</span>
+                        <div class="booster-sort-group">
+                            <button type="button" class="booster-sort-btn active" data-sort="price-desc">💎 Price (High → Low)</button>
+                            <button type="button" class="booster-sort-btn" data-sort="price-asc">Price (Low → High)</button>
+                            <button type="button" class="booster-sort-btn" data-sort="rarity">⭐ Rarity</button>
+                        </div>
+                    </div>
+                    <div class="toolbar-right">
+                        <span class="toolbar-label">Filter:</span>
+                        <div class="booster-filter-group">
+                            <button type="button" class="booster-filter-chip active" data-filter="all">All Cards</button>
+                            <button type="button" class="booster-filter-chip" data-filter="hits">🔥 Hits ($2+ / Foils)</button>
+                            <button type="button" class="booster-filter-chip" data-filter="mythic">🟠 Mythic</button>
+                            <button type="button" class="booster-filter-chip" data-filter="rare">🟡 Rare</button>
+                            <button type="button" class="booster-filter-chip" data-filter="foil">✨ Foils</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Layout: Cards Grid & Sticky Analytics Tooltip / Sidebar -->
+                <div class="booster-layout-columns">
+                    <!-- Cards Grid Area -->
+                    <div class="booster-cards-area">
+                        <div id="boosterCardsGrid" class="booster-cards-grid"></div>
+                    </div>
+
+                    <!-- Sidebar Summary Tooltip -->
+                    <aside class="booster-sidebar-area" id="boosterSummarySidebar"></aside>
+                </div>
+            </div>
+        </div>
+    </main>
+
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
@@ -580,6 +744,6 @@
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=0.38"></script>
+    <script type="module" src="./script.js?v=0.39"></script>
 </body>
 </html>

@@ -98,7 +98,11 @@ export async function openCardInspector(cardInput) {
         document.getElementById('inspectCardName').textContent = cardInput;
         document.getElementById('inspectOracleText').innerHTML = '<em>Fetching Scryfall live data...</em>';
         try {
-            const res = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardInput)}`);
+            const isId = /^[0-9a-f-]{36}$/i.test(cardInput);
+            const fetchUrl = isId 
+                ? `https://api.scryfall.com/cards/${cardInput}` 
+                : `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardInput)}`;
+            const res = await fetch(fetchUrl);
             if (res.ok) cardData = await res.json();
         } catch (e) {
             console.error("Inspector Scryfall fetch failed", e);

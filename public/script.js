@@ -1,17 +1,18 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.38';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.38';
-import { getArchives } from './data-service.js?v=0.38';
-import { initDeckActionsModule } from './deck-actions.js?v=0.38';
-import { initRoomActionsModule } from './room-actions.js?v=0.38';
-import { initPlayerViewModule } from './player-view.js?v=0.38';
-import { initAdminModule } from './admin.js?v=0.38';
-import { initCalendarModule } from './calendar.js?v=0.38';
-import { initAuthModule } from './auth.js?v=0.38';
-import { initHubModule } from './hub.js?v=0.38';
-import { initProfileModule } from './profile.js?v=0.38';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=0.38';
-import { initWarRoom, openWarRoom } from './war-room.js?v=0.38';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=0.38';
+import { db, auth, functions } from './firebase-setup.js?v=0.39';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.39';
+import { getArchives } from './data-service.js?v=0.39';
+import { initDeckActionsModule } from './deck-actions.js?v=0.39';
+import { initRoomActionsModule } from './room-actions.js?v=0.39';
+import { initPlayerViewModule } from './player-view.js?v=0.39';
+import { initAdminModule } from './admin.js?v=0.39';
+import { initCalendarModule } from './calendar.js?v=0.39';
+import { initAuthModule } from './auth.js?v=0.39';
+import { initHubModule } from './hub.js?v=0.39';
+import { initProfileModule } from './profile.js?v=0.39';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=0.39';
+import { initWarRoom, openWarRoom } from './war-room.js?v=0.39';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=0.39';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=0.39';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -90,13 +91,18 @@ function fetchAndPopulateSets() {
                     .sort((a, b) => new Date(b.released_at) - new Date(a.released_at));
 
                 let datalistHTML = '';
+                let boosterDatalistHTML = '';
                 setNameToCodeMap.clear();
                 scryfallSets.forEach(set => {
                     datalistHTML += `<option value="${sanitizeHTML(set.name)}">${sanitizeHTML(set.code.toUpperCase())}</option>`;
+                    boosterDatalistHTML += `<option value="${sanitizeHTML(set.name)} (${sanitizeHTML(set.code.toUpperCase())})"></option>`;
                     setNameToCodeMap.set(set.name.toLowerCase(), set.code.toLowerCase());
                     setNameToCodeMap.set(set.code.toLowerCase(), set.code.toLowerCase());
                 });
+                window.scryfallSets = scryfallSets;
                 if (setDatalist) setDatalist.innerHTML = datalistHTML;
+                const boosterDatalist = document.getElementById('boosterSetDatalist');
+                if (boosterDatalist) boosterDatalist.innerHTML = boosterDatalistHTML;
                 resolve();
             } catch (error) { console.error("Failed to fetch Scryfall sets:", error); resolve(); }
         });
@@ -1773,7 +1779,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.38').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.39').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
@@ -1781,6 +1787,72 @@ initRoomActionsModule(utils, state);
 initPlayerViewModule(utils, state);
 initCardInspector();
 initWarRoom(db, state, utils);
+
+window.boosterUtils = utils;
+initBoosterSimulatorModule(utils, state);
+
+// Setup booster simulator interactive listeners
+const boosterOpenBtn = document.getElementById('boosterOpenBtn');
+if (boosterOpenBtn) {
+    boosterOpenBtn.addEventListener('click', () => {
+        crackBoosterProduct(utils);
+    });
+}
+
+const boosterMarketSelect = document.getElementById('boosterMarketSelect');
+if (boosterMarketSelect) {
+    boosterMarketSelect.addEventListener('change', () => {
+        updateMarketAndCostDisplay();
+    });
+}
+
+const boosterSetInput = document.getElementById('boosterSetInput');
+if (boosterSetInput) {
+    boosterSetInput.addEventListener('change', () => updateMarketAndCostDisplay());
+    boosterSetInput.addEventListener('input', () => updateMarketAndCostDisplay());
+}
+
+const modePack = document.getElementById('boosterModePack');
+const modeBox = document.getElementById('boosterModeBox');
+if (modePack && modeBox) {
+    modePack.addEventListener('change', () => updateMarketAndCostDisplay());
+    modeBox.addEventListener('change', () => updateMarketAndCostDisplay());
+}
+
+const editionPlay = document.getElementById('boosterEditionPlay');
+const editionCollector = document.getElementById('boosterEditionCollector');
+if (editionPlay && editionCollector) {
+    editionPlay.addEventListener('change', () => updateMarketAndCostDisplay());
+    editionCollector.addEventListener('change', () => updateMarketAndCostDisplay());
+}
+
+// Quick set chips
+document.querySelectorAll('.quick-set-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+        document.querySelectorAll('.quick-set-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        const setCode = chip.dataset.set;
+        const setObj = (window.scryfallSets || []).find(s => s.code.toLowerCase() === setCode);
+        if (boosterSetInput) {
+            boosterSetInput.value = setObj ? `${setObj.name} (${setObj.code.toUpperCase()})` : setCode.toUpperCase();
+        }
+        updateMarketAndCostDisplay();
+    });
+});
+
+// Sort buttons
+document.querySelectorAll('.booster-sort-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        setSortMode(btn.dataset.sort);
+    });
+});
+
+// Filter chips
+document.querySelectorAll('.booster-filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+        setFilterMode(chip.dataset.filter);
+    });
+});
 
 window.triggerWarRoomModal = async () => {
     playSound('sfx-click');
