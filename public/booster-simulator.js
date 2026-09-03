@@ -387,12 +387,16 @@ function createPackCard(card, isFoil = false, packNumber = 1, specialTag = null)
                        (card.promo_types && card.promo_types.includes('boosterfun')) ||
                        (card.border_color === 'borderless');
 
+    const frontFace = card.card_faces?.[0];
+    const normalImg = card.image_uris?.normal || frontFace?.image_uris?.normal || 'card_back.webp';
+    const largeImg = card.image_uris?.large || frontFace?.image_uris?.large || normalImg;
+
     return {
         id: card.id,
         name: card.name,
-        mana_cost: card.mana_cost || '',
-        type_line: card.type_line || '',
-        oracle_text: card.oracle_text || '',
+        mana_cost: card.mana_cost || frontFace?.mana_cost || '',
+        type_line: card.type_line || frontFace?.type_line || '',
+        oracle_text: card.oracle_text || frontFace?.oracle_text || '',
         rarity: card.rarity || 'common',
         isFoil: isFoil,
         finish: isFoil ? 'foil' : 'nonfoil',
@@ -402,8 +406,12 @@ function createPackCard(card, isFoil = false, packNumber = 1, specialTag = null)
         collector_number: card.collector_number,
         set: card.set,
         scryfall_uri: card.scryfall_uri,
-        image: card.image_uris?.normal || card.card_faces?.[0]?.image_uris?.normal || 'card_back.webp',
-        image_large: card.image_uris?.large || card.card_faces?.[0]?.image_uris?.large || card.image_uris?.normal,
+        image_uris: card.image_uris || (frontFace?.image_uris ? { ...frontFace.image_uris } : { normal: normalImg, large: largeImg }),
+        image: normalImg,
+        image_large: largeImg,
+        power: card.power ?? frontFace?.power,
+        toughness: card.toughness ?? frontFace?.toughness,
+        loyalty: card.loyalty ?? frontFace?.loyalty,
         prices: card.prices || {},
         card_faces: card.card_faces || null
     };
@@ -425,6 +433,164 @@ function getCardPrice(card, market = 'usd') {
 
     const val = parseFloat(priceStr);
     return isNaN(val) ? 0 : val;
+}
+
+// Calculate Dynamic Statistical Expected Value (EV)
+export function calculateSetEV(setData, market = 'usd', packEdition = 'play', isBox = false, numPacks = 36) {
+    if (!setData) return { packEV: 0, boxEV: 0, currentEV: 0, avgMythic: 0, avgRare: 0, topChases: [] };
+
+    const getVal = (card, foil = false) => {
+        if (!card || !card.prices) return 0;
+        let str = null;
+        if (market === 'eur') {
+            str = foil ? (card.prices.eur_foil || card.prices.eur) : card.prices.eur;
+        } else if (market === 'tix') {
+            str = card.prices.tix;
+        } else {
+            str = foil ? (card.prices.usd_foil || card.prices.usd) : card.prices.usd;
+        }
+        const v = parseFloat(str);
+        return isNaN(v) ? 0 : v;
+    };
+
+    const avgPrice = (arr, foil = false) => {
+        if (!arr || arr.length === 0) return 0;
+        const total = arr.reduce((sum, c) => sum + getVal(c, foil), 0);
+        return total / arr.length;
+    };
+
+    const avgMythic = avgPrice(setData.mythics, false);
+    const avgMythicFoil = avgPrice(setData.mythics, true);
+    const avgRare = avgPrice(setData.rares, false);
+    const avgRareFoil = avgPrice(setData.rares, true);
+    const avgUnc = avgPrice(setData.uncommons, false);
+    const avgUncFoil = avgPrice(setData.uncommons, true);
+    const avgCommon = avgPrice(setData.commons, false);
+    const avgCommonFoil = avgPrice(setData.commons, true);
+    const avgShowcase = avgPrice(setData.showcases, false);
+    const avgShowcaseFoil = avgPrice(setData.showcases, true);
+    const avgLandFoil = avgPrice(setData.basics, true);
+
+    let packEV = 0;
+
+    if (packEdition === 'collector') {
+        // Collector booster EV calculation (15 cards, high foil and showcase density)
+        const cFoilEV = 5 * avgCommonFoil;
+        const uFoilEV = 2 * avgUncFoil;
+        const showcaseFoilEV = avgShowcaseFoil > 0 ? avgShowcaseFoil : avgUncFoil;
+        const altRareEV = (0.84 * (avgShowcase > 0 ? avgShowcase : avgRare)) + (0.16 * (avgShowcase > 0 ? avgShowcase : avgMythic));
+        const foilRareEV = (0.82 * avgRareFoil) + (0.18 * avgMythicFoil);
+        const specialRareEV = (0.85 * avgRare) + (0.15 * avgMythic);
+        const wildcardRareEV = 2 * ((0.80 * avgRareFoil) + (0.20 * avgMythicFoil));
+        const landEV = avgLandFoil > 0 ? avgLandFoil : 0.30;
+        const bonusFoilEV = (0.60 * avgUncFoil) + (0.30 * avgRareFoil) + (0.10 * avgMythicFoil);
+
+        packEV = cFoilEV + uFoilEV + showcaseFoilEV + altRareEV + foilRareEV + specialRareEV + wildcardRareEV + landEV + bonusFoilEV;
+    } else {
+        // Play / Draft booster EV calculation
+        const rareSlotEV = (0.857 * avgRare) + (0.143 * avgMythic);
+        const wildcardEV = (0.40 * avgCommon) + (0.35 * avgUnc) + (0.20 * avgRare) + (0.05 * avgMythic);
+        const foilSlotEV = (0.65 * avgCommonFoil) + (0.25 * avgUncFoil) + (0.085 * avgRareFoil) + (0.015 * avgMythicFoil);
+        const commonSlotEV = 6.95 * avgCommon + (0.05 * (avgShowcase > 0 ? avgShowcase : avgCommon));
+        const uncSlotEV = 3 * avgUnc;
+        const landEV = 0.20 * avgLandFoil;
+
+        packEV = rareSlotEV + wildcardEV + foilSlotEV + commonSlotEV + uncSlotEV + landEV;
+    }
+
+    const boxEV = packEV * numPacks;
+
+    // Find top 3 chase cards in set
+    const allSetCards = [...(setData.mythics || []), ...(setData.rares || []), ...(setData.showcases || [])];
+    const uniqueChases = [];
+    const seenNames = new Set();
+    allSetCards.sort((a, b) => getVal(b, false) - getVal(a, false)).forEach(c => {
+        if (!seenNames.has(c.name) && uniqueChases.length < 3) {
+            seenNames.add(c.name);
+            uniqueChases.push({ name: c.name, price: getVal(c, false), rarity: c.rarity });
+        }
+    });
+
+    return {
+        packEV,
+        boxEV,
+        currentEV: isBox ? boxEV : packEV,
+        avgMythic,
+        avgRare,
+        topChases: uniqueChases
+    };
+}
+
+let latestEvFetchId = 0;
+
+export async function updateEvDisplay(setCode, market, packEdition, isBox, userCost, numPacks) {
+    const fetchId = ++latestEvFetchId;
+    const evValueEl = document.getElementById('boosterEvValue');
+    const evCurrencyEl = document.getElementById('boosterEvCurrency');
+    const evBadgeEl = document.getElementById('boosterEvBadge');
+    const evComparisonEl = document.getElementById('boosterEvComparison');
+    const avgMythicEl = document.getElementById('boosterAvgMythicText');
+    const avgRareEl = document.getElementById('boosterAvgRareText');
+    const chaseContainer = document.getElementById('boosterChaseCards');
+
+    if (!evValueEl) return;
+
+    if (evCurrencyEl) evCurrencyEl.textContent = getCurrencySymbol(market);
+    evValueEl.textContent = 'Calculating...';
+    if (evComparisonEl) evComparisonEl.textContent = 'Analyzing live set card values...';
+
+    try {
+        const setData = await fetchSetBoosterCards(setCode);
+        if (fetchId !== latestEvFetchId) return; // Stale request check
+
+        const evData = calculateSetEV(setData, market, packEdition, isBox, numPacks);
+
+        evValueEl.textContent = evData.currentEV.toFixed(2);
+        
+        if (avgMythicEl) avgMythicEl.textContent = `Avg Mythic: ${formatCurrency(evData.avgMythic, market)}`;
+        if (avgRareEl) avgRareEl.textContent = `Avg Rare: ${formatCurrency(evData.avgRare, market)}`;
+
+        // EV vs Cost Comparison
+        if (evComparisonEl && userCost > 0) {
+            const evDiff = evData.currentEV - userCost;
+            const evRatio = ((evDiff / userCost) * 100).toFixed(1);
+            if (evDiff >= 0) {
+                evComparisonEl.innerHTML = `<span class="ev-positive">+${formatCurrency(evDiff, market)} (+${evRatio}%) Favorable Odds 🚀</span>`;
+                if (evBadgeEl) {
+                    evBadgeEl.textContent = 'Positive EV';
+                    evBadgeEl.className = 'ev-badge-chip ev-positive-badge';
+                }
+            } else {
+                evComparisonEl.innerHTML = `<span class="ev-negative">${formatCurrency(evDiff, market)} (${evRatio}%) Under Cost</span>`;
+                if (evBadgeEl) {
+                    evBadgeEl.textContent = 'Negative EV';
+                    evBadgeEl.className = 'ev-badge-chip ev-negative-badge';
+                }
+            }
+        }
+
+        // Top Chase Chips
+        if (chaseContainer) {
+            if (evData.topChases.length === 0) {
+                chaseContainer.innerHTML = '<span class="chase-loading">No chase cards identified</span>';
+            } else {
+                chaseContainer.innerHTML = evData.topChases.map(chase => `
+                    <div class="chase-chip rarity-${chase.rarity}" onclick="window.inspectBoosterCard('${chase.name}')" title="Inspect ${chase.name}">
+                        <span class="chase-name">${chase.name}</span>
+                        <span class="chase-price">${formatCurrency(chase.price, market)}</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        return evData;
+    } catch (err) {
+        console.warn("Could not calculate EV:", err);
+        if (fetchId === latestEvFetchId) {
+            if (evValueEl) evValueEl.textContent = '--';
+            if (evComparisonEl) evComparisonEl.textContent = 'Could not load Scryfall prices';
+        }
+    }
 }
 
 // Build UI
@@ -590,6 +756,9 @@ export function updateMarketAndCostDisplay() {
             <span class="set-name-text">${setObj.name || setObj.code.toUpperCase()}</span>
         `;
     }
+
+    // Trigger Dynamic Expected Value (EV) calculation
+    updateEvDisplay(setCode, market, packEdition, isBox, pricing.currentCost, pricing.packsPerBox);
 }
 
 function resolveInputSetCode(val) {
@@ -656,6 +825,9 @@ export async function crackBoosterProduct(utils) {
             allCards.push(...packCards);
         }
 
+        // Calculate expected EV for this configuration
+        const evData = calculateSetEV(setData, market, packEdition, isBox, numPacks);
+
         currentSimulation = {
             setObj,
             setData,
@@ -665,6 +837,7 @@ export async function crackBoosterProduct(utils) {
             numPacks,
             market,
             cost: userCost > 0 ? userCost : pricing.currentCost,
+            expectedEV: evData.currentEV,
             cards: allCards,
             timestamp: Date.now()
         };
@@ -844,6 +1017,12 @@ function renderSidebarAnalytics(sim, container) {
                     <span class="fin-label">Total Pulled Value:</span>
                     <span class="fin-value total-val">${formatCurrency(totalValue, sim.market)}</span>
                 </div>
+                ${sim.expectedEV ? `
+                <div class="fin-row">
+                    <span class="fin-label">Statistical Expected EV:</span>
+                    <span class="fin-value ev-stat-val">${formatCurrency(sim.expectedEV, sim.market)}</span>
+                </div>
+                ` : ''}
                 <div class="fin-row">
                     <span class="fin-label">Item Purchase Cost:</span>
                     <span class="fin-value cost-val">${formatCurrency(cost, sim.market)}</span>
@@ -856,6 +1035,13 @@ function renderSidebarAnalytics(sim, container) {
                         <span class="roi-percentage">(${isProfit ? '+' : ''}${roi.toFixed(1)}%)</span>
                     </div>
                 </div>
+                ${sim.expectedEV ? `
+                <div class="ev-performance-pill ${totalValue >= sim.expectedEV ? 'beat-ev' : 'miss-ev'}">
+                    ${totalValue >= sim.expectedEV 
+                        ? `🎉 Beat Expected EV by +${formatCurrency(totalValue - sim.expectedEV, sim.market)}` 
+                        : `📉 Under Expected EV by -${formatCurrency(sim.expectedEV - totalValue, sim.market)}`}
+                </div>
+                ` : ''}
             </div>
 
             <!-- Rarity Breakdown Breakdown Table -->
@@ -918,10 +1104,10 @@ function renderSidebarAnalytics(sim, container) {
 
 // Global action helpers
 if (typeof window !== 'undefined') {
-    window.inspectBoosterCard = (cardId) => {
+    window.inspectBoosterCard = (cardIdentifier) => {
         if (window.openCardInspector) {
-            const cardObj = currentSimulation?.cards.find(c => c.id === cardId);
-            window.openCardInspector(cardObj || cardId);
+            const cardObj = currentSimulation?.cards.find(c => c.id === cardIdentifier || c.name === cardIdentifier);
+            window.openCardInspector(cardObj || cardIdentifier);
         }
     };
 
@@ -941,6 +1127,7 @@ if (typeof window !== 'undefined') {
 Set: ${sim.setObj.name} (${sim.setObj.code.toUpperCase()})
 Item: ${sim.isCollector ? 'Collector ' : 'Play '}${sim.isBox ? `Booster Box (${sim.numPacks} Packs)` : 'Booster Pack'}
 Cost: ${formatCurrency(sim.cost, sim.market)}
+Expected EV: ${formatCurrency(sim.expectedEV || 0, sim.market)}
 Value: ${formatCurrency(totalValue, sim.market)}
 Result: ${profit >= 0 ? '+' : ''}${formatCurrency(profit, sim.market)} (${((profit / sim.cost) * 100).toFixed(1)}%)
 Top Pulls:

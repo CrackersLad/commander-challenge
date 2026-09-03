@@ -29,7 +29,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=0.39">
+    <link rel="stylesheet" href="styles.css?v=0.40">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -684,6 +684,37 @@
                             <div id="boosterItemLabel" class="cost-sublabel">Play Booster (14 Cards)</div>
                         </div>
                     </div>
+
+                    <!-- Column 4: Dynamic Expected Value (EV) Card -->
+                    <div class="booster-field-group booster-ev-column">
+                        <label class="booster-field-label">
+                            <span>📈 Statistical Expected Value (EV):</span>
+                            <span class="tooltip">?<span class="tooltiptext">Mathematical average card value expected from this pack/box, calculated live from Scryfall market card prices and pull rates.</span></span>
+                        </label>
+                        <div class="booster-ev-card" id="boosterEvContainer">
+                            <div class="ev-main-row">
+                                <div class="ev-val-wrapper">
+                                    <span class="ev-currency-tag" id="boosterEvCurrency">$</span>
+                                    <span id="boosterEvValue" class="ev-number">--</span>
+                                </div>
+                                <span id="boosterEvBadge" class="ev-badge-chip">Live EV</span>
+                            </div>
+                            <div id="boosterEvComparison" class="ev-comparison-text">Fetching live set card data...</div>
+                            
+                            <div class="ev-averages-row">
+                                <span id="boosterAvgMythicText" class="ev-avg-pill">Avg Mythic: --</span>
+                                <span id="boosterAvgRareText" class="ev-avg-pill">Avg Rare: --</span>
+                            </div>
+
+                            <!-- Top Chase Cards in Set -->
+                            <div class="ev-chase-container">
+                                <span class="ev-chase-label">🔥 Top Set Chases:</span>
+                                <div id="boosterChaseCards" class="ev-chase-chips-row">
+                                    <span class="chase-loading">Loading chases...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Big Open CTA Button -->
@@ -744,6 +775,6 @@
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=0.39"></script>
+    <script type="module" src="./script.js?v=0.40"></script>
 </body>
 </html>

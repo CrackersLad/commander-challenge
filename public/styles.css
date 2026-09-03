@@ -3304,7 +3304,7 @@ select:focus {
 
 .booster-control-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 24px;
     align-items: start;
 }
@@ -4206,6 +4206,193 @@ select:focus {
     background: linear-gradient(135deg, #d97706, #b45309);
     color: #fff;
     box-shadow: 0 4px 12px rgba(217, 119, 6, 0.4);
+}
+
+/* Dynamic Expected Value (EV) Card Styles */
+.booster-ev-card {
+    background: rgba(18, 24, 38, 0.7);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(8px);
+}
+
+.ev-main-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ev-val-wrapper {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.ev-currency-tag {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #a78bfa;
+}
+
+.ev-number {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #f3f4f6;
+    letter-spacing: -0.5px;
+    font-family: monospace, system-ui;
+}
+
+.ev-badge-chip {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(139, 92, 246, 0.2);
+    color: #c4b5fd;
+    border: 1px solid rgba(139, 92, 246, 0.35);
+}
+
+.ev-positive-badge {
+    background: rgba(16, 185, 129, 0.18);
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.4);
+}
+
+.ev-negative-badge {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+.ev-comparison-text {
+    font-size: 0.82rem;
+    color: #94a3b8;
+    font-weight: 600;
+    min-height: 18px;
+}
+
+.ev-positive {
+    color: #34d399;
+    font-weight: 700;
+}
+
+.ev-negative {
+    color: #f87171;
+    font-weight: 600;
+}
+
+.ev-averages-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+}
+
+.ev-avg-pill {
+    font-size: 0.75rem;
+    padding: 3px 7px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    color: #cbd5e1;
+}
+
+.ev-chase-container {
+    margin-top: 4px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+    padding-top: 8px;
+}
+
+.ev-chase-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #f59e0b;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.ev-chase-chips-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.chase-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.chase-chip:hover {
+    background: rgba(139, 92, 246, 0.15);
+    border-color: rgba(139, 92, 246, 0.4);
+    transform: translateX(2px);
+}
+
+.chase-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+}
+
+.chase-price {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #34d399;
+    font-family: monospace;
+}
+
+.chase-loading {
+    font-size: 0.75rem;
+    color: #64748b;
+    font-style: italic;
+}
+
+/* Sidebar EV Comparison styling */
+.ev-stat-val {
+    color: #c4b5fd !important;
+    font-weight: 700;
+}
+
+.ev-performance-pill {
+    margin-top: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.ev-performance-pill.beat-ev {
+    background: rgba(16, 185, 129, 0.18);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.ev-performance-pill.miss-ev {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 @media (max-width: 640px) {

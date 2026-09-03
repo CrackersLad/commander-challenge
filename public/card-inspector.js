@@ -108,11 +108,24 @@ export async function openCardInspector(cardInput) {
             console.error("Inspector Scryfall fetch failed", e);
         }
     } else if (cardInput && cardInput.name) {
-        cardData = cardInput;
+        cardData = { ...cardInput };
+        if (!cardData.image_uris && (cardData.image || cardData.image_large)) {
+            cardData.image_uris = {
+                normal: cardData.image || cardData.image_large,
+                large: cardData.image_large || cardData.image
+            };
+        }
         if (!cardData.oracle_text && !cardData.card_faces) {
             try {
-                const res = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardData.name)}`);
-                if (res.ok) cardData = await res.json();
+                const isId = cardData.id && /^[0-9a-f-]{36}$/i.test(cardData.id);
+                const fetchUrl = isId
+                    ? `https://api.scryfall.com/cards/${cardData.id}`
+                    : `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardData.name)}`;
+                const res = await fetch(fetchUrl);
+                if (res.ok) {
+                    const fullData = await res.json();
+                    cardData = { ...fullData, ...cardData, image_uris: fullData.image_uris || cardData.image_uris };
+                }
             } catch(e) {}
         }
     }
@@ -132,10 +145,16 @@ function renderCardInspectData(card, fallbackInput) {
     document.getElementById('inspectCardName').textContent = name;
 
     const flipBtn = document.getElementById('inspectFlipBtn');
-    const hasFaces = card.card_faces && card.card_faces.length > 1 && card.card_faces[0].image_uris;
+    const hasFaces = card.card_faces && card.card_faces.length > 1 && (card.card_faces[0].image_uris || card.card_faces[0].image);
     if (flipBtn) flipBtn.style.display = hasFaces ? 'inline-block' : 'none';
 
-    let imgUrl = card.image_uris?.large || card.image_uris?.normal || card.card_faces?.[0]?.image_uris?.large || card.card_faces?.[0]?.image_uris?.normal || 'card_back.webp';
+    let imgUrl = card.image_large ||
+                 card.image ||
+                 card.image_uris?.large || 
+                 card.image_uris?.normal || 
+                 card.card_faces?.[0]?.image_uris?.large || 
+                 card.card_faces?.[0]?.image_uris?.normal || 
+                 'card_back.webp';
     const cardImg = document.getElementById('inspectCardImg');
     if (cardImg) {
         cardImg.src = imgUrl;
