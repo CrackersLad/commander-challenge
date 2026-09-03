@@ -5921,16 +5921,17 @@ select:focus {
     pointer-events: none !important; /* CRITICAL: never block cursor or scrolling */
     z-index: 999999;
     display: none;
-    width: 240px;
-    border-radius: 12px;
-    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.2);
+    width: 320px;
+    max-width: 90vw;
+    border-radius: 14px;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.25);
     transition: opacity 0.15s ease;
 }
 
 #floatingCardPreview img {
     width: 100%;
     height: auto;
-    border-radius: 12px;
+    border-radius: 14px;
     display: block;
 }
 
