@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=4.15';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=4.15';
-import { getArchives } from './data-service.js?v=4.15';
-import { initDeckActionsModule } from './deck-actions.js?v=4.15';
-import { initRoomActionsModule } from './room-actions.js?v=4.15';
-import { initPlayerViewModule } from './player-view.js?v=4.15';
-import { initAdminModule } from './admin.js?v=4.15';
-import { initCalendarModule } from './calendar.js?v=4.15';
-import { initAuthModule } from './auth.js?v=4.15';
-import { initHubModule } from './hub.js?v=4.15';
-import { initProfileModule } from './profile.js?v=4.15';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=4.15';
-import { initWarRoom, openWarRoom } from './war-room.js?v=4.15';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=4.15';
-import { initBoosterDraftModule } from './booster-draft.js?v=4.15';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=4.15';
+import { db, auth, functions } from './firebase-setup.js?v=4.16';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=4.16';
+import { getArchives } from './data-service.js?v=4.16';
+import { initDeckActionsModule } from './deck-actions.js?v=4.16';
+import { initRoomActionsModule } from './room-actions.js?v=4.16';
+import { initPlayerViewModule } from './player-view.js?v=4.16';
+import { initAdminModule } from './admin.js?v=4.16';
+import { initCalendarModule } from './calendar.js?v=4.16';
+import { initAuthModule } from './auth.js?v=4.16';
+import { initHubModule } from './hub.js?v=4.16';
+import { initProfileModule } from './profile.js?v=4.16';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=4.16';
+import { initWarRoom, openWarRoom } from './war-room.js?v=4.16';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=4.16';
+import { initBoosterDraftModule } from './booster-draft.js?v=4.16';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=4.16';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -83,13 +83,24 @@ function fetchAndPopulateSets() {
             const setDatalist = document.getElementById('setList');
             try {
                 const response = await fetch('https://api.scryfall.com/sets', {
-                    headers: { 'Accept': 'application/json' }
+                    headers: { 
+                        'User-Agent': 'CommanderChallenge/1.0',
+                        'Accept': 'application/json' 
+                    }
                 });
                 if (!response.ok) throw new Error('Scryfall API for sets failed');
                 const data = await response.json();
+                const today = new Date();
+                
                 scryfallSets = (data.data || [])
-                    .filter(set => ['core', 'expansion', 'masters', 'draft_innovation', 'funny', 'commander'].includes(set.set_type) && set.card_count > 50)
+                    .filter(set => ['core', 'expansion', 'masters', 'draft_innovation', 'funny', 'commander'].includes(set.set_type) && set.card_count > 30)
                     .sort((a, b) => new Date(b.released_at) - new Date(a.released_at));
+
+                // Find strictly released sets for auto-selection and quick chips
+                const releasedSets = scryfallSets.filter(s => new Date(s.released_at) <= today && s.card_count > 40);
+                const newestSet = releasedSets[0] || scryfallSets[0];
+                window.latestReleasedSet = newestSet;
+                window.latestQuickSets = releasedSets.slice(0, 7);
 
                 let datalistHTML = '';
                 let boosterDatalistHTML = '';
@@ -104,6 +115,47 @@ function fetchAndPopulateSets() {
                 if (setDatalist) setDatalist.innerHTML = datalistHTML;
                 const boosterDatalist = document.getElementById('boosterSetDatalist');
                 if (boosterDatalist) boosterDatalist.innerHTML = boosterDatalistHTML;
+
+                // Dynamically update Booster Simulator quick set chips with the newest releases
+                const quickSetsContainer = document.getElementById('boosterQuickSets');
+                const boosterSetInput = document.getElementById('boosterSetInput');
+                if (quickSetsContainer && releasedSets.length > 0) {
+                    const topSets = releasedSets.slice(0, 7);
+                    quickSetsContainer.innerHTML = topSets.map((s, idx) => `
+                        <button type="button" class="quick-set-chip ${idx === 0 ? 'active' : ''}" data-set="${s.code}">
+                            ${sanitizeHTML(s.name.split(':')[0])} (${s.code.toUpperCase()})
+                        </button>
+                    `).join('');
+
+                    quickSetsContainer.querySelectorAll('.quick-set-chip').forEach(chip => {
+                        chip.addEventListener('click', () => {
+                            quickSetsContainer.querySelectorAll('.quick-set-chip').forEach(c => c.classList.remove('active'));
+                            chip.classList.add('active');
+                            const setCode = chip.dataset.set;
+                            const setObj = (window.scryfallSets || []).find(s => s.code.toLowerCase() === setCode);
+                            if (boosterSetInput) {
+                                boosterSetInput.value = setObj ? `${setObj.name} (${setObj.code.toUpperCase()})` : setCode.toUpperCase();
+                            }
+                            if (typeof updateMarketAndCostDisplay === 'function') {
+                                updateMarketAndCostDisplay();
+                            }
+                        });
+                    });
+                }
+
+                // Auto-set the Booster Simulator input to the newest set if not yet customized
+                if (boosterSetInput && newestSet && (!boosterSetInput.value || boosterSetInput.value.includes('Duskmourn'))) {
+                    boosterSetInput.value = `${newestSet.name} (${newestSet.code.toUpperCase()})`;
+                    if (typeof updateMarketAndCostDisplay === 'function') {
+                        updateMarketAndCostDisplay();
+                    }
+                }
+
+                // Notify other modules (like booster-draft) that dynamic sets are ready
+                window.dispatchEvent(new CustomEvent('scryfallSetsLoaded', {
+                    detail: { scryfallSets, releasedSets, newestSet }
+                }));
+
                 resolve();
             } catch (error) { console.error("Failed to fetch Scryfall sets:", error); resolve(); }
         });
@@ -113,7 +165,12 @@ function fetchAndPopulateSets() {
 fetchAndPopulateSets();
 
 function resolveClientSet(rawInput) {
-    if (!rawInput) return { code: 'dsk', name: 'Duskmourn: House of Horror' };
+    if (!rawInput) {
+        if (window.latestReleasedSet) {
+            return { code: window.latestReleasedSet.code, name: window.latestReleasedSet.name };
+        }
+        return { code: 'dsk', name: 'Duskmourn: House of Horror' };
+    }
     const raw = String(rawInput).trim();
     const rawLower = raw.toLowerCase();
 
@@ -133,6 +190,9 @@ function resolveClientSet(rawInput) {
         return { code: rawLower, name: raw.toUpperCase() };
     }
 
+    if (window.latestReleasedSet) {
+        return { code: window.latestReleasedSet.code, name: window.latestReleasedSet.name };
+    }
     return { code: 'dsk', name: 'Duskmourn: House of Horror' };
 }
 
@@ -1786,7 +1846,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=4.15').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=4.16').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

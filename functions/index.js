@@ -250,12 +250,6 @@ let cachedScryfallSets = null;
 let cachedSetsTime = 0;
 
 async function resolveScryfallSetCode(input) {
-    if (!input) return 'dsk';
-    const raw = String(input).trim().toLowerCase();
-    if (/^[a-z0-9]{3,5}$/i.test(raw)) {
-        return raw;
-    }
-
     if (!cachedScryfallSets || (Date.now() - cachedSetsTime > 3600000)) {
         try {
             const res = await fetch('https://api.scryfall.com/sets', {
@@ -269,6 +263,24 @@ async function resolveScryfallSetCode(input) {
         } catch (e) {
             console.warn("Could not fetch Scryfall sets list:", e.message);
         }
+    }
+
+    if (!input) {
+        if (cachedScryfallSets && cachedScryfallSets.length > 0) {
+            const today = new Date();
+            const released = cachedScryfallSets.filter(s => 
+                ['core', 'expansion', 'masters', 'draft_innovation', 'commander'].includes(s.set_type) && 
+                new Date(s.released_at) <= today && 
+                s.card_count > 40
+            ).sort((a, b) => new Date(b.released_at) - new Date(a.released_at));
+            if (released[0]) return released[0].code;
+        }
+        return 'dsk';
+    }
+
+    const raw = String(input).trim().toLowerCase();
+    if (/^[a-z0-9]{3,5}$/i.test(raw)) {
+        return raw;
     }
 
     if (cachedScryfallSets && cachedScryfallSets.length > 0) {

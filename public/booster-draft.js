@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.15';
+import { db, auth } from './firebase-setup.js?v=4.16';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -17,7 +17,7 @@ import {
     generateCollectorBoosterPack, 
     getCardPrice,
     formatCurrency 
-} from './booster-simulator.js?v=4.15';
+} from './booster-simulator.js?v=4.16';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -250,6 +250,31 @@ export function initBoosterDraftModule(utils, state) {
 
     window.addEventListener('hashchange', checkHash);
     checkHash();
+
+    // Dynamically update draft set selection when Scryfall live sets are ready
+    window.addEventListener('scryfallSetsLoaded', (e) => {
+        const quickContainer = document.getElementById('draftQuickSets');
+        const input = document.getElementById('draftSetInput');
+        const datalist = document.getElementById('draftSetDatalist');
+        const sets = e.detail?.scryfallSets || window.scryfallSets || [];
+        const released = e.detail?.releasedSets || sets.filter(s => new Date(s.released_at) <= new Date() && s.card_count > 40);
+        const newest = e.detail?.newestSet || released[0];
+
+        if (datalist && sets.length > 0) {
+            datalist.innerHTML = sets.map(s => `<option value="${s.name} (${s.code.toUpperCase()})"></option>`).join('');
+        }
+        if (quickContainer && released.length > 0) {
+            const top = released.slice(0, 6);
+            quickContainer.innerHTML = top.map((s, idx) => `
+                <button type="button" class="quick-set-chip ${idx === 0 ? 'active' : ''}" onclick="window.selectDraftQuickSet('${s.code}', this)">
+                    ${s.name.split(':')[0]} (${s.code.toUpperCase()})
+                </button>
+            `).join('');
+        }
+        if (input && newest && (!input.value || input.value.includes('Duskmourn'))) {
+            input.value = `${newest.name} (${newest.code.toUpperCase()})`;
+        }
+    });
 }
 
 // Generate unique 4-letter room code (avoid confusing chars)
@@ -283,6 +308,17 @@ function renderDraftHubUI() {
 
     const sets = window.scryfallSets || [];
     const player = getPlayerIdentity();
+    const today = new Date();
+    const releasedSets = sets.filter(s => new Date(s.released_at) <= today && s.card_count > 40);
+    const defaultSet = window.latestReleasedSet || releasedSets[0] || { code: 'dsk', name: 'Duskmourn: House of Horror' };
+    const topDraftSets = releasedSets.length > 0 ? releasedSets.slice(0, 6) : [
+        { code: 'dsk', name: 'Duskmourn' },
+        { code: 'blb', name: 'Bloomburrow' },
+        { code: 'mh3', name: 'MH3' },
+        { code: 'cmm', name: 'Cmdr Masters' },
+        { code: 'clb', name: "Baldur's Gate" },
+        { code: 'ltr', name: 'LotR' }
+    ];
 
     root.innerHTML = `
         <div class="booster-draft-container">
@@ -331,19 +367,18 @@ function renderDraftHubUI() {
                     <div class="booster-field-group" style="margin-top: 15px;">
                         <label class="booster-field-label"><span>📦 Expansion / Set:</span></label>
                         <div class="booster-input-with-datalist">
-                            <input type="text" id="draftSetInput" list="draftSetDatalist" placeholder="Duskmourn: House of Horror (DSK)" autocomplete="off" value="Duskmourn: House of Horror (DSK)">
+                            <input type="text" id="draftSetInput" list="draftSetDatalist" placeholder="${defaultSet.name} (${defaultSet.code.toUpperCase()})" autocomplete="off" value="${defaultSet.name} (${defaultSet.code.toUpperCase()})">
                             <datalist id="draftSetDatalist">
                                 ${sets.map(s => `<option value="${s.name} (${s.code.toUpperCase()})"></option>`).join('')}
                             </datalist>
                         </div>
                         <!-- Quick Set Chips -->
                         <div class="booster-quick-sets" id="draftQuickSets">
-                            <button type="button" class="quick-set-chip active" onclick="window.selectDraftQuickSet('dsk')">Duskmourn</button>
-                            <button type="button" class="quick-set-chip" onclick="window.selectDraftQuickSet('blb')">Bloomburrow</button>
-                            <button type="button" class="quick-set-chip" onclick="window.selectDraftQuickSet('mh3')">MH3</button>
-                            <button type="button" class="quick-set-chip" onclick="window.selectDraftQuickSet('cmm')">Cmdr Masters</button>
-                            <button type="button" class="quick-set-chip" onclick="window.selectDraftQuickSet('clb')">Baldur's Gate</button>
-                            <button type="button" class="quick-set-chip" onclick="window.selectDraftQuickSet('ltr')">LotR</button>
+                            ${topDraftSets.map((s, idx) => `
+                                <button type="button" class="quick-set-chip ${idx === 0 ? 'active' : ''}" onclick="window.selectDraftQuickSet('${s.code}', this)">
+                                    ${s.name.split(':')[0]} (${s.code.toUpperCase()})
+                                </button>
+                            `).join('')}
                         </div>
                     </div>
 
@@ -442,9 +477,10 @@ function renderDraftHubUI() {
         }
     };
 
-    window.selectDraftQuickSet = (code) => {
+    window.selectDraftQuickSet = (code, btn) => {
         document.querySelectorAll('#draftQuickSets .quick-set-chip').forEach(c => c.classList.remove('active'));
-        if (event && event.target) event.target.classList.add('active');
+        if (btn) btn.classList.add('active');
+        else if (typeof event !== 'undefined' && event?.target) event.target.classList.add('active');
         const sets = window.scryfallSets || [];
         const s = sets.find(item => item.code.toLowerCase() === code.toLowerCase());
         const input = document.getElementById('draftSetInput');
