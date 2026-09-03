@@ -91,12 +91,16 @@ export function initAuthModule(utils, state) {
                 
                 if (validPlayerIds.length > 0 && !validPlayerIds.includes(state.currentPlayerId)) {
                     localStorage.setItem('playerId', validPlayerIds[0]);
+                    state.currentPlayerId = validPlayerIds[0];
                     localStorage.setItem('joinedRooms', JSON.stringify(joined));
-                    window.location.reload();
-                    return;
+                    if (document.getElementById('view-landing')?.classList.contains('active') && window.loadMyPlaygroups) {
+                        window.loadMyPlaygroups();
+                    }
                 } else if (foundNew) {
                     localStorage.setItem('joinedRooms', JSON.stringify(joined));
-                    if (document.getElementById('view-landing').classList.contains('active') && window.loadMyPlaygroups) window.loadMyPlaygroups();
+                    if (document.getElementById('view-landing')?.classList.contains('active') && window.loadMyPlaygroups) {
+                        window.loadMyPlaygroups();
+                    }
                 }
             }
         } catch (e) { console.warn("Failed to recover cross-device rooms:", e); }

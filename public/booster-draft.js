@@ -26,25 +26,21 @@ const getDraftDbPath = (suffix = '') => suffix ? `rooms/bdf_${suffix}` : 'rooms/
 async function ensureUserAuth() {
     if (auth.currentUser) return auth.currentUser;
     return new Promise((resolve) => {
+        let resolved = false;
         const unsub = onAuthStateChanged(auth, (u) => {
-            if (u) {
+            if (u && !resolved) {
+                resolved = true;
                 unsub();
                 resolve(u);
             }
         });
-        setTimeout(async () => {
-            if (!auth.currentUser) {
-                try {
-                    const cred = await signInAnonymously(auth);
-                    resolve(cred.user);
-                } catch (e) {
-                    console.warn("Anonymous sign in error:", e);
-                    resolve(null);
-                }
-            } else {
+        setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                unsub();
                 resolve(auth.currentUser);
             }
-        }, 350);
+        }, 1500);
     });
 }
 
@@ -192,9 +188,13 @@ export function initBoosterDraftModule(utils, state) {
         const hash = window.location.hash || '';
         if (hash.startsWith('#draft-')) {
             const code = hash.replace('#draft-', '').toUpperCase().trim();
-            if (code) setTimeout(() => window.openBoosterDraftHub(code), 150);
+            if (code && code !== currentDraftCode) {
+                setTimeout(() => window.openBoosterDraftHub(code), 100);
+            }
         } else if (hash === '#booster-draft' || hash === '#view-booster-draft') {
-            setTimeout(() => window.openBoosterDraftHub(), 150);
+            if (!currentDraftCode) {
+                setTimeout(() => window.openBoosterDraftHub(), 100);
+            }
         }
     };
 
