@@ -1,4 +1,4 @@
-import { functions } from './firebase-setup.js?v=4.12';
+import { functions } from './firebase-setup.js?v=4.13';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 // Official Game Changers for Moxfield fallback (excluding casual staples like Sol Ring)

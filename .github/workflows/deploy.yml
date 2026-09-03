@@ -20,8 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd functions
-          rm -f package-lock.json
-          npm install --no-audit --no-fund || (sleep 5 && npm install --no-audit --no-fund)
+          npm install --fetch-retries=5 --fetch-retry-factor=2 --no-audit --no-fund || (sleep 10 && npm install --fetch-retries=5 --fetch-retry-factor=2 --no-audit --no-fund)
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
