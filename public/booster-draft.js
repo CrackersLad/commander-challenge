@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.6';
+import { db, auth } from './firebase-setup.js?v=4.7';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -17,7 +17,7 @@ import {
     generateCollectorBoosterPack, 
     getCardPrice,
     formatCurrency 
-} from './booster-simulator.js?v=4.6';
+} from './booster-simulator.js?v=4.7';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -638,6 +638,30 @@ function renderDraftLobbyView(room, root) {
     `;
 }
 
+// Sanitize card object to strip undefineds and bulky metadata for Firebase Realtime Database
+function sanitizeDraftCard(card) {
+    if (!card) return null;
+    return {
+        id: String(card.id || Math.random().toString(36).substring(2, 9)),
+        name: String(card.name || 'Unknown'),
+        mana_cost: card.mana_cost || '',
+        type_line: card.type_line || '',
+        oracle_text: card.oracle_text || '',
+        rarity: card.rarity || 'common',
+        isFoil: Boolean(card.isFoil),
+        image: card.image || card.image_uris?.normal || 'card_back.webp',
+        image_large: card.image_large || card.image_uris?.large || card.image || 'card_back.webp',
+        prices: {
+            usd: card.prices?.usd != null ? String(card.prices.usd) : '0',
+            usd_foil: card.prices?.usd_foil != null ? String(card.prices.usd_foil) : null,
+            eur: card.prices?.eur != null ? String(card.prices.eur) : null,
+            eur_foil: card.prices?.eur_foil != null ? String(card.prices.eur_foil) : null
+        },
+        color_identity: Array.isArray(card.color_identity) ? card.color_identity : [],
+        colors: Array.isArray(card.colors) ? card.colors : []
+    };
+}
+
 // Start Draft Execution (Host Only)
 async function startBoosterDraftHost() {
     if (!currentDraftData || !currentDraftCode) return;
@@ -659,13 +683,13 @@ async function startBoosterDraftHost() {
 
         // Specialized handling per format
         if (room.format === 'sealed') {
-            // Sealed: Open all 6 packs for each player immediately
+            // Sealed: Open all packs for each player immediately
             const playerUpdates = {};
             playersList.forEach(p => {
                 let pool = [];
                 for (let i = 1; i <= packsPerPlayer; i++) {
                     const pack = isCollector ? generateCollectorBoosterPack(setData, i) : generateBoosterPack(setData, i);
-                    pool.push(...pack);
+                    pool.push(...pack.map(sanitizeDraftCard));
                 }
                 playerUpdates[`players/${p.id}/pool`] = pool;
             });
@@ -677,11 +701,11 @@ async function startBoosterDraftHost() {
             });
 
         } else if (room.format === 'grid_draft') {
-            // Grid Draft: Prepare 18 packs (162 cards) dealt into 18 consecutive 3x3 grids
+            // Grid Draft: Prepare 18 packs dealt into 18 consecutive 3x3 grids
             let masterCards = [];
             for (let i = 1; i <= 18; i++) {
                 const pack = isCollector ? generateCollectorBoosterPack(setData, i) : generateBoosterPack(setData, i);
-                masterCards.push(...pack.slice(0, 9)); // 9 cards per grid
+                masterCards.push(...pack.slice(0, 9).map(sanitizeDraftCard));
             }
 
             const firstGrid = masterCards.splice(0, 9);
@@ -691,7 +715,7 @@ async function startBoosterDraftHost() {
                 currentGridIndex: 1,
                 totalGrids: 18,
                 activePlayerIndex: 0,
-                turnInGrid: 1, // 1: first pick, 2: second pick
+                turnInGrid: 1,
                 activeGrid: firstGrid,
                 remainingCards: masterCards
             });
@@ -701,7 +725,7 @@ async function startBoosterDraftHost() {
             let masterStack = [];
             for (let i = 1; i <= 6; i++) {
                 const pack = isCollector ? generateCollectorBoosterPack(setData, i) : generateBoosterPack(setData, i);
-                masterStack.push(...pack);
+                masterStack.push(...pack.map(sanitizeDraftCard));
             }
 
             // Shuffle stack
@@ -746,13 +770,12 @@ async function startBoosterDraftHost() {
 
         } else {
             // Standard / Commander / Rochester Passing Drafts
-            // Generate all packs for each player and store round queues
             const roundPacks = {};
             for (let r = 1; r <= packsPerPlayer; r++) {
                 roundPacks[`round_${r}`] = {};
                 playersList.forEach(p => {
                     const pack = isCollector ? generateCollectorBoosterPack(setData, r) : generateBoosterPack(setData, r);
-                    roundPacks[`round_${r}`][p.id] = pack;
+                    roundPacks[`round_${r}`][p.id] = pack.map(sanitizeDraftCard);
                 });
             }
 
@@ -780,7 +803,8 @@ async function startBoosterDraftHost() {
             btn.disabled = false;
             btn.innerHTML = `<span>⚡ START DRAFT ⚡</span>`;
         }
-        if (draftUtils?.showToast) draftUtils.showToast("Failed to initialize draft packs. Check console.", true);
+        const errMsg = err.message || "Failed to initialize draft packs";
+        if (draftUtils?.showToast) draftUtils.showToast(`Failed to start draft: ${errMsg}`, true, 6000);
     }
 }
 
