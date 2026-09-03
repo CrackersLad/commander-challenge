@@ -8,15 +8,45 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=0.47';
+import { db, auth } from './firebase-setup.js?v=0.48';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
     fetchSetBoosterCards, 
     generateBoosterPack, 
     generateCollectorBoosterPack, 
     getCardPrice,
     formatCurrency 
-} from './booster-simulator.js?v=0.47';
+} from './booster-simulator.js?v=0.48';
+
+// Realtime Database Path for Booster Drafts
+// Storing under 'rooms/bdf_' inherits active RTDB permissions immediately
+const getDraftDbPath = (suffix = '') => suffix ? `rooms/bdf_${suffix}` : 'rooms/bdf_';
+
+async function ensureUserAuth() {
+    if (auth.currentUser) return auth.currentUser;
+    return new Promise((resolve) => {
+        const unsub = onAuthStateChanged(auth, (u) => {
+            if (u) {
+                unsub();
+                resolve(u);
+            }
+        });
+        setTimeout(async () => {
+            if (!auth.currentUser) {
+                try {
+                    const cred = await signInAnonymously(auth);
+                    resolve(cred.user);
+                } catch (e) {
+                    console.warn("Anonymous sign in error:", e);
+                    resolve(null);
+                }
+            } else {
+                resolve(auth.currentUser);
+            }
+        }, 350);
+    });
+}
 
 // Draft Module State
 let currentDraftCode = null;
@@ -431,13 +461,28 @@ async function createDraftRoomFromUI() {
     };
 
     try {
+        await ensureUserAuth();
+        const player = getPlayerIdentity();
+        roomPayload.hostId = player.id;
+        roomPayload.players = {
+            [player.id]: {
+                id: player.id,
+                name: player.name,
+                isHost: true,
+                joinedAt: Date.now(),
+                ready: true,
+                pool: []
+            }
+        };
+
         if (draftUtils?.showToast) draftUtils.showToast("Creating draft room...", false, 1500);
-        await set(ref(db, `booster_drafts/${roomCode}`), roomPayload);
+        await set(ref(db, getDraftDbPath(roomCode)), roomPayload);
         window.location.hash = `#draft-${roomCode}`;
         attachDraftRoomListener(roomCode);
     } catch (err) {
         console.error("Failed to create draft room:", err);
-        if (draftUtils?.showToast) draftUtils.showToast("Could not create room. Check network connection.", true);
+        const errMsg = err.message || "Permission or network error";
+        if (draftUtils?.showToast) draftUtils.showToast(`Could not create room: ${errMsg}`, true, 5000);
     }
 }
 
@@ -454,11 +499,12 @@ async function joinDraftRoomFromUI() {
 
 async function joinDraftRoomByCode(roomCode) {
     const code = roomCode.toUpperCase().trim();
-    const player = getPlayerIdentity();
 
     try {
+        await ensureUserAuth();
+        const player = getPlayerIdentity();
         if (draftUtils?.showToast) draftUtils.showToast(`Connecting to room ${code}...`, false, 1500);
-        const snap = await get(ref(db, `booster_drafts/${code}`));
+        const snap = await get(ref(db, getDraftDbPath(code)));
         if (!snap.exists()) {
             if (draftUtils?.showToast) draftUtils.showToast(`Draft room "${code}" does not exist.`, true);
             return;
@@ -472,7 +518,7 @@ async function joinDraftRoomByCode(roomCode) {
 
         // Add player to room
         if (!roomData.players?.[player.id]) {
-            await set(ref(db, `booster_drafts/${code}/players/${player.id}`), {
+            await set(ref(db, `${getDraftDbPath(code)}/players/${player.id}`), {
                 id: player.id,
                 name: player.name,
                 isHost: false,
@@ -486,7 +532,8 @@ async function joinDraftRoomByCode(roomCode) {
         attachDraftRoomListener(code);
     } catch (err) {
         console.error("Error joining draft room:", err);
-        if (draftUtils?.showToast) draftUtils.showToast("Error joining room. Try again.", true);
+        const errMsg = err.message || "Error joining room";
+        if (draftUtils?.showToast) draftUtils.showToast(`Error joining room: ${errMsg}`, true, 5000);
     }
 }
 
@@ -498,7 +545,7 @@ function attachDraftRoomListener(roomCode) {
     }
 
     currentDraftCode = roomCode;
-    const roomRef = ref(db, `booster_drafts/${roomCode}`);
+    const roomRef = ref(db, getDraftDbPath(roomCode));
 
     const unsubscribe = onValue(roomRef, (snapshot) => {
         if (!snapshot.exists()) {
@@ -638,7 +685,7 @@ async function startBoosterDraftHost() {
                 playerUpdates[`players/${p.id}/pool`] = pool;
             });
 
-            await update(ref(db, `booster_drafts/${room.code}`), {
+            await update(ref(db, getDraftDbPath(room.code)), {
                 status: 'complete',
                 startedAt: Date.now(),
                 ...playerUpdates
@@ -653,7 +700,7 @@ async function startBoosterDraftHost() {
             }
 
             const firstGrid = masterCards.splice(0, 9);
-            await update(ref(db, `booster_drafts/${room.code}`), {
+            await update(ref(db, getDraftDbPath(room.code)), {
                 status: 'drafting',
                 startedAt: Date.now(),
                 currentGridIndex: 1,
@@ -683,7 +730,7 @@ async function startBoosterDraftHost() {
                 const pile2 = [masterStack.pop()];
                 const pile3 = [masterStack.pop()];
 
-                await update(ref(db, `booster_drafts/${room.code}`), {
+                await update(ref(db, getDraftDbPath(room.code)), {
                     status: 'drafting',
                     startedAt: Date.now(),
                     activePlayerIndex: 0,
@@ -700,7 +747,7 @@ async function startBoosterDraftHost() {
                 const pile3 = [masterStack.pop()];
                 const pile4 = [masterStack.pop()];
 
-                await update(ref(db, `booster_drafts/${room.code}`), {
+                await update(ref(db, getDraftDbPath(room.code)), {
                     status: 'drafting',
                     startedAt: Date.now(),
                     activePlayerIndex: 0,
@@ -731,7 +778,7 @@ async function startBoosterDraftHost() {
                 initialPlayerPacks[`players/${p.id}/hasPickedInRound`] = false;
             });
 
-            await update(ref(db, `booster_drafts/${room.code}`), {
+            await update(ref(db, getDraftDbPath(room.code)), {
                 status: 'drafting',
                 startedAt: Date.now(),
                 currentRound: 1,
@@ -920,7 +967,7 @@ async function confirmActiveDraftPick() {
     if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
 
     // Update player's picked status and pool
-    await update(ref(db, `booster_drafts/${currentDraftCode}/players/${player.id}`), {
+    await update(ref(db, `${getDraftDbPath(currentDraftCode)}/players/${player.id}`), {
         pool: updatedPool,
         hasPickedInRound: true,
         remainingPassedPack: remainingPack
@@ -932,7 +979,7 @@ async function confirmActiveDraftPick() {
 
 // Check and Pass Packs to next players
 async function checkAndPassPacksAroundTable(roomCode) {
-    const snap = await get(ref(db, `booster_drafts/${roomCode}`));
+    const snap = await get(ref(db, getDraftDbPath(roomCode)));
     if (!snap.exists()) return;
     const room = snap.val();
 
@@ -951,7 +998,7 @@ async function checkAndPassPacksAroundTable(roomCode) {
 
         if (currentRound >= totalRounds) {
             // All rounds finished: Draft Complete!
-            await update(ref(db, `booster_drafts/${roomCode}`), {
+            await update(ref(db, getDraftDbPath(roomCode)), {
                 status: 'complete',
                 completedAt: Date.now()
             });
@@ -967,7 +1014,7 @@ async function checkAndPassPacksAroundTable(roomCode) {
                 playerUpdates[`players/${p.id}/remainingPassedPack`] = null;
             });
 
-            await update(ref(db, `booster_drafts/${roomCode}`), {
+            await update(ref(db, getDraftDbPath(roomCode)), {
                 currentRound: nextRound,
                 ...playerUpdates
             });
@@ -990,7 +1037,7 @@ async function checkAndPassPacksAroundTable(roomCode) {
             playerUpdates[`players/${p.id}/remainingPassedPack`] = null;
         });
 
-        await update(ref(db, `booster_drafts/${roomCode}`), playerUpdates);
+        await update(ref(db, getDraftDbPath(roomCode)), playerUpdates);
     }
 }
 
