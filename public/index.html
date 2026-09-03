@@ -29,7 +29,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=4.16">
+    <link rel="stylesheet" href="styles.css?v=4.17">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -266,16 +266,31 @@
             </div>
         </div>
 
-        <!-- Quick Roll Launcher Card -->
-        <div class="quick-roll-card" onclick="window.quickRollCommander()">
-            <div class="quick-roll-content">
-                <div class="quick-roll-dice">🎲</div>
-                <div class="quick-roll-text">
-                    <h4>Instant Commander Quick Roll</h4>
-                    <p>Not sure what to build? Spin the Archives for a completely randomized commander suggestion with full EDHREC stats!</p>
+        <!-- Quick Roll Section: Instant Commander & Commander Precon -->
+        <div class="quick-rolls-container">
+            <!-- 1. Instant Commander Quick Roll -->
+            <div class="quick-roll-card" onclick="window.quickRollCommander()">
+                <div class="quick-roll-content">
+                    <div class="quick-roll-dice">🎲</div>
+                    <div class="quick-roll-text">
+                        <h4>Instant Commander Quick Roll</h4>
+                        <p>Not sure what to build? Spin the Archives for a completely randomized commander suggestion with full EDHREC stats!</p>
+                    </div>
                 </div>
+                <button class="secondary-btn quick-roll-cta" id="quickRollBtn" onclick="window.quickRollCommander(); event.stopPropagation();">Roll Commander</button>
             </div>
-            <button class="secondary-btn quick-roll-cta" id="quickRollBtn" onclick="window.quickRollCommander(); event.stopPropagation();">Roll Now</button>
+
+            <!-- 2. Random Commander Precon Quick Roll -->
+            <div class="quick-roll-card precon-roll-card" onclick="window.quickRollPrecon()">
+                <div class="quick-roll-content">
+                    <div class="quick-roll-dice">📦</div>
+                    <div class="quick-roll-text">
+                        <h4>Random Commander Precon</h4>
+                        <p>Roll an official MTG preconstructed Commander deck complete with face commander, colors, and full 100-card decklist!</p>
+                    </div>
+                </div>
+                <button class="secondary-btn quick-roll-cta precon-cta" id="quickRollPreconBtn" onclick="window.quickRollPrecon(); event.stopPropagation();">Roll Precon</button>
+            </div>
         </div>
 
         <!-- Active Playgroups List -->
@@ -805,6 +820,6 @@
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=4.16"></script>
+    <script type="module" src="./script.js?v=4.17"></script>
 </body>
 </html>

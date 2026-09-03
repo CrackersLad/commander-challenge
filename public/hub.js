@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=4.16';
+import { db, auth } from './firebase-setup.js?v=4.17';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -115,6 +115,187 @@ export function initHubModule(utils, state, coreUi) {
     const quickRollBtn = document.getElementById('quickRollBtn');
     if (quickRollBtn) {
         quickRollBtn.onclick = window.quickRollCommander;
+    }
+
+    let localPrecons = null;
+    async function loadPreconData() {
+        if (localPrecons && localPrecons.length > 0) return localPrecons;
+        try {
+            const res = await fetch('commander-precons.json');
+            if (res.ok) {
+                localPrecons = await res.json();
+                return localPrecons;
+            }
+        } catch (e) {
+            console.warn("Could not load commander-precons.json:", e);
+        }
+        return [];
+    }
+
+    window.quickRollPrecon = async () => {
+        playSound('sfx-click');
+        const precons = await loadPreconData();
+        if (!precons || precons.length === 0) return showToast("Precons not loaded yet. Try again in a moment.", true);
+
+        const existingOverlay = document.getElementById('quickRollOverlay');
+        if (existingOverlay) existingOverlay.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'quickRollOverlay';
+        overlay.className = 'modal-overlay show';
+        overlay.style.display = 'flex';
+        overlay.style.zIndex = '9999';
+        overlay.innerHTML = `
+            <div class="modal-content" id="quickRollModalContent" style="background: #121815; padding: 22px; border-radius: 12px; border: 1px solid #10b981; text-align: center; max-width: 440px; width: 92%; transition: transform 0.2s ease-out, opacity 0.2s ease-out; box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 25px rgba(16, 185, 129, 0.25);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                    <span style="color: #34d399; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">📦 Commander Precon</span>
+                    <span id="quickRollPreconSet" style="font-size: 0.75rem; background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 6px; color:#cbd5e1;">&nbsp;</span>
+                </div>
+                <h3 id="quickRollDeckName" style="color: #fff; margin: 0 0 4px 0; font-family: Cinzel; font-size: 1.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Rolling Precon...</h3>
+                <div id="quickRollCardContainer">
+                    <h4 id="quickRollCardName" style="color: #34d399; margin: 0 0 10px 0; font-size: 0.95rem; height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">&nbsp;</h4>
+                    <div id="quickRollCardImage" style="height: 48vh; display:flex; align-items:center; justify-content:center;">
+                        <img src="" class="commander-img" loading="eager" style="max-height: 48vh; border-radius: 12px; margin-bottom: 8px; transition: filter 0.05s ease, transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+                    </div>
+                </div>
+                <div id="quickRollPreconBadges" style="margin-top: 6px; display: flex; justify-content: center; gap: 6px;"></div>
+                <div id="quickRollButtons" style="display: none; flex-direction: column; gap: 8px; justify-content: center; margin-top: 14px;"></div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        const deckNameEl = document.getElementById('quickRollDeckName');
+        const cardNameEl = document.getElementById('quickRollCardName');
+        const setTagEl = document.getElementById('quickRollPreconSet');
+        const cardImageContainer = document.getElementById('quickRollCardImage');
+        const badgesEl = document.getElementById('quickRollPreconBadges');
+        const buttonsEl = document.getElementById('quickRollButtons');
+        const modalContentEl = document.getElementById('quickRollModalContent');
+
+        let animationDuration = 2500;
+        let startTime = Date.now();
+        let interval = 50;
+
+        // Pick final precon ahead of time
+        const finalPrecon = precons[Math.floor(Math.random() * precons.length)];
+
+        // Preload final precon commander image
+        if (finalPrecon.image) {
+            new Image().src = finalPrecon.image;
+        }
+
+        function animateRoll() {
+            if (!document.body.contains(overlay) || !overlay.classList.contains('show')) return;
+
+            const elapsedTime = Date.now() - startTime;
+            if (elapsedTime < animationDuration) {
+                const randomPrecon = precons[Math.floor(Math.random() * precons.length)];
+
+                deckNameEl.textContent = randomPrecon.name;
+                cardNameEl.textContent = sanitizeHTML(randomPrecon.commander);
+                setTagEl.textContent = `${randomPrecon.code.toUpperCase()} • ${randomPrecon.releaseDate?.slice(0,4) || ''}`;
+
+                const imgEl = cardImageContainer.querySelector('img');
+                if (imgEl && randomPrecon.image) {
+                    imgEl.src = sanitizeHTML(randomPrecon.image);
+                    imgEl.style.filter = 'blur(4px) brightness(1.2)';
+                    setTimeout(() => { if (imgEl) imgEl.style.filter = 'none'; }, Math.max(20, interval - 20));
+                }
+
+                playSound('sfx-click');
+
+                interval = 50 + (elapsedTime / animationDuration) * 250;
+                setTimeout(animateRoll, interval);
+            } else {
+                showFinalPrecon(finalPrecon);
+            }
+        }
+
+        function showFinalPrecon(precon) {
+            playSound('sfx-reveal');
+            modalContentEl.style.transform = 'scale(1.05)';
+            setTimeout(() => modalContentEl.style.transform = 'scale(1)', 200);
+
+            deckNameEl.textContent = precon.name;
+            cardNameEl.textContent = sanitizeHTML(precon.commander);
+            setTagEl.textContent = `${precon.code.toUpperCase()} • ${precon.releaseDate}`;
+
+            const moxfieldSearchUrl = `https://www.moxfield.com/decks/search?q=${encodeURIComponent(precon.name)}`;
+            const edhrecSlug = precon.commander.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
+
+            cardImageContainer.innerHTML = `
+                <a href="${moxfieldSearchUrl}" target="_blank" onclick="playSound('sfx-click')" title="View Decklist on Moxfield">
+                    <img src="${sanitizeHTML(precon.image)}" class="commander-img" loading="lazy" style="max-height: 48vh; border-radius: 12px; margin-bottom: 6px; box-shadow: 0 10px 25px rgba(0,0,0,0.6);">
+                </a>
+            `;
+
+            if (getColorBadges && precon.colors) {
+                badgesEl.innerHTML = `<div class="mana-container" style="margin:0;">${getColorBadges(precon.colors)}</div>`;
+            }
+
+            buttonsEl.innerHTML = `
+                <div style="display: flex; gap: 8px; justify-content: center;">
+                    <button id="copyPreconDecklistBtn" class="select-btn" style="flex: 1; padding: 8px 12px; font-size: 0.85rem; background: #059669; border-color: #10b981;">
+                        📋 Copy Decklist (${precon.cardCount || 100})
+                    </button>
+                    <a href="${moxfieldSearchUrl}" target="_blank" class="select-btn" style="flex: 1; padding: 8px 12px; font-size: 0.85rem; text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center;">
+                        🌐 Moxfield ↗
+                    </a>
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: center;">
+                    <button id="inspectPreconCmdrBtn" class="secondary-btn" style="flex: 1; padding: 8px 12px; font-size: 0.85rem;">
+                        🔍 3D Inspect
+                    </button>
+                    <button id="preconRollAgainBtn" class="select-btn" style="flex: 1; padding: 8px 12px; font-size: 0.85rem;">
+                        🎲 Roll Again
+                    </button>
+                    <button id="closePreconRollBtn" class="secondary-btn" style="flex: 0.8; padding: 8px 12px; font-size: 0.85rem; border-color: #ff4444; color: #ff9999;">
+                        Close
+                    </button>
+                </div>
+            `;
+            buttonsEl.style.display = 'flex';
+
+            const close = () => { 
+                playSound('sfx-click'); 
+                overlay.classList.remove('show'); 
+                setTimeout(() => overlay.remove(), 300); 
+            };
+
+            document.getElementById('closePreconRollBtn').onclick = close;
+            document.getElementById('preconRollAgainBtn').onclick = () => { 
+                close(); 
+                setTimeout(() => window.quickRollPrecon(), 300); 
+            };
+
+            document.getElementById('copyPreconDecklistBtn').onclick = () => {
+                if (precon.decklist) {
+                    navigator.clipboard.writeText(precon.decklist).then(() => {
+                        showToast(`📋 Copied 100-card "${precon.name}" decklist to clipboard!`, false, 2500);
+                    });
+                } else {
+                    navigator.clipboard.writeText(moxfieldSearchUrl).then(() => {
+                        showToast(`📋 Copied Moxfield deck link to clipboard!`, false, 2500);
+                    });
+                }
+            };
+
+            document.getElementById('inspectPreconCmdrBtn').onclick = () => {
+                if (window.openCardInspector) {
+                    window.openCardInspector(precon.scryfallId || precon.commander);
+                } else {
+                    window.open(edhrecLink, '_blank');
+                }
+            };
+        }
+
+        animateRoll();
+    };
+
+    const quickRollPreconBtn = document.getElementById('quickRollPreconBtn');
+    if (quickRollPreconBtn) {
+        quickRollPreconBtn.onclick = window.quickRollPrecon;
     }
 
     window.goToMainMenu = () => {
