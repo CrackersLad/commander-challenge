@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=4.17';
+import { db, auth } from './firebase-setup.js?v=4.18';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -220,14 +220,19 @@ export function initHubModule(utils, state, coreUi) {
             cardNameEl.textContent = sanitizeHTML(precon.commander);
             setTagEl.textContent = `${precon.code.toUpperCase()} • ${precon.releaseDate}`;
 
-            const moxfieldSearchUrl = `https://www.moxfield.com/decks/search?q=${encodeURIComponent(precon.name)}`;
-            const edhrecSlug = precon.commander.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-            const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
+            const edhrecSlug = precon.name.toLowerCase()
+                .replace(/['\u2019]/g, '')
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+            const edhrecPreconUrl = `https://edhrec.com/precon/${edhrecSlug}`;
 
             cardImageContainer.innerHTML = `
-                <a href="${moxfieldSearchUrl}" target="_blank" onclick="playSound('sfx-click')" title="View Decklist on Moxfield">
-                    <img src="${sanitizeHTML(precon.image)}" class="commander-img" loading="lazy" style="max-height: 48vh; border-radius: 12px; margin-bottom: 6px; box-shadow: 0 10px 25px rgba(0,0,0,0.6);">
-                </a>
+                <div class="precon-card-preview-wrapper" id="preconCardImgWrapper" title="Click to Inspect in 3D" style="cursor: pointer; position: relative; display: inline-block;">
+                    <img src="${sanitizeHTML(precon.image)}" class="commander-img" loading="lazy" style="max-height: 48vh; border-radius: 12px; margin-bottom: 6px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); transition: transform 0.2s ease;">
+                    <div class="card-inspect-overlay-badge" style="position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; border: 1px solid var(--gold); pointer-events: none; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.8);">
+                        🔍 Click to Inspect 3D
+                    </div>
+                </div>
             `;
 
             if (getColorBadges && precon.colors) {
@@ -236,26 +241,45 @@ export function initHubModule(utils, state, coreUi) {
 
             buttonsEl.innerHTML = `
                 <div style="display: flex; gap: 8px; justify-content: center;">
-                    <button id="copyPreconDecklistBtn" class="select-btn" style="flex: 1; padding: 8px 12px; font-size: 0.85rem; background: #059669; border-color: #10b981;">
+                    <a id="edhrecPreconBtn" href="${edhrecPreconUrl}" target="_blank" onclick="playSound('sfx-click')" class="select-btn" style="flex: 1.2; padding: 9px 12px; font-size: 0.85rem; text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: #059669; border-color: #10b981;" title="View official decklist & upgrades on EDHREC">
+                        📈 EDHREC Decklist ↗
+                    </a>
+                    <button id="copyPreconDecklistBtn" class="select-btn" style="flex: 1; padding: 9px 12px; font-size: 0.85rem;">
                         📋 Copy Decklist (${precon.cardCount || 100})
                     </button>
-                    <a href="${moxfieldSearchUrl}" target="_blank" class="select-btn" style="flex: 1; padding: 8px 12px; font-size: 0.85rem; text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center;">
-                        🌐 Moxfield ↗
-                    </a>
                 </div>
                 <div style="display: flex; gap: 8px; justify-content: center;">
-                    <button id="inspectPreconCmdrBtn" class="secondary-btn" style="flex: 1; padding: 8px 12px; font-size: 0.85rem;">
+                    <button id="inspectPreconCmdrBtn" class="secondary-btn" style="flex: 1; padding: 8px 12px; font-size: 0.85rem; border-color: var(--gold); color: var(--gold);">
                         🔍 3D Inspect
                     </button>
                     <button id="preconRollAgainBtn" class="select-btn" style="flex: 1; padding: 8px 12px; font-size: 0.85rem;">
                         🎲 Roll Again
                     </button>
-                    <button id="closePreconRollBtn" class="secondary-btn" style="flex: 0.8; padding: 8px 12px; font-size: 0.85rem; border-color: #ff4444; color: #ff9999;">
+                    <button id="closePreconRollBtn" class="secondary-btn" style="flex: 0.7; padding: 8px 12px; font-size: 0.85rem; border-color: #ff4444; color: #ff9999;">
                         Close
                     </button>
                 </div>
             `;
             buttonsEl.style.display = 'flex';
+
+            const open3D = () => {
+                playSound('sfx-click');
+                if (window.openCardInspector) {
+                    window.openCardInspector(precon.scryfallId || precon.commander);
+                } else {
+                    window.open(`https://scryfall.com/search?q=${encodeURIComponent(precon.commander)}`, '_blank');
+                }
+            };
+
+            const imgWrapper = document.getElementById('preconCardImgWrapper');
+            if (imgWrapper) {
+                imgWrapper.onclick = open3D;
+            }
+
+            const inspectBtn = document.getElementById('inspectPreconCmdrBtn');
+            if (inspectBtn) {
+                inspectBtn.onclick = open3D;
+            }
 
             const close = () => { 
                 playSound('sfx-click'); 
@@ -275,17 +299,9 @@ export function initHubModule(utils, state, coreUi) {
                         showToast(`📋 Copied 100-card "${precon.name}" decklist to clipboard!`, false, 2500);
                     });
                 } else {
-                    navigator.clipboard.writeText(moxfieldSearchUrl).then(() => {
-                        showToast(`📋 Copied Moxfield deck link to clipboard!`, false, 2500);
+                    navigator.clipboard.writeText(edhrecPreconUrl).then(() => {
+                        showToast(`📋 Copied EDHREC precon link to clipboard!`, false, 2500);
                     });
-                }
-            };
-
-            document.getElementById('inspectPreconCmdrBtn').onclick = () => {
-                if (window.openCardInspector) {
-                    window.openCardInspector(precon.scryfallId || precon.commander);
-                } else {
-                    window.open(edhrecLink, '_blank');
                 }
             };
         }
