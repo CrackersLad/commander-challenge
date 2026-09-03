@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.7';
+import { db, auth } from './firebase-setup.js?v=4.8';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -17,7 +17,7 @@ import {
     generateCollectorBoosterPack, 
     getCardPrice,
     formatCurrency 
-} from './booster-simulator.js?v=4.7';
+} from './booster-simulator.js?v=4.8';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -151,6 +151,10 @@ export function initBoosterDraftModule(utils, state) {
     window.switchDraftTab = switchDraftTab;
     window.confirmActiveDraftPick = confirmActiveDraftPick;
     window.toggleDraftCardSelection = toggleDraftCardSelection;
+    window.pickGridLine = pickGridLine;
+    window.takeWinstonPile = takeWinstonPile;
+    window.passWinstonPile = passWinstonPile;
+    window.takeWinchesterPile = takeWinchesterPile;
     window.addDraftBasicLand = addDraftBasicLand;
     window.removeDraftBasicLand = removeDraftBasicLand;
     window.copyDraftDecklist = copyDraftDecklist;
@@ -815,9 +819,20 @@ function renderDraftActiveSessionView(room, root) {
     const formatConfig = DRAFT_FORMATS[room.format] || DRAFT_FORMATS.commander_draft;
     myDraftedPool = playerData.pool || [];
 
-    // Check if player has an active pack (for passing drafts)
     const activePack = playerData.currentPack || [];
-    const isPassingDraft = ['commander_draft', 'traditional_draft', 'rochester_draft'].includes(room.format);
+    let roundDisplay = `Round ${room.currentRound || 1} of ${room.totalRounds || room.packsPerPlayer}`;
+    let tabPickLabel = `📦 Active Pick (${activePack.length} cards)`;
+
+    if (room.format === 'grid_draft') {
+        roundDisplay = `Grid ${room.currentGridIndex || 1} of ${room.totalGrids || 18}`;
+        tabPickLabel = `▦ 3x3 Grid Draft`;
+    } else if (room.format === 'winston_draft') {
+        roundDisplay = `Stack: ${(room.drawStack || []).length} cards`;
+        tabPickLabel = `🕵️ Winston Draft`;
+    } else if (room.format === 'winchester_draft') {
+        roundDisplay = `Stack: ${(room.drawStack || []).length} cards`;
+        tabPickLabel = `🎯 Winchester Draft`;
+    }
 
     root.innerHTML = `
         <div class="booster-draft-container">
@@ -825,13 +840,13 @@ function renderDraftActiveSessionView(room, root) {
             <div class="draft-active-header">
                 <div class="draft-header-left">
                     <span class="draft-badge-pill">${formatConfig.icon} ${formatConfig.name}</span>
-                    <span class="draft-round-tag">Round ${room.currentRound || 1} of ${room.totalRounds || room.packsPerPlayer}</span>
+                    <span class="draft-round-tag">${roundDisplay}</span>
                 </div>
 
                 <!-- Tab Switcher (Active Pick vs. My Pool & Deck) -->
                 <div class="draft-tab-switcher">
                     <button class="draft-tab-btn ${localDraftTab === 'pick' ? 'active' : ''}" onclick="window.switchDraftTab('pick')">
-                        📦 Active Pick (${activePack.length} cards)
+                        ${tabPickLabel}
                     </button>
                     <button class="draft-tab-btn ${localDraftTab === 'deck' ? 'active' : ''}" onclick="window.switchDraftTab('deck')">
                         🎴 My Pool (${myDraftedPool.length})
@@ -858,6 +873,16 @@ function renderDraftActiveSessionView(room, root) {
 
 // Render Active Picking Arena
 function renderDraftPickingArena(room, player, activePack, formatConfig) {
+    if (room.format === 'grid_draft') {
+        return renderGridDraftArena(room, player);
+    }
+    if (room.format === 'winston_draft') {
+        return renderWinstonDraftArena(room, player);
+    }
+    if (room.format === 'winchester_draft') {
+        return renderWinchesterDraftArena(room, player);
+    }
+
     const picksNeeded = formatConfig.picksPerTurn || 1;
     const selectionsLeft = picksNeeded - activePickSelections.length;
 
@@ -929,6 +954,467 @@ function renderDraftPickingArena(room, player, activePack, formatConfig) {
             </div>
         </div>
     `;
+}
+
+// Render Grid Draft Arena (3x3 grid, row/col picks)
+function renderGridDraftArena(room, player) {
+    const playersList = Object.values(room.players || {});
+    const activePlayerIndex = room.activePlayerIndex || 0;
+    const activePlayer = playersList[activePlayerIndex];
+    const isMyTurn = activePlayer?.id === player.id;
+    const grid = room.activeGrid || [];
+    const currentGridIndex = room.currentGridIndex || 1;
+    const totalGrids = room.totalGrids || 18;
+    const turnInGrid = room.turnInGrid || 1;
+
+    const getCount = (indices) => indices.filter(i => grid[i] != null).length;
+    const row0Count = getCount([0, 1, 2]);
+    const row1Count = getCount([3, 4, 5]);
+    const row2Count = getCount([6, 7, 8]);
+    const col0Count = getCount([0, 3, 6]);
+    const col1Count = getCount([1, 4, 7]);
+    const col2Count = getCount([2, 5, 8]);
+
+    return `
+        <div class="draft-arena-card grid-draft-arena">
+            <div class="draft-arena-toolbar">
+                <div class="pick-instruction">
+                    ${isMyTurn 
+                        ? `<span class="turn-highlight">🎯 <strong>YOUR TURN!</strong> Pick any Row or Column (${turnInGrid === 1 ? 'Pick 1 of 2' : 'Pick 2 of 2'})</span>` 
+                        : `<span>⏳ Waiting for <strong>${activePlayer?.name || 'opponent'}</strong> to pick a line...</span>`}
+                </div>
+                <div class="grid-status-badge">
+                    Grid <strong>${currentGridIndex}</strong> of <strong>${totalGrids}</strong>
+                </div>
+            </div>
+
+            <div class="grid-draft-board-layout">
+                <!-- Column Select Buttons Header -->
+                <div class="grid-col-buttons-row">
+                    <div class="grid-corner-spacer"></div>
+                    <button class="grid-pick-btn col-btn" ${isMyTurn && col0Count > 0 ? '' : 'disabled'} onclick="window.pickGridLine('col', 0)">
+                        ⬇ Col 1 (${col0Count})
+                    </button>
+                    <button class="grid-pick-btn col-btn" ${isMyTurn && col1Count > 0 ? '' : 'disabled'} onclick="window.pickGridLine('col', 1)">
+                        ⬇ Col 2 (${col1Count})
+                    </button>
+                    <button class="grid-pick-btn col-btn" ${isMyTurn && col2Count > 0 ? '' : 'disabled'} onclick="window.pickGridLine('col', 2)">
+                        ⬇ Col 3 (${col2Count})
+                    </button>
+                </div>
+
+                <!-- 3x3 Grid Rows with Side Pick Buttons -->
+                ${[0, 1, 2].map(r => {
+                    const rowCards = [grid[r * 3], grid[r * 3 + 1], grid[r * 3 + 2]];
+                    const count = r === 0 ? row0Count : (r === 1 ? row1Count : row2Count);
+                    return `
+                        <div class="grid-board-row">
+                            <button class="grid-pick-btn row-btn" ${isMyTurn && count > 0 ? '' : 'disabled'} onclick="window.pickGridLine('row', ${r})">
+                                ➡ Row ${r + 1} (${count})
+                            </button>
+                            ${rowCards.map((card) => {
+                                if (!card) {
+                                    return `
+                                        <div class="grid-empty-slot">
+                                            <span>Picked</span>
+                                        </div>
+                                    `;
+                                }
+                                const price = getCardPrice(card, 'usd');
+                                return `
+                                    <div class="draft-card-item grid-card ${card.isFoil ? 'is-foil' : ''}">
+                                        <div class="draft-card-img-wrapper">
+                                            <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
+                                            ${card.isFoil ? '<div class="booster-foil-overlay"></div><span class="booster-foil-tag">FOIL</span>' : ''}
+                                            <span class="booster-rarity-pill rarity-${card.rarity}">${card.rarity.toUpperCase()}</span>
+                                            <button type="button" class="inspect-mini-btn" onclick="event.stopPropagation(); window.inspectDraftCard('${card.id}')" title="Inspect 3D">🔍</button>
+                                        </div>
+                                        <div class="draft-card-footer">
+                                            <div class="draft-card-name" title="${card.name}">${card.name}</div>
+                                            <div class="draft-card-price">${formatCurrency(price, 'usd')}</div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+}
+
+// Handle Grid Draft Row/Col Pick
+async function pickGridLine(type, index) {
+    if (!currentDraftData || !currentDraftCode) return;
+    const room = currentDraftData;
+    const player = getPlayerIdentity();
+    const playersList = Object.values(room.players || {});
+    const activePlayerIndex = room.activePlayerIndex || 0;
+    const activePlayer = playersList[activePlayerIndex];
+
+    if (activePlayer?.id !== player.id) return;
+
+    const grid = [...(room.activeGrid || [])];
+    const targetIndices = type === 'row' 
+        ? [index * 3, index * 3 + 1, index * 3 + 2] 
+        : [index, index + 3, index + 6];
+
+    const pickedCards = [];
+    targetIndices.forEach(idx => {
+        if (grid[idx] != null) {
+            pickedCards.push(grid[idx]);
+            grid[idx] = null;
+        }
+    });
+
+    if (pickedCards.length === 0) return;
+
+    if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
+
+    const myPool = [...(room.players?.[player.id]?.pool || []), ...pickedCards];
+    const turnInGrid = room.turnInGrid || 1;
+
+    if (turnInGrid === 1) {
+        await update(ref(db, getDraftDbPath(currentDraftCode)), {
+            activeGrid: grid,
+            turnInGrid: 2,
+            activePlayerIndex: 1 - activePlayerIndex,
+            [`players/${player.id}/pool`]: myPool
+        });
+    } else {
+        const currentGrid = room.currentGridIndex || 1;
+        const totalGrids = room.totalGrids || 18;
+        const remaining = [...(room.remainingCards || [])];
+
+        if (currentGrid >= totalGrids || remaining.length < 9) {
+            await update(ref(db, getDraftDbPath(currentDraftCode)), {
+                status: 'complete',
+                completedAt: Date.now(),
+                [`players/${player.id}/pool`]: myPool
+            });
+        } else {
+            const nextGrid = remaining.splice(0, 9);
+            const nextGridIndex = currentGrid + 1;
+            const nextFirstPicker = (nextGridIndex - 1) % 2;
+
+            await update(ref(db, getDraftDbPath(currentDraftCode)), {
+                currentGridIndex: nextGridIndex,
+                turnInGrid: 1,
+                activePlayerIndex: nextFirstPicker,
+                activeGrid: nextGrid,
+                remainingCards: remaining,
+                [`players/${player.id}/pool`]: myPool
+            });
+        }
+    }
+}
+
+// Render Winston Draft Arena
+function renderWinstonDraftArena(room, player) {
+    const playersList = Object.values(room.players || {});
+    const activePlayerIndex = room.activePlayerIndex || 0;
+    const activePlayer = playersList[activePlayerIndex];
+    const isMyTurn = activePlayer?.id === player.id;
+    const currentPile = room.currentPileViewing || 1;
+    const stack = room.drawStack || [];
+    const p1 = room.pile1 || [];
+    const p2 = room.pile2 || [];
+    const p3 = room.pile3 || [];
+    const piles = [p1, p2, p3];
+    const viewingCards = piles[currentPile - 1] || [];
+
+    return `
+        <div class="draft-arena-card winston-draft-arena">
+            <div class="draft-arena-toolbar">
+                <div class="pick-instruction">
+                    ${isMyTurn 
+                        ? `<span class="turn-highlight">🕵️ <strong>YOUR TURN!</strong> Examining Pile ${currentPile} (${viewingCards.length} cards)</span>` 
+                        : `<span>⏳ Waiting for <strong>${activePlayer?.name || 'opponent'}</strong> to choose...</span>`}
+                </div>
+                <div class="grid-status-badge">
+                    Draw Stack: <strong>${stack.length}</strong> cards
+                </div>
+            </div>
+
+            <div class="winston-piles-overview">
+                ${[1, 2, 3].map(pNum => {
+                    const count = piles[pNum - 1].length;
+                    const isViewing = currentPile === pNum;
+                    return `
+                        <div class="winston-pile-card ${isViewing ? 'is-active-pile' : ''}">
+                            <div class="pile-header">
+                                <span class="pile-title">Pile ${pNum}</span>
+                                <span class="pile-count">${count} cards</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+
+            ${isMyTurn ? `
+                <div class="winston-viewing-tray">
+                    <div class="tray-header">
+                        <h4>Cards inside Pile ${currentPile}:</h4>
+                        <div class="tray-actions">
+                            <button class="select-btn winston-take-btn" onclick="window.takeWinstonPile()">
+                                ✓ Take Pile ${currentPile} (${viewingCards.length} cards)
+                            </button>
+                            <button class="secondary-btn winston-pass-btn" onclick="window.passWinstonPile()">
+                                ✖ Pass Pile ${currentPile} ➔
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="draft-pack-grid winston-pack-grid">
+                        ${viewingCards.map((card) => {
+                            const price = getCardPrice(card, 'usd');
+                            return `
+                                <div class="draft-card-item ${card.isFoil ? 'is-foil' : ''}">
+                                    <div class="draft-card-img-wrapper">
+                                        <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
+                                        ${card.isFoil ? '<div class="booster-foil-overlay"></div><span class="booster-foil-tag">FOIL</span>' : ''}
+                                        <span class="booster-rarity-pill rarity-${card.rarity}">${card.rarity.toUpperCase()}</span>
+                                        <button type="button" class="inspect-mini-btn" onclick="event.stopPropagation(); window.inspectDraftCard('${card.id}')" title="Inspect 3D">🔍</button>
+                                    </div>
+                                    <div class="draft-card-footer">
+                                        <div class="draft-card-name" title="${card.name}">${card.name}</div>
+                                        <div class="draft-card-price">${formatCurrency(price, 'usd')}</div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            ` : `
+                <div class="draft-waiting-pass-card">
+                    <div class="waiting-icon">🕵️</div>
+                    <h3>Opponent is Inspecting Pile ${currentPile}</h3>
+                    <p>Opponent is deciding whether to draft Pile ${currentPile} or pass to the next pile.</p>
+                </div>
+            `}
+        </div>
+    `;
+}
+
+async function takeWinstonPile() {
+    if (!currentDraftData || !currentDraftCode) return;
+    const room = currentDraftData;
+    const player = getPlayerIdentity();
+    const playersList = Object.values(room.players || {});
+    const activePlayerIndex = room.activePlayerIndex || 0;
+    const activePlayer = playersList[activePlayerIndex];
+
+    if (activePlayer?.id !== player.id) return;
+
+    const currentPile = room.currentPileViewing || 1;
+    const piles = {
+        pile1: [...(room.pile1 || [])],
+        pile2: [...(room.pile2 || [])],
+        pile3: [...(room.pile3 || [])]
+    };
+    const stack = [...(room.drawStack || [])];
+
+    const takenCards = piles[`pile${currentPile}`];
+    if (takenCards.length === 0) return;
+
+    piles[`pile${currentPile}`] = stack.length > 0 ? [stack.pop()] : [];
+
+    const myPool = [...(room.players?.[player.id]?.pool || []), ...takenCards];
+    const totalRemaining = piles.pile1.length + piles.pile2.length + piles.pile3.length + stack.length;
+
+    if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
+
+    if (totalRemaining === 0) {
+        await update(ref(db, getDraftDbPath(currentDraftCode)), {
+            status: 'complete',
+            completedAt: Date.now(),
+            ...piles,
+            drawStack: stack,
+            [`players/${player.id}/pool`]: myPool
+        });
+    } else {
+        await update(ref(db, getDraftDbPath(currentDraftCode)), {
+            ...piles,
+            drawStack: stack,
+            currentPileViewing: 1,
+            activePlayerIndex: 1 - activePlayerIndex,
+            [`players/${player.id}/pool`]: myPool
+        });
+    }
+}
+
+async function passWinstonPile() {
+    if (!currentDraftData || !currentDraftCode) return;
+    const room = currentDraftData;
+    const player = getPlayerIdentity();
+    const playersList = Object.values(room.players || {});
+    const activePlayerIndex = room.activePlayerIndex || 0;
+    const activePlayer = playersList[activePlayerIndex];
+
+    if (activePlayer?.id !== player.id) return;
+
+    const currentPile = room.currentPileViewing || 1;
+    const piles = {
+        pile1: [...(room.pile1 || [])],
+        pile2: [...(room.pile2 || [])],
+        pile3: [...(room.pile3 || [])]
+    };
+    const stack = [...(room.drawStack || [])];
+
+    if (stack.length > 0) {
+        piles[`pile${currentPile}`].push(stack.pop());
+    }
+
+    if (draftUtils?.playSound) draftUtils.playSound('sfx-click');
+
+    if (currentPile < 3) {
+        await update(ref(db, getDraftDbPath(currentDraftCode)), {
+            ...piles,
+            drawStack: stack,
+            currentPileViewing: currentPile + 1
+        });
+    } else {
+        let drawnCard = stack.length > 0 ? [stack.pop()] : [];
+        const myPool = [...(room.players?.[player.id]?.pool || []), ...drawnCard];
+        const totalRemaining = piles.pile1.length + piles.pile2.length + piles.pile3.length + stack.length;
+
+        if (totalRemaining === 0) {
+            await update(ref(db, getDraftDbPath(currentDraftCode)), {
+                status: 'complete',
+                completedAt: Date.now(),
+                ...piles,
+                drawStack: stack,
+                [`players/${player.id}/pool`]: myPool
+            });
+        } else {
+            await update(ref(db, getDraftDbPath(currentDraftCode)), {
+                ...piles,
+                drawStack: stack,
+                currentPileViewing: 1,
+                activePlayerIndex: 1 - activePlayerIndex,
+                [`players/${player.id}/pool`]: myPool
+            });
+        }
+    }
+}
+
+// Render Winchester Draft Arena (4 face-up piles)
+function renderWinchesterDraftArena(room, player) {
+    const playersList = Object.values(room.players || {});
+    const activePlayerIndex = room.activePlayerIndex || 0;
+    const activePlayer = playersList[activePlayerIndex];
+    const isMyTurn = activePlayer?.id === player.id;
+    const stack = room.drawStack || [];
+    const p1 = room.pile1 || [];
+    const p2 = room.pile2 || [];
+    const p3 = room.pile3 || [];
+    const p4 = room.pile4 || [];
+    const piles = [p1, p2, p3, p4];
+
+    return `
+        <div class="draft-arena-card winchester-draft-arena">
+            <div class="draft-arena-toolbar">
+                <div class="pick-instruction">
+                    ${isMyTurn 
+                        ? `<span class="turn-highlight">🎯 <strong>YOUR TURN!</strong> Choose any pile to draft all of its face-up cards</span>` 
+                        : `<span>⏳ Waiting for <strong>${activePlayer?.name || 'opponent'}</strong> to choose a pile...</span>`}
+                </div>
+                <div class="grid-status-badge">
+                    Draw Stack: <strong>${stack.length}</strong> cards
+                </div>
+            </div>
+
+            <div class="winchester-piles-grid">
+                ${[1, 2, 3, 4].map(pNum => {
+                    const cards = piles[pNum - 1] || [];
+                    return `
+                        <div class="winchester-pile-column">
+                            <div class="pile-header-bar">
+                                <span class="pile-title">Pile ${pNum} (${cards.length})</span>
+                                <button class="select-btn take-winchester-btn" 
+                                        ${isMyTurn && cards.length > 0 ? '' : 'disabled'}
+                                        onclick="window.takeWinchesterPile(${pNum})">
+                                    Take Pile ${pNum}
+                                </button>
+                            </div>
+                            <div class="pile-cards-vertical-list">
+                                ${cards.map((card) => {
+                                    const price = getCardPrice(card, 'usd');
+                                    return `
+                                        <div class="draft-card-item winchester-card-item ${card.isFoil ? 'is-foil' : ''}">
+                                            <div class="draft-card-img-wrapper">
+                                                <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
+                                                ${card.isFoil ? '<div class="booster-foil-overlay"></div><span class="booster-foil-tag">FOIL</span>' : ''}
+                                                <span class="booster-rarity-pill rarity-${card.rarity}">${card.rarity.toUpperCase()}</span>
+                                                <button type="button" class="inspect-mini-btn" onclick="event.stopPropagation(); window.inspectDraftCard('${card.id}')" title="Inspect 3D">🔍</button>
+                                            </div>
+                                            <div class="draft-card-footer">
+                                                <div class="draft-card-name" title="${card.name}">${card.name}</div>
+                                                <div class="draft-card-price">${formatCurrency(price, 'usd')}</div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+}
+
+async function takeWinchesterPile(pileNumber) {
+    if (!currentDraftData || !currentDraftCode) return;
+    const room = currentDraftData;
+    const player = getPlayerIdentity();
+    const playersList = Object.values(room.players || {});
+    const activePlayerIndex = room.activePlayerIndex || 0;
+    const activePlayer = playersList[activePlayerIndex];
+
+    if (activePlayer?.id !== player.id) return;
+
+    const piles = {
+        pile1: [...(room.pile1 || [])],
+        pile2: [...(room.pile2 || [])],
+        pile3: [...(room.pile3 || [])],
+        pile4: [...(room.pile4 || [])]
+    };
+    const stack = [...(room.drawStack || [])];
+
+    const takenCards = piles[`pile${pileNumber}`] || [];
+    if (takenCards.length === 0) return;
+
+    piles[`pile${pileNumber}`] = [];
+
+    for (let p = 1; p <= 4; p++) {
+        if (stack.length > 0) {
+            piles[`pile${p}`].push(stack.pop());
+        }
+    }
+
+    if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
+
+    const myPool = [...(room.players?.[player.id]?.pool || []), ...takenCards];
+    const totalRemaining = piles.pile1.length + piles.pile2.length + piles.pile3.length + piles.pile4.length + stack.length;
+
+    if (totalRemaining === 0) {
+        await update(ref(db, getDraftDbPath(currentDraftCode)), {
+            status: 'complete',
+            completedAt: Date.now(),
+            ...piles,
+            drawStack: stack,
+            [`players/${player.id}/pool`]: myPool
+        });
+    } else {
+        await update(ref(db, getDraftDbPath(currentDraftCode)), {
+            ...piles,
+            drawStack: stack,
+            activePlayerIndex: 1 - activePlayerIndex,
+            [`players/${player.id}/pool`]: myPool
+        });
+    }
 }
 
 // Toggle selection of card in active pack

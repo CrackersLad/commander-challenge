@@ -5454,8 +5454,141 @@ select:focus {
     gap: 14px;
 }
 
+/* Grid Draft Interactive 3x3 Board */
+.grid-draft-board-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    margin: 20px 0;
+}
+.grid-col-buttons-row {
+    display: grid;
+    grid-template-columns: 140px repeat(3, minmax(130px, 180px));
+    gap: 14px;
+    width: 100%;
+    max-width: 720px;
+}
+.grid-board-row {
+    display: grid;
+    grid-template-columns: 140px repeat(3, minmax(130px, 180px));
+    gap: 14px;
+    width: 100%;
+    max-width: 720px;
+    align-items: center;
+}
+.grid-corner-spacer {
+    width: 100%;
+}
+.grid-pick-btn {
+    background: linear-gradient(135deg, rgba(230, 184, 0, 0.25), rgba(255, 140, 0, 0.2));
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 10px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+.grid-pick-btn:hover:not(:disabled) {
+    background: var(--gold);
+    color: #000;
+    transform: scale(1.03);
+}
+.grid-pick-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #888;
+}
+.grid-empty-slot {
+    aspect-ratio: 5 / 7;
+    background: rgba(255, 255, 255, 0.03);
+    border: 2px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.turn-highlight {
+    color: #ffd700;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+.grid-status-badge {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    color: #ddd;
+}
+
+/* Winston & Winchester Draft Styles */
+.winston-piles-overview, .winchester-piles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+}
+.winston-pile-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+}
+.winston-pile-card.is-active-pile {
+    border-color: var(--gold);
+    box-shadow: 0 0 15px rgba(230, 184, 0, 0.25);
+}
+.winston-viewing-tray {
+    margin-top: 25px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 14px;
+    padding: 20px;
+}
+.tray-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+.tray-actions {
+    display: flex;
+    gap: 10px;
+}
+.winchester-pile-column {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 14px;
+}
+.pile-header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.pile-cards-vertical-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
 @media (max-width: 900px) {
     .draft-hub-grid {
         grid-template-columns: 1fr;
+    }
+    .grid-col-buttons-row, .grid-board-row {
+        grid-template-columns: 100px repeat(3, minmax(80px, 1fr));
+        gap: 8px;
     }
 }
