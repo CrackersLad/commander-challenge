@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.4';
+import { db, auth } from './firebase-setup.js?v=4.5';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -17,7 +17,7 @@ import {
     generateCollectorBoosterPack, 
     getCardPrice,
     formatCurrency 
-} from './booster-simulator.js?v=4.4';
+} from './booster-simulator.js?v=4.5';
 
 // Realtime Database Path for Booster Drafts
 // Storing under 'rooms/bdf_' inherits active RTDB permissions immediately
@@ -476,10 +476,14 @@ async function createDraftRoomFromUI() {
         };
 
         if (draftUtils?.showToast) draftUtils.showToast("Creating draft room...", false, 1500);
+        currentDraftCode = roomCode;
+        currentDraftData = roomPayload;
         await set(ref(db, getDraftDbPath(roomCode)), roomPayload);
         window.location.hash = `#draft-${roomCode}`;
         attachDraftRoomListener(roomCode);
     } catch (err) {
+        currentDraftCode = null;
+        currentDraftData = null;
         console.error("Failed to create draft room:", err);
         const errMsg = err.message || "Permission or network error";
         if (draftUtils?.showToast) draftUtils.showToast(`Could not create room: ${errMsg}`, true, 5000);
@@ -528,6 +532,7 @@ async function joinDraftRoomByCode(roomCode) {
             });
         }
 
+        currentDraftCode = code;
         window.location.hash = `#draft-${code}`;
         attachDraftRoomListener(code);
     } catch (err) {
@@ -547,20 +552,24 @@ function attachDraftRoomListener(roomCode) {
     currentDraftCode = roomCode;
     const roomRef = ref(db, getDraftDbPath(roomCode));
 
+    let initialTickPassed = false;
     const unsubscribe = onValue(roomRef, (snapshot) => {
         if (!snapshot.exists()) {
-            if (draftUtils?.showToast) draftUtils.showToast("The draft room has been closed.", true);
-            leaveDraftRoom();
+            if (initialTickPassed) {
+                if (draftUtils?.showToast) draftUtils.showToast("The draft room has been closed.", true);
+                leaveDraftRoom();
+            }
             return;
         }
 
+        initialTickPassed = true;
         currentDraftData = snapshot.val();
         renderActiveDraftRoomView(currentDraftData);
     }, (error) => {
         console.error("Draft room listener error:", error);
     });
 
-    roomListenerUnsub = () => off(roomRef);
+    roomListenerUnsub = unsubscribe;
 }
 
 // Render Master Screen depending on Room Status
@@ -1203,6 +1212,8 @@ function leaveDraftRoom() {
     currentDraftCode = null;
     currentDraftData = null;
     activePickSelections = [];
-    window.location.hash = '';
+    if (window.location.hash.startsWith('#draft-')) {
+        window.history.replaceState(null, '', window.location.pathname);
+    }
     renderDraftHubUI();
 }

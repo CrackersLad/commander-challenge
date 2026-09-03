@@ -32,11 +32,11 @@
     },
     "rooms": {
       ".read": true,
-      ".write": "auth != null"
+      ".write": true
     },
     "booster_drafts": {
       ".read": true,
-      ".write": "auth != null"
+      ".write": true
     }
   }
 }
