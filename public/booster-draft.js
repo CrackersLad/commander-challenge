@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.8';
+import { db, auth } from './firebase-setup.js?v=4.9';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -17,7 +17,7 @@ import {
     generateCollectorBoosterPack, 
     getCardPrice,
     formatCurrency 
-} from './booster-simulator.js?v=4.8';
+} from './booster-simulator.js?v=4.9';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -155,6 +155,7 @@ export function initBoosterDraftModule(utils, state) {
     window.takeWinstonPile = takeWinstonPile;
     window.passWinstonPile = passWinstonPile;
     window.takeWinchesterPile = takeWinchesterPile;
+    window.pickRochesterCard = pickRochesterCard;
     window.addDraftBasicLand = addDraftBasicLand;
     window.removeDraftBasicLand = removeDraftBasicLand;
     window.copyDraftDecklist = copyDraftDecklist;
@@ -772,8 +773,29 @@ async function startBoosterDraftHost() {
                 });
             }
 
+        } else if (room.format === 'rochester_draft') {
+            // Rochester Draft: Generate all packs face-up on table (total = players * packsPerPlayer)
+            const totalPacks = playersList.length * packsPerPlayer;
+            const allPacks = [];
+            for (let i = 1; i <= totalPacks; i++) {
+                const pack = isCollector ? generateCollectorBoosterPack(setData, i) : generateBoosterPack(setData, i);
+                allPacks.push(pack.map(sanitizeDraftCard));
+            }
+
+            const firstPack = allPacks.shift() || [];
+            await update(ref(db, getDraftDbPath(room.code)), {
+                status: 'drafting',
+                startedAt: Date.now(),
+                packNumber: 1,
+                totalPacks: totalPacks,
+                packOpenedBy: 0,
+                snakePickIndex: 0,
+                activeRochesterPack: firstPack,
+                rochesterPacks: allPacks
+            });
+
         } else {
-            // Standard / Commander / Rochester Passing Drafts
+            // Standard / Commander Passing Drafts
             const roundPacks = {};
             for (let r = 1; r <= packsPerPlayer; r++) {
                 roundPacks[`round_${r}`] = {};
@@ -832,6 +854,10 @@ function renderDraftActiveSessionView(room, root) {
     } else if (room.format === 'winchester_draft') {
         roundDisplay = `Stack: ${(room.drawStack || []).length} cards`;
         tabPickLabel = `🎯 Winchester Draft`;
+    } else if (room.format === 'rochester_draft') {
+        const totalP = room.totalPacks || (Object.keys(room.players || {}).length * 3);
+        roundDisplay = `Pack ${room.packNumber || 1} of ${totalP}`;
+        tabPickLabel = `👁️ Rochester Pack (${(room.activeRochesterPack || []).length})`;
     }
 
     root.innerHTML = `
@@ -881,6 +907,9 @@ function renderDraftPickingArena(room, player, activePack, formatConfig) {
     }
     if (room.format === 'winchester_draft') {
         return renderWinchesterDraftArena(room, player);
+    }
+    if (room.format === 'rochester_draft') {
+        return renderRochesterDraftArena(room, player);
     }
 
     const picksNeeded = formatConfig.picksPerTurn || 1;
@@ -1702,4 +1731,171 @@ function leaveDraftRoom() {
         window.history.replaceState(null, '', window.location.pathname);
     }
     renderDraftHubUI();
+}
+
+// Render Draft Complete & Final Deckbuilding View
+function renderDraftDeckbuildingView(room, root) {
+    const player = getPlayerIdentity();
+    const playerData = room.players?.[player.id] || {};
+    const formatConfig = DRAFT_FORMATS[room.format] || DRAFT_FORMATS.commander_draft;
+    myDraftedPool = playerData.pool || [];
+
+    root.innerHTML = `
+        <div class="booster-draft-container">
+            <div class="draft-active-header">
+                <div class="draft-header-left">
+                    <span class="draft-badge-pill">${formatConfig.icon} ${formatConfig.name}</span>
+                    <span class="draft-round-tag draft-complete-tag" style="background: rgba(34, 197, 94, 0.2); border-color: #22c55e; color: #4ade80;">
+                        ✓ Draft Complete
+                    </span>
+                </div>
+                <div class="draft-header-right">
+                    <span class="draft-room-code-tag">Room: ${room.code}</span>
+                    <button class="breadcrumb-btn" onclick="window.leaveDraftRoom()" style="margin-left: 10px;">
+                        <span>🚪</span> Exit Room
+                    </button>
+                </div>
+            </div>
+
+            <div class="draft-complete-announcement">
+                <h2>🎉 Draft Finished! Build Your Deck:</h2>
+                <p>Review your drafted pool, customize basic lands, analyze your mana curve, and export your decklist directly to Moxfield, MTGO, or MTG Arena.</p>
+            </div>
+
+            ${renderDraftDeckWorkspace(myDraftedPool, room.format)}
+        </div>
+    `;
+}
+
+// Render Rochester Open Face Snake Draft Arena
+function renderRochesterDraftArena(room, player) {
+    const playersList = Object.values(room.players || {});
+    const n = Math.max(1, playersList.length);
+    const pack = room.activeRochesterPack || [];
+    const packOpenedBy = room.packOpenedBy || 0;
+    const snakePickIndex = room.snakePickIndex || 0;
+    const packNum = room.packNumber || 1;
+    const totalPacks = room.totalPacks || (n * 3);
+
+    // Snake pick sequence: 0..n-1, n-1..0
+    const cycleLen = Math.max(1, 2 * n);
+    const cycle = snakePickIndex % cycleLen;
+    let relativePicker = cycle < n ? cycle : (2 * n - 1 - cycle);
+    const activePlayerIndex = (packOpenedBy + relativePicker) % n;
+    const activePlayer = playersList[activePlayerIndex];
+    const isMyTurn = activePlayer?.id === player.id;
+
+    return `
+        <div class="draft-arena-card rochester-draft-arena">
+            <div class="draft-arena-toolbar">
+                <div class="pick-instruction">
+                    ${isMyTurn 
+                        ? `<span class="turn-highlight">👁️ <strong>YOUR TURN!</strong> Choose any face-up card from the table</span>` 
+                        : `<span>⏳ Waiting for <strong>${activePlayer?.name || 'opponent'}</strong> to pick a card...</span>`}
+                </div>
+                <div class="grid-status-badge">
+                    Pack <strong>${packNum}</strong> of <strong>${totalPacks}</strong> (${pack.length} cards left in pack)
+                </div>
+            </div>
+
+            <div class="rochester-turn-order-bar">
+                <span class="order-label">Snake Turn Order:</span>
+                ${playersList.map((p, idx) => `
+                    <span class="player-pass-chip ${idx === activePlayerIndex ? 'picking' : ''}">
+                        ${idx === activePlayerIndex ? '🎯' : ''} ${p.name}
+                    </span>
+                `).join('')}
+            </div>
+
+            <div class="draft-pack-grid rochester-pack-grid">
+                ${pack.map((card, idx) => {
+                    const price = getCardPrice(card, 'usd');
+                    return `
+                        <div class="draft-card-item ${card.isFoil ? 'is-foil' : ''} ${isMyTurn ? 'rochester-selectable' : ''}" 
+                             onclick="${isMyTurn ? `window.pickRochesterCard(${idx})` : ''}">
+                            <div class="draft-card-img-wrapper">
+                                <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
+                                ${card.isFoil ? '<div class="booster-foil-overlay"></div><span class="booster-foil-tag">FOIL</span>' : ''}
+                                <span class="booster-rarity-pill rarity-${card.rarity}">${card.rarity.toUpperCase()}</span>
+                                <button type="button" class="inspect-mini-btn" onclick="event.stopPropagation(); window.inspectDraftCard('${card.id}')" title="Inspect 3D">🔍</button>
+                            </div>
+                            <div class="draft-card-footer">
+                                <div class="draft-card-name" title="${card.name}">${card.name}</div>
+                                <div class="draft-card-price">${formatCurrency(price, 'usd')}</div>
+                            </div>
+                            ${isMyTurn ? `
+                                <button class="select-btn rochester-pick-btn" onclick="event.stopPropagation(); window.pickRochesterCard(${idx})">
+                                    ✓ Draft Card
+                                </button>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+}
+
+// Handle Rochester Open Pack Pick
+async function pickRochesterCard(cardIdx) {
+    if (!currentDraftData || !currentDraftCode) return;
+    const room = currentDraftData;
+    const player = getPlayerIdentity();
+    const playersList = Object.values(room.players || {});
+    const n = Math.max(1, playersList.length);
+    const packOpenedBy = room.packOpenedBy || 0;
+    const snakePickIndex = room.snakePickIndex || 0;
+
+    const cycleLen = Math.max(1, 2 * n);
+    const cycle = snakePickIndex % cycleLen;
+    let relativePicker = cycle < n ? cycle : (2 * n - 1 - cycle);
+    const activePlayerIndex = (packOpenedBy + relativePicker) % n;
+    const activePlayer = playersList[activePlayerIndex];
+
+    if (activePlayer?.id !== player.id) return;
+
+    const pack = [...(room.activeRochesterPack || [])];
+    const pickedCard = pack[cardIdx];
+    if (!pickedCard) return;
+
+    pack.splice(cardIdx, 1);
+
+    if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
+
+    const myPool = [...(room.players?.[player.id]?.pool || []), pickedCard];
+
+    if (pack.length === 0) {
+        // Current pack completely drafted
+        const remainingPacks = [...(room.rochesterPacks || [])];
+        if (remainingPacks.length === 0) {
+            // All Rochester packs finished!
+            await update(ref(db, getDraftDbPath(currentDraftCode)), {
+                status: 'complete',
+                completedAt: Date.now(),
+                activeRochesterPack: [],
+                [`players/${player.id}/pool`]: myPool
+            });
+        } else {
+            // Open next pack on table
+            const nextPack = remainingPacks.shift();
+            const nextPackNumber = (room.packNumber || 1) + 1;
+            const nextOpenedBy = (packOpenedBy + 1) % n;
+
+            await update(ref(db, getDraftDbPath(currentDraftCode)), {
+                packNumber: nextPackNumber,
+                packOpenedBy: nextOpenedBy,
+                snakePickIndex: 0,
+                activeRochesterPack: nextPack,
+                rochesterPacks: remainingPacks,
+                [`players/${player.id}/pool`]: myPool
+            });
+        }
+    } else {
+        // Advance to next pick in snake sequence
+        await update(ref(db, getDraftDbPath(currentDraftCode)), {
+            snakePickIndex: snakePickIndex + 1,
+            activeRochesterPack: pack,
+            [`players/${player.id}/pool`]: myPool
+        });
+    }
 }
