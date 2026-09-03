@@ -541,6 +541,43 @@ export function calculateSetEV(setData, market = 'usd', packEdition = 'play', is
 }
 
 let latestEvFetchId = 0;
+let cachedEvData = null;
+
+export function updateCostComparisonLive(customCost = null, customMarket = null) {
+    const costInput = document.getElementById('boosterCostInput');
+    const evComparisonEl = document.getElementById('boosterEvComparison');
+    const evBadgeEl = document.getElementById('boosterEvBadge');
+    const marketSelect = document.getElementById('boosterMarketSelect');
+    
+    const market = customMarket || marketSelect?.value || 'usd';
+    const userCost = customCost !== null ? customCost : (parseFloat(costInput?.value) || 0);
+
+    if (!evComparisonEl || !cachedEvData) return;
+
+    if (userCost > 0) {
+        const evDiff = cachedEvData.currentEV - userCost;
+        const evRatio = ((evDiff / userCost) * 100).toFixed(1);
+        if (evDiff >= 0) {
+            evComparisonEl.innerHTML = `<span class="ev-positive">+${formatCurrency(evDiff, market)} (+${evRatio}%) Favorable Odds 🚀</span>`;
+            if (evBadgeEl) {
+                evBadgeEl.textContent = 'Positive EV';
+                evBadgeEl.className = 'ev-badge-chip ev-positive-badge';
+            }
+        } else {
+            evComparisonEl.innerHTML = `<span class="ev-negative">${formatCurrency(evDiff, market)} (${evRatio}%) Under Cost</span>`;
+            if (evBadgeEl) {
+                evBadgeEl.textContent = 'Negative EV';
+                evBadgeEl.className = 'ev-badge-chip ev-negative-badge';
+            }
+        }
+    } else {
+        evComparisonEl.textContent = 'Enter item purchase cost to compare ROI';
+        if (evBadgeEl) {
+            evBadgeEl.textContent = 'Live EV';
+            evBadgeEl.className = 'ev-badge-chip';
+        }
+    }
+}
 
 export async function updateEvDisplay(setCode, market, packEdition, isBox, userCost, numPacks) {
     const fetchId = ++latestEvFetchId;
@@ -562,31 +599,14 @@ export async function updateEvDisplay(setCode, market, packEdition, isBox, userC
         const setData = await fetchSetBoosterCards(setCode);
         if (fetchId !== latestEvFetchId) return; // Stale request check
 
-        const evData = calculateSetEV(setData, market, packEdition, isBox, numPacks);
-
+        cachedEvData = evData;
         evValueEl.textContent = evData.currentEV.toFixed(2);
         
         if (avgMythicEl) avgMythicEl.textContent = `Avg Mythic: ${formatCurrency(evData.avgMythic, market)}`;
         if (avgRareEl) avgRareEl.textContent = `Avg Rare: ${formatCurrency(evData.avgRare, market)}`;
 
-        // EV vs Cost Comparison
-        if (evComparisonEl && userCost > 0) {
-            const evDiff = evData.currentEV - userCost;
-            const evRatio = ((evDiff / userCost) * 100).toFixed(1);
-            if (evDiff >= 0) {
-                evComparisonEl.innerHTML = `<span class="ev-positive">+${formatCurrency(evDiff, market)} (+${evRatio}%) Favorable Odds 🚀</span>`;
-                if (evBadgeEl) {
-                    evBadgeEl.textContent = 'Positive EV';
-                    evBadgeEl.className = 'ev-badge-chip ev-positive-badge';
-                }
-            } else {
-                evComparisonEl.innerHTML = `<span class="ev-negative">${formatCurrency(evDiff, market)} (${evRatio}%) Under Cost</span>`;
-                if (evBadgeEl) {
-                    evBadgeEl.textContent = 'Negative EV';
-                    evBadgeEl.className = 'ev-badge-chip ev-negative-badge';
-                }
-            }
-        }
+        // Update EV vs Cost Comparison live
+        updateCostComparisonLive(userCost, market);
 
         // Top Chase Chips
         if (chaseContainer) {
@@ -644,7 +664,13 @@ function setupSimulatorUI(defaultSetCode, utils) {
         setInput.value = `${setObj.name} (${setObj.code.toUpperCase()})`;
     }
 
-    // Update cost input
+    // Update cost input & bind live typing listener
+    const costInput = document.getElementById('boosterCostInput');
+    if (costInput && !costInput.dataset.listenerBound) {
+        costInput.dataset.listenerBound = 'true';
+        costInput.addEventListener('input', () => updateCostComparisonLive());
+    }
+
     updateMarketAndCostDisplay();
 }
 
@@ -1140,6 +1166,8 @@ function renderSidebarAnalytics(sim, container) {
 
 // Global action helpers
 if (typeof window !== 'undefined') {
+    window.onBoosterCostChange = updateCostComparisonLive;
+
     window.inspectBoosterCard = (cardIdentifier) => {
         if (window.openCardInspector) {
             const cardObj = currentSimulation?.cards.find(c => c.id === cardIdentifier || c.name === cardIdentifier);
