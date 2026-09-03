@@ -388,10 +388,11 @@ function createPackCard(card, isFoil = false, packNumber = 1, specialTag = null)
                        (card.border_color === 'borderless');
 
     const frontFace = card.card_faces?.[0];
-    const normalImg = card.image_uris?.normal || frontFace?.image_uris?.normal || 'card_back.webp';
-    const largeImg = card.image_uris?.large || frontFace?.image_uris?.large || normalImg;
+    const normalImg = card.image_uris?.normal || frontFace?.image_uris?.normal || (card.id ? `https://api.scryfall.com/cards/${card.id}?format=image&version=normal` : 'card_back.webp');
+    const largeImg = card.image_uris?.large || frontFace?.image_uris?.large || (card.id ? `https://api.scryfall.com/cards/${card.id}?format=image&version=large` : normalImg);
 
     return {
+        ...card, // Preserve complete Scryfall card metadata
         id: card.id,
         name: card.name,
         mana_cost: card.mana_cost || frontFace?.mana_cost || '',
@@ -745,6 +746,23 @@ export function updateMarketAndCostDisplay() {
         }
     }
 
+    // Update live market search link
+    const marketLinkEl = document.getElementById('boosterMarketLookupLink');
+    const marketTextEl = document.getElementById('boosterMarketLookupText');
+    if (marketLinkEl && marketTextEl) {
+        const productTerm = `${setObj.name || setCode.toUpperCase()} ${isCollector ? 'Collector ' : ''}${isBox ? 'Booster Box' : 'Booster Pack'}`;
+        if (market === 'usd') {
+            marketLinkEl.href = `https://www.tcgplayer.com/search/magic/product?q=${encodeURIComponent(productTerm)}&view=grid`;
+            marketTextEl.textContent = `Check TCGplayer Sealed Prices ↗`;
+        } else if (market === 'eur') {
+            marketLinkEl.href = `https://www.cardmarket.com/en/Magic/Products/Booster-Boxes?searchString=${encodeURIComponent(setObj.name || setCode.toUpperCase())}`;
+            marketTextEl.textContent = `Check Cardmarket Sealed Prices ↗`;
+        } else {
+            marketLinkEl.href = `https://www.cardhoarder.com/cards?desc=${encodeURIComponent(setObj.name || setCode.toUpperCase())}`;
+            marketTextEl.textContent = `Check MTGO Booster Prices ↗`;
+        }
+    }
+
     // Update open button
     updateOpenButtonText();
 
@@ -796,24 +814,15 @@ export async function crackBoosterProduct(utils) {
     openBtn.disabled = true;
     openBtn.innerHTML = `<span>⏳ Preparing Packs...</span>`;
 
-    // Show status in empty/loading state
-    const stage = document.getElementById('boosterResultsStage');
-    if (stage) {
-        stage.style.display = 'block';
-        stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
     try {
-        if (utils.playSound) utils.playSound('sfx-choose');
-        
-        // Fetch cards
+        // Fetch cards while keeping page focused on controls
         const setData = await fetchSetBoosterCards(setCode);
         const sets = window.scryfallSets || [];
         const setObj = sets.find(s => s.code.toLowerCase() === setCode) || { code: setCode, name: setCode.toUpperCase() };
         const pricing = getEstimatedMarketPrices(setObj, isBox, market, packEdition);
         const numPacks = isBox ? pricing.packsPerBox : 1;
 
-        // Perform opening animation with foil tear sound
+        // Perform smooth, paced opening animation
         await playBoosterOpenAnimation(setObj, isBox, numPacks, utils, packEdition);
 
         // Generate packs
@@ -842,9 +851,13 @@ export async function crackBoosterProduct(utils) {
             timestamp: Date.now()
         };
 
-        // Render cards and analytics
-        renderSimulationResults(currentSimulation);
-        if (utils.playSound) utils.playSound('sfx-reveal');
+        // Reveal results smoothly after animation ends
+        const stage = document.getElementById('boosterResultsStage');
+        if (stage) {
+            stage.style.display = 'block';
+            renderSimulationResults(currentSimulation);
+            stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
 
     } catch (err) {
         console.error("Simulation error:", err);
@@ -858,7 +871,7 @@ export async function crackBoosterProduct(utils) {
     }
 }
 
-// 3D Pack Opening Animation
+// 3D Pack Opening Animation (Smooth Pacing & Clean Sound Synchronization)
 function playBoosterOpenAnimation(setObj, isBox, numPacks, utils, packEdition = 'play') {
     return new Promise((resolve) => {
         const overlay = document.getElementById('boosterAnimationOverlay');
@@ -872,7 +885,12 @@ function playBoosterOpenAnimation(setObj, isBox, numPacks, utils, packEdition = 
             ? (isBox ? `CRACKING ${numPacks} COLLECTOR PACKS` : 'CRACKING COLLECTOR BOOSTER')
             : (isBox ? `CRACKING ${numPacks} BOOSTER PACKS` : 'CRACKING PLAY BOOSTER');
 
+        overlay.style.opacity = '0';
         overlay.style.display = 'flex';
+        // Force reflow for smooth CSS fade-in
+        overlay.offsetHeight;
+        overlay.style.opacity = '1';
+
         overlay.innerHTML = `
             <div class="booster-sim-animation-card ${isBox ? 'box-opening-mode' : 'pack-opening-mode'} ${isCollector ? 'collector-opening-mode' : ''}">
                 <div class="booster-sim-burst-glow"></div>
@@ -881,39 +899,39 @@ function playBoosterOpenAnimation(setObj, isBox, numPacks, utils, packEdition = 
                     <div class="booster-sim-icon-glow">${isCollector ? '✨' : '📦'}</div>
                     <div class="booster-sim-title">${utils.sanitizeHTML(setObj.name || setObj.code.toUpperCase())}</div>
                     <div class="booster-sim-type-badge">${typeLabel}</div>
-                    <div class="booster-sim-progress" id="boosterAnimProgress">Tearing Foil Wrapper...</div>
+                    <div class="booster-sim-progress" id="boosterAnimProgress">Preparing ${isBox ? 'Booster Box' : 'Pack'}...</div>
                 </div>
                 <div class="booster-sim-tear-strip"></div>
             </div>
         `;
 
-        if (utils.playSound) utils.playSound('sfx-click');
-
         const cardEl = overlay.querySelector('.booster-sim-animation-card');
         const progressEl = document.getElementById('boosterAnimProgress');
 
-        // Sequence timing
+        // Stage 1: Present product (0 - 800ms)
+        // Stage 2: Tearing the metallic foil wrapper (800ms - 2200ms)
         setTimeout(() => {
             if (cardEl) cardEl.classList.add('is-tearing');
             playFoilTearSound(); // Crisp realistic procedural foil rip!
             if (progressEl) progressEl.textContent = isBox ? `Cracking Box (${numPacks} Packs)...` : 'Tearing Metallic Wrapper...';
-            if (utils.playSound) utils.playSound('sfx-choose');
-        }, 500);
+        }, 800);
 
+        // Stage 3: Radiant burst & hits reveal (2200ms - 3000ms)
         setTimeout(() => {
             if (cardEl) cardEl.classList.add('is-bursting');
-            if (progressEl) progressEl.textContent = '✨ Revealing Hits!';
+            if (progressEl) progressEl.textContent = '✨ Revealing Mythics & Foils!';
             if (utils.playSound) utils.playSound('sfx-reveal');
-        }, 1100);
+        }, 2200);
 
+        // Stage 4: Smooth fade out to results (3000ms - 3500ms)
         setTimeout(() => {
             overlay.style.opacity = '0';
             setTimeout(() => {
                 overlay.style.display = 'none';
                 overlay.style.opacity = '1';
                 resolve();
-            }, 300);
-        }, 1600);
+            }, 500);
+        }, 3000);
     });
 }
 

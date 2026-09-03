@@ -3501,6 +3501,39 @@ select:focus {
     margin-top: 5px;
 }
 
+.booster-market-link-container {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.market-lookup-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: #c4b5fd;
+    text-decoration: none;
+    padding: 4px 9px;
+    border-radius: 4px;
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.28);
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.market-lookup-link:hover {
+    color: #fff;
+    background: rgba(139, 92, 246, 0.28);
+    border-color: #a78bfa;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+.market-link-icon {
+    font-size: 0.8rem;
+}
+
 /* Big Open CTA Button */
 .booster-cta-row {
     margin-top: 25px;
@@ -3753,6 +3786,17 @@ select:focus {
     gap: 16px;
 }
 
+@keyframes boosterCardEnter {
+    from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
 .booster-card-item {
     background: rgba(15, 15, 22, 0.9);
     border-radius: 10px;
@@ -3763,6 +3807,7 @@ select:focus {
     position: relative;
     display: flex;
     flex-direction: column;
+    animation: boosterCardEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 .booster-card-item:hover {

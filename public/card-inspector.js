@@ -92,46 +92,67 @@ export async function openCardInspector(cardInput) {
     modal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
 
-    let cardData = null;
-
-    if (typeof cardInput === 'string') {
-        document.getElementById('inspectCardName').textContent = cardInput;
-        document.getElementById('inspectOracleText').innerHTML = '<em>Fetching Scryfall live data...</em>';
-        try {
-            const isId = /^[0-9a-f-]{36}$/i.test(cardInput);
-            const fetchUrl = isId 
-                ? `https://api.scryfall.com/cards/${cardInput}` 
-                : `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardInput)}`;
-            const res = await fetch(fetchUrl);
-            if (res.ok) cardData = await res.json();
-        } catch (e) {
-            console.error("Inspector Scryfall fetch failed", e);
-        }
-    } else if (cardInput && cardInput.name) {
-        cardData = { ...cardInput };
-        if (!cardData.image_uris && (cardData.image || cardData.image_large)) {
-            cardData.image_uris = {
-                normal: cardData.image || cardData.image_large,
-                large: cardData.image_large || cardData.image
-            };
-        }
-        if (!cardData.oracle_text && !cardData.card_faces) {
-            try {
-                const isId = cardData.id && /^[0-9a-f-]{36}$/i.test(cardData.id);
-                const fetchUrl = isId
-                    ? `https://api.scryfall.com/cards/${cardData.id}`
-                    : `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardData.name)}`;
-                const res = await fetch(fetchUrl);
-                if (res.ok) {
-                    const fullData = await res.json();
-                    cardData = { ...fullData, ...cardData, image_uris: fullData.image_uris || cardData.image_uris };
-                }
-            } catch(e) {}
-        }
+    // If cardInput is already a card object, render immediately so there is ZERO delay or flash!
+    if (cardInput && typeof cardInput === 'object' && cardInput.name) {
+        activeInspectCard = cardInput;
+        renderCardInspectData(cardInput);
+        return;
     }
 
-    activeInspectCard = cardData;
-    renderCardInspectData(cardData, cardInput);
+    // Otherwise fetch by ID or Name
+    let cardData = null;
+    const cardIdentifier = typeof cardInput === 'string' ? cardInput : (cardInput?.name || cardInput?.id || '');
+    
+    document.getElementById('inspectCardName').textContent = cardIdentifier || 'Loading...';
+    document.getElementById('inspectOracleText').innerHTML = '<em>Fetching Scryfall live data...</em>';
+
+    // Set immediate image if it's a UUID so art loads instantly while data fetches
+    const isId = /^[0-9a-f-]{36}$/i.test(cardIdentifier);
+    const cardImg = document.getElementById('inspectCardImg');
+    if (cardImg && isId) {
+        cardImg.src = `https://api.scryfall.com/cards/${cardIdentifier}?format=image&version=large`;
+    }
+
+    try {
+        const fetchUrl = isId 
+            ? `https://api.scryfall.com/cards/${cardIdentifier}` 
+            : `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardIdentifier)}`;
+        const res = await fetch(fetchUrl);
+        if (res.ok) {
+            cardData = await res.json();
+            activeInspectCard = cardData;
+            renderCardInspectData(cardData, cardIdentifier);
+        }
+    } catch (e) {
+        console.error("Inspector Scryfall fetch failed", e);
+    }
+}
+
+function getBestCardImageUrl(card) {
+    if (!card) return 'card_back.webp';
+
+    if (card.image_large && !card.image_large.includes('card_back')) return card.image_large;
+    if (card.image && !card.image.includes('card_back')) return card.image;
+
+    if (card.image_uris) {
+        if (card.image_uris.large) return card.image_uris.large;
+        if (card.image_uris.normal) return card.image_uris.normal;
+        if (card.image_uris.png) return card.image_uris.png;
+    }
+
+    if (card.card_faces && card.card_faces.length > 0) {
+        const face = card.card_faces[0];
+        if (face.image_uris?.large) return face.image_uris.large;
+        if (face.image_uris?.normal) return face.image_uris.normal;
+        if (face.image_large && !face.image_large.includes('card_back')) return face.image_large;
+        if (face.image && !face.image.includes('card_back')) return face.image;
+    }
+
+    if (card.id && /^[0-9a-f-]{36}$/i.test(card.id)) {
+        return `https://api.scryfall.com/cards/${card.id}?format=image&version=large`;
+    }
+
+    return 'card_back.webp';
 }
 
 function renderCardInspectData(card, fallbackInput) {
@@ -148,17 +169,16 @@ function renderCardInspectData(card, fallbackInput) {
     const hasFaces = card.card_faces && card.card_faces.length > 1 && (card.card_faces[0].image_uris || card.card_faces[0].image);
     if (flipBtn) flipBtn.style.display = hasFaces ? 'inline-block' : 'none';
 
-    let imgUrl = card.image_large ||
-                 card.image ||
-                 card.image_uris?.large || 
-                 card.image_uris?.normal || 
-                 card.card_faces?.[0]?.image_uris?.large || 
-                 card.card_faces?.[0]?.image_uris?.normal || 
-                 'card_back.webp';
+    const imgUrl = getBestCardImageUrl(card);
     const cardImg = document.getElementById('inspectCardImg');
     if (cardImg) {
         cardImg.src = imgUrl;
         cardImg.alt = name;
+        cardImg.onerror = () => {
+            if (card && card.id && !cardImg.src.includes('format=image')) {
+                cardImg.src = `https://api.scryfall.com/cards/${card.id}?format=image&version=large`;
+            }
+        };
     }
 
     const manaCost = card.mana_cost || card.card_faces?.[0]?.mana_cost || '';
