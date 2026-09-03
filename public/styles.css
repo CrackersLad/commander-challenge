@@ -5870,6 +5870,155 @@ select:focus {
     margin-bottom: 4px;
 }
 
+/* Mana Curve Horizontal Alignment */
+.mana-curve-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.curve-bars-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    height: 65px;
+    padding: 0 4px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.curve-bar-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 22px;
+}
+
+.curve-count {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--gold);
+    margin-bottom: 2px;
+}
+
+.curve-bar {
+    width: 14px;
+    background: linear-gradient(180deg, #ffd700, #f59e0b);
+    border-radius: 3px 3px 0 0;
+    min-height: 2px;
+    transition: height 0.25s ease;
+}
+
+.curve-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #aaa;
+    margin-top: 4px;
+}
+
+/* Floating Card Hover Preview Tooltip */
+#floatingCardPreview {
+    position: fixed;
+    pointer-events: none !important; /* CRITICAL: never block cursor or scrolling */
+    z-index: 999999;
+    display: none;
+    width: 240px;
+    border-radius: 12px;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.2);
+    transition: opacity 0.15s ease;
+}
+
+#floatingCardPreview img {
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    display: block;
+}
+
+.preview-toggle-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #aaa;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.preview-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+}
+
+.preview-toggle-btn.active {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: #22c55e;
+    color: #4ade80;
+}
+
+/* Card Size Variations */
+.deck-size-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.deck-size-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #aaa;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.deck-size-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.deck-size-btn.active {
+    background: var(--gold);
+    color: #000;
+    border-color: var(--gold);
+}
+
+/* Size small: lots of cards per row */
+.card-size-small .draft-pool-grid {
+    grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)) !important;
+    gap: 10px !important;
+}
+.card-size-small .draft-card-name {
+    font-size: 0.72rem !important;
+}
+.card-size-small .deck-card-action-btn {
+    font-size: 0.7rem !important;
+    padding: 3px 6px !important;
+}
+
+/* Size normal */
+.card-size-normal .draft-pool-grid {
+    grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)) !important;
+    gap: 14px !important;
+}
+
+/* Size large: big card details */
+.card-size-large .draft-pool-grid {
+    grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)) !important;
+    gap: 18px !important;
+}
+.card-size-large .draft-card-name {
+    font-size: 0.95rem !important;
+}
+.card-size-large .deck-card-action-btn {
+    font-size: 0.85rem !important;
+    padding: 6px 10px !important;
+}
+
 
 @media (max-width: 900px) {
     .draft-hub-grid {

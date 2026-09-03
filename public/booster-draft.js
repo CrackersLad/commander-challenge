@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.10';
+import { db, auth } from './firebase-setup.js?v=4.11';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -17,7 +17,7 @@ import {
     generateCollectorBoosterPack, 
     getCardPrice,
     formatCurrency 
-} from './booster-simulator.js?v=4.10';
+} from './booster-simulator.js?v=4.11';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -34,6 +34,8 @@ let addedBasicLands = { W: 0, U: 0, B: 0, R: 0, G: 0 };
 let myCommanderCard = null;
 let mainDeckUids = new Set();
 let deckSortMode = 'cmc'; // 'cmc', 'color', 'rarity', 'type', 'name'
+let hoverPreviewEnabled = localStorage.getItem('draftHoverPreview') !== 'false';
+let deckCardSize = localStorage.getItem('draftCardSize') || 'normal'; // 'small', 'normal', 'large'
 
 // Format Definitions & Rules
 export const DRAFT_FORMATS = {
@@ -165,6 +167,8 @@ export function initBoosterDraftModule(utils, state) {
     window.addAllCardsToDeck = addAllCardsToDeck;
     window.clearMainDeck = clearMainDeck;
     window.setDeckSortMode = setDeckSortMode;
+    window.setDeckCardSize = setDeckCardSize;
+    window.toggleHoverPreview = toggleHoverPreview;
     window.autoAddBasicLands = autoAddBasicLands;
     window.copyDraftDecklist = copyDraftDecklist;
     window.inspectDraftCard = (cardIdentifier) => {
@@ -173,6 +177,61 @@ export function initBoosterDraftModule(utils, state) {
             window.openCardInspector(foundCard);
         }
     };
+
+    // Setup global floating card hover preview tooltip
+    let previewEl = document.getElementById('floatingCardPreview');
+    if (!previewEl) {
+        previewEl = document.createElement('div');
+        previewEl.id = 'floatingCardPreview';
+        previewEl.innerHTML = '<img id="floatingCardPreviewImg" src="" alt="Card Preview" />';
+        document.body.appendChild(previewEl);
+    }
+
+    window.addEventListener('mousemove', (e) => {
+        if (!hoverPreviewEnabled) {
+            if (previewEl.style.display !== 'none') previewEl.style.display = 'none';
+            return;
+        }
+
+        const cardItem = e.target.closest('.draft-card-item');
+        if (!cardItem) {
+            if (previewEl.style.display !== 'none') previewEl.style.display = 'none';
+            return;
+        }
+
+        const img = cardItem.querySelector('.draft-card-img') || cardItem.querySelector('img');
+        const imgSrc = cardItem.getAttribute('data-preview-img') || img?.src;
+        if (!imgSrc || imgSrc.includes('card_back')) {
+            if (previewEl.style.display !== 'none') previewEl.style.display = 'none';
+            return;
+        }
+
+        const previewImg = document.getElementById('floatingCardPreviewImg');
+        if (previewImg && previewImg.src !== imgSrc) {
+            previewImg.src = imgSrc;
+        }
+
+        previewEl.style.display = 'block';
+
+        const previewWidth = 240;
+        const previewHeight = 336;
+        let left = e.clientX - (previewWidth / 2);
+        if (left < 10) left = 10;
+        if (left + previewWidth > window.innerWidth - 10) left = window.innerWidth - previewWidth - 10;
+
+        // Position above the cursor so user can still scroll/hover downwards freely
+        let top = e.clientY - 15;
+        if (e.clientY < previewHeight + 30) {
+            // If cursor is near top of viewport, flip preview directly below cursor
+            previewEl.style.transform = 'translateY(25px)';
+        } else {
+            // Normal position: directly above cursor
+            previewEl.style.transform = 'translateY(-100%)';
+        }
+
+        previewEl.style.left = `${left}px`;
+        previewEl.style.top = `${top}px`;
+    });
 
     // Hash navigation listener (e.g. #draft-ABCD)
     const checkHash = () => {
@@ -910,6 +969,9 @@ function renderDraftActiveSessionView(room, root) {
                 </div>
 
                 <div class="draft-header-right">
+                    <button class="preview-toggle-btn ${hoverPreviewEnabled ? 'active' : ''}" onclick="window.toggleHoverPreview()" title="Turn floating card hover preview on or off">
+                        ${hoverPreviewEnabled ? '👁️ Preview: ON' : '👁️ Preview: OFF'}
+                    </button>
                     <span class="draft-room-code-tag">Room: ${room.code}</span>
                 </div>
             </div>
@@ -996,6 +1058,7 @@ function renderDraftPickingArena(room, player, activePack, formatConfig) {
                     const price = getCardPrice(card, 'usd');
                     return `
                         <div class="draft-card-item ${isSelected ? 'is-selected-pick' : ''} ${card.isFoil ? 'is-foil' : ''}" 
+                             data-preview-img="${card.image_large || card.image}"
                              onclick="window.toggleDraftCardSelection(${idx})">
                             <div class="draft-card-img-wrapper">
                                 <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
@@ -1081,7 +1144,7 @@ function renderGridDraftArena(room, player) {
                                 }
                                 const price = getCardPrice(card, 'usd');
                                 return `
-                                    <div class="draft-card-item grid-card ${card.isFoil ? 'is-foil' : ''}">
+                                    <div class="draft-card-item grid-card ${card.isFoil ? 'is-foil' : ''}" data-preview-img="${card.image_large || card.image}">
                                         <div class="draft-card-img-wrapper">
                                             <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
                                             ${card.isFoil ? '<div class="booster-foil-overlay"></div><span class="booster-foil-tag">FOIL</span>' : ''}
@@ -1229,7 +1292,7 @@ function renderWinstonDraftArena(room, player) {
                         ${viewingCards.map((card) => {
                             const price = getCardPrice(card, 'usd');
                             return `
-                                <div class="draft-card-item ${card.isFoil ? 'is-foil' : ''}">
+                                <div class="draft-card-item ${card.isFoil ? 'is-foil' : ''}" data-preview-img="${card.image_large || card.image}">
                                     <div class="draft-card-img-wrapper">
                                         <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
                                         ${card.isFoil ? '<div class="booster-foil-overlay"></div><span class="booster-foil-tag">FOIL</span>' : ''}
@@ -1401,7 +1464,7 @@ function renderWinchesterDraftArena(room, player) {
                                 ${cards.map((card) => {
                                     const price = getCardPrice(card, 'usd');
                                     return `
-                                        <div class="draft-card-item winchester-card-item ${card.isFoil ? 'is-foil' : ''}">
+                                        <div class="draft-card-item winchester-card-item ${card.isFoil ? 'is-foil' : ''}" data-preview-img="${card.image_large || card.image}">
                                             <div class="draft-card-img-wrapper">
                                                 <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
                                                 ${card.isFoil ? '<div class="booster-foil-overlay"></div><span class="booster-foil-tag">FOIL</span>' : ''}
@@ -1598,18 +1661,9 @@ async function checkAndPassPacksAroundTable(roomCode) {
 // Switch between Active Pick and Deck Workspace tabs
 function switchDraftTab(tab) {
     localDraftTab = tab;
-    const pickEl = document.getElementById('draftTabPick');
-    const deckEl = document.getElementById('draftTabDeck');
-    document.querySelectorAll('.draft-tab-btn').forEach(btn => btn.classList.remove('active'));
-
-    if (tab === 'pick') {
-        if (pickEl) pickEl.style.display = 'block';
-        if (deckEl) deckEl.style.display = 'none';
-        document.querySelectorAll('.draft-tab-btn')[0]?.classList.add('active');
-    } else {
-        if (pickEl) pickEl.style.display = 'none';
-        if (deckEl) deckEl.style.display = 'block';
-        document.querySelectorAll('.draft-tab-btn')[1]?.classList.add('active');
+    const root = document.getElementById('boosterDraftRoot');
+    if (root && currentDraftData) {
+        renderActiveDraftRoomView(currentDraftData);
     }
 }
 
@@ -1709,19 +1763,18 @@ function renderDraftDeckWorkspace(pool, formatId) {
     const sortedMain = sortCardGroups(mainGroups, deckSortMode);
     const sortedSide = sortCardGroups(sideGroups, deckSortMode);
 
-    // Calculate curve for main deck non-land cards (or pool non-lands if deck is empty)
-    const activeCurveCards = mainDeckCards.length > 0 ? mainDeckCards : pool;
+    // Calculate curve strictly for cards in Main Deck (excluding lands)
     const curve = [0, 0, 0, 0, 0, 0, 0]; // 0, 1, 2, 3, 4, 5, 6+
-    activeCurveCards.forEach(c => {
+    mainDeckCards.forEach(c => {
         if (!(c.type_line || '').toLowerCase().includes('land')) {
             const cmc = Math.min(6, Math.floor(getCardCmc(c)));
             curve[cmc]++;
         }
     });
 
-    // Calculate colored mana pips in mana cost
+    // Calculate colored mana pips in Main Deck mana costs strictly
     const pips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
-    activeCurveCards.forEach(c => {
+    mainDeckCards.forEach(c => {
         const cost = c.mana_cost || '';
         ['W', 'U', 'B', 'R', 'G'].forEach(col => {
             const matches = cost.match(new RegExp(col, 'g'));
@@ -1733,7 +1786,7 @@ function renderDraftDeckWorkspace(pool, formatId) {
     const totalDeckCards = mainDeckCards.length + totalLands;
 
     return `
-        <div class="draft-deck-workspace">
+        <div class="draft-deck-workspace card-size-${deckCardSize}">
             <!-- Top Curve & Analytics Banner -->
             <div class="booster-control-card deck-analytics-banner">
                 <div class="analytics-col">
@@ -1746,12 +1799,12 @@ function renderDraftDeckWorkspace(pool, formatId) {
 
                 <!-- Mana Curve Bars -->
                 <div class="mana-curve-chart">
-                    <span class="analytics-title">Mana Curve ${mainDeckCards.length > 0 ? '(Deck)' : '(Pool)'}</span>
+                    <span class="analytics-title">Mana Curve (Main Deck)</span>
                     <div class="curve-bars-row">
                         ${curve.map((count, cmc) => `
                             <div class="curve-bar-col">
                                 <span class="curve-count">${count}</span>
-                                <div class="curve-bar" style="height: ${Math.min(55, count * 10)}px;"></div>
+                                <div class="curve-bar" style="height: ${Math.min(50, Math.max(2, count * 9))}px;"></div>
                                 <span class="curve-label">${cmc === 6 ? '6+' : cmc}</span>
                             </div>
                         `).join('')}
@@ -1801,14 +1854,25 @@ function renderDraftDeckWorkspace(pool, formatId) {
             <!-- Sort & Quick Action Toolbar -->
             <div class="deck-sort-toolbar">
                 <div class="deck-sort-group">
-                    <span class="sort-label">Sort Cards:</span>
+                    <span class="sort-label">Sort:</span>
                     <button class="deck-filter-pill ${deckSortMode === 'cmc' ? 'active' : ''}" onclick="window.setDeckSortMode('cmc')">🔢 Mana Cost</button>
                     <button class="deck-filter-pill ${deckSortMode === 'color' ? 'active' : ''}" onclick="window.setDeckSortMode('color')">🎨 Color</button>
                     <button class="deck-filter-pill ${deckSortMode === 'rarity' ? 'active' : ''}" onclick="window.setDeckSortMode('rarity')">💎 Rarity</button>
                     <button class="deck-filter-pill ${deckSortMode === 'type' ? 'active' : ''}" onclick="window.setDeckSortMode('type')">🃏 Card Type</button>
                     <button class="deck-filter-pill ${deckSortMode === 'name' ? 'active' : ''}" onclick="window.setDeckSortMode('name')">🔤 Name A-Z</button>
                 </div>
+
+                <div class="deck-size-group">
+                    <span class="sort-label">Size:</span>
+                    <button class="deck-size-btn ${deckCardSize === 'small' ? 'active' : ''}" onclick="window.setDeckCardSize('small')" title="Smaller cards">🔍 S</button>
+                    <button class="deck-size-btn ${deckCardSize === 'normal' ? 'active' : ''}" onclick="window.setDeckCardSize('normal')" title="Normal card size">🔍 M</button>
+                    <button class="deck-size-btn ${deckCardSize === 'large' ? 'active' : ''}" onclick="window.setDeckCardSize('large')" title="Larger cards">🔍 L</button>
+                </div>
+
                 <div class="deck-quick-actions">
+                    <button class="preview-toggle-btn ${hoverPreviewEnabled ? 'active' : ''}" onclick="window.toggleHoverPreview()" title="Turn floating card hover preview on or off">
+                        ${hoverPreviewEnabled ? '👁️ Preview: ON' : '👁️ Preview: OFF'}
+                    </button>
                     <button class="secondary-btn btn-compact" onclick="window.autoAddBasicLands('${formatId}')">⚡ Auto Lands</button>
                     <button class="secondary-btn btn-compact" onclick="window.addAllCardsToDeck()">➕ Add All</button>
                     <button class="secondary-btn btn-compact" onclick="window.clearMainDeck()">🧹 Clear Deck</button>
@@ -1831,6 +1895,7 @@ function renderDraftDeckWorkspace(pool, formatId) {
                     <div class="draft-pool-grid">
                         ${sortedMain.map(({ card, count }) => `
                             <div class="draft-card-item in-main-deck ${card.isFoil ? 'is-foil' : ''}" 
+                                 data-preview-img="${card.image_large || card.image}"
                                  onclick="window.removeCardFromMainDeck('${card.name.replace(/'/g, "\\'")}')">
                                 <div class="draft-card-img-wrapper">
                                     <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
@@ -1863,6 +1928,7 @@ function renderDraftDeckWorkspace(pool, formatId) {
                     <div class="draft-pool-grid">
                         ${sortedSide.map(({ card, count }) => `
                             <div class="draft-card-item in-sideboard ${card.isFoil ? 'is-foil' : ''}" 
+                                 data-preview-img="${card.image_large || card.image}"
                                  onclick="window.addCardToMainDeck('${card.name.replace(/'/g, "\\'")}')">
                                 <div class="draft-card-img-wrapper">
                                     <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
@@ -1921,6 +1987,28 @@ function clearMainDeck() {
 
 function setDeckSortMode(mode) {
     deckSortMode = mode;
+    const root = document.getElementById('boosterDraftRoot');
+    if (root && currentDraftData) renderActiveDraftRoomView(currentDraftData);
+}
+
+function setDeckCardSize(size) {
+    deckCardSize = size;
+    try { localStorage.setItem('draftCardSize', size); } catch (e) {}
+    const root = document.getElementById('boosterDraftRoot');
+    if (root && currentDraftData) renderActiveDraftRoomView(currentDraftData);
+}
+
+function toggleHoverPreview() {
+    hoverPreviewEnabled = !hoverPreviewEnabled;
+    try { localStorage.setItem('draftHoverPreview', String(hoverPreviewEnabled)); } catch (e) {}
+    const previewEl = document.getElementById('floatingCardPreview');
+    if (previewEl && !hoverPreviewEnabled) {
+        previewEl.style.display = 'none';
+    }
+    if (draftUtils?.playSound) draftUtils.playSound('sfx-click');
+    if (draftUtils?.showToast) {
+        draftUtils.showToast(hoverPreviewEnabled ? "👁️ Card Hover Preview: ON" : "Card Hover Preview: OFF", false, 1500);
+    }
     const root = document.getElementById('boosterDraftRoot');
     if (root && currentDraftData) renderActiveDraftRoomView(currentDraftData);
 }
@@ -2076,6 +2164,9 @@ function renderDraftDeckbuildingView(room, root) {
                     </span>
                 </div>
                 <div class="draft-header-right">
+                    <button class="preview-toggle-btn ${hoverPreviewEnabled ? 'active' : ''}" onclick="window.toggleHoverPreview()" title="Turn floating card hover preview on or off">
+                        ${hoverPreviewEnabled ? '👁️ Preview: ON' : '👁️ Preview: OFF'}
+                    </button>
                     <span class="draft-room-code-tag">Room: ${room.code}</span>
                     <button class="breadcrumb-btn" onclick="window.leaveDraftRoom()" style="margin-left: 10px;">
                         <span>🚪</span> Exit Room
@@ -2138,6 +2229,7 @@ function renderRochesterDraftArena(room, player) {
                     const price = getCardPrice(card, 'usd');
                     return `
                         <div class="draft-card-item ${card.isFoil ? 'is-foil' : ''} ${isMyTurn ? 'rochester-selectable' : ''}" 
+                             data-preview-img="${card.image_large || card.image}"
                              onclick="${isMyTurn ? `window.pickRochesterCard(${idx})` : ''}">
                             <div class="draft-card-img-wrapper">
                                 <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
