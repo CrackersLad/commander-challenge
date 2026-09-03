@@ -29,7 +29,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=0.46">
+    <link rel="stylesheet" href="styles.css?v=0.47">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -51,6 +51,7 @@
         </div>
 
         <div class="nav-right">
+            <button class="nav-icon-btn draft-nav-btn" onclick="window.openBoosterDraftHub()" title="Multiplayer Booster Draft">🎴 Booster Draft</button>
             <button class="nav-icon-btn booster-nav-btn" onclick="window.openBoosterSimulator()" title="Booster Simulator">📦 Booster Sim</button>
             <div id="audioContainer" class="nav-audio-box">
                 <button id="sfxToggle" class="nav-icon-btn" title="Toggle Sound Effects">🔊 SFX</button>
@@ -246,7 +247,16 @@
                 </div>
             </div>
 
-            <!-- Mode 3: Booster Simulator -->
+            <!-- Mode 3: Multiplayer Booster Draft -->
+            <div class="action-card action-card-draft" onclick="window.openBoosterDraftHub()">
+                <div class="action-card-badge draft-badge">Limited Arena</div>
+                <div class="action-card-icon">🎴</div>
+                <h3 class="action-card-title">Booster Draft</h3>
+                <p class="action-card-desc">Draft with friends! Supports Commander Limited (Pick 2), Traditional 8-Player, 6-Pack Sealed, Grid, Winston, Winchester, and Rochester drafts.</p>
+                <button class="select-btn action-cta-btn" onclick="window.openBoosterDraftHub(); event.stopPropagation();">Draft Boosters</button>
+            </div>
+
+            <!-- Mode 4: Booster Simulator -->
             <div class="action-card action-card-booster" onclick="window.openBoosterSimulator()">
                 <div class="action-card-badge booster-badge">Market Simulator</div>
                 <div class="action-card-icon">📦</div>
@@ -781,6 +791,11 @@
         </div>
     </main>
 
+    <!-- ==================== VIEW 9: MULTIPLAYER BOOSTER DRAFT ==================== -->
+    <main id="view-booster-draft" class="view-section">
+        <div id="boosterDraftRoot"></div>
+    </main>
+
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
@@ -790,6 +805,6 @@
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=0.46"></script>
+    <script type="module" src="./script.js?v=0.47"></script>
 </body>
 </html>

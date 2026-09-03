@@ -33,6 +33,10 @@
     "rooms": {
       ".read": true,
       ".write": "auth != null"
+    },
+    "booster_drafts": {
+      ".read": true,
+      ".write": "auth != null"
     }
   }
 }

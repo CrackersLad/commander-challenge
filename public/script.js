@@ -1,18 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=0.46';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.46';
-import { getArchives } from './data-service.js?v=0.46';
-import { initDeckActionsModule } from './deck-actions.js?v=0.46';
-import { initRoomActionsModule } from './room-actions.js?v=0.46';
-import { initPlayerViewModule } from './player-view.js?v=0.46';
-import { initAdminModule } from './admin.js?v=0.46';
-import { initCalendarModule } from './calendar.js?v=0.46';
-import { initAuthModule } from './auth.js?v=0.46';
-import { initHubModule } from './hub.js?v=0.46';
-import { initProfileModule } from './profile.js?v=0.46';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=0.46';
-import { initWarRoom, openWarRoom } from './war-room.js?v=0.46';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=0.46';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=0.46';
+import { db, auth, functions } from './firebase-setup.js?v=0.47';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.47';
+import { getArchives } from './data-service.js?v=0.47';
+import { initDeckActionsModule } from './deck-actions.js?v=0.47';
+import { initRoomActionsModule } from './room-actions.js?v=0.47';
+import { initPlayerViewModule } from './player-view.js?v=0.47';
+import { initAdminModule } from './admin.js?v=0.47';
+import { initCalendarModule } from './calendar.js?v=0.47';
+import { initAuthModule } from './auth.js?v=0.47';
+import { initHubModule } from './hub.js?v=0.47';
+import { initProfileModule } from './profile.js?v=0.47';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=0.47';
+import { initWarRoom, openWarRoom } from './war-room.js?v=0.47';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=0.47';
+import { initBoosterDraftModule } from './booster-draft.js?v=0.47';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=0.47';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -1779,7 +1780,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=0.46').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=0.47').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
@@ -1790,6 +1791,7 @@ initWarRoom(db, state, utils);
 
 window.boosterUtils = utils;
 initBoosterSimulatorModule(utils, state);
+initBoosterDraftModule(utils, state);
 
 // Setup booster simulator interactive listeners
 const boosterOpenBtn = document.getElementById('boosterOpenBtn');

@@ -85,15 +85,13 @@ function getCurrencySymbol(market) {
     return '$';
 }
 
-function formatCurrency(amount, market) {
+export function formatCurrency(amount, market) {
     const symbol = getCurrencySymbol(market);
-    const num = Number(amount) || 0;
-    if (market === 'tix') return `${num.toFixed(2)} TIX`;
-    return `${symbol}${num.toFixed(2)}`;
+    return `${symbol}${Number(amount || 0).toFixed(2)}`;
 }
 
 // Fetch all booster-eligible cards and variants from Scryfall
-async function fetchSetBoosterCards(setCode) {
+export async function fetchSetBoosterCards(setCode) {
     const code = setCode.toLowerCase();
     if (setCache.has(code)) {
         return setCache.get(code);
@@ -179,7 +177,7 @@ async function fetchSetBoosterCards(setCode) {
 }
 
 // Generate realistic booster pack
-function generateBoosterPack(setData, packNumber = 1) {
+export function generateBoosterPack(setData, packNumber = 1) {
     const packCards = [];
     const isMasters = setData.code.startsWith('mh') || ['2x2', '2xm', 'cmm', 'uma', 'ema'].includes(setData.code);
     const hasDoubleRare = ['2x2', '2xm'].includes(setData.code);
@@ -281,7 +279,7 @@ function generateBoosterPack(setData, packNumber = 1) {
 }
 
 // Generate authentic Collector Booster pack (15 cards, high foil & showcase density)
-function generateCollectorBoosterPack(setData, packNumber = 1) {
+export function generateCollectorBoosterPack(setData, packNumber = 1) {
     const packCards = [];
     const pickRandom = (arr) => (arr && arr.length > 0) ? arr[Math.floor(Math.random() * arr.length)] : null;
     const usedIds = new Set();
@@ -380,7 +378,7 @@ function generateCollectorBoosterPack(setData, packNumber = 1) {
     return packCards;
 }
 
-function createPackCard(card, isFoil = false, packNumber = 1, specialTag = null) {
+export function createPackCard(card, isFoil = false, packNumber = 1, specialTag = null) {
     const isShowcase = (card.frame_effects && (card.frame_effects.includes('showcase') || card.frame_effects.includes('inverted'))) ||
                        (card.promo_types && card.promo_types.includes('boosterfun')) ||
                        (card.border_color === 'borderless');
@@ -417,7 +415,7 @@ function createPackCard(card, isFoil = false, packNumber = 1, specialTag = null)
 }
 
 // Calculate card price according to current market and foil finish
-function getCardPrice(card, market = 'usd') {
+export function getCardPrice(card, market = 'usd') {
     if (!card || !card.prices) return 0;
     let priceStr = null;
 
