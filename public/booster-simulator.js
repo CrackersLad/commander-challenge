@@ -599,6 +599,7 @@ export async function updateEvDisplay(setCode, market, packEdition, isBox, userC
         const setData = await fetchSetBoosterCards(setCode);
         if (fetchId !== latestEvFetchId) return; // Stale request check
 
+        const evData = calculateSetEV(setData, market, packEdition, isBox, numPacks);
         cachedEvData = evData;
         evValueEl.textContent = evData.currentEV.toFixed(2);
         

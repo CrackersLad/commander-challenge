@@ -68,8 +68,10 @@ export function initCardInspector() {
     window.toggleInspectFoil = toggleInspectFoil;
 }
 
+let foilEnabled = true;
+
 function setFoilState(active) {
-    foilEnabled = active;
+    foilEnabled = Boolean(active);
     const btn = document.getElementById('inspectFoilToggle');
     const sheen = document.getElementById('inspectFoilSheen');
     if (btn) {
@@ -77,7 +79,8 @@ function setFoilState(active) {
         btn.classList.toggle('foil-active', foilEnabled);
     }
     if (sheen) {
-        sheen.style.opacity = foilEnabled ? '0.75' : '0';
+        sheen.style.display = foilEnabled ? 'block' : 'none';
+        sheen.style.opacity = foilEnabled ? '0.65' : '0';
     }
 }
 
@@ -301,17 +304,26 @@ function setup3dGyro() {
 
         card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.03, 1.03, 1.03)`;
         
-        if (sheen && foilEnabled) {
-            const sheenX = x * 100;
-            const sheenY = y * 100;
-            sheen.style.backgroundPosition = `${sheenX}% ${sheenY}%`;
-            sheen.style.opacity = '0.85';
+        if (sheen) {
+            if (foilEnabled) {
+                const sheenX = x * 100;
+                const sheenY = y * 100;
+                sheen.style.display = 'block';
+                sheen.style.backgroundPosition = `${sheenX}% ${sheenY}%`;
+                sheen.style.opacity = '0.85';
+            } else {
+                sheen.style.display = 'none';
+                sheen.style.opacity = '0';
+            }
         }
     };
 
     const handleLeave = () => {
         card.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
-        if (sheen) sheen.style.opacity = '0.4';
+        if (sheen) {
+            sheen.style.opacity = foilEnabled ? '0.45' : '0';
+            sheen.style.display = foilEnabled ? 'block' : 'none';
+        }
     };
 
     scene.addEventListener('mousemove', handleMove);
