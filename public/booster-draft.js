@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.5';
+import { db, auth } from './firebase-setup.js?v=4.6';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -17,32 +17,10 @@ import {
     generateCollectorBoosterPack, 
     getCardPrice,
     formatCurrency 
-} from './booster-simulator.js?v=4.5';
+} from './booster-simulator.js?v=4.6';
 
 // Realtime Database Path for Booster Drafts
-// Storing under 'rooms/bdf_' inherits active RTDB permissions immediately
-const getDraftDbPath = (suffix = '') => suffix ? `rooms/bdf_${suffix}` : 'rooms/bdf_';
-
-async function ensureUserAuth() {
-    if (auth.currentUser) return auth.currentUser;
-    return new Promise((resolve) => {
-        let resolved = false;
-        const unsub = onAuthStateChanged(auth, (u) => {
-            if (u && !resolved) {
-                resolved = true;
-                unsub();
-                resolve(u);
-            }
-        });
-        setTimeout(() => {
-            if (!resolved) {
-                resolved = true;
-                unsub();
-                resolve(auth.currentUser);
-            }
-        }, 1500);
-    });
-}
+const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
 
 // Draft Module State
 let currentDraftCode = null;
@@ -461,7 +439,6 @@ async function createDraftRoomFromUI() {
     };
 
     try {
-        await ensureUserAuth();
         const player = getPlayerIdentity();
         roomPayload.hostId = player.id;
         roomPayload.players = {
@@ -479,7 +456,7 @@ async function createDraftRoomFromUI() {
         currentDraftCode = roomCode;
         currentDraftData = roomPayload;
         await set(ref(db, getDraftDbPath(roomCode)), roomPayload);
-        window.location.hash = `#draft-${roomCode}`;
+        window.history.pushState({ viewId: 'view-booster-draft', draftCode: roomCode }, '', `#draft-${roomCode}`);
         attachDraftRoomListener(roomCode);
     } catch (err) {
         currentDraftCode = null;
@@ -505,7 +482,6 @@ async function joinDraftRoomByCode(roomCode) {
     const code = roomCode.toUpperCase().trim();
 
     try {
-        await ensureUserAuth();
         const player = getPlayerIdentity();
         if (draftUtils?.showToast) draftUtils.showToast(`Connecting to room ${code}...`, false, 1500);
         const snap = await get(ref(db, getDraftDbPath(code)));
@@ -533,7 +509,7 @@ async function joinDraftRoomByCode(roomCode) {
         }
 
         currentDraftCode = code;
-        window.location.hash = `#draft-${code}`;
+        window.history.pushState({ viewId: 'view-booster-draft', draftCode: code }, '', `#draft-${code}`);
         attachDraftRoomListener(code);
     } catch (err) {
         console.error("Error joining draft room:", err);
