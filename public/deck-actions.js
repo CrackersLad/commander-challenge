@@ -1,5 +1,5 @@
-import { db } from './firebase-setup.js?v=4.14';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=4.14';
+import { db } from './firebase-setup.js?v=4.15';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=4.15';
 import { ref, get, update } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initDeckActionsModule(utils, state) {

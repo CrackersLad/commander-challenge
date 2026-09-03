@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.14';
+import { db, auth } from './firebase-setup.js?v=4.15';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -17,7 +17,7 @@ import {
     generateCollectorBoosterPack, 
     getCardPrice,
     formatCurrency 
-} from './booster-simulator.js?v=4.14';
+} from './booster-simulator.js?v=4.15';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -1743,6 +1743,135 @@ function sortCardGroups(groups, sortMode) {
     });
 }
 
+// Helper to calculate card type distribution
+function getCardTypeStats(cards, basicLands = null) {
+    const counts = {
+        creature: 0,
+        instant: 0,
+        sorcery: 0,
+        artifact: 0,
+        enchantment: 0,
+        planeswalker: 0,
+        land: 0,
+        other: 0
+    };
+
+    cards.forEach(c => {
+        const t = (c.type_line || '').toLowerCase();
+        if (t.includes('creature')) {
+            counts.creature++;
+        } else if (t.includes('planeswalker')) {
+            counts.planeswalker++;
+        } else if (t.includes('instant')) {
+            counts.instant++;
+        } else if (t.includes('sorcery')) {
+            counts.sorcery++;
+        } else if (t.includes('artifact')) {
+            counts.artifact++;
+        } else if (t.includes('enchantment')) {
+            counts.enchantment++;
+        } else if (t.includes('land')) {
+            counts.land++;
+        } else {
+            counts.other++;
+        }
+    });
+
+    if (basicLands) {
+        const totalBasics = Object.values(basicLands).reduce((sum, n) => sum + (Number(n) || 0), 0);
+        counts.land += totalBasics;
+    }
+
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    return { counts, total };
+}
+
+// Helper to calculate card color counts and mana pips
+function getCardColorStats(cards) {
+    const pips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+    const cardsByColor = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0, Multi: 0 };
+
+    cards.forEach(c => {
+        const cost = c.mana_cost || '';
+        ['W', 'U', 'B', 'R', 'G'].forEach(col => {
+            const matches = cost.match(new RegExp(col, 'g'));
+            if (matches) pips[col] += matches.length;
+        });
+
+        const typeLine = (c.type_line || '').toLowerCase();
+        if (!typeLine.includes('land')) {
+            const cols = c.colors && c.colors.length > 0 ? c.colors : [];
+            if (cols.length === 0) {
+                cardsByColor.C++;
+            } else if (cols.length > 1) {
+                cardsByColor.Multi++;
+                cols.forEach(col => {
+                    if (cardsByColor[col] !== undefined) cardsByColor[col]++;
+                });
+            } else {
+                const col = cols[0];
+                if (cardsByColor[col] !== undefined) cardsByColor[col]++;
+            }
+        }
+    });
+
+    return { pips, cardsByColor };
+}
+
+// Render visual card type progress bar and badges
+function renderCardTypeVisual(typeStats) {
+    const { counts, total } = typeStats;
+    if (total === 0) {
+        return `
+            <div class="card-type-visual-container is-empty">
+                <span class="type-visual-empty">0 cards</span>
+            </div>
+        `;
+    }
+
+    const typeConfigs = [
+        { key: 'creature', label: 'Creatures', icon: '👾', color: '#10b981' },
+        { key: 'instant', label: 'Instants', icon: '⚡', color: '#0ea5e9' },
+        { key: 'sorcery', label: 'Sorceries', icon: '📜', color: '#f97316' },
+        { key: 'artifact', label: 'Artifacts', icon: '🛡️', color: '#94a3b8' },
+        { key: 'enchantment', label: 'Enchantments', icon: '🔮', color: '#a855f7' },
+        { key: 'planeswalker', label: 'Walkers', icon: '👑', color: '#eab308' },
+        { key: 'land', label: 'Lands', icon: '🏞️', color: '#84cc16' },
+        { key: 'other', label: 'Other', icon: '⚔️', color: '#64748b' }
+    ];
+
+    const activeTypes = typeConfigs.filter(cfg => counts[cfg.key] > 0);
+
+    const segments = activeTypes.map(cfg => {
+        const pct = ((counts[cfg.key] / total) * 100).toFixed(1);
+        return `<div class="type-segment" style="width: ${pct}%; background-color: ${cfg.color};" title="${cfg.label}: ${counts[cfg.key]} (${pct}%)"></div>`;
+    }).join('');
+
+    const chips = typeConfigs.map(cfg => {
+        const count = counts[cfg.key];
+        if (count === 0 && (cfg.key === 'other' || cfg.key === 'planeswalker')) return '';
+        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+        return `
+            <span class="type-chip ${count > 0 ? 'has-cards' : 'is-zero'}" title="${cfg.label}: ${count} (${pct}%)">
+                <span class="type-chip-dot" style="background-color: ${cfg.color};"></span>
+                <span class="type-icon">${cfg.icon}</span>
+                <span class="type-name">${cfg.label}</span>
+                <strong class="type-count">${count}</strong>
+            </span>
+        `;
+    }).join('');
+
+    return `
+        <div class="card-type-visual-container">
+            <div class="type-visual-top-row">
+                <span class="stats-mini-title">Card Types (${total}):</span>
+            </div>
+            <div class="type-segmented-bar">${segments}</div>
+            <div class="type-chips-grid">${chips}</div>
+        </div>
+    `;
+}
+
 // Render Deckbuilding Workspace
 function renderDraftDeckWorkspace(pool, formatId) {
     const isCommander = formatId === 'commander_draft';
@@ -1772,18 +1901,15 @@ function renderDraftDeckWorkspace(pool, formatId) {
         }
     });
 
-    // Calculate colored mana pips in Main Deck mana costs strictly
-    const pips = { W: 0, U: 0, B: 0, R: 0, G: 0 };
-    mainDeckCards.forEach(c => {
-        const cost = c.mana_cost || '';
-        ['W', 'U', 'B', 'R', 'G'].forEach(col => {
-            const matches = cost.match(new RegExp(col, 'g'));
-            if (matches) pips[col] += matches.length;
-        });
-    });
+    // Calculate color and type stats for Main Deck and Sideboard
+    const mainColorStats = getCardColorStats(mainDeckCards);
+    const sideColorStats = getCardColorStats(sideboardCards);
 
     const totalLands = Object.values(addedBasicLands).reduce((a, b) => a + b, 0);
     const totalDeckCards = mainDeckCards.length + totalLands;
+
+    const mainTypeStats = getCardTypeStats(mainDeckCards, addedBasicLands);
+    const sideTypeStats = getCardTypeStats(sideboardCards, null);
 
     return `
         <div class="draft-deck-workspace card-size-${deckCardSize}">
@@ -1815,11 +1941,11 @@ function renderDraftDeckWorkspace(pool, formatId) {
                 <div class="mana-pips-box">
                     <span class="analytics-title">Colored Mana Pips</span>
                     <div class="pips-row">
-                        <span class="pip-chip pip-W" title="White Mana Symbols">☀️ ${pips.W}</span>
-                        <span class="pip-chip pip-U" title="Blue Mana Symbols">💧 ${pips.U}</span>
-                        <span class="pip-chip pip-B" title="Black Mana Symbols">💀 ${pips.B}</span>
-                        <span class="pip-chip pip-R" title="Red Mana Symbols">🔥 ${pips.R}</span>
-                        <span class="pip-chip pip-G" title="Green Mana Symbols">🌲 ${pips.G}</span>
+                        <span class="pip-chip pip-W" title="White: ${mainColorStats.cardsByColor.W} cards, ${mainColorStats.pips.W} pips">☀️ ${mainColorStats.pips.W}</span>
+                        <span class="pip-chip pip-U" title="Blue: ${mainColorStats.cardsByColor.U} cards, ${mainColorStats.pips.U} pips">💧 ${mainColorStats.pips.U}</span>
+                        <span class="pip-chip pip-B" title="Black: ${mainColorStats.cardsByColor.B} cards, ${mainColorStats.pips.B} pips">💀 ${mainColorStats.pips.B}</span>
+                        <span class="pip-chip pip-R" title="Red: ${mainColorStats.cardsByColor.R} cards, ${mainColorStats.pips.R} pips">🔥 ${mainColorStats.pips.R}</span>
+                        <span class="pip-chip pip-G" title="Green: ${mainColorStats.cardsByColor.G} cards, ${mainColorStats.pips.G} pips">🌲 ${mainColorStats.pips.G}</span>
                     </div>
                 </div>
 
@@ -1882,9 +2008,29 @@ function renderDraftDeckWorkspace(pool, formatId) {
             <!-- SECTION 1: MAIN DECK -->
             <div class="deck-section-container main-deck-section">
                 <div class="section-header-row">
-                    <h3>🎴 Main Deck (${mainDeckCards.length} Spells + ${totalLands} Lands = ${totalDeckCards} / ${targetDeckSize})</h3>
-                    <span class="section-hint">Click card or "Remove" to move to Sideboard</span>
+                    <div class="section-title-col">
+                        <h3>🎴 Main Deck (${mainDeckCards.length} Spells + ${totalLands} Lands = ${totalDeckCards} / ${targetDeckSize})</h3>
+                        <span class="section-hint">Click card or "Remove" to move to Sideboard</span>
+                    </div>
+                    <div class="section-color-box">
+                        <span class="stats-mini-title">Colors:</span>
+                        <div class="pips-row">
+                            <span class="pip-chip pip-W" title="White: ${mainColorStats.cardsByColor.W} cards, ${mainColorStats.pips.W} mana pips">☀️ ${mainColorStats.pips.W}</span>
+                            <span class="pip-chip pip-U" title="Blue: ${mainColorStats.cardsByColor.U} cards, ${mainColorStats.pips.U} mana pips">💧 ${mainColorStats.pips.U}</span>
+                            <span class="pip-chip pip-B" title="Black: ${mainColorStats.cardsByColor.B} cards, ${mainColorStats.pips.B} mana pips">💀 ${mainColorStats.pips.B}</span>
+                            <span class="pip-chip pip-R" title="Red: ${mainColorStats.cardsByColor.R} cards, ${mainColorStats.pips.R} mana pips">🔥 ${mainColorStats.pips.R}</span>
+                            <span class="pip-chip pip-G" title="Green: ${mainColorStats.cardsByColor.G} cards, ${mainColorStats.pips.G} mana pips">🌲 ${mainColorStats.pips.G}</span>
+                            ${mainColorStats.cardsByColor.C > 0 ? `<span class="pip-chip pip-C" title="Colorless: ${mainColorStats.cardsByColor.C} cards">⚪ ${mainColorStats.cardsByColor.C}</span>` : ''}
+                            ${mainColorStats.cardsByColor.Multi > 0 ? `<span class="pip-chip pip-Multi" title="Multicolored: ${mainColorStats.cardsByColor.Multi} cards">🌈 ${mainColorStats.cardsByColor.Multi}</span>` : ''}
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Visual on Card Types for Main Deck -->
+                <div class="section-type-visual-bar">
+                    ${renderCardTypeVisual(mainTypeStats)}
+                </div>
+
                 ${sortedMain.length === 0 ? `
                     <div class="empty-deck-notice" onclick="window.addAllCardsToDeck()">
                         <span class="notice-icon">📥</span>
@@ -1897,7 +2043,7 @@ function renderDraftDeckWorkspace(pool, formatId) {
                             <div class="draft-card-item in-main-deck ${card.isFoil ? 'is-foil' : ''}" 
                                  data-preview-img="${card.image_large || card.image}"
                                  onclick="window.removeCardFromMainDeck('${card.name.replace(/'/g, "\\'")}')">
-                                <div class="draft-card-img-wrapper">
+                                 <div class="draft-card-img-wrapper">
                                     <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
                                     ${count > 1 ? `<div class="card-copies-badge">${count}x</div>` : ''}
                                     ${card.isFoil ? '<div class="booster-foil-overlay"></div><span class="booster-foil-tag">FOIL</span>' : ''}
@@ -1917,9 +2063,29 @@ function renderDraftDeckWorkspace(pool, formatId) {
             <!-- SECTION 2: SIDEBOARD / UNUSED POOL -->
             <div class="deck-section-container sideboard-section">
                 <div class="section-header-row">
-                    <h3>📦 Sideboard & Available Pool (${sideboardCards.length} cards)</h3>
-                    <span class="section-hint">Click card or "+ Add" to put into Main Deck</span>
+                    <div class="section-title-col">
+                        <h3>📦 Sideboard & Available Pool (${sideboardCards.length} cards)</h3>
+                        <span class="section-hint">Click card or "+ Add" to put into Main Deck</span>
+                    </div>
+                    <div class="section-color-box">
+                        <span class="stats-mini-title">Sideboard Colors:</span>
+                        <div class="pips-row">
+                            <span class="pip-chip pip-W" title="White: ${sideColorStats.cardsByColor.W} cards, ${sideColorStats.pips.W} mana pips">☀️ ${sideColorStats.pips.W}</span>
+                            <span class="pip-chip pip-U" title="Blue: ${sideColorStats.cardsByColor.U} cards, ${sideColorStats.pips.U} mana pips">💧 ${sideColorStats.pips.U}</span>
+                            <span class="pip-chip pip-B" title="Black: ${sideColorStats.cardsByColor.B} cards, ${sideColorStats.pips.B} mana pips">💀 ${sideColorStats.pips.B}</span>
+                            <span class="pip-chip pip-R" title="Red: ${sideColorStats.cardsByColor.R} cards, ${sideColorStats.pips.R} mana pips">🔥 ${sideColorStats.pips.R}</span>
+                            <span class="pip-chip pip-G" title="Green: ${sideColorStats.cardsByColor.G} cards, ${sideColorStats.pips.G} mana pips">🌲 ${sideColorStats.pips.G}</span>
+                            ${sideColorStats.cardsByColor.C > 0 ? `<span class="pip-chip pip-C" title="Colorless: ${sideColorStats.cardsByColor.C} cards">⚪ ${sideColorStats.cardsByColor.C}</span>` : ''}
+                            ${sideColorStats.cardsByColor.Multi > 0 ? `<span class="pip-chip pip-Multi" title="Multicolored: ${sideColorStats.cardsByColor.Multi} cards">🌈 ${sideColorStats.cardsByColor.Multi}</span>` : ''}
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Visual on Card Types for Sideboard / Pool -->
+                <div class="section-type-visual-bar">
+                    ${renderCardTypeVisual(sideTypeStats)}
+                </div>
+
                 ${sortedSide.length === 0 ? `
                     <div class="empty-deck-notice">
                         <p>All drafted cards are currently in your Main Deck.</p>
@@ -1980,7 +2146,9 @@ function addAllCardsToDeck() {
 
 function clearMainDeck() {
     mainDeckUids.clear();
+    addedBasicLands = { W: 0, U: 0, B: 0, R: 0, G: 0 };
     if (draftUtils?.playSound) draftUtils.playSound('sfx-click');
+    if (draftUtils?.showToast) draftUtils.showToast("🧹 Main Deck and Basic Lands reset to 0", false, 1500);
     const root = document.getElementById('boosterDraftRoot');
     if (root && currentDraftData) renderActiveDraftRoomView(currentDraftData);
 }
