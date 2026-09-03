@@ -68,10 +68,8 @@ export function initCardInspector() {
     window.toggleInspectFoil = toggleInspectFoil;
 }
 
-let foilEnabled = true;
-
-function toggleInspectFoil() {
-    foilEnabled = !foilEnabled;
+function setFoilState(active) {
+    foilEnabled = active;
     const btn = document.getElementById('inspectFoilToggle');
     const sheen = document.getElementById('inspectFoilSheen');
     if (btn) {
@@ -81,6 +79,10 @@ function toggleInspectFoil() {
     if (sheen) {
         sheen.style.opacity = foilEnabled ? '0.75' : '0';
     }
+}
+
+function toggleInspectFoil() {
+    setFoilState(!foilEnabled);
 }
 
 export async function openCardInspector(cardInput) {
@@ -203,8 +205,27 @@ function renderCardInspectData(card, fallbackInput) {
     }
 
     document.getElementById('inspectEdhrecRank').textContent = card.edhrec_rank ? `#${card.edhrec_rank.toLocaleString()}` : 'Unranked';
-    document.getElementById('inspectPriceEur').textContent = card.prices?.eur ? `€${parseFloat(card.prices.eur).toFixed(2)}` : (card.prices?.eur_foil ? `€${parseFloat(card.prices.eur_foil).toFixed(2)} (Foil)` : '--');
-    document.getElementById('inspectPriceUsd').textContent = card.prices?.usd ? `$${parseFloat(card.prices.usd).toFixed(2)}` : (card.prices?.usd_foil ? `$${parseFloat(card.prices.usd_foil).toFixed(2)} (Foil)` : '--');
+
+    const isFoil = Boolean(card.isFoil);
+    setFoilState(isFoil);
+
+    // Cardmarket (EUR) price display: use foil price when card is foil!
+    let eurVal = isFoil ? (card.prices?.eur_foil || card.prices?.eur) : (card.prices?.eur || card.prices?.eur_foil);
+    if (eurVal) {
+        const isActuallyFoilPrice = isFoil && Boolean(card.prices?.eur_foil);
+        document.getElementById('inspectPriceEur').textContent = `€${parseFloat(eurVal).toFixed(2)}${isActuallyFoilPrice ? ' (Foil)' : ''}`;
+    } else {
+        document.getElementById('inspectPriceEur').textContent = '--';
+    }
+
+    // TCGplayer (USD) price display: use foil price when card is foil!
+    let usdVal = isFoil ? (card.prices?.usd_foil || card.prices?.usd) : (card.prices?.usd || card.prices?.usd_foil);
+    if (usdVal) {
+        const isActuallyFoilPrice = isFoil && Boolean(card.prices?.usd_foil);
+        document.getElementById('inspectPriceUsd').textContent = `$${parseFloat(usdVal).toFixed(2)}${isActuallyFoilPrice ? ' (Foil)' : ''}`;
+    } else {
+        document.getElementById('inspectPriceUsd').textContent = '--';
+    }
 
     const scryfallLink = document.getElementById('inspectScryfallLink');
     if (scryfallLink) scryfallLink.href = card.scryfall_uri || `https://scryfall.com/search?q=${encodeURIComponent(name)}`;
