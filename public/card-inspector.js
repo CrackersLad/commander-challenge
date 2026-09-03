@@ -31,6 +31,7 @@ export function initCardInspector() {
                             <h2 id="inspectCardName" class="inspect-title">Card Name</h2>
                             <div id="inspectManaCost" class="inspect-mana-cost"></div>
                         </div>
+                        <div id="inspectFinishTag" class="inspect-finish-tag"></div>
                         <div id="inspectTypeLine" class="inspect-type-line">Type Line</div>
                         <div class="inspect-oracle-box">
                             <div id="inspectOracleText" class="inspect-oracle-text">Oracle text loading...</div>
@@ -212,23 +213,57 @@ function renderCardInspectData(card, fallbackInput) {
     const isFoil = Boolean(card.isFoil);
     setFoilState(isFoil);
 
-    // Cardmarket (EUR) price display: use foil price when card is foil!
-    let eurVal = isFoil ? (card.prices?.eur_foil || card.prices?.eur) : (card.prices?.eur || card.prices?.eur_foil);
-    if (eurVal) {
-        const isActuallyFoilPrice = isFoil && Boolean(card.prices?.eur_foil);
-        document.getElementById('inspectPriceEur').textContent = `€${parseFloat(eurVal).toFixed(2)}${isActuallyFoilPrice ? ' (Foil)' : ''}`;
-    } else {
-        document.getElementById('inspectPriceEur').textContent = '--';
+    // Update finish tag badge
+    const finishTag = document.getElementById('inspectFinishTag');
+    if (finishTag) {
+        if (isFoil) {
+            finishTag.className = 'inspect-finish-tag is-foil-tag';
+            finishTag.innerHTML = `<span>✨ Traditional Foil Pull</span>`;
+            finishTag.style.display = 'inline-block';
+        } else {
+            finishTag.className = 'inspect-finish-tag is-nonfoil-tag';
+            finishTag.innerHTML = `<span>Standard Non-Foil</span>`;
+            finishTag.style.display = 'inline-block';
+        }
     }
 
-    // TCGplayer (USD) price display: use foil price when card is foil!
-    let usdVal = isFoil ? (card.prices?.usd_foil || card.prices?.usd) : (card.prices?.usd || card.prices?.usd_foil);
-    if (usdVal) {
-        const isActuallyFoilPrice = isFoil && Boolean(card.prices?.usd_foil);
-        document.getElementById('inspectPriceUsd').textContent = `$${parseFloat(usdVal).toFixed(2)}${isActuallyFoilPrice ? ' (Foil)' : ''}`;
+    // Cardmarket (EUR) price display: prioritize foil price when card is foil!
+    const eurFoil = card.prices?.eur_foil ? parseFloat(card.prices.eur_foil).toFixed(2) : null;
+    const eurReg = card.prices?.eur ? parseFloat(card.prices.eur).toFixed(2) : null;
+    let eurDisplay = '--';
+    if (isFoil) {
+        if (eurFoil) {
+            eurDisplay = `€${eurFoil} (Foil)`;
+        } else if (eurReg) {
+            eurDisplay = `€${eurReg} (Foil unlisted)`;
+        }
     } else {
-        document.getElementById('inspectPriceUsd').textContent = '--';
+        if (eurReg) {
+            eurDisplay = `€${eurReg}`;
+        } else if (eurFoil) {
+            eurDisplay = `€${eurFoil} (Foil only)`;
+        }
     }
+    document.getElementById('inspectPriceEur').textContent = eurDisplay;
+
+    // TCGplayer (USD) price display: prioritize foil price when card is foil!
+    const usdFoil = card.prices?.usd_foil ? parseFloat(card.prices.usd_foil).toFixed(2) : null;
+    const usdReg = card.prices?.usd ? parseFloat(card.prices.usd).toFixed(2) : null;
+    let usdDisplay = '--';
+    if (isFoil) {
+        if (usdFoil) {
+            usdDisplay = `$${usdFoil} (Foil)`;
+        } else if (usdReg) {
+            usdDisplay = `$${usdReg} (Foil unlisted)`;
+        }
+    } else {
+        if (usdReg) {
+            usdDisplay = `$${usdReg}`;
+        } else if (usdFoil) {
+            usdDisplay = `$${usdFoil} (Foil only)`;
+        }
+    }
+    document.getElementById('inspectPriceUsd').textContent = usdDisplay;
 
     const scryfallLink = document.getElementById('inspectScryfallLink');
     if (scryfallLink) scryfallLink.href = card.scryfall_uri || `https://scryfall.com/search?q=${encodeURIComponent(name)}`;

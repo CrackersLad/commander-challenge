@@ -914,21 +914,24 @@ select:focus {
 }
 
 .lobby-container {
-    background: rgba(18, 18, 26, 0.96);
-    border: 1px solid var(--card-border-gold);
+    background: rgba(18, 18, 26, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: var(--radius-lg);
     padding: 35px;
-    box-shadow: var(--shadow-lg);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 30px rgba(212, 175, 55, 0.08);
 }
 
 .room-code-card {
-    background: rgba(10, 10, 15, 0.6);
-    border: 1px solid rgba(212, 175, 55, 0.3);
+    background: rgba(12, 12, 18, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(212, 175, 55, 0.35);
     border-radius: var(--radius-md);
     padding: 24px;
     margin-bottom: 25px;
     text-align: center;
-    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(0, 0, 0, 0.5);
 }
 
 .room-code-badge {
@@ -1287,13 +1290,35 @@ select:focus {
     margin: 0;
 }
 
+.host-settings {
+    background: rgba(18, 18, 26, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 30px rgba(212, 175, 55, 0.08);
+    margin-top: 25px;
+}
+
+.host-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 25px;
+    align-items: stretch;
+}
+
 .settings-panel {
-    background: rgba(10, 10, 15, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(12, 12, 18, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: var(--radius-md);
-    padding: 18px 22px;
-    margin-bottom: 16px;
+    padding: 20px;
+    box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.4);
     text-align: left;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0;
 }
 
 .settings-panel h4 {
@@ -1308,7 +1333,23 @@ select:focus {
 .settings-panel input[type="text"],
 .settings-panel input[type="number"] {
     width: 100%;
+    box-sizing: border-box;
+    background: rgba(10, 10, 15, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-sm);
+    color: #fff;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    padding: 10px 14px;
+    outline: none;
+    transition: all 0.25s ease;
     margin-top: 6px;
+}
+
+.settings-panel select:focus,
+.settings-panel input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
 }
 
 .settings-grid {
@@ -1404,14 +1445,29 @@ select:focus {
 /* Host Start Bar */
 .host-action-bar {
     display: flex;
-    gap: 12px;
+    gap: 16px;
     margin-top: 25px;
+    align-items: center;
 }
 
 .start-draft-cta {
     flex: 2;
-    padding: 16px;
-    font-size: 1.1rem;
+    padding: 18px 36px !important;
+    font-size: 1.15rem !important;
+    font-weight: 900 !important;
+    letter-spacing: 1.5px !important;
+    background: linear-gradient(135deg, var(--gold) 0%, #f59e0b 50%, #d97706 100%) !important;
+    color: #000 !important;
+    border-radius: var(--radius-md) !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 8px 25px rgba(212, 175, 55, 0.45), 0 0 15px rgba(245, 158, 11, 0.3) !important;
+    transition: all 0.25s ease !important;
+    cursor: pointer;
+}
+
+.start-draft-cta:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(212, 175, 55, 0.6), 0 0 25px rgba(245, 158, 11, 0.5) !important;
 }
 
 .live-pool-text {
@@ -1439,12 +1495,14 @@ select:focus {
 }
 
 .dashboard-header-card {
-    background: rgba(18, 18, 26, 0.96);
-    border: 1px solid var(--card-border-gold);
+    background: rgba(18, 18, 26, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: var(--radius-lg);
-    padding: 24px 30px;
+    padding: 26px 30px;
     margin-bottom: 25px;
-    box-shadow: var(--shadow-md);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 30px rgba(212, 175, 55, 0.08);
 }
 
 .dash-room-title {
@@ -1508,15 +1566,17 @@ select:focus {
 }
 
 .card {
-    background: rgba(18, 18, 26, 0.96);
-    border: 1px solid var(--card-border-gold);
+    background: rgba(18, 18, 26, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-top: 2px solid var(--gold);
     border-radius: var(--radius-lg);
     padding: 22px 18px;
     flex: 1 1 270px;
     max-width: 320px;
     min-width: 250px;
-    box-shadow: var(--shadow-lg), inset 0 0 20px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
     transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
     position: relative;
     text-align: center;
@@ -1526,7 +1586,7 @@ select:focus {
 .card:hover {
     border-color: var(--gold);
     transform: translateY(-6px);
-    box-shadow: var(--shadow-lg), 0 0 25px var(--gold-subtle);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 0 25px var(--gold-subtle);
 }
 
 /* Saltiest & Most Expensive Badges */
@@ -1746,11 +1806,22 @@ select:focus {
     margin: 0 auto;
     width: 100%;
     box-sizing: border-box;
+    padding-bottom: 40px;
 }
 
-.player-view-title {
-    font-size: 2.2rem;
-    margin-bottom: 25px;
+.player-hero-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.player-hero-header .player-view-title {
+    background: linear-gradient(135deg, #fff 20%, var(--gold) 60%, #c084fc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 2px;
+    font-size: 2.3rem;
+    margin-bottom: 8px;
+    font-family: var(--font-display);
 }
 
 .options-container {
@@ -1764,19 +1835,25 @@ select:focus {
 }
 
 .option-card {
-    background: rgba(18, 18, 26, 0.96);
-    padding: 22px 18px;
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--card-border-gold);
+    background: rgba(18, 18, 26, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-top: 2px solid var(--gold);
-    flex: 1 1 270px;
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    flex: 1 1 280px;
     max-width: 320px;
-    min-width: 250px;
-    box-shadow: var(--shadow-lg), inset 0 0 20px rgba(0,0,0,0.5);
+    min-width: 260px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 20px rgba(212, 175, 55, 0.08);
     opacity: 0;
     transform: translateY(20px);
-    transition: opacity 0.45s ease, transform 0.45s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    transition: opacity 0.45s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     box-sizing: border-box;
+    position: relative;
 }
 
 .option-card.revealed {
@@ -1787,7 +1864,105 @@ select:focus {
 .option-card.revealed:hover {
     transform: translateY(-8px);
     border-color: var(--gold);
-    box-shadow: var(--shadow-lg), 0 0 25px var(--arcane-glow);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 0 30px rgba(212, 175, 55, 0.35);
+}
+
+.option-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.option-rank-pill {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #ddd;
+    letter-spacing: 0.5px;
+}
+
+.option-card-img-wrapper {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+    background: #000;
+    width: 100%;
+}
+
+.option-card-img-wrapper .commander-img {
+    margin-top: 0;
+    width: 100%;
+    display: block;
+    border: none;
+    border-radius: 0;
+    transition: transform 0.35s ease;
+}
+
+.option-card:hover .commander-img {
+    transform: scale(1.03);
+}
+
+.option-card-body {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 4px;
+}
+
+.option-card-title {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    color: #fff;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 700;
+    flex: 1;
+    text-align: left;
+}
+
+.option-card-price {
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: var(--gold);
+    background: rgba(212, 175, 55, 0.12);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 6px;
+    padding: 3px 8px;
+    white-space: nowrap;
+}
+
+.option-card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 6px;
+}
+
+.select-cmdr-cta {
+    background: linear-gradient(135deg, var(--gold) 0%, #f59e0b 100%) !important;
+    color: #000 !important;
+    font-weight: 800 !important;
+    font-size: 0.92rem !important;
+    letter-spacing: 0.5px !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.35) !important;
+    transition: all 0.2s ease !important;
+}
+
+.select-cmdr-cta:hover:not(:disabled) {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(212, 175, 55, 0.55) !important;
 }
 
 .reroll-btn {
@@ -2668,6 +2843,30 @@ select:focus {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding-bottom: 12px;
     gap: 15px;
+}
+
+.inspect-finish-tag {
+    display: inline-block;
+    align-self: flex-start;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+
+.inspect-finish-tag.is-foil-tag {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.25), rgba(245, 158, 11, 0.35));
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.35);
+}
+
+.inspect-finish-tag.is-nonfoil-tag {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #aaa;
 }
 
 .inspect-title {

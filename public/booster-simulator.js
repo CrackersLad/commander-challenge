@@ -879,6 +879,12 @@ export async function crackBoosterProduct(utils) {
             allCards.push(...packCards);
         }
 
+        // Assign explicit unique index and uid to every pulled card instance
+        allCards.forEach((c, idx) => {
+            c.simIndex = idx;
+            c.uid = `sim_card_${idx}_${c.id}_${c.isFoil ? 'foil' : 'reg'}`;
+        });
+
         // Calculate expected EV for this configuration
         const evData = calculateSetEV(setData, market, packEdition, isBox, numPacks);
 
@@ -1017,7 +1023,7 @@ function renderSimulationResults(sim) {
             const isValuable = price >= (sim.isBox ? 5 : 2);
             return `
                 <div class="booster-card-item ${card.isFoil ? 'is-foil-card' : ''} ${isValuable ? 'is-valuable-hit' : ''}" 
-                     onclick="window.inspectBoosterCard('${card.id}')"
+                     onclick="window.inspectBoosterCardByIndex(${card.simIndex !== undefined ? card.simIndex : `'${card.id}'`})"
                      title="Click to inspect ${card.name} in 3D">
                     <div class="booster-card-img-wrapper">
                         <img src="${card.image}" alt="${card.name}" loading="lazy" class="booster-card-img">
@@ -1141,7 +1147,7 @@ function renderSidebarAnalytics(sim, container) {
             <div class="sidebar-section-title">⭐ Top Pulls</div>
             <div class="sidebar-top-hits-list">
                 ${topHits.map((h, i) => `
-                    <div class="top-hit-row" onclick="window.inspectBoosterCard('${h.id}')" title="Inspect ${h.name}">
+                    <div class="top-hit-row" onclick="window.inspectBoosterCardByIndex(${h.simIndex !== undefined ? h.simIndex : `'${h.id}'`})" title="Inspect ${h.name}">
                         <span class="top-hit-rank">#${i + 1}</span>
                         <div class="top-hit-info">
                             <div class="top-hit-name">${h.name} ${h.isFoil ? '<span class="foil-badge-mini">✨</span>' : ''}</div>
@@ -1169,9 +1175,32 @@ function renderSidebarAnalytics(sim, container) {
 if (typeof window !== 'undefined') {
     window.onBoosterCostChange = updateCostComparisonLive;
 
+    window.inspectBoosterCardByIndex = (simIndex) => {
+        if (window.openCardInspector && currentSimulation?.cards) {
+            const cardObj = typeof simIndex === 'number' ? currentSimulation.cards[simIndex] : null;
+            if (cardObj) {
+                window.openCardInspector(cardObj);
+                return;
+            }
+        }
+        if (window.inspectBoosterCard) {
+            window.inspectBoosterCard(simIndex);
+        }
+    };
+
     window.inspectBoosterCard = (cardIdentifier) => {
         if (window.openCardInspector) {
-            const cardObj = currentSimulation?.cards.find(c => c.id === cardIdentifier || c.name === cardIdentifier);
+            if (typeof cardIdentifier === 'number' || (typeof cardIdentifier === 'string' && /^\d+$/.test(cardIdentifier))) {
+                const idx = parseInt(cardIdentifier, 10);
+                if (currentSimulation?.cards?.[idx]) {
+                    window.openCardInspector(currentSimulation.cards[idx]);
+                    return;
+                }
+            }
+            // If multiple copies of a card exist in the box, prioritize the foil copy
+            const cardObj = currentSimulation?.cards.find(c => c.uid === cardIdentifier) ||
+                            currentSimulation?.cards.find(c => c.id === cardIdentifier && c.isFoil) ||
+                            currentSimulation?.cards.find(c => c.id === cardIdentifier || c.name === cardIdentifier);
             window.openCardInspector(cardObj || cardIdentifier);
         }
     };

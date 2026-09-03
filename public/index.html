@@ -29,7 +29,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=0.45">
+    <link rel="stylesheet" href="styles.css?v=0.46">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -363,63 +363,64 @@
                         <button id="resetSettingsBtn" class="host-action-btn clear">↺ Reset Defaults</button>
                     </div>
 
-                    <div class="settings-panel">
-                        <h4>📝 Drafting Format</h4>
-                        
-                        <div class="settings-full">
-                            <label for="settingDraftFormat" style="font-weight: 600; color: var(--gold);">Format: <span class="tooltip">?<span class="tooltiptext">Independent: Roll alone. Async: Pass packs. Snake: Pick face-up from shared pool. Burn: Secretly eliminate options.</span></span></label>
-                            <select id="settingDraftFormat">
-                                <option value="independent" selected>Independent (Roll Your Own)</option>
-                                <option value="async_draft">Asynchronous Booster Draft</option>
-                                <option value="snake_draft">Face-Up Snake Draft</option>
-                                <option value="burn_draft">Blind Elimination Draft</option>
-                            </select>
-                        </div>
+                    <div class="host-settings-grid">
+                        <div class="settings-panel">
+                            <h4>📝 Drafting Format</h4>
+                            
+                            <div class="settings-full">
+                                <label for="settingDraftFormat" style="font-weight: 600; color: var(--gold);">Format: <span class="tooltip">?<span class="tooltiptext">Independent: Roll alone. Async: Pass packs. Snake: Pick face-up from shared pool. Burn: Secretly eliminate options.</span></span></label>
+                                <select id="settingDraftFormat">
+                                    <option value="independent" selected>Independent (Roll Your Own)</option>
+                                    <option value="async_draft">Asynchronous Booster Draft</option>
+                                    <option value="snake_draft">Face-Up Snake Draft</option>
+                                    <option value="burn_draft">Blind Elimination Draft</option>
+                                </select>
+                            </div>
 
-                        <div id="selectionModeContainer" class="settings-full" style="margin-top: 15px;">
-                            <label>Selection Mode: <span class="tooltip">?<span class="tooltiptext">Random: Roll from archives. Manual: Search specific commander. Both: Player choice.</span></span></label>
-                            <select id="settingSelectionMode">
-                                <option value="both">Both (Random & Manual Search)</option>
-                                <option value="random">Random Only</option>
-                                <option value="manual">Manual Only</option>
-                            </select>
-                        </div>
+                            <div id="selectionModeContainer" class="settings-full" style="margin-top: 15px;">
+                                <label>Selection Mode: <span class="tooltip">?<span class="tooltiptext">Random: Roll from archives. Manual: Search specific commander. Both: Player choice.</span></span></label>
+                                <select id="settingSelectionMode">
+                                    <option value="both">Both (Random & Manual Search)</option>
+                                    <option value="random">Random Only</option>
+                                    <option value="manual">Manual Only</option>
+                                </select>
+                            </div>
 
-                        <div id="randomSettingsContainer" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; margin-top: 15px;">
-                            <div class="settings-grid">
-                                <div class="settings-input-group">
-                                    <label id="numOptionsLabel"># Cards Offered (1-5):</label> 
-                                    <select id="settingNumOptions">
-                                        <option value="1">1</option>
-                                        <option value="2">2</option>
-                                        <option value="3" selected>3</option>
-                                        <option value="4">4</option>
-                                        <option value="5">5</option>
-                                    </select>
-                                </div>
-                                <div id="snakePoolContainer" class="settings-input-group" style="display:none;">
-                                    <label>Pool Size: <span class="tooltip">?<span class="tooltiptext">Total face-up cards to draft from. (Max 30)</span></span></label>
-                                    <input type="number" id="settingSnakePoolSize" value="15" min="2" max="30">
-                                </div>
-                                <div id="rerollsContainer" class="settings-input-group">
-                                    <label>Slot Rerolls: <span class="tooltip">?<span class="tooltiptext">Rerolls allowed per player.</span></span></label> 
-                                    <select id="settingMaxRerolls">
-                                        <option value="0">0</option>
-                                        <option value="1" selected>1</option>
-                                        <option value="2">2</option>
-                                        <option value="3">3</option>
-                                        <option value="4">4</option>
-                                        <option value="5">5</option>
-                                    </select>
+                            <div id="randomSettingsContainer" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; margin-top: 15px;">
+                                <div class="settings-grid">
+                                    <div class="settings-input-group">
+                                        <label id="numOptionsLabel"># Cards Offered (1-5):</label> 
+                                        <select id="settingNumOptions">
+                                            <option value="1">1</option>
+                                            <option value="2">2</option>
+                                            <option value="3" selected>3</option>
+                                            <option value="4">4</option>
+                                            <option value="5">5</option>
+                                        </select>
+                                    </div>
+                                    <div id="snakePoolContainer" class="settings-input-group" style="display:none;">
+                                        <label>Pool Size: <span class="tooltip">?<span class="tooltiptext">Total face-up cards to draft from. (Max 30)</span></span></label>
+                                        <input type="number" id="settingSnakePoolSize" value="15" min="2" max="30">
+                                    </div>
+                                    <div id="rerollsContainer" class="settings-input-group">
+                                        <label>Slot Rerolls: <span class="tooltip">?<span class="tooltiptext">Rerolls allowed per player.</span></span></label> 
+                                        <select id="settingMaxRerolls">
+                                            <option value="0">0</option>
+                                            <option value="1" selected>1</option>
+                                            <option value="2">2</option>
+                                            <option value="3">3</option>
+                                            <option value="4">4</option>
+                                            <option value="5">5</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <label class="toggle-label" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
-                            <div class="toggle-switch"><input type="checkbox" id="settingBlindDraft"><span class="slider"></span></div>
-                            Blind Draft <span style="color: #888; font-size: 0.8rem; margin-left: 5px;">(Hide commander picks until everyone locks in)</span>
-                        </label>
-                    </div>
+                            <label class="toggle-label" style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                                <div class="toggle-switch"><input type="checkbox" id="settingBlindDraft"><span class="slider"></span></div>
+                                Blind Draft <span style="color: #888; font-size: 0.8rem; margin-left: 5px;">(Hide commander picks until everyone locks in)</span>
+                            </label>
+                        </div>
 
                         <div class="settings-panel">
                             <h4>💰 Budgets & Power Limits</h4>
@@ -479,7 +480,7 @@
                             </div>
                         </div>
 
-                        <div class="settings-panel" id="webhookPanel" style="margin-bottom: 25px;">
+                        <div class="settings-panel" id="webhookPanel">
                             <h4>🤖 Discord Webhook</h4>
                             <div class="settings-full">
                                 <label>Webhook URL (Optional): <span class="tooltip">?<span class="tooltiptext">Channel Settings > Integrations > Webhooks > New Webhook.</span></span></label>
@@ -487,10 +488,11 @@
                                 <button type="button" class="webhook-test-btn" onclick="window.testLobbyDiscordWebhook()">🔔 Send Test Notification</button>
                             </div>
                         </div>
+                    </div>
 
                     <!-- Host Start Bar -->
                     <div id="hostActionButtons" class="host-action-bar">
-                        <button class="select-btn start-draft-cta" id="startDraftBtn">Start Draft</button>
+                        <button class="select-btn start-draft-cta" id="startDraftBtn"><span>⚔️ START DRAFT CHALLENGE ⚔️</span></button>
                         <button class="btn-cancel" onclick="window.leaveChallenge()">Leave Lobby</button>
                     </div>
                     <div id="livePoolCounter" class="live-pool-text">Calculating eligible commanders...</div>
@@ -570,12 +572,18 @@
     <!-- ==================== VIEW 7: DRAFTING / PLAYER VIEW ==================== -->
     <main id="view-player" class="view-section">
         <div class="player-view-wrapper">
-            <h1 id="playerTitle" class="player-view-title">Drafting Stage</h1>
+            <!-- Hero Header -->
+            <div class="player-hero-header">
+                <div class="hero-badge">✦ Commander Drafting Phase ✦</div>
+                <h1 id="playerTitle" class="hero-title player-view-title">DRAFT YOUR CHAMPION</h1>
+                <p class="hero-subtitle">Choose your legendary commander to lead your deck into battle, or risk the archives with your remaining rerolls.</p>
+            </div>
+
             <div id="player-scroll-left" class="scroll-hint left">‹</div>
             <div id="player-scroll-right" class="scroll-hint right">›</div>
             <div id="content" class="options-container">Gathering Card Data...</div>
             
-            <div style="margin-top: 40px; margin-bottom: 30px;">
+            <div style="margin-top: 40px; margin-bottom: 30px; text-align: center;">
                 <button class="secondary-btn return-dash-btn" onclick="window.closePlayerView()">← Return to Dashboard</button>
             </div>
         </div>
@@ -782,6 +790,6 @@
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=0.45"></script>
+    <script type="module" src="./script.js?v=0.46"></script>
 </body>
 </html>

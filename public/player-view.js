@@ -1,5 +1,5 @@
-import { db, functions } from './firebase-setup.js?v=0.45';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=0.45';
+import { db, functions } from './firebase-setup.js?v=0.46';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=0.46';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -71,7 +71,7 @@ export function initPlayerViewModule(utils, state) {
             }
             
             // Pack cracking animation
-            const { playBoosterPackReveal } = await import('./pack-animation.js?v=0.45');
+            const { playBoosterPackReveal } = await import('./pack-animation.js?v=0.46');
             playBoosterPackReveal(container, async () => {
                 await update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), { generated: list, rerollCount: 0 });
                 try { const logRollFn = httpsCallable(functions, 'logCommandersRolled'); logRollFn({ count: numOpts }); } catch(e) {}
@@ -181,7 +181,24 @@ export function initPlayerViewModule(utils, state) {
             
             let imageHtml = img2 ? `<div class="scene"><div class="card-3d" id="card3d-${i}"><a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" style="display:block;" class="card-face card-face-front"><img src="${sanitizeHTML(img1)}" class="commander-img" loading="lazy"></a><a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" style="display:block;" class="card-face card-face-back"><img src="${sanitizeHTML(img2)}" class="commander-img" loading="lazy"></a></div></div><button class="flip-btn" onclick="window.flipCard3D('card3d-${i}', event)">🔄 Flip Card</button>` : `<a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')"><img id="img-${i}" src="${sanitizeHTML(img1)}" class="commander-img" loading="lazy"></a>`;
 
-            cardDiv.innerHTML = `${imageHtml}<p class="price-tag" style="margin-top: 15px;">${priceString}</p><div class="mana-container">${getColorBadges(card.color_identity)}</div><p class="rank-tag" style="color:var(--gold); font-weight:bold; font-size: 1rem; margin-bottom: 10px;">EDHREC Rank: #${card.display_rank}</p><button type="button" class="inspect-action-btn" style="margin-bottom: 12px; width: 100%; border-color: rgba(212,175,55,0.4);" onclick="window.openCardInspector('${safeCardName}')">✨ 3D Foil Inspect</button><button class="select-btn" data-idx="${i}">Select ${safeCardName}</button>${canReroll ? `<br><button class="reroll-btn" data-idx="${i}" id="btn-reroll-${i}">Reroll Slot (${rerollsRemaining} left)</button>` : ''}`;
+            cardDiv.innerHTML = `
+                <div class="option-card-header">
+                    <span class="option-rank-pill">Rank #${card.display_rank}</span>
+                    <div class="mana-container" style="margin:0;">${getColorBadges(card.color_identity)}</div>
+                </div>
+                <div class="option-card-img-wrapper">
+                    ${imageHtml}
+                </div>
+                <div class="option-card-body">
+                    <h3 class="option-card-title" title="${safeCardName}">${safeCardName}</h3>
+                    <div class="option-card-price">${priceString}</div>
+                </div>
+                <div class="option-card-actions">
+                    <button class="select-btn select-cmdr-cta" data-idx="${i}">⚔️ Select Commander</button>
+                    <button type="button" class="inspect-action-btn" onclick="window.openCardInspector('${safeCardName}')">✨ 3D Inspect</button>
+                    ${canReroll ? `<button class="reroll-btn" data-idx="${i}" id="btn-reroll-${i}">🎲 Reroll Slot (${rerollsRemaining} left)</button>` : ''}
+                </div>
+            `;
 
             cardDiv.querySelector('.select-btn').onclick = () => {
                 playSound('sfx-click'); showConfirm("Seal Your Champion?", `Are you sure you want to lock in ${card.name} as your commander?`, () => {
@@ -225,9 +242,9 @@ export function initPlayerViewModule(utils, state) {
 
     async function renderInteractiveDraft(activeDraft, container, s, players) {
         if (activeDraft.isComplete) { container.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; margin-top:50px;"><h2 style="color:var(--gold); font-family:Cinzel;">Finalizing Draft...</h2><span class="mana-spinner"></span></div>`; return; }
-        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=0.45'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=0.45'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=0.45'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
+        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=0.46'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=0.46'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=0.46'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
     }
 
     function renderFinalSelection(list, s) {
@@ -365,9 +382,9 @@ export function initPlayerViewModule(utils, state) {
                 await new Promise(r => setTimeout(r, 550));
             }
         }
-        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=0.45'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=0.45'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=0.45'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
+        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=0.46'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=0.46'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=0.46'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
     };
 
     window.openPlayerView = async () => {
