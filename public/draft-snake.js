@@ -1,4 +1,4 @@
-import { db } from './firebase-setup.js?v=4.18';
+import { db } from './firebase-setup.js?v=4.19';
 import { ref, runTransaction, update, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function renderSnakeDraft(activeDraft, container, s, currentPlayerId, players, utils) {

@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=4.18';
+import { db, auth } from './firebase-setup.js?v=4.19';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -227,12 +227,9 @@ export function initHubModule(utils, state, coreUi) {
             const edhrecPreconUrl = `https://edhrec.com/precon/${edhrecSlug}`;
 
             cardImageContainer.innerHTML = `
-                <div class="precon-card-preview-wrapper" id="preconCardImgWrapper" title="Click to Inspect in 3D" style="cursor: pointer; position: relative; display: inline-block;">
-                    <img src="${sanitizeHTML(precon.image)}" class="commander-img" loading="lazy" style="max-height: 48vh; border-radius: 12px; margin-bottom: 6px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); transition: transform 0.2s ease;">
-                    <div class="card-inspect-overlay-badge" style="position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #fff; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; border: 1px solid var(--gold); pointer-events: none; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.8);">
-                        🔍 Click to Inspect 3D
-                    </div>
-                </div>
+                <a href="${edhrecPreconUrl}" target="_blank" rel="noopener noreferrer" onclick="playSound('sfx-click')" style="display: inline-block; text-decoration: none;" title="Open ${sanitizeHTML(precon.name)} on EDHREC">
+                    <img src="${sanitizeHTML(precon.image)}" class="commander-img" loading="lazy" style="max-height: 48vh; border-radius: 12px; margin-bottom: 6px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); transition: transform 0.2s ease; cursor: pointer;">
+                </a>
             `;
 
             if (getColorBadges && precon.colors) {
@@ -241,7 +238,7 @@ export function initHubModule(utils, state, coreUi) {
 
             buttonsEl.innerHTML = `
                 <div style="display: flex; gap: 8px; justify-content: center;">
-                    <a id="edhrecPreconBtn" href="${edhrecPreconUrl}" target="_blank" onclick="playSound('sfx-click')" class="select-btn" style="flex: 1.2; padding: 9px 12px; font-size: 0.85rem; text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: #059669; border-color: #10b981;" title="View official decklist & upgrades on EDHREC">
+                    <a id="edhrecPreconBtn" href="${edhrecPreconUrl}" target="_blank" rel="noopener noreferrer" onclick="playSound('sfx-click')" class="select-btn" style="flex: 1.2; padding: 9px 12px; font-size: 0.85rem; text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: #059669; border-color: #10b981;" title="View official decklist & upgrades on EDHREC">
                         📈 EDHREC Decklist ↗
                     </a>
                     <button id="copyPreconDecklistBtn" class="select-btn" style="flex: 1; padding: 9px 12px; font-size: 0.85rem;">
@@ -270,11 +267,6 @@ export function initHubModule(utils, state, coreUi) {
                     window.open(`https://scryfall.com/search?q=${encodeURIComponent(precon.commander)}`, '_blank');
                 }
             };
-
-            const imgWrapper = document.getElementById('preconCardImgWrapper');
-            if (imgWrapper) {
-                imgWrapper.onclick = open3D;
-            }
 
             const inspectBtn = document.getElementById('inspectPreconCmdrBtn');
             if (inspectBtn) {
