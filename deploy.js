@@ -8,8 +8,9 @@ const rootDir = __dirname;
 // --- 1. Parse Command Line Arguments ---
 const args = process.argv.slice(2);
 const isMajor = args.includes('--major');
-// Filter out the --major flag to isolate the notes
-const notes = args.filter(arg => arg !== '--major').join(' ');
+const skipBump = args.includes('--skip-bump') || args.includes('--current-version');
+// Filter out the flags to isolate the notes
+const notes = args.filter(arg => !['--major', '--skip-bump', '--current-version'].includes(arg)).join(' ');
 
 if (!notes) {
     console.error('\n❌ Error: Please provide release notes for the commit.');
@@ -23,8 +24,12 @@ try {
     console.log('▶️  Starting deployment process...');
 
     // --- 2. Run Version Bump ---
-    console.log(`\n🔄 Bumping ${versionType} version...`);
-    execSync(`npm run version${isMajor ? ':major' : ''}`, { stdio: 'inherit', cwd: rootDir });
+    if (!skipBump) {
+        console.log(`\n🔄 Bumping ${versionType} version...`);
+        execSync(`npm run version${isMajor ? ':major' : ''}`, { stdio: 'inherit', cwd: rootDir });
+    } else {
+        console.log('\n⏩ Skipping version bump (keeping current version)...');
+    }
 
     // --- 3. Read the new version number from the bumped package.json ---
     const packageJsonPath = path.join(rootDir, 'functions', 'package.json');

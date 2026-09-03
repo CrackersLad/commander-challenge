@@ -9,7 +9,10 @@ const [major, minor] = version.split('.').map(Number);
 
 let newVersion;
 const args = process.argv.slice(2);
-if (args.includes('major')) {
+const explicitVersion = args.find(a => /^\d+\.\d+$/.test(a));
+if (explicitVersion) {
+    newVersion = explicitVersion;
+} else if (args.includes('major')) {
     newVersion = `${major + 1}.0`;
 } else {
     newVersion = `${major}.${minor + 1}`;

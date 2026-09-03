@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=0.48';
+import { db, auth } from './firebase-setup.js?v=4.3';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
