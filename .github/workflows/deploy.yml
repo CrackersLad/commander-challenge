@@ -19,8 +19,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          rm -f functions/package-lock.json
-          npm install --prefix functions
+          cd functions
+          rm -f package-lock.json
+          npm install --no-audit --no-fund || (sleep 5 && npm install --no-audit --no-fund)
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
