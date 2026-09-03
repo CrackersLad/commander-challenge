@@ -150,9 +150,7 @@ async function fetchSetBoosterCards(setCode) {
 
         if (isShowcase) {
             showcases.push(card);
-        }
-
-        if (isBasicLand) {
+        } else if (isBasicLand) {
             basics.push(card);
         } else if (card.rarity === 'mythic') {
             mythics.push(card);
@@ -440,7 +438,7 @@ function getCardPrice(card, market = 'usd') {
 export function calculateSetEV(setData, market = 'usd', packEdition = 'play', isBox = false, numPacks = 36) {
     if (!setData) return { packEV: 0, boxEV: 0, currentEV: 0, avgMythic: 0, avgRare: 0, topChases: [] };
 
-    const getVal = (card, foil = false) => {
+    const getRawVal = (card, foil = false) => {
         if (!card || !card.prices) return 0;
         let str = null;
         if (market === 'eur') {
@@ -454,9 +452,19 @@ export function calculateSetEV(setData, market = 'usd', packEdition = 'play', is
         return isNaN(v) ? 0 : v;
     };
 
+    // Realistic Realized EV: bulk cards under $0.75 / 0.65€ have negligible cash liquidity (~$0.02 bulk rate)
+    const getRealizedVal = (card, foil = false) => {
+        const v = getRawVal(card, foil);
+        if (v <= 0) return 0;
+        const bulkThreshold = market === 'tix' ? 0.05 : (market === 'eur' ? 0.65 : 0.75);
+        if (v < bulkThreshold) return 0.02;
+        if (v < (bulkThreshold * 2)) return v * 0.75; // slight discount for low-liquidity singles
+        return v;
+    };
+
     const avgPrice = (arr, foil = false) => {
         if (!arr || arr.length === 0) return 0;
-        const total = arr.reduce((sum, c) => sum + getVal(c, foil), 0);
+        const total = arr.reduce((sum, c) => sum + getRealizedVal(c, foil), 0);
         return total / arr.length;
     };
 
@@ -468,47 +476,57 @@ export function calculateSetEV(setData, market = 'usd', packEdition = 'play', is
     const avgUncFoil = avgPrice(setData.uncommons, true);
     const avgCommon = avgPrice(setData.commons, false);
     const avgCommonFoil = avgPrice(setData.commons, true);
-    const avgShowcase = avgPrice(setData.showcases, false);
-    const avgShowcaseFoil = avgPrice(setData.showcases, true);
-    const avgLandFoil = avgPrice(setData.basics, true);
+
+    // Showcases: separate regular showcases from ultra-chase outliers (> $40)
+    const showcases = setData.showcases || [];
+    const stdShowcases = showcases.filter(c => getRealizedVal(c, true) < 40);
+    const chaseShowcases = showcases.filter(c => getRealizedVal(c, true) >= 40);
+
+    const avgStdShowcaseFoil = stdShowcases.length > 0 ? avgPrice(stdShowcases, true) : (avgRareFoil || avgRare);
+    const avgChaseShowcaseFoil = chaseShowcases.length > 0 ? avgPrice(chaseShowcases, true) : (avgMythicFoil || avgMythic);
 
     let packEV = 0;
 
     if (packEdition === 'collector') {
-        // Collector booster EV calculation (15 cards, high foil and showcase density)
-        const cFoilEV = 5 * avgCommonFoil;
-        const uFoilEV = 2 * avgUncFoil;
-        const showcaseFoilEV = avgShowcaseFoil > 0 ? avgShowcaseFoil : avgUncFoil;
-        const altRareEV = (0.84 * (avgShowcase > 0 ? avgShowcase : avgRare)) + (0.16 * (avgShowcase > 0 ? avgShowcase : avgMythic));
-        const foilRareEV = (0.82 * avgRareFoil) + (0.18 * avgMythicFoil);
-        const specialRareEV = (0.85 * avgRare) + (0.15 * avgMythic);
-        const wildcardRareEV = 2 * ((0.80 * avgRareFoil) + (0.20 * avgMythicFoil));
-        const landEV = avgLandFoil > 0 ? avgLandFoil : 0.30;
-        const bonusFoilEV = (0.60 * avgUncFoil) + (0.30 * avgRareFoil) + (0.10 * avgMythicFoil);
+        // Collector Booster EV (15 cards: 5 foil commons, 2 foil uncommons, 1 foil basic land, 
+        // 1 traditional foil rare/mythic, 1 showcase/borderless rare/mythic, 1 extended-art rare/mythic, 
+        // 2 wildcard rare/mythics, 1 bonus sheet slot)
+        const colFoilBulk = (5 * avgCommonFoil) + (2 * avgUncFoil);
+        const colLand = 0.25;
+        const colFoilRare = (0.83 * avgRareFoil) + (0.17 * avgMythicFoil);
+        // Alternate frame slot: ~97% regular showcase/borderless, ~3% ultra-rare chase (Fracture/Raised/Japan)
+        const colShowcase = (0.97 * avgStdShowcaseFoil) + (0.03 * avgChaseShowcaseFoil);
+        const colExtRare = (0.85 * avgRare) + (0.15 * avgMythic);
+        const colWildcards = 2 * ((0.85 * avgRareFoil) + (0.15 * avgMythicFoil));
+        const colBonus = (0.75 * avgUncFoil) + (0.25 * avgRareFoil);
 
-        packEV = cFoilEV + uFoilEV + showcaseFoilEV + altRareEV + foilRareEV + specialRareEV + wildcardRareEV + landEV + bonusFoilEV;
+        packEV = colFoilBulk + colLand + colFoilRare + colShowcase + colExtRare + colWildcards + colBonus;
     } else {
-        // Play / Draft booster EV calculation
+        // Play / Draft Booster EV (14 cards)
+        // 1 Rare/Mythic slot (approx 1:7 mythic ratio)
         const rareSlotEV = (0.857 * avgRare) + (0.143 * avgMythic);
+        // Wildcard slot (can be any rarity, rare/mythic approx 25%)
         const wildcardEV = (0.40 * avgCommon) + (0.35 * avgUnc) + (0.20 * avgRare) + (0.05 * avgMythic);
+        // Dedicated foil slot (1 per pack on average in Play Boosters)
         const foilSlotEV = (0.65 * avgCommonFoil) + (0.25 * avgUncFoil) + (0.085 * avgRareFoil) + (0.015 * avgMythicFoil);
-        const commonSlotEV = 6.95 * avgCommon + (0.05 * (avgShowcase > 0 ? avgShowcase : avgCommon));
         const uncSlotEV = 3 * avgUnc;
-        const landEV = 0.20 * avgLandFoil;
+        const commonSlotEV = 6.95 * avgCommon;
+        const landEV = 0.05; // basic land slot
 
-        packEV = rareSlotEV + wildcardEV + foilSlotEV + commonSlotEV + uncSlotEV + landEV;
+        packEV = rareSlotEV + wildcardEV + foilSlotEV + uncSlotEV + commonSlotEV + landEV;
     }
 
     const boxEV = packEV * numPacks;
 
-    // Find top 3 chase cards in set
+    // Find top 3 chase cards in set (using raw prices for accurate display)
     const allSetCards = [...(setData.mythics || []), ...(setData.rares || []), ...(setData.showcases || [])];
     const uniqueChases = [];
     const seenNames = new Set();
-    allSetCards.sort((a, b) => getVal(b, false) - getVal(a, false)).forEach(c => {
+    allSetCards.sort((a, b) => getRawVal(b, true) - getRawVal(a, true)).forEach(c => {
         if (!seenNames.has(c.name) && uniqueChases.length < 3) {
             seenNames.add(c.name);
-            uniqueChases.push({ name: c.name, price: getVal(c, false), rarity: c.rarity });
+            const highestPrice = Math.max(getRawVal(c, false), getRawVal(c, true));
+            uniqueChases.push({ name: c.name, price: highestPrice, rarity: c.rarity });
         }
     });
 
