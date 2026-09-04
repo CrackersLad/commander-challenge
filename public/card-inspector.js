@@ -210,13 +210,32 @@ function renderCardInspectData(card, fallbackInput) {
 
     document.getElementById('inspectEdhrecRank').textContent = card.edhrec_rank ? `#${card.edhrec_rank.toLocaleString()}` : 'Unranked';
 
-    const isFoil = Boolean(card.isFoil);
+    const promoTypes = Array.isArray(card.promo_types) ? card.promo_types : [];
+    const finishes = Array.isArray(card.finishes) ? card.finishes : [];
+    const isSurgeFoil = Boolean(card.isSurgeFoil) || promoTypes.includes('surgefoil') || card.finish === 'surgefoil';
+    const isSerialized = Boolean(card.isSerialized) || promoTypes.includes('serialized') || promoTypes.includes('doublerainbow') || card.finish === 'serialized';
+    const isEtched = Boolean(card.isEtched) || finishes.includes('etched') || promoTypes.includes('etched') || card.finish === 'etched';
+    const isFoilOnly = (finishes.length > 0 && !finishes.includes('nonfoil')) || isSurgeFoil || isSerialized;
+    const isFoil = Boolean(card.isFoil) || isSurgeFoil || isSerialized || isFoilOnly;
+
     setFoilState(isFoil);
 
     // Update finish tag badge
     const finishTag = document.getElementById('inspectFinishTag');
     if (finishTag) {
-        if (isFoil) {
+        if (isSurgeFoil) {
+            finishTag.className = 'inspect-finish-tag is-surge-foil-tag';
+            finishTag.innerHTML = `<span>🌊 Surge Foil Pull</span>`;
+            finishTag.style.display = 'inline-block';
+        } else if (isSerialized) {
+            finishTag.className = 'inspect-finish-tag is-serialized-tag';
+            finishTag.innerHTML = `<span>💎 Serialized Pull</span>`;
+            finishTag.style.display = 'inline-block';
+        } else if (isEtched) {
+            finishTag.className = 'inspect-finish-tag is-etched-tag';
+            finishTag.innerHTML = `<span>✨ Etched Foil Pull</span>`;
+            finishTag.style.display = 'inline-block';
+        } else if (isFoil) {
             finishTag.className = 'inspect-finish-tag is-foil-tag';
             finishTag.innerHTML = `<span>✨ Traditional Foil Pull</span>`;
             finishTag.style.display = 'inline-block';
@@ -227,40 +246,46 @@ function renderCardInspectData(card, fallbackInput) {
         }
     }
 
-    // Cardmarket (EUR) price display: prioritize foil price when card is foil!
+    // Cardmarket (EUR) price display: prioritize foil price when card is foil or surge foil!
     const eurFoil = card.prices?.eur_foil ? parseFloat(card.prices.eur_foil).toFixed(2) : null;
     const eurReg = card.prices?.eur ? parseFloat(card.prices.eur).toFixed(2) : null;
+    const finishLabel = isSurgeFoil ? 'Surge Foil' : (isSerialized ? 'Serialized' : (isEtched ? 'Etched' : 'Foil'));
     let eurDisplay = '--';
     if (isFoil) {
         if (eurFoil) {
-            eurDisplay = `€${eurFoil} (Foil)`;
+            eurDisplay = `€${eurFoil} (${finishLabel})`;
         } else if (eurReg) {
-            eurDisplay = `€${eurReg} (Foil unlisted)`;
+            eurDisplay = `€${eurReg} (${finishLabel} unlisted)`;
         }
     } else {
         if (eurReg) {
             eurDisplay = `€${eurReg}`;
         } else if (eurFoil) {
-            eurDisplay = `€${eurFoil} (Foil only)`;
+            eurDisplay = `€${eurFoil} (${finishLabel} only)`;
         }
     }
     document.getElementById('inspectPriceEur').textContent = eurDisplay;
 
-    // TCGplayer (USD) price display: prioritize foil price when card is foil!
+    // TCGplayer (USD) price display: prioritize foil price when card is foil or surge foil!
     const usdFoil = card.prices?.usd_foil ? parseFloat(card.prices.usd_foil).toFixed(2) : null;
+    const usdEtched = card.prices?.usd_etched ? parseFloat(card.prices.usd_etched).toFixed(2) : null;
     const usdReg = card.prices?.usd ? parseFloat(card.prices.usd).toFixed(2) : null;
     let usdDisplay = '--';
     if (isFoil) {
         if (usdFoil) {
-            usdDisplay = `$${usdFoil} (Foil)`;
+            usdDisplay = `$${usdFoil} (${finishLabel})`;
+        } else if (usdEtched) {
+            usdDisplay = `$${usdEtched} (Etched Foil)`;
         } else if (usdReg) {
-            usdDisplay = `$${usdReg} (Foil unlisted)`;
+            usdDisplay = `$${usdReg} (${finishLabel} unlisted)`;
         }
     } else {
         if (usdReg) {
             usdDisplay = `$${usdReg}`;
         } else if (usdFoil) {
-            usdDisplay = `$${usdFoil} (Foil only)`;
+            usdDisplay = `$${usdFoil} (${finishLabel} only)`;
+        } else if (usdEtched) {
+            usdDisplay = `$${usdEtched} (Etched only)`;
         }
     }
     document.getElementById('inspectPriceUsd').textContent = usdDisplay;

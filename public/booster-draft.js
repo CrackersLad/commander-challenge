@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.26';
+import { db, auth } from './firebase-setup.js?v=4.27';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -18,7 +18,7 @@ import {
     getCardPrice,
     formatCurrency,
     getSetBasicLands 
-} from './booster-simulator.js?v=4.26';
+} from './booster-simulator.js?v=4.27';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -775,6 +775,12 @@ function getCardCmc(card) {
 // Sanitize card object to strip undefineds and bulky metadata for Firebase Realtime Database
 function sanitizeDraftCard(card) {
     if (!card) return null;
+    const promoTypes = Array.isArray(card.promo_types) ? card.promo_types : [];
+    const finishes = Array.isArray(card.finishes) ? card.finishes : [];
+    const isSurgeFoil = Boolean(card.isSurgeFoil) || promoTypes.includes('surgefoil') || card.finish === 'surgefoil';
+    const isFoilOnly = (finishes.length > 0 && !finishes.includes('nonfoil')) || isSurgeFoil;
+    const isFoil = Boolean(card.isFoil) || isFoilOnly;
+
     return {
         id: String(card.id || Math.random().toString(36).substring(2, 9)),
         name: String(card.name || 'Unknown'),
@@ -783,13 +789,15 @@ function sanitizeDraftCard(card) {
         type_line: card.type_line || '',
         oracle_text: card.oracle_text || '',
         rarity: card.rarity || 'common',
-        isFoil: Boolean(card.isFoil),
+        isFoil: isFoil,
+        isSurgeFoil: isSurgeFoil,
+        specialTag: card.specialTag || (isSurgeFoil ? 'Surge Foil' : null),
         image: card.image || card.image_uris?.normal || 'card_back.webp',
         image_large: card.image_large || card.image_uris?.large || card.image || 'card_back.webp',
         prices: {
-            usd: card.prices?.usd != null ? String(card.prices.usd) : '0',
+            usd: card.prices?.usd != null ? String(card.prices.usd) : (card.prices?.usd_foil != null ? String(card.prices.usd_foil) : '0'),
             usd_foil: card.prices?.usd_foil != null ? String(card.prices.usd_foil) : null,
-            eur: card.prices?.eur != null ? String(card.prices.eur) : null,
+            eur: card.prices?.eur != null ? String(card.prices.eur) : (card.prices?.eur_foil != null ? String(card.prices.eur_foil) : null),
             eur_foil: card.prices?.eur_foil != null ? String(card.prices.eur_foil) : null
         },
         color_identity: Array.isArray(card.color_identity) ? card.color_identity : [],

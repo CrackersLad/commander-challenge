@@ -2901,6 +2901,27 @@ select:focus {
     box-shadow: 0 0 10px rgba(212, 175, 55, 0.35);
 }
 
+.inspect-finish-tag.is-surge-foil-tag {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(59, 130, 246, 0.35), rgba(139, 92, 246, 0.35));
+    border: 1px solid #06b6d4;
+    color: #67e8f9;
+    box-shadow: 0 0 12px rgba(6, 182, 212, 0.5);
+}
+
+.inspect-finish-tag.is-serialized-tag {
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(139, 92, 246, 0.35));
+    border: 1px solid #ec4899;
+    color: #f472b6;
+    box-shadow: 0 0 12px rgba(236, 72, 153, 0.5);
+}
+
+.inspect-finish-tag.is-etched-tag {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(99, 102, 241, 0.35));
+    border: 1px solid #a855f7;
+    color: #c084fc;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+}
+
 .inspect-finish-tag.is-nonfoil-tag {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
@@ -4125,6 +4146,20 @@ select:focus {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
     letter-spacing: 0.5px;
     z-index: 2;
+}
+
+.booster-foil-tag.is-surge-foil {
+    background: linear-gradient(135deg, #06b6d4, #3b82f6, #8b5cf6);
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 2px 8px rgba(6, 182, 212, 0.6);
+}
+
+.booster-foil-tag.is-serialized {
+    background: linear-gradient(135deg, #ec4899, #8b5cf6, #3b82f6);
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 2px 8px rgba(236, 72, 153, 0.6);
 }
 
 .booster-version-tag {

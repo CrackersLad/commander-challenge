@@ -468,9 +468,81 @@ export function generateCollectorBoosterPack(setData, packNumber = 1, boxHistory
 }
 
 export function createPackCard(card, isFoil = false, packNumber = 1, specialTag = null) {
-    const isShowcase = (card.frame_effects && (card.frame_effects.includes('showcase') || card.frame_effects.includes('inverted'))) ||
-                       (card.promo_types && card.promo_types.includes('boosterfun')) ||
+    const finishes = Array.isArray(card.finishes) ? card.finishes : [];
+    const promoTypes = Array.isArray(card.promo_types) ? card.promo_types : [];
+    const frameEffects = Array.isArray(card.frame_effects) ? card.frame_effects : [];
+
+    const isShowcase = (frameEffects.includes('showcase') || frameEffects.includes('inverted')) ||
+                       promoTypes.includes('boosterfun') ||
                        (card.border_color === 'borderless');
+
+    const isSurgeFoil = promoTypes.includes('surgefoil');
+    const isSerialized = promoTypes.includes('serialized') || promoTypes.includes('doublerainbow');
+    const isTextured = promoTypes.includes('textured');
+    const isGalaxy = promoTypes.includes('galaxyfoil');
+    const isHalo = promoTypes.includes('halofoil');
+    const isConfetti = promoTypes.includes('confetti');
+    const isNeonInk = promoTypes.includes('neonink');
+    const isRaisedFoil = promoTypes.includes('raisedfoil');
+    const isGleamingGold = promoTypes.includes('gleaminggold');
+    const isHeadliner = promoTypes.includes('headliner');
+    const isEtched = finishes.includes('etched') || promoTypes.includes('etched');
+
+    // Does this printing physically only exist in foil / special foil treatment?
+    const isFoilOnly = (finishes.length > 0 && !finishes.includes('nonfoil')) ||
+                       isSurgeFoil || isSerialized || isTextured || isGalaxy || isHalo || isConfetti || isNeonInk || isRaisedFoil || isGleamingGold;
+
+    // Does this printing physically only exist in non-foil?
+    const isNonfoilOnly = finishes.length > 0 && !finishes.includes('foil') && !finishes.includes('etched') && !isFoilOnly;
+
+    // Resolve actual physical finish
+    let effectiveFoil = isFoil;
+    if (isFoilOnly) {
+        effectiveFoil = true;
+    } else if (isNonfoilOnly) {
+        effectiveFoil = false;
+    }
+
+    // Determine specific finish name
+    let finishType = 'nonfoil';
+    if (isSurgeFoil) finishType = 'surgefoil';
+    else if (isSerialized) finishType = 'serialized';
+    else if (isTextured) finishType = 'textured';
+    else if (isGalaxy) finishType = 'galaxyfoil';
+    else if (isHalo) finishType = 'halofoil';
+    else if (isConfetti) finishType = 'confetti';
+    else if (isNeonInk) finishType = 'neonink';
+    else if (isRaisedFoil) finishType = 'raisedfoil';
+    else if (isGleamingGold) finishType = 'gleaminggold';
+    else if (isHeadliner) finishType = 'headliner';
+    else if (isEtched) finishType = 'etched';
+    else if (effectiveFoil) finishType = 'foil';
+
+    // Determine descriptive tag
+    let effectiveSpecialTag = specialTag;
+    if (isSurgeFoil) {
+        effectiveSpecialTag = 'Surge Foil';
+    } else if (isSerialized) {
+        effectiveSpecialTag = 'Serialized';
+    } else if (isHeadliner) {
+        effectiveSpecialTag = 'Headliner';
+    } else if (isGleamingGold) {
+        effectiveSpecialTag = 'Gleaming Gold';
+    } else if (isRaisedFoil) {
+        effectiveSpecialTag = 'Raised Foil';
+    } else if (isTextured) {
+        effectiveSpecialTag = 'Textured Foil';
+    } else if (isConfetti) {
+        effectiveSpecialTag = 'Confetti Foil';
+    } else if (isGalaxy) {
+        effectiveSpecialTag = 'Galaxy Foil';
+    } else if (isHalo) {
+        effectiveSpecialTag = 'Halo Foil';
+    } else if (isNeonInk) {
+        effectiveSpecialTag = 'Neon Ink';
+    } else if (!effectiveSpecialTag && isShowcase) {
+        effectiveSpecialTag = 'Showcase';
+    }
 
     const frontFace = card.card_faces?.[0];
     const normalImg = card.image_uris?.normal || frontFace?.image_uris?.normal || (card.id ? `https://api.scryfall.com/cards/${card.id}?format=image&version=normal` : 'card_back.webp');
@@ -484,10 +556,13 @@ export function createPackCard(card, isFoil = false, packNumber = 1, specialTag 
         type_line: card.type_line || frontFace?.type_line || '',
         oracle_text: card.oracle_text || frontFace?.oracle_text || '',
         rarity: card.rarity || 'common',
-        isFoil: isFoil,
-        finish: isFoil ? 'foil' : 'nonfoil',
+        isFoil: effectiveFoil,
+        finish: finishType,
+        isSurgeFoil: isSurgeFoil,
+        isSerialized: isSerialized,
+        isEtched: isEtched,
         packNumber: packNumber,
-        specialTag: specialTag || (isShowcase ? 'Showcase' : null),
+        specialTag: effectiveSpecialTag,
         isShowcase: isShowcase,
         collector_number: card.collector_number,
         set: card.set,
@@ -509,12 +584,20 @@ export function getCardPrice(card, market = 'usd') {
     let priceStr = null;
 
     if (market === 'eur') {
-        priceStr = card.isFoil ? (card.prices.eur_foil || card.prices.eur) : card.prices.eur;
+        if (card.isFoil) {
+            priceStr = card.prices.eur_foil || card.prices.eur;
+        } else {
+            priceStr = card.prices.eur || card.prices.eur_foil;
+        }
     } else if (market === 'tix') {
         priceStr = card.prices.tix;
     } else {
         // Default: USD
-        priceStr = card.isFoil ? (card.prices.usd_foil || card.prices.usd) : card.prices.usd;
+        if (card.isFoil) {
+            priceStr = card.prices.usd_foil || card.prices.usd_etched || card.prices.usd;
+        } else {
+            priceStr = card.prices.usd || card.prices.usd_foil || card.prices.usd_etched;
+        }
     }
 
     const val = parseFloat(priceStr);
@@ -529,11 +612,11 @@ export function calculateSetEV(setData, market = 'usd', packEdition = 'play', is
         if (!card || !card.prices) return 0;
         let str = null;
         if (market === 'eur') {
-            str = foil ? (card.prices.eur_foil || card.prices.eur) : card.prices.eur;
+            str = foil ? (card.prices.eur_foil || card.prices.eur) : (card.prices.eur || card.prices.eur_foil);
         } else if (market === 'tix') {
             str = card.prices.tix;
         } else {
-            str = foil ? (card.prices.usd_foil || card.prices.usd) : card.prices.usd;
+            str = foil ? (card.prices.usd_foil || card.prices.usd_etched || card.prices.usd) : (card.prices.usd || card.prices.usd_foil || card.prices.usd_etched);
         }
         const v = parseFloat(str);
         return isNaN(v) ? 0 : v;
@@ -1116,7 +1199,7 @@ function renderSimulationResults(sim) {
                     <div class="booster-card-img-wrapper">
                         <img src="${card.image}" alt="${card.name}" loading="lazy" class="booster-card-img">
                         ${card.isFoil ? '<div class="booster-foil-overlay"></div>' : ''}
-                        ${card.isFoil ? '<span class="booster-foil-tag">FOIL</span>' : ''}
+                        ${card.isSurgeFoil ? '<span class="booster-foil-tag is-surge-foil">SURGE FOIL</span>' : (card.isSerialized ? '<span class="booster-foil-tag is-serialized">SERIALIZED</span>' : (card.isFoil ? '<span class="booster-foil-tag">FOIL</span>' : ''))}
                         ${card.specialTag ? `<span class="booster-version-tag">${card.specialTag}</span>` : ''}
                         <span class="booster-rarity-pill rarity-${card.rarity}">${card.rarity.toUpperCase()}</span>
                     </div>
@@ -1238,7 +1321,7 @@ function renderSidebarAnalytics(sim, container) {
                     <div class="top-hit-row" onclick="window.inspectBoosterCardByIndex(${h.simIndex !== undefined ? h.simIndex : `'${h.id}'`})" title="Inspect ${h.name}">
                         <span class="top-hit-rank">#${i + 1}</span>
                         <div class="top-hit-info">
-                            <div class="top-hit-name">${h.name} ${h.isFoil ? '<span class="foil-badge-mini">✨</span>' : ''}</div>
+                            <div class="top-hit-name">${h.name} ${h.isSurgeFoil ? '<span class="foil-badge-mini" title="Surge Foil">🌊</span>' : (h.isFoil ? '<span class="foil-badge-mini">✨</span>' : '')}</div>
                             <div class="top-hit-sub">${h.rarity.toUpperCase()} ${h.specialTag ? `• ${h.specialTag}` : ''}</div>
                         </div>
                         <span class="top-hit-price">${formatCurrency(getCardPrice(h, sim.market), sim.market)}</span>
