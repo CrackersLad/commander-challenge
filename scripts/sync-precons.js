@@ -22,6 +22,30 @@ function formatCardImage(scryfallId) {
     return `https://cards.scryfall.io/normal/front/${f1}/${f2}/${scryfallId}.jpg`;
 }
 
+function generateThemeAndStrategy(name, commander, colors, type) {
+    const n = (name || '').toLowerCase();
+    if (n.includes('dragon')) return { theme: "Dragon Tribal & High-Flying Burn", strategy: "Ramp into massive flying Dragons that dominate the skies and rain destructive breath weapon fire upon your enemies." };
+    if (n.includes('vampire')) return { theme: "Vampire Tribal & Blood Drain", strategy: "Drain the life essence of your foes while bolstering your own, converting aristocrat sacrifices into battlefield superiority." };
+    if (n.includes('zombie')) return { theme: "Zombie Horde & Graveyard Swarm", strategy: "Raise endless hordes of rotting undead from the graveyard, overwhelming defenses through sheer, unstoppable attrition." };
+    if (n.includes('elf') || n.includes('elves')) return { theme: "Elf Tribal & Mana Acceleration", strategy: "Swarm the battlefield with cheap mana elves, tap them for enormous mana pools, and cast game-ending Overrun effects." };
+    if (n.includes('artifact') || n.includes('forge') || n.includes('machine')) return { theme: "Artifact Synergy & Construct Ramp", strategy: "Assemble complex mechanical engines and an armada of powerful constructs to out-value and out-muscle the table." };
+    if (n.includes('spell') || n.includes('arcane') || n.includes('storm')) return { theme: "Spellslinger & Instant-Speed Velocity", strategy: "Cast a rapid flurry of cheap spells each turn to draw cards, control threats, and trigger powerful spell-harmonizing payoffs." };
+    if (n.includes('land') || n.includes('nature') || n.includes('wild')) return { theme: "Landfall & Explosive Ramp", strategy: "Drop extra lands every turn to trigger exponential Landfall abilities, ramping into titanic game-finishing threats." };
+
+    let theme = "Commander Synergy & Strategy";
+    let strategy = `Pilot ${commander} with focused deck synergies, leveraging color advantages to build an overwhelming board state.`;
+
+    if (colors && colors.length >= 2) {
+        if (colors.includes('U') && colors.includes('R')) { theme = "Spellslinger & Flashy Instants"; strategy = "Chain spells together to draw cards, burn targets, and generate token armies from your spell casts."; }
+        else if (colors.includes('B') && colors.includes('G')) { theme = "Graveyard Scavenge & Morbid Rebirth"; strategy = "Turn death into your greatest weapon by filling the graveyard and returning titanic horrors directly to the battlefield."; }
+        else if (colors.includes('G') && colors.includes('W')) { theme = "Go-Wide Tokens & +1/+1 Buffs"; strategy = "Fill your board with creature tokens, stack anthem buffs and +1/+1 counters, and overrun your opponents in a grand charge."; }
+        else if (colors.includes('B') && colors.includes('W')) { theme = "Aristocrats, Sacrifice & Drain"; strategy = "Bleed your opponents for every death, extorting life totals and bringing back key pieces from beyond the grave."; }
+        else if (colors.includes('U') && colors.includes('G')) { theme = "Ramp, Card Draw & Big Monsters"; strategy = "Combine unchecked land ramp with deep card draw to drown your opponents in an ocean of colossal threats."; }
+        else if (colors.includes('R') && colors.includes('G')) { theme = "Aggressive Stompy & Trample"; strategy = "Accelerate your mana and slam ferocious, trampling monsters onto the board to smash through opposing blockers."; }
+    }
+    return { theme, strategy };
+}
+
 async function syncPrecons() {
     console.log('🔄 Checking for new MTG Commander Precons...');
     
@@ -98,6 +122,13 @@ async function syncPrecons() {
                 }
             }
 
+            const { theme, strategy } = generateThemeAndStrategy(
+                data.name || deck.name,
+                commanderCard.name,
+                commanderCard.colors || commanderCard.colorIdentity || [],
+                commanderCard.type || commanderCard.originalType || ''
+            );
+
             const preconEntry = {
                 name: data.name || deck.name,
                 code: data.code || deck.code,
@@ -108,6 +139,8 @@ async function syncPrecons() {
                 colors: commanderCard.colors || commanderCard.colorIdentity || [],
                 manaCost: commanderCard.manaCost || '',
                 type: commanderCard.type || commanderCard.originalType || '',
+                theme: theme,
+                strategy: strategy,
                 source: data.source || deck.source || '',
                 cardCount: (data.commander?.length || 1) + mainboardCount,
                 decklist: lines.join('\n')

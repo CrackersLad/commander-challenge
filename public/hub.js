@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=4.20';
+import { db, auth } from './firebase-setup.js?v=4.21';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -146,20 +146,29 @@ export function initHubModule(utils, state, coreUi) {
         overlay.style.display = 'flex';
         overlay.style.zIndex = '9999';
         overlay.innerHTML = `
-            <div class="modal-content" id="quickRollModalContent" style="background: #121815; padding: 22px; border-radius: 12px; border: 1px solid #10b981; text-align: center; max-width: 440px; width: 92%; transition: transform 0.2s ease-out, opacity 0.2s ease-out; box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 25px rgba(16, 185, 129, 0.25);">
+            <div class="modal-content" id="quickRollModalContent" style="background: #121815; padding: 20px 22px; border-radius: 12px; border: 1px solid #10b981; text-align: center; max-width: 450px; width: 92%; max-height: 92vh; overflow-y: auto; transition: transform 0.2s ease-out, opacity 0.2s ease-out; box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 25px rgba(16, 185, 129, 0.25);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
                     <span style="color: #34d399; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">📦 Commander Precon</span>
                     <span id="quickRollPreconSet" style="font-size: 0.75rem; background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 6px; color:#cbd5e1;">&nbsp;</span>
                 </div>
                 <h3 id="quickRollDeckName" style="color: #fff; margin: 0 0 4px 0; font-family: Cinzel; font-size: 1.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Rolling Precon...</h3>
                 <div id="quickRollCardContainer">
-                    <h4 id="quickRollCardName" style="color: #34d399; margin: 0 0 10px 0; font-size: 0.95rem; height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">&nbsp;</h4>
-                    <div id="quickRollCardImage" style="height: 48vh; display:flex; align-items:center; justify-content:center;">
-                        <img src="" class="commander-img" loading="eager" style="max-height: 48vh; border-radius: 12px; margin-bottom: 8px; transition: filter 0.05s ease, transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+                    <h4 id="quickRollCardName" style="color: #34d399; margin: 0 0 8px 0; font-size: 0.95rem; height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">&nbsp;</h4>
+                    <div id="quickRollCardImage" style="height: 42vh; display:flex; align-items:center; justify-content:center;">
+                        <img src="" class="commander-img" loading="eager" style="max-height: 42vh; border-radius: 12px; margin-bottom: 6px; transition: filter 0.05s ease, transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
                     </div>
                 </div>
                 <div id="quickRollPreconBadges" style="margin-top: 6px; display: flex; justify-content: center; gap: 6px;"></div>
-                <div id="quickRollButtons" style="display: none; flex-direction: column; gap: 8px; justify-content: center; margin-top: 14px;"></div>
+                <div id="quickRollPreconStrategy" style="display: none; margin: 10px 0 6px 0; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 10px; padding: 10px 12px; text-align: left; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; gap: 8px;">
+                        <span style="font-size: 0.74rem; font-weight: 700; color: #34d399; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px;">
+                            ⚔️ Strategy & Playstyle
+                        </span>
+                        <span id="quickRollPreconThemeBadge" style="font-size: 0.72rem; font-weight: 600; background: rgba(52, 211, 153, 0.18); color: #a7f3d0; padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(52, 211, 153, 0.3); white-space: nowrap;"></span>
+                    </div>
+                    <p id="quickRollPreconStrategyText" style="margin: 0; font-size: 0.83rem; color: #f1f5f9; line-height: 1.4; font-style: italic;"></p>
+                </div>
+                <div id="quickRollButtons" style="display: none; flex-direction: column; gap: 8px; justify-content: center; margin-top: 12px;"></div>
             </div>
         `;
         document.body.appendChild(overlay);
@@ -228,12 +237,24 @@ export function initHubModule(utils, state, coreUi) {
 
             cardImageContainer.innerHTML = `
                 <a href="${edhrecPreconUrl}" target="_blank" rel="noopener noreferrer" onclick="playSound('sfx-click')" style="display: inline-block; text-decoration: none;" title="Open ${sanitizeHTML(precon.name)} on EDHREC">
-                    <img src="${sanitizeHTML(precon.image)}" class="commander-img" loading="lazy" style="max-height: 48vh; border-radius: 12px; margin-bottom: 6px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); transition: transform 0.2s ease; cursor: pointer;">
+                    <img src="${sanitizeHTML(precon.image)}" class="commander-img" loading="lazy" style="max-height: 42vh; border-radius: 12px; margin-bottom: 6px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); transition: transform 0.2s ease; cursor: pointer;">
                 </a>
             `;
 
             if (getColorBadges && precon.colors) {
                 badgesEl.innerHTML = `<div class="mana-container" style="margin:0;">${getColorBadges(precon.colors)}</div>`;
+            }
+
+            const strategyEl = document.getElementById('quickRollPreconStrategy');
+            const themeBadgeEl = document.getElementById('quickRollPreconThemeBadge');
+            const strategyTextEl = document.getElementById('quickRollPreconStrategyText');
+
+            if (strategyEl && (precon.strategy || precon.theme)) {
+                if (themeBadgeEl) themeBadgeEl.textContent = precon.theme || 'Precon Archetype';
+                if (strategyTextEl) strategyTextEl.textContent = `"${precon.strategy || 'Command this precon with its focused synergies, building a dominating board to secure victory.'}"`;
+                strategyEl.style.display = 'block';
+            } else if (strategyEl) {
+                strategyEl.style.display = 'none';
             }
 
             buttonsEl.innerHTML = `
