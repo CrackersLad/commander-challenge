@@ -1,0 +1,46 @@
+name: Automated Precon Sync
+
+on:
+  schedule:
+    # Run every Sunday at 03:00 UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch: # Allow manual trigger from GitHub Actions tab
+
+jobs:
+  sync_and_deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run Precon Sync
+        id: sync
+        run: |
+          node scripts/sync-precons.js
+          if [ -n "$(git status --porcelain public/commander-precons.json)" ]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Version bump and commit if new precons detected
+        if: steps.sync.outputs.changes == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          node functions/build.js
+          git add .
+          NEW_VER=$(node -e "console.log(require('./functions/package.json').version)")
+          git commit -m "chore(release): v${NEW_VER}" -m "Auto-sync new MTG Commander Precons from MTGJSON"
+          git push origin main

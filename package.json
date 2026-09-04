@@ -5,6 +5,7 @@
     "version": "node functions/build.js",
     "version:major": "node functions/build.js major",
     "deploy": "node deploy.js",
-    "deploy:major": "node deploy.js --major"
+    "deploy:major": "node deploy.js --major",
+    "sync-precons": "node scripts/sync-precons.js"
   }
 }
