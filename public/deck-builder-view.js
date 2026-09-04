@@ -14,28 +14,31 @@ export function initDeckBuilderModule(utils, state) {
 
             sortedCards.sort((a, b) => {
                 if (currentSort === 'color') {
-                    const aColor = a.color_identity.length === 0 ? 'C' : a.color_identity[0];
-                    const bColor = b.color_identity.length === 0 ? 'C' : b.color_identity[0];
+                    const aColors = a.color_identity || a.colors || [];
+                    const bColors = b.color_identity || b.colors || [];
+                    const aColor = aColors.length === 0 ? 'C' : aColors[0];
+                    const bColor = bColors.length === 0 ? 'C' : bColors[0];
                     if (colorOrder[aColor] !== colorOrder[bColor]) {
-                        return colorOrder[aColor] - colorOrder[bColor];
+                        return (colorOrder[aColor] || 99) - (colorOrder[bColor] || 99);
                     }
-                    return a.cmc - b.cmc;
+                    return (a.cmc || 0) - (b.cmc || 0);
                 }
                 if (currentSort === 'cmc') {
-                    if (a.cmc !== b.cmc) return a.cmc - b.cmc;
-                    return a.name.localeCompare(b.name);
+                    const cmcDiff = (a.cmc || 0) - (b.cmc || 0);
+                    if (cmcDiff !== 0) return cmcDiff;
+                    return (a.name || '').localeCompare(b.name || '');
                 }
                 if (currentSort === 'type') {
-                    const aType = a.type_line.split(' — ')[0];
-                    const bType = b.type_line.split(' — ')[0];
+                    const aType = (a.type_line || a.type || '').split(' — ')[0];
+                    const bType = (b.type_line || b.type || '').split(' — ')[0];
                     const aOrder = Object.keys(typeOrder).find(t => aType.includes(t)) || 'Other';
                     const bOrder = Object.keys(typeOrder).find(t => bType.includes(t)) || 'Other';
                     if (typeOrder[aOrder] !== typeOrder[bOrder]) {
                         return (typeOrder[aOrder] || 99) - (typeOrder[bOrder] || 99);
                     }
-                    return a.name.localeCompare(b.name);
+                    return (a.name || '').localeCompare(b.name || '');
                 }
-                return a.name.localeCompare(b.name); // Default to name
+                return (a.name || '').localeCompare(b.name || ''); // Default to name
             });
         };
 
@@ -56,13 +59,14 @@ export function initDeckBuilderModule(utils, state) {
             `;
 
             sortedCards.forEach(card => {
-                let img = card.image_uris?.normal || (card.card_faces && card.card_faces[0].image_uris?.normal);
-                const safeName = sanitizeHTML(card.name);
+                let img = card.image_uris?.normal || (card.card_faces && card.card_faces[0].image_uris?.normal) || card.image || card.image_large || 'card_back.webp';
+                const safeName = sanitizeHTML(card.name || 'Unknown Card');
+                const cardUrl = card.scryfall_uri || `https://scryfall.com/search?q=${encodeURIComponent(card.name || '')}`;
 
                 html += `
                     <div class="option-card revealed" style="width:180px; padding:10px; transition:none; transform:none; opacity:1;">
-                        <a href="${card.scryfall_uri}" target="_blank" title="View on Scryfall">
-                            <img src="${sanitizeHTML(img)}" class="commander-img" style="margin-top:0;" loading="lazy">
+                        <a href="${cardUrl}" target="_blank" rel="noopener noreferrer" title="View ${safeName} on Scryfall">
+                            <img src="${sanitizeHTML(img)}" class="commander-img" style="margin-top:0;" loading="lazy" alt="${safeName}">
                         </a>
                     </div>
                 `;
@@ -71,7 +75,7 @@ export function initDeckBuilderModule(utils, state) {
             html += `</div>`;
             container.innerHTML = html;
 
-            document.querySelectorAll('.sort-btn').forEach(btn => {
+            container.querySelectorAll('.sort-btn').forEach(btn => {
                 btn.onclick = (e) => {
                     playSound('sfx-click');
                     currentSort = e.target.dataset.sort;

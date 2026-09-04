@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.22';
+import { db, auth } from './firebase-setup.js?v=4.23';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -17,7 +17,7 @@ import {
     generateCollectorBoosterPack, 
     getCardPrice,
     formatCurrency 
-} from './booster-simulator.js?v=4.22';
+} from './booster-simulator.js?v=4.23';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -187,6 +187,7 @@ export function initBoosterDraftModule(utils, state) {
         document.body.appendChild(previewEl);
     }
 
+    let previewRafId = null;
     window.addEventListener('mousemove', (e) => {
         if (!hoverPreviewEnabled) {
             if (previewEl.style.display !== 'none') previewEl.style.display = 'none';
@@ -199,39 +200,45 @@ export function initBoosterDraftModule(utils, state) {
             return;
         }
 
-        const img = cardItem.querySelector('.draft-card-img') || cardItem.querySelector('img');
-        const imgSrc = cardItem.getAttribute('data-preview-img') || img?.src;
-        if (!imgSrc || imgSrc.includes('card_back')) {
-            if (previewEl.style.display !== 'none') previewEl.style.display = 'none';
-            return;
-        }
+        const clientX = e.clientX;
+        const clientY = e.clientY;
 
-        const previewImg = document.getElementById('floatingCardPreviewImg');
-        if (previewImg && previewImg.src !== imgSrc) {
-            previewImg.src = imgSrc;
-        }
+        if (previewRafId) cancelAnimationFrame(previewRafId);
+        previewRafId = requestAnimationFrame(() => {
+            const img = cardItem.querySelector('.draft-card-img') || cardItem.querySelector('img');
+            const imgSrc = cardItem.getAttribute('data-preview-img') || img?.src;
+            if (!imgSrc || imgSrc.includes('card_back')) {
+                if (previewEl.style.display !== 'none') previewEl.style.display = 'none';
+                return;
+            }
 
-        previewEl.style.display = 'block';
+            const previewImg = document.getElementById('floatingCardPreviewImg');
+            if (previewImg && previewImg.src !== imgSrc) {
+                previewImg.src = imgSrc;
+            }
 
-        const previewWidth = 320;
-        const previewHeight = 448;
-        let left = e.clientX - (previewWidth / 2);
-        if (left < 10) left = 10;
-        if (left + previewWidth > window.innerWidth - 10) left = window.innerWidth - previewWidth - 10;
+            if (previewEl.style.display !== 'block') previewEl.style.display = 'block';
 
-        // Position above the cursor so user can still scroll/hover downwards freely
-        let top = e.clientY - 15;
-        if (e.clientY < previewHeight + 30) {
-            // If cursor is near top of viewport, flip preview directly below cursor
-            previewEl.style.transform = 'translateY(25px)';
-        } else {
-            // Normal position: directly above cursor
-            previewEl.style.transform = 'translateY(-100%)';
-        }
+            const previewWidth = 320;
+            const previewHeight = 448;
+            let left = clientX - (previewWidth / 2);
+            if (left < 10) left = 10;
+            if (left + previewWidth > window.innerWidth - 10) left = window.innerWidth - previewWidth - 10;
 
-        previewEl.style.left = `${left}px`;
-        previewEl.style.top = `${top}px`;
-    });
+            // Position above the cursor so user can still scroll/hover downwards freely
+            let top = clientY - 15;
+            if (clientY < previewHeight + 30) {
+                // If cursor is near top of viewport, flip preview directly below cursor
+                previewEl.style.transform = 'translateY(25px)';
+            } else {
+                // Normal position: directly above cursor
+                previewEl.style.transform = 'translateY(-100%)';
+            }
+
+            previewEl.style.left = `${left}px`;
+            previewEl.style.top = `${top}px`;
+        });
+    }, { passive: true });
 
     // Hash navigation listener (e.g. #draft-ABCD)
     const checkHash = () => {
@@ -2078,7 +2085,7 @@ function renderDraftDeckWorkspace(pool, formatId) {
                         ${sortedMain.map(({ card, count }) => `
                             <div class="draft-card-item in-main-deck ${card.isFoil ? 'is-foil' : ''}" 
                                  data-preview-img="${card.image_large || card.image}"
-                                 onclick="window.removeCardFromMainDeck('${card.name.replace(/'/g, "\\'")}')">
+                                 onclick="window.removeCardFromMainDeck(decodeURIComponent('${encodeURIComponent(card.name)}'))">
                                  <div class="draft-card-img-wrapper">
                                     <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
                                     ${count > 1 ? `<div class="card-copies-badge">${count}x</div>` : ''}
@@ -2131,7 +2138,7 @@ function renderDraftDeckWorkspace(pool, formatId) {
                         ${sortedSide.map(({ card, count }) => `
                             <div class="draft-card-item in-sideboard ${card.isFoil ? 'is-foil' : ''}" 
                                  data-preview-img="${card.image_large || card.image}"
-                                 onclick="window.addCardToMainDeck('${card.name.replace(/'/g, "\\'")}')">
+                                 onclick="window.addCardToMainDeck(decodeURIComponent('${encodeURIComponent(card.name)}'))">
                                 <div class="draft-card-img-wrapper">
                                     <img src="${card.image}" alt="${card.name}" loading="lazy" class="draft-card-img">
                                     ${count > 1 ? `<div class="card-copies-badge">${count}x</div>` : ''}

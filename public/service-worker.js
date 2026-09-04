@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'cmdr-draft-cache-v4.22';
+const CACHE_NAME = 'cmdr-draft-cache-v4.23';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -19,6 +19,11 @@ const urlsToCache = [
   '/draft-async.js',
   '/draft-burn.js',
   '/draft-snake.js',
+  '/card-inspector.js',
+  '/booster-simulator.js',
+  '/booster-draft.js',
+  '/war-room.js',
+  '/commander-precons.json',
   '/profile.js',
   '/calendar.js',
   '/click.mp3',
