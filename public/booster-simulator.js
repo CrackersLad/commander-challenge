@@ -90,6 +90,51 @@ export function formatCurrency(amount, market) {
     return `${symbol}${Number(amount || 0).toFixed(2)}`;
 }
 
+// Known companion Commander sets associated with main booster releases
+export const COMPANION_COMMANDER_SETS = {
+    'hob': 'hoc',
+    'ltr': 'ltc',
+    'woe': 'woc',
+    'otj': 'otc',
+    'mkm': 'mkc',
+    'lci': 'lcc',
+    'blb': 'blc',
+    'dsk': 'dsc',
+    'fdn': 'fdc',
+    'mh3': 'm3c',
+    'one': 'onc',
+    'bro': 'brc',
+    'dmu': 'dmc',
+    'mom': 'moc',
+    'snc': 'ncc',
+    'neo': 'nec',
+    'vow': 'voc',
+    'mid': 'mic',
+    'afr': 'afc',
+    'khm': 'khc',
+    'znr': 'znc',
+    'iko': 'c20',
+    'stx': 'c21',
+    'tdm': 'tdc',
+    'dft': 'drc'
+};
+
+export function getCompanionCommanderSetCode(parentSetCode) {
+    const code = (parentSetCode || '').toLowerCase().trim();
+    if (!code) return null;
+    if (COMPANION_COMMANDER_SETS[code]) return COMPANION_COMMANDER_SETS[code];
+
+    if (typeof window !== 'undefined' && Array.isArray(window.scryfallSets)) {
+        const found = window.scryfallSets.find(s => 
+            s.parent_set_code === code && 
+            (s.set_type === 'commander' || s.set_type === 'eternal' || s.code.endsWith('c')) &&
+            !['token', 'memorabilia', 'minigame', 'alchemy'].includes(s.set_type)
+        );
+        if (found) return found.code.toLowerCase();
+    }
+    return null;
+}
+
 // Fetch all booster-eligible cards and variants from Scryfall
 export async function fetchSetBoosterCards(setCode) {
     const code = setCode.toLowerCase();
@@ -101,12 +146,21 @@ export async function fetchSetBoosterCards(setCode) {
     let cards = [];
     let queryUrl = `https://api.scryfall.com/cards/search?q=set%3A${code}+is%3Abooster&unique=prints`;
 
+    // Concurrently fetch companion Commander set if one exists (e.g. HOB -> HOC, LTR -> LTC, BLB -> BLC)
+    const companionCode = getCompanionCommanderSetCode(code);
+    let companionFetchPromise = null;
+    if (companionCode) {
+        companionFetchPromise = fetch(`https://api.scryfall.com/cards/search?q=set%3A${companionCode}&unique=prints`, {
+            headers: { 'Accept': 'application/json', 'User-Agent': 'CommanderChallenge/1.0' }
+        }).then(r => r.ok ? r.json() : null).catch(() => null);
+    }
+
     try {
-        let res = await fetch(queryUrl, { headers: { 'Accept': 'application/json' } });
+        let res = await fetch(queryUrl, { headers: { 'Accept': 'application/json', 'User-Agent': 'CommanderChallenge/1.0' } });
         if (!res.ok) {
             // Fallback to all prints of set if is:booster isn't indexed
             queryUrl = `https://api.scryfall.com/cards/search?q=set%3A${code}&unique=prints`;
-            res = await fetch(queryUrl, { headers: { 'Accept': 'application/json' } });
+            res = await fetch(queryUrl, { headers: { 'Accept': 'application/json', 'User-Agent': 'CommanderChallenge/1.0' } });
         }
 
         if (res.ok) {
@@ -116,7 +170,7 @@ export async function fetchSetBoosterCards(setCode) {
             // Follow pagination if needed (usually 1-3 pages for a full set)
             let pagesFetched = 1;
             while (json.has_more && json.next_page && pagesFetched < 4) {
-                const nextRes = await fetch(json.next_page, { headers: { 'Accept': 'application/json' } });
+                const nextRes = await fetch(json.next_page, { headers: { 'Accept': 'application/json', 'User-Agent': 'CommanderChallenge/1.0' } });
                 if (!nextRes.ok) break;
                 json = await nextRes.json();
                 cards.push(...(json.data || []));
@@ -129,6 +183,15 @@ export async function fetchSetBoosterCards(setCode) {
 
     if (cards.length === 0) {
         throw new Error(`Could not load cards for set "${setCode.toUpperCase()}". Check your internet connection or try another set.`);
+    }
+
+    // Resolve companion commander cards
+    let companionCards = [];
+    if (companionFetchPromise) {
+        const cJson = await companionFetchPromise;
+        if (cJson && Array.isArray(cJson.data)) {
+            companionCards = cJson.data;
+        }
     }
 
     // Identify ultra-chase cards (serialized, headliner, gleaming gold, neon ink, textured, confetti)
@@ -189,9 +252,11 @@ export async function fetchSetBoosterCards(setCode) {
     const uncommons = Array.from(uniqueUncommons.values());
     const rares = Array.from(uniqueRares.values());
     const mythics = Array.from(uniqueMythics.values());
+    const commanderRareMythics = companionCards.filter(c => c.rarity === 'rare' || c.rarity === 'mythic');
 
     const setPayload = {
         code,
+        companionCode: companionCode || null,
         totalCards: cards.length,
         commons: commons.length > 0 ? commons : cards,
         uncommons: uncommons.length > 0 ? uncommons : cards,
@@ -199,7 +264,9 @@ export async function fetchSetBoosterCards(setCode) {
         mythics: mythics.length > 0 ? mythics : (rares.length > 0 ? rares : cards),
         basics: basics.length > 0 ? basics : commons,
         showcases: showcases,
-        ultraChase: ultraChase
+        ultraChase: ultraChase,
+        commanderCards: companionCards,
+        commanderRareMythics: commanderRareMythics
     };
 
     setCache.set(code, setPayload);
@@ -344,14 +411,25 @@ export function generateBoosterPack(setData, packNumber = 1, boxHistory = null) 
     // 5. Wildcard Slot (any rarity, realistic weighting)
     const wildcardRoll = Math.random();
     let wildcardPool = setData.commons;
-    if (wildcardRoll < 0.40) wildcardPool = setData.commons;
-    else if (wildcardRoll < 0.75) wildcardPool = setData.uncommons;
-    else if (wildcardRoll < 0.95) wildcardPool = setData.rares;
-    else wildcardPool = setData.mythics;
+    let wildcardTag = 'Wildcard';
+
+    // In modern Play Boosters, ~8% chance for Wildcard slot to pull from adjacent Commander set (e.g. HOB pulls HOC)
+    if (setData.commanderRareMythics?.length > 0 && wildcardRoll < 0.08) {
+        wildcardPool = setData.commanderRareMythics;
+        wildcardTag = 'Commander Hit';
+    } else if (wildcardRoll < 0.40) {
+        wildcardPool = setData.commons;
+    } else if (wildcardRoll < 0.75) {
+        wildcardPool = setData.uncommons;
+    } else if (wildcardRoll < 0.95) {
+        wildcardPool = setData.rares;
+    } else {
+        wildcardPool = setData.mythics;
+    }
 
     const wildcardCard = pickCollatedCard(wildcardPool, usedNamesInPack, boxHistory, true);
     if (wildcardCard) {
-        packCards.push(createPackCard(wildcardCard, false, packNumber, 'Wildcard'));
+        packCards.push(createPackCard(wildcardCard, Math.random() < 0.25, packNumber, wildcardTag));
     }
 
     // 6. Traditional Foil Slot (guaranteed 1 foil in Play Boosters / modern packs)
@@ -426,11 +504,28 @@ export function generateCollectorBoosterPack(setData, packNumber = 1, boxHistory
     }
 
     // 6. 1 Extended Art / Commander / Special Rare or Mythic
-    const isMythic3 = Math.random() < 0.15;
-    const rarePool3 = isMythic3 ? setData.mythics : setData.rares;
-    const specialRare = pickCollatedCard(rarePool3, usedNamesInPack, boxHistory, true);
+    let specialRare = null;
+    let specialTag = 'Extended Art / Special';
+
+    if (setData.commanderRareMythics && setData.commanderRareMythics.length > 0 && Math.random() < 0.85) {
+        // High fidelity: Collector boosters pull directly from adjacent Commander set (e.g. HOB pulls HOC)
+        const isMythicCmdr = Math.random() < 0.20;
+        const cmdrPool = isMythicCmdr 
+            ? setData.commanderRareMythics.filter(c => c.rarity === 'mythic')
+            : setData.commanderRareMythics.filter(c => c.rarity === 'rare');
+        const activePool = (cmdrPool.length > 0) ? cmdrPool : setData.commanderRareMythics;
+        specialRare = pickCollatedCard(activePool, usedNamesInPack, boxHistory, true);
+        specialTag = 'Commander Exclusive';
+    }
+
+    if (!specialRare) {
+        const isMythic3 = Math.random() < 0.15;
+        const rarePool3 = isMythic3 ? setData.mythics : setData.rares;
+        specialRare = pickCollatedCard(rarePool3, usedNamesInPack, boxHistory, true);
+    }
+
     if (specialRare) {
-        packCards.push(createPackCard(specialRare, Math.random() < 0.5, packNumber, 'Extended Art / Special'));
+        packCards.push(createPackCard(specialRare, Math.random() < 0.40, packNumber, specialTag));
     }
 
     // 7. 2 Additional Wildcard Rares / Mythics (Foil or Alternate Treatment)
@@ -457,10 +552,24 @@ export function generateCollectorBoosterPack(setData, packNumber = 1, boxHistory
         }
     } else {
         const isRareBonus = Math.random() < 0.40;
-        const bonusPool = isRareBonus ? (Math.random() < 0.25 ? setData.mythics : setData.rares) : setData.uncommons;
+        let bonusPool;
+        let isCmdrBonus = false;
+
+        if (isRareBonus) {
+            if (setData.commanderRareMythics && setData.commanderRareMythics.length > 0 && Math.random() < 0.25) {
+                bonusPool = setData.commanderRareMythics;
+                isCmdrBonus = true;
+            } else {
+                bonusPool = Math.random() < 0.25 ? setData.mythics : setData.rares;
+            }
+        } else {
+            bonusPool = setData.uncommons;
+        }
+
         const bonusCard = pickCollatedCard(bonusPool, usedNamesInPack, boxHistory, true);
         if (bonusCard) {
-            packCards.push(createPackCard(bonusCard, true, packNumber, isRareBonus ? 'Collector Foil Hit' : 'Foil Bonus'));
+            const tag = isCmdrBonus ? 'Foil Commander Hit' : (isRareBonus ? 'Collector Foil Hit' : 'Foil Bonus');
+            packCards.push(createPackCard(bonusCard, true, packNumber, tag));
         }
     }
 
@@ -666,7 +775,8 @@ export function calculateSetEV(setData, market = 'usd', packEdition = 'play', is
         const colFoilRare = (0.83 * avgRareFoil) + (0.17 * avgMythicFoil);
         // Alternate frame slot: ~97% regular showcase/borderless, ~3% ultra-rare chase (Fracture/Raised/Japan)
         const colShowcase = (0.97 * avgStdShowcaseFoil) + (0.03 * avgChaseShowcaseFoil);
-        const colExtRare = (0.85 * avgRare) + (0.15 * avgMythic);
+        const avgCmdr = (setData.commanderRareMythics && setData.commanderRareMythics.length > 0) ? avgPrice(setData.commanderRareMythics, false) : 0;
+        const colExtRare = avgCmdr > 0 ? ((0.85 * avgCmdr) + (0.15 * avgRare)) : ((0.85 * avgRare) + (0.15 * avgMythic));
         const colWildcards = 2 * ((0.85 * avgRareFoil) + (0.15 * avgMythicFoil));
         const colBonus = (0.75 * avgUncFoil) + (0.25 * avgRareFoil);
 
@@ -689,7 +799,7 @@ export function calculateSetEV(setData, market = 'usd', packEdition = 'play', is
     const boxEV = packEV * numPacks;
 
     // Find top 3 chase cards in set (using raw prices for accurate display)
-    const allSetCards = [...(setData.mythics || []), ...(setData.rares || []), ...(setData.showcases || []), ...(setData.ultraChase || [])];
+    const allSetCards = [...(setData.mythics || []), ...(setData.rares || []), ...(setData.showcases || []), ...(setData.ultraChase || []), ...(setData.commanderRareMythics || [])];
     const uniqueChases = [];
     const seenNames = new Set();
     allSetCards.sort((a, b) => getRawVal(b, true) - getRawVal(a, true)).forEach(c => {
