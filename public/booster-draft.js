@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.23';
+import { db, auth } from './firebase-setup.js?v=4.24';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -16,8 +16,9 @@ import {
     generateBoosterPack, 
     generateCollectorBoosterPack, 
     getCardPrice,
-    formatCurrency 
-} from './booster-simulator.js?v=4.23';
+    formatCurrency,
+    getSetBasicLands 
+} from './booster-simulator.js?v=4.24';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -792,7 +793,9 @@ function sanitizeDraftCard(card) {
             eur_foil: card.prices?.eur_foil != null ? String(card.prices.eur_foil) : null
         },
         color_identity: Array.isArray(card.color_identity) ? card.color_identity : [],
-        colors: Array.isArray(card.colors) ? card.colors : []
+        colors: Array.isArray(card.colors) ? card.colors : [],
+        set: card.set ? String(card.set).toLowerCase() : '',
+        collector_number: card.collector_number != null ? String(card.collector_number) : ''
     };
 }
 
@@ -2292,40 +2295,86 @@ function removeDraftBasicLand(color) {
 }
 
 // Copy Decklist to Clipboard
-function copyDraftDecklist() {
+async function copyDraftDecklist() {
     const landNames = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
     const lines = ['// Main Deck'];
 
+    // Identify draft set code
+    const setCode = (currentDraftData?.setCode || myDraftedPool[0]?.set || '').toLowerCase();
+    let setBasics = null;
+    if (setCode) {
+        try {
+            setBasics = await getSetBasicLands(setCode);
+        } catch (e) {
+            console.warn("Could not load set basic lands:", e);
+        }
+    }
+
     const mainDeckCards = myDraftedPool.filter(c => mainDeckUids.has(c.uid));
-    const mainCounts = {};
+    const mainDeckGroups = new Map();
     mainDeckCards.forEach(c => {
-        mainCounts[c.name] = (mainCounts[c.name] || 0) + 1;
+        const cardSet = (c.set || setCode || '').toUpperCase();
+        const cardNum = c.collector_number != null ? String(c.collector_number) : '';
+        const foilTag = c.isFoil ? ' *F*' : '';
+        const key = `${c.name}|${cardSet}|${cardNum}|${foilTag}`;
+        if (!mainDeckGroups.has(key)) {
+            mainDeckGroups.set(key, { name: c.name, set: cardSet, num: cardNum, foil: c.isFoil, count: 0 });
+        }
+        mainDeckGroups.get(key).count++;
     });
 
-    Object.entries(mainCounts).forEach(([name, count]) => {
-        lines.push(`${count} ${name}`);
-    });
+    for (const item of mainDeckGroups.values()) {
+        const setPart = item.set ? ` (${item.set})` : '';
+        const numPart = item.num ? ` ${item.num}` : '';
+        const foilPart = item.foil ? ' *F*' : '';
+        lines.push(`${item.count} ${item.name}${setPart}${numPart}${foilPart}`);
+    }
 
+    // Add set-specific basic lands
     Object.entries(addedBasicLands).forEach(([sym, count]) => {
-        if (count > 0) lines.push(`${count} ${landNames[sym]}`);
+        if (count > 0) {
+            const landName = landNames[sym];
+            const basicPrints = setBasics?.[landName];
+            if (basicPrints && basicPrints.length > 0) {
+                const print = basicPrints[0];
+                const setPart = print.set ? ` (${print.set.toUpperCase()})` : (setCode ? ` (${setCode.toUpperCase()})` : '');
+                const numPart = print.collector_number ? ` ${print.collector_number}` : '';
+                lines.push(`${count} ${landName}${setPart}${numPart}`);
+            } else if (setCode) {
+                lines.push(`${count} ${landName} (${setCode.toUpperCase()})`);
+            } else {
+                lines.push(`${count} ${landName}`);
+            }
+        }
     });
 
     const sideboardCards = myDraftedPool.filter(c => !mainDeckUids.has(c.uid));
     if (sideboardCards.length > 0) {
         lines.push('');
         lines.push('// Sideboard');
-        const sideCounts = {};
+        const sideDeckGroups = new Map();
         sideboardCards.forEach(c => {
-            sideCounts[c.name] = (sideCounts[c.name] || 0) + 1;
+            const cardSet = (c.set || setCode || '').toUpperCase();
+            const cardNum = c.collector_number != null ? String(c.collector_number) : '';
+            const foilTag = c.isFoil ? ' *F*' : '';
+            const key = `${c.name}|${cardSet}|${cardNum}|${foilTag}`;
+            if (!sideDeckGroups.has(key)) {
+                sideDeckGroups.set(key, { name: c.name, set: cardSet, num: cardNum, foil: c.isFoil, count: 0 });
+            }
+            sideDeckGroups.get(key).count++;
         });
-        Object.entries(sideCounts).forEach(([name, count]) => {
-            lines.push(`${count} ${name}`);
-        });
+
+        for (const item of sideDeckGroups.values()) {
+            const setPart = item.set ? ` (${item.set})` : '';
+            const numPart = item.num ? ` ${item.num}` : '';
+            const foilPart = item.foil ? ' *F*' : '';
+            lines.push(`${item.count} ${item.name}${setPart}${numPart}${foilPart}`);
+        }
     }
 
     const deckText = lines.join('\n');
     navigator.clipboard.writeText(deckText).then(() => {
-        if (draftUtils?.showToast) draftUtils.showToast("📋 Deck & Sideboard copied to clipboard (Moxfield/MTGA format)!", false, 3000);
+        if (draftUtils?.showToast) draftUtils.showToast("📋 Decklist copied with exact card art (Moxfield/TTS format)!", false, 3000);
         else alert("Decklist copied to clipboard!");
     });
 }

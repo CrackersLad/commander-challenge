@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=4.23';
+import { db, auth } from './firebase-setup.js?v=4.24';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -121,7 +121,7 @@ export function initHubModule(utils, state, coreUi) {
     async function loadPreconData() {
         if (localPrecons && localPrecons.length > 0) return localPrecons;
         try {
-            const res = await fetch('./commander-precons.json?v=4.23');
+            const res = await fetch('./commander-precons.json?v=4.24');
             if (res.ok) {
                 localPrecons = await res.json();
                 return localPrecons;
@@ -266,7 +266,7 @@ export function initHubModule(utils, state, coreUi) {
                     <a id="edhrecPreconBtn" href="${edhrecPreconUrl}" target="_blank" rel="noopener noreferrer" onclick="playSound('sfx-click')" class="select-btn" style="flex: 1.2; padding: 9px 12px; font-size: 0.85rem; text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: #059669; border-color: #10b981;" title="View official decklist & upgrades on EDHREC">
                         📈 EDHREC Decklist ↗
                     </a>
-                    <button id="copyPreconDecklistBtn" class="select-btn" style="flex: 1; padding: 9px 12px; font-size: 0.85rem;">
+                    <button id="copyPreconDecklistBtn" class="select-btn" style="flex: 1; padding: 9px 12px; font-size: 0.85rem;" title="Copy exact decklist with card art & basic lands for Moxfield or Tabletop Simulator">
                         📋 Copy Decklist (${precon.cardCount || 100})
                     </button>
                 </div>
@@ -313,7 +313,7 @@ export function initHubModule(utils, state, coreUi) {
             document.getElementById('copyPreconDecklistBtn').onclick = () => {
                 if (precon.decklist) {
                     navigator.clipboard.writeText(precon.decklist).then(() => {
-                        showToast(`📋 Copied 100-card "${precon.name}" decklist to clipboard!`, false, 2500);
+                        showToast(`📋 Copied "${precon.name}" decklist with exact card art (Moxfield/TTS format)!`, false, 3000);
                     });
                 } else {
                     navigator.clipboard.writeText(edhrecPreconUrl).then(() => {

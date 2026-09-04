@@ -176,6 +176,55 @@ export async function fetchSetBoosterCards(setCode) {
     return setPayload;
 }
 
+// Retrieve basic land printings for a given set code (with Scryfall fallback)
+export async function getSetBasicLands(setCode) {
+    const code = (setCode || '').toLowerCase().trim();
+    if (!code) return null;
+
+    if (setCache.has(code)) {
+        const payload = setCache.get(code);
+        if (payload && payload.basics && payload.basics.length > 0) {
+            const map = { Plains: [], Island: [], Swamp: [], Mountain: [], Forest: [] };
+            payload.basics.forEach(card => {
+                const name = card.name;
+                if (map[name]) {
+                    map[name].push({
+                        set: (card.set || code).toUpperCase(),
+                        collector_number: card.collector_number
+                    });
+                }
+            });
+            if (Object.values(map).some(arr => arr.length > 0)) {
+                return map;
+            }
+        }
+    }
+
+    // Try fetching basics from Scryfall if not in cache
+    try {
+        const res = await fetch(`https://api.scryfall.com/cards/search?q=set%3A${encodeURIComponent(code)}+t%3Abasic&unique=prints`);
+        if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.data) && data.data.length > 0) {
+                const map = { Plains: [], Island: [], Swamp: [], Mountain: [], Forest: [] };
+                data.data.forEach(card => {
+                    const name = card.name;
+                    if (map[name]) {
+                        map[name].push({
+                            set: (card.set || code).toUpperCase(),
+                            collector_number: card.collector_number
+                        });
+                    }
+                });
+                return map;
+            }
+        }
+    } catch (e) {
+        console.warn(`Could not fetch basic lands for ${code}:`, e);
+    }
+    return null;
+}
+
 // Generate realistic booster pack
 export function generateBoosterPack(setData, packNumber = 1) {
     const packCards = [];
@@ -1164,6 +1213,9 @@ function renderSidebarAnalytics(sim, container) {
                 <button class="secondary-btn copy-summary-btn" onclick="window.copyBoosterSummary()">
                     📋 Copy Summary
                 </button>
+                <button class="secondary-btn copy-decklist-btn" onclick="window.copyBoosterDecklist()" title="Copy pulled cards formatted for Moxfield or Tabletop Simulator">
+                    🃏 Copy Decklist
+                </button>
             </div>
         </div>
     `;
@@ -1231,6 +1283,41 @@ Simulated at: Commander Draft Challenge`;
                 window.boosterUtils.showToast("📋 Pulls summary copied to clipboard!", false, 3000, true);
             } else {
                 alert("Pulls summary copied to clipboard!");
+            }
+        });
+    };
+
+    window.copyBoosterDecklist = () => {
+        if (!currentSimulation || !currentSimulation.cards || currentSimulation.cards.length === 0) return;
+        const sim = currentSimulation;
+        const setCode = (sim.setObj?.code || '').toUpperCase();
+        const counts = new Map();
+
+        sim.cards.forEach(c => {
+            const cardSet = (c.set || setCode || '').toUpperCase();
+            const cardNum = c.collector_number != null ? String(c.collector_number) : '';
+            const foilTag = c.isFoil ? ' *F*' : '';
+            const key = `${c.name}|${cardSet}|${cardNum}|${foilTag}`;
+            if (!counts.has(key)) {
+                counts.set(key, { name: c.name, set: cardSet, num: cardNum, foil: c.isFoil, count: 0 });
+            }
+            counts.get(key).count++;
+        });
+
+        const lines = [`// MTG Booster Simulator - ${sim.setObj?.name || setCode} (${sim.cards.length} Cards)`];
+        for (const item of counts.values()) {
+            const setPart = item.set ? ` (${item.set})` : '';
+            const numPart = item.num ? ` ${item.num}` : '';
+            const foilPart = item.foil ? ' *F*' : '';
+            lines.push(`${item.count} ${item.name}${setPart}${numPart}${foilPart}`);
+        }
+
+        const text = lines.join('\n');
+        navigator.clipboard.writeText(text).then(() => {
+            if (window.boosterUtils?.showToast) {
+                window.boosterUtils.showToast(`📋 ${sim.cards.length} pulls copied with exact card art (Moxfield/TTS format)!`, false, 3000, true);
+            } else {
+                alert("Pulls decklist copied to clipboard!");
             }
         });
     };

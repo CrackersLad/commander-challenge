@@ -106,10 +106,18 @@ async function syncPrecons() {
             const scryfallId = commanderCard.identifiers?.scryfallId || null;
             const image = formatCardImage(scryfallId);
 
-            // Construct standardized decklist string
+            // Construct standardized decklist string with exact printing and art
             const lines = ['// Commander'];
-            for (const cmdr of (data.commander || [commanderCard])) {
-                lines.push(`${cmdr.count || 1} ${cmdr.name}`);
+            const commanders = (data.commander && data.commander.length > 0)
+                ? data.commander
+                : (data.displayCommander || [commanderCard]);
+
+            for (const cmdr of commanders) {
+                const count = cmdr.count || 1;
+                const setPart = cmdr.setCode ? ` (${cmdr.setCode.toUpperCase()})` : '';
+                const numPart = cmdr.number ? ` ${cmdr.number}` : '';
+                const foilPart = cmdr.isFoil ? ' *F*' : '';
+                lines.push(`${count} ${cmdr.name}${setPart}${numPart}${foilPart}`);
             }
 
             lines.push('\n// Mainboard');
@@ -117,7 +125,10 @@ async function syncPrecons() {
             if (Array.isArray(data.mainBoard)) {
                 for (const card of data.mainBoard) {
                     const count = card.count || 1;
-                    lines.push(`${count} ${card.name}`);
+                    const setPart = card.setCode ? ` (${card.setCode.toUpperCase()})` : '';
+                    const numPart = card.number ? ` ${card.number}` : '';
+                    const foilPart = card.isFoil ? ' *F*' : '';
+                    lines.push(`${count} ${card.name}${setPart}${numPart}${foilPart}`);
                     mainboardCount += count;
                 }
             }

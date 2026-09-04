@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=4.23';
+import { db, auth } from './firebase-setup.js?v=4.24';
 import { ref, get, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initProfileModule(utils, state) {
