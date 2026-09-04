@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.24';
+import { db, auth } from './firebase-setup.js?v=4.25';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -18,7 +18,7 @@ import {
     getCardPrice,
     formatCurrency,
     getSetBasicLands 
-} from './booster-simulator.js?v=4.24';
+} from './booster-simulator.js?v=4.25';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -264,7 +264,7 @@ export function initBoosterDraftModule(utils, state) {
         const quickContainer = document.getElementById('draftQuickSets');
         const input = document.getElementById('draftSetInput');
         const datalist = document.getElementById('draftSetDatalist');
-        const sets = e.detail?.scryfallSets || window.scryfallSets || [];
+        const sets = e.detail?.boosterSets || (window.boosterSets || (window.scryfallSets || [])).filter(s => s.set_type !== 'commander');
         const released = e.detail?.releasedSets || sets.filter(s => new Date(s.released_at) <= new Date() && s.card_count > 40);
         const newest = e.detail?.newestSet || released[0];
 

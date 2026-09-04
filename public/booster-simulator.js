@@ -701,7 +701,7 @@ function setupSimulatorUI(defaultSetCode, utils) {
     const datalist = document.getElementById('boosterSetDatalist');
     if (datalist && datalist.children.length === 0 && sets.length > 0) {
         let html = '';
-        sets.forEach(s => {
+        sets.filter(s => s.set_type !== 'commander').forEach(s => {
             html += `<option value="${s.name} (${s.code.toUpperCase()})"></option>`;
         });
         datalist.innerHTML = html;

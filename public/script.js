@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=4.24';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=4.24';
-import { getArchives } from './data-service.js?v=4.24';
-import { initDeckActionsModule } from './deck-actions.js?v=4.24';
-import { initRoomActionsModule } from './room-actions.js?v=4.24';
-import { initPlayerViewModule } from './player-view.js?v=4.24';
-import { initAdminModule } from './admin.js?v=4.24';
-import { initCalendarModule } from './calendar.js?v=4.24';
-import { initAuthModule } from './auth.js?v=4.24';
-import { initHubModule } from './hub.js?v=4.24';
-import { initProfileModule } from './profile.js?v=4.24';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=4.24';
-import { initWarRoom, openWarRoom } from './war-room.js?v=4.24';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=4.24';
-import { initBoosterDraftModule } from './booster-draft.js?v=4.24';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=4.24';
+import { db, auth, functions } from './firebase-setup.js?v=4.25';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=4.25';
+import { getArchives } from './data-service.js?v=4.25';
+import { initDeckActionsModule } from './deck-actions.js?v=4.25';
+import { initRoomActionsModule } from './room-actions.js?v=4.25';
+import { initPlayerViewModule } from './player-view.js?v=4.25';
+import { initAdminModule } from './admin.js?v=4.25';
+import { initCalendarModule } from './calendar.js?v=4.25';
+import { initAuthModule } from './auth.js?v=4.25';
+import { initHubModule } from './hub.js?v=4.25';
+import { initProfileModule } from './profile.js?v=4.25';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=4.25';
+import { initWarRoom, openWarRoom } from './war-room.js?v=4.25';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=4.25';
+import { initBoosterDraftModule } from './booster-draft.js?v=4.25';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=4.25';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -98,9 +98,10 @@ function fetchAndPopulateSets() {
                     .filter(set => ['core', 'expansion', 'masters', 'draft_innovation', 'funny', 'commander'].includes(set.set_type) && set.card_count > 30)
                     .sort((a, b) => new Date(b.released_at) - new Date(a.released_at));
 
-                // Find strictly released sets for auto-selection and quick chips
-                const releasedSets = scryfallSets.filter(s => new Date(s.released_at) <= today && s.card_count > 40);
-                const newestSet = releasedSets[0] || scryfallSets[0];
+                // Booster-eligible sets exclude preconstructed commander deck sets (which do not have booster packs)
+                const boosterSets = scryfallSets.filter(s => s.set_type !== 'commander');
+                const releasedSets = boosterSets.filter(s => new Date(s.released_at) <= today && s.card_count > 40);
+                const newestSet = releasedSets[0] || boosterSets[0] || scryfallSets[0];
                 window.latestReleasedSet = newestSet;
                 window.latestQuickSets = releasedSets.slice(0, 7);
 
@@ -109,11 +110,14 @@ function fetchAndPopulateSets() {
                 setNameToCodeMap.clear();
                 scryfallSets.forEach(set => {
                     datalistHTML += `<option value="${sanitizeHTML(set.name)}">${sanitizeHTML(set.code.toUpperCase())}</option>`;
-                    boosterDatalistHTML += `<option value="${sanitizeHTML(set.name)} (${sanitizeHTML(set.code.toUpperCase())})"></option>`;
+                    if (set.set_type !== 'commander') {
+                        boosterDatalistHTML += `<option value="${sanitizeHTML(set.name)} (${sanitizeHTML(set.code.toUpperCase())})"></option>`;
+                    }
                     setNameToCodeMap.set(set.name.toLowerCase(), set.code.toLowerCase());
                     setNameToCodeMap.set(set.code.toLowerCase(), set.code.toLowerCase());
                 });
                 window.scryfallSets = scryfallSets;
+                window.boosterSets = boosterSets;
                 if (setDatalist) setDatalist.innerHTML = datalistHTML;
                 const boosterDatalist = document.getElementById('boosterSetDatalist');
                 if (boosterDatalist) boosterDatalist.innerHTML = boosterDatalistHTML;
@@ -155,7 +159,7 @@ function fetchAndPopulateSets() {
 
                 // Notify other modules (like booster-draft) that dynamic sets are ready
                 window.dispatchEvent(new CustomEvent('scryfallSetsLoaded', {
-                    detail: { scryfallSets, releasedSets, newestSet }
+                    detail: { scryfallSets, boosterSets, releasedSets, newestSet }
                 }));
 
                 resolve();
@@ -1848,7 +1852,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=4.24').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=4.25').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
