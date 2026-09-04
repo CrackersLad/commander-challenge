@@ -1,8 +1,8 @@
-import { db, auth } from './firebase-setup.js?v=4.21';
+import { db, auth } from './firebase-setup.js?v=4.22';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
-    const { playSound, switchView, sanitizeHTML, getRoomCreationTime, getArchives, showToast } = utils;
+    const { playSound, switchView, sanitizeHTML, getRoomCreationTime, getArchives, showToast, getColorBadges } = utils;
     const { initDashboard, initLobby } = coreUi;
 
     window.quickRollCommander = async () => {
@@ -121,7 +121,7 @@ export function initHubModule(utils, state, coreUi) {
     async function loadPreconData() {
         if (localPrecons && localPrecons.length > 0) return localPrecons;
         try {
-            const res = await fetch('commander-precons.json');
+            const res = await fetch('./commander-precons.json?v=4.22');
             if (res.ok) {
                 localPrecons = await res.json();
                 return localPrecons;
@@ -135,7 +135,10 @@ export function initHubModule(utils, state, coreUi) {
     window.quickRollPrecon = async () => {
         playSound('sfx-click');
         const precons = await loadPreconData();
-        if (!precons || precons.length === 0) return showToast("Precons not loaded yet. Try again in a moment.", true);
+        if (!precons || precons.length === 0) {
+            const notifyFn = showToast || utils?.showToast || alert;
+            return notifyFn("Precons not loaded yet. Try again in a moment.", true);
+        }
 
         const existingOverlay = document.getElementById('quickRollOverlay');
         if (existingOverlay) existingOverlay.remove();
@@ -241,8 +244,9 @@ export function initHubModule(utils, state, coreUi) {
                 </a>
             `;
 
-            if (getColorBadges && precon.colors) {
-                badgesEl.innerHTML = `<div class="mana-container" style="margin:0;">${getColorBadges(precon.colors)}</div>`;
+            const colorBadgesFn = (typeof getColorBadges !== 'undefined' && getColorBadges) || utils?.getColorBadges || window.getColorBadges;
+            if (colorBadgesFn && precon.colors) {
+                badgesEl.innerHTML = `<div class="mana-container" style="margin:0;">${colorBadgesFn(precon.colors)}</div>`;
             }
 
             const strategyEl = document.getElementById('quickRollPreconStrategy');

@@ -40,10 +40,19 @@ if (fs.existsSync(publicDir)) {
     for (const file of files) {
         const filePath = path.join(publicDir, file);
         let fileContent = fs.readFileSync(filePath, 'utf8');
+        let modified = false;
         if (fileContent.match(/(\.js\?v=)\d+\.\d+/)) {
             fileContent = fileContent.replace(/(\.js\?v=)\d+\.\d+/g, `$1${newVersion}`);
-            fs.writeFileSync(filePath, fileContent);
+            modified = true;
             console.log(`Updated module imports in ${file} to ${newVersion}`);
+        }
+        if (fileContent.match(/(\.json\?v=)\d+\.\d+/)) {
+            fileContent = fileContent.replace(/(\.json\?v=)\d+\.\d+/g, `$1${newVersion}`);
+            modified = true;
+            console.log(`Updated json asset queries in ${file} to ${newVersion}`);
+        }
+        if (modified) {
+            fs.writeFileSync(filePath, fileContent);
         }
     }
 }
