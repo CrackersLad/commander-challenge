@@ -131,35 +131,64 @@ export async function fetchSetBoosterCards(setCode) {
         throw new Error(`Could not load cards for set "${setCode.toUpperCase()}". Check your internet connection or try another set.`);
     }
 
-    // Partition cards into realistic collation pools
-    const commons = [];
-    const uncommons = [];
-    const rares = [];
-    const mythics = [];
+    // Identify ultra-chase cards (serialized, headliner, gleaming gold, neon ink, textured, confetti)
+    // These have < 1% pull rates in real life and should not inflate standard rarity pools
+    const isUltraChase = (c) => {
+        const promo = c.promo_types || [];
+        return promo.includes('headliner') || promo.includes('serialized') || promo.includes('gleaminggold') || 
+               promo.includes('neonink') || promo.includes('textured') || promo.includes('confetti') || promo.includes('raisedfoil');
+    };
+
+    const uniqueCommons = new Map();
+    const uniqueUncommons = new Map();
+    const uniqueRares = new Map();
+    const uniqueMythics = new Map();
     const basics = [];
     const showcases = [];
+    const ultraChase = [];
 
     cards.forEach(card => {
         const typeLine = (card.type_line || '').toLowerCase();
         const isBasicLand = typeLine.includes('basic land');
+
+        if (isBasicLand) {
+            basics.push(card);
+            return;
+        }
+
+        if (isUltraChase(card)) {
+            ultraChase.push(card);
+            return;
+        }
+
         const isShowcase = (card.frame_effects && (card.frame_effects.includes('showcase') || card.frame_effects.includes('inverted'))) ||
                             (card.promo_types && card.promo_types.includes('boosterfun')) ||
                             (card.border_color === 'borderless');
 
         if (isShowcase) {
             showcases.push(card);
-        } else if (isBasicLand) {
-            basics.push(card);
-        } else if (card.rarity === 'mythic') {
-            mythics.push(card);
+        }
+
+        // Clean unique base print sheets (preferring standard non-showcase frame for base slots)
+        if (card.rarity === 'mythic') {
+            if (!uniqueMythics.has(card.name) || (!isShowcase && uniqueMythics.get(card.name).border_color === 'borderless')) {
+                uniqueMythics.set(card.name, card);
+            }
         } else if (card.rarity === 'rare') {
-            rares.push(card);
+            if (!uniqueRares.has(card.name) || (!isShowcase && uniqueRares.get(card.name).border_color === 'borderless')) {
+                uniqueRares.set(card.name, card);
+            }
         } else if (card.rarity === 'uncommon') {
-            uncommons.push(card);
+            if (!uniqueUncommons.has(card.name)) uniqueUncommons.set(card.name, card);
         } else {
-            commons.push(card);
+            if (!uniqueCommons.has(card.name)) uniqueCommons.set(card.name, card);
         }
     });
+
+    const commons = Array.from(uniqueCommons.values());
+    const uncommons = Array.from(uniqueUncommons.values());
+    const rares = Array.from(uniqueRares.values());
+    const mythics = Array.from(uniqueMythics.values());
 
     const setPayload = {
         code,
@@ -169,7 +198,8 @@ export async function fetchSetBoosterCards(setCode) {
         rares: rares.length > 0 ? rares : cards,
         mythics: mythics.length > 0 ? mythics : (rares.length > 0 ? rares : cards),
         basics: basics.length > 0 ? basics : commons,
-        showcases: showcases
+        showcases: showcases,
+        ultraChase: ultraChase
     };
 
     setCache.set(code, setPayload);
@@ -225,101 +255,121 @@ export async function getSetBasicLands(setCode) {
     return null;
 }
 
+// Smart Collation Helper: strictly prevents duplicate card names in a single pack,
+// and models authentic physical print-sheet collation across a booster box
+function pickCollatedCard(pool, usedNamesInPack, boxHistory = null, allowBoxReroll = true) {
+    if (!pool || pool.length === 0) return null;
+
+    // Strict in-pack deduplication
+    let candidates = pool.filter(c => !usedNamesInPack.has(c.name));
+    if (candidates.length === 0) {
+        // Fallback only if the entire pool is already used in this pack
+        candidates = pool;
+    }
+
+    // Box-level print sheet collation:
+    // Physical sheets distribute cards so duplicate mythics/rares across 12-36 packs are rare.
+    // If a card was already pulled in earlier packs of this box, 85% chance to reroll to an unseen card.
+    if (boxHistory && allowBoxReroll) {
+        const unseenInBox = candidates.filter(c => (boxHistory.get(c.name) || 0) === 0);
+        if (unseenInBox.length > 0 && Math.random() < 0.85) {
+            candidates = unseenInBox;
+        }
+    }
+
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+    if (chosen) {
+        usedNamesInPack.add(chosen.name);
+        if (boxHistory) {
+            boxHistory.set(chosen.name, (boxHistory.get(chosen.name) || 0) + 1);
+        }
+    }
+    return chosen;
+}
+
 // Generate realistic booster pack
-export function generateBoosterPack(setData, packNumber = 1) {
+export function generateBoosterPack(setData, packNumber = 1, boxHistory = null) {
     const packCards = [];
+    const usedNamesInPack = new Set();
     const isMasters = setData.code.startsWith('mh') || ['2x2', '2xm', 'cmm', 'uma', 'ema'].includes(setData.code);
     const hasDoubleRare = ['2x2', '2xm'].includes(setData.code);
 
-    const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
-
-    // 1. Commons (6 regular commons, unique)
-    const usedIds = new Set();
-    let commonAttempts = 0;
-    while (packCards.length < 6 && commonAttempts < 50) {
-        commonAttempts++;
-        const c = pickRandom(setData.commons);
-        if (c && !usedIds.has(c.id)) {
-            usedIds.add(c.id);
-            packCards.push(createPackCard(c, false, packNumber));
-        }
+    // 1. Commons (6 regular commons, unique in pack)
+    for (let i = 0; i < 6; i++) {
+        const c = pickCollatedCard(setData.commons, usedNamesInPack, boxHistory, false);
+        if (c) packCards.push(createPackCard(c, false, packNumber));
     }
 
-    // 2. Slot 7: 7th common or bonus sheet
+    // 2. Slot 7: 7th common or bonus sheet showcase
     const bonusRoll = Math.random();
     if (bonusRoll < 0.05 && setData.showcases.length > 0) {
-        const showcaseCard = pickRandom(setData.showcases);
-        packCards.push(createPackCard(showcaseCard, false, packNumber, 'Showcase'));
+        const showcaseCard = pickCollatedCard(setData.showcases, usedNamesInPack, boxHistory, false);
+        if (showcaseCard) packCards.push(createPackCard(showcaseCard, false, packNumber, 'Showcase'));
     } else {
-        const c = pickRandom(setData.commons);
-        packCards.push(createPackCard(c, false, packNumber));
+        const c = pickCollatedCard(setData.commons, usedNamesInPack, boxHistory, false);
+        if (c) packCards.push(createPackCard(c, false, packNumber));
     }
 
-    // 3. Uncommons (3 uncommons, unique)
-    let uncCount = 0;
-    let uncAttempts = 0;
-    while (uncCount < 3 && uncAttempts < 50) {
-        uncAttempts++;
-        const u = pickRandom(setData.uncommons);
-        if (u && !usedIds.has(u.id)) {
-            usedIds.add(u.id);
-            packCards.push(createPackCard(u, false, packNumber));
-            uncCount++;
-        }
+    // 3. Uncommons (3 uncommons, unique in pack)
+    for (let i = 0; i < 3; i++) {
+        const u = pickCollatedCard(setData.uncommons, usedNamesInPack, boxHistory, false);
+        if (u) packCards.push(createPackCard(u, false, packNumber));
     }
 
     // 4. Rare / Mythic Rare Slot (1 in 7 packs is Mythic: ~14.3%)
     const isMythic = Math.random() < 0.143;
     const rarePool = isMythic ? setData.mythics : setData.rares;
-    let rareCard = pickRandom(rarePool);
+    let rareCard = pickCollatedCard(rarePool, usedNamesInPack, boxHistory, true);
 
-    // Chance of showcase / borderless variant
-    if (Math.random() < 0.18 && setData.showcases.length > 0) {
+    // Chance of showcase / borderless variant upgrade
+    if (Math.random() < 0.18 && setData.showcases.length > 0 && rareCard) {
         const matchingShowcase = setData.showcases.find(s => s.name === rareCard.name);
         if (matchingShowcase) {
             rareCard = matchingShowcase;
         }
     }
-    packCards.push(createPackCard(rareCard, false, packNumber, isMythic ? 'Mythic Hit' : 'Rare Hit'));
+    if (rareCard) {
+        packCards.push(createPackCard(rareCard, false, packNumber, rareCard.rarity === 'mythic' ? 'Mythic Hit' : 'Rare Hit'));
+    }
 
     // Double Masters has 2nd guaranteed Rare/Mythic
     if (hasDoubleRare) {
         const isMythic2 = Math.random() < 0.143;
-        const rareCard2 = pickRandom(isMythic2 ? setData.mythics : setData.rares);
-        packCards.push(createPackCard(rareCard2, false, packNumber, 'Bonus Rare Hit'));
+        const rareCard2 = pickCollatedCard(isMythic2 ? setData.mythics : setData.rares, usedNamesInPack, boxHistory, true);
+        if (rareCard2) {
+            packCards.push(createPackCard(rareCard2, false, packNumber, 'Bonus Rare Hit'));
+        }
     }
 
     // 5. Wildcard Slot (any rarity, realistic weighting)
     const wildcardRoll = Math.random();
-    let wildcardCard;
-    if (wildcardRoll < 0.40) {
-        wildcardCard = pickRandom(setData.commons);
-    } else if (wildcardRoll < 0.75) {
-        wildcardCard = pickRandom(setData.uncommons);
-    } else if (wildcardRoll < 0.95) {
-        wildcardCard = pickRandom(setData.rares);
-    } else {
-        wildcardCard = pickRandom(setData.mythics);
+    let wildcardPool = setData.commons;
+    if (wildcardRoll < 0.40) wildcardPool = setData.commons;
+    else if (wildcardRoll < 0.75) wildcardPool = setData.uncommons;
+    else if (wildcardRoll < 0.95) wildcardPool = setData.rares;
+    else wildcardPool = setData.mythics;
+
+    const wildcardCard = pickCollatedCard(wildcardPool, usedNamesInPack, boxHistory, true);
+    if (wildcardCard) {
+        packCards.push(createPackCard(wildcardCard, false, packNumber, 'Wildcard'));
     }
-    packCards.push(createPackCard(wildcardCard, false, packNumber, 'Wildcard'));
 
     // 6. Traditional Foil Slot (guaranteed 1 foil in Play Boosters / modern packs)
     const foilRoll = Math.random();
-    let foilCard;
-    if (foilRoll < 0.65) {
-        foilCard = pickRandom(setData.commons);
-    } else if (foilRoll < 0.90) {
-        foilCard = pickRandom(setData.uncommons);
-    } else if (foilRoll < 0.98) {
-        foilCard = pickRandom(setData.rares);
-    } else {
-        foilCard = pickRandom(setData.mythics);
+    let foilPool = setData.commons;
+    if (foilRoll < 0.65) foilPool = setData.commons;
+    else if (foilRoll < 0.90) foilPool = setData.uncommons;
+    else if (foilRoll < 0.98) foilPool = setData.rares;
+    else foilPool = setData.mythics;
+
+    const foilCard = pickCollatedCard(foilPool, usedNamesInPack, boxHistory, true);
+    if (foilCard) {
+        packCards.push(createPackCard(foilCard, true, packNumber, 'Traditional Foil'));
     }
-    packCards.push(createPackCard(foilCard, true, packNumber, 'Traditional Foil'));
 
     // 7. Basic Land Slot (with 20% foil chance)
     if (setData.basics.length > 0) {
-        const landCard = pickRandom(setData.basics);
+        const landCard = setData.basics[Math.floor(Math.random() * setData.basics.length)];
         const landFoil = Math.random() < 0.20;
         packCards.push(createPackCard(landCard, landFoil, packNumber, landFoil ? 'Foil Land' : 'Basic Land'));
     }
@@ -328,40 +378,25 @@ export function generateBoosterPack(setData, packNumber = 1) {
 }
 
 // Generate authentic Collector Booster pack (15 cards, high foil & showcase density)
-export function generateCollectorBoosterPack(setData, packNumber = 1) {
+export function generateCollectorBoosterPack(setData, packNumber = 1, boxHistory = null) {
     const packCards = [];
-    const pickRandom = (arr) => (arr && arr.length > 0) ? arr[Math.floor(Math.random() * arr.length)] : null;
-    const usedIds = new Set();
+    const usedNamesInPack = new Set();
 
-    // 1. 5 Traditional Foil Commons (unique)
-    let commonCount = 0;
-    let commonAttempts = 0;
-    while (commonCount < 5 && commonAttempts < 50) {
-        commonAttempts++;
-        const c = pickRandom(setData.commons);
-        if (c && !usedIds.has(c.id)) {
-            usedIds.add(c.id);
-            packCards.push(createPackCard(c, true, packNumber, 'Foil Common'));
-            commonCount++;
-        }
+    // 1. 5 Traditional Foil Commons (unique in pack)
+    for (let i = 0; i < 5; i++) {
+        const c = pickCollatedCard(setData.commons, usedNamesInPack, boxHistory, false);
+        if (c) packCards.push(createPackCard(c, true, packNumber, 'Foil Common'));
     }
 
-    // 2. 2 Traditional Foil Uncommons (unique)
-    let uncCount = 0;
-    let uncAttempts = 0;
-    while (uncCount < 2 && uncAttempts < 50) {
-        uncAttempts++;
-        const u = pickRandom(setData.uncommons);
-        if (u && !usedIds.has(u.id)) {
-            usedIds.add(u.id);
-            packCards.push(createPackCard(u, true, packNumber, 'Foil Uncommon'));
-            uncCount++;
-        }
+    // 2. 2 Traditional Foil Uncommons (unique in pack)
+    for (let i = 0; i < 2; i++) {
+        const u = pickCollatedCard(setData.uncommons, usedNamesInPack, boxHistory, false);
+        if (u) packCards.push(createPackCard(u, true, packNumber, 'Foil Uncommon'));
     }
 
     // 3. 1 Traditional Foil Showcase or Borderless Common/Uncommon
     const showcaseCommonUnc = setData.showcases.filter(c => c.rarity === 'common' || c.rarity === 'uncommon');
-    const showcaseAlt = showcaseCommonUnc.length > 0 ? pickRandom(showcaseCommonUnc) : pickRandom(setData.uncommons);
+    const showcaseAlt = pickCollatedCard(showcaseCommonUnc.length > 0 ? showcaseCommonUnc : setData.uncommons, usedNamesInPack, boxHistory, false);
     if (showcaseAlt) {
         packCards.push(createPackCard(showcaseAlt, true, packNumber, 'Showcase Foil'));
     }
@@ -369,59 +404,64 @@ export function generateCollectorBoosterPack(setData, packNumber = 1) {
     // 4. 1 Rare or Mythic Rare with Alternate Art/Frame (Showcase/Borderless/Extended)
     const showcaseRareMythics = setData.showcases.filter(c => c.rarity === 'rare' || c.rarity === 'mythic');
     const isMythic1 = Math.random() < 0.16;
-    let altRare = null;
-    if (showcaseRareMythics.length > 0) {
-        const pool = showcaseRareMythics.filter(c => isMythic1 ? c.rarity === 'mythic' : c.rarity === 'rare');
-        altRare = pickRandom(pool.length > 0 ? pool : showcaseRareMythics);
-    }
-    if (!altRare) {
-        altRare = pickRandom(isMythic1 ? setData.mythics : setData.rares);
-    }
+    let altPool = showcaseRareMythics.length > 0 
+        ? showcaseRareMythics.filter(c => isMythic1 ? c.rarity === 'mythic' : c.rarity === 'rare')
+        : (isMythic1 ? setData.mythics : setData.rares);
+    if (altPool.length === 0) altPool = showcaseRareMythics.length > 0 ? showcaseRareMythics : (isMythic1 ? setData.mythics : setData.rares);
+    const altRare = pickCollatedCard(altPool, usedNamesInPack, boxHistory, true);
     if (altRare) {
-        packCards.push(createPackCard(altRare, false, packNumber, isMythic1 ? 'Mythic Alternate Frame' : 'Rare Alternate Frame'));
+        packCards.push(createPackCard(altRare, false, packNumber, altRare.rarity === 'mythic' ? 'Mythic Alternate Frame' : 'Rare Alternate Frame'));
     }
 
     // 5. 1 Traditional Foil Rare or Mythic (regular or showcase frame)
     const isMythic2 = Math.random() < 0.18;
     const foilRarePool = isMythic2 ? setData.mythics : setData.rares;
-    let foilRare = pickRandom(foilRarePool);
-    if (Math.random() < 0.35 && setData.showcases.length > 0) {
-        const match = setData.showcases.find(s => s.name === foilRare?.name);
+    let foilRare = pickCollatedCard(foilRarePool, usedNamesInPack, boxHistory, true);
+    if (foilRare && Math.random() < 0.35 && setData.showcases.length > 0) {
+        const match = setData.showcases.find(s => s.name === foilRare.name);
         if (match) foilRare = match;
     }
     if (foilRare) {
-        packCards.push(createPackCard(foilRare, true, packNumber, isMythic2 ? 'Foil Mythic Hit' : 'Foil Rare Hit'));
+        packCards.push(createPackCard(foilRare, true, packNumber, foilRare.rarity === 'mythic' ? 'Foil Mythic Hit' : 'Foil Rare Hit'));
     }
 
     // 6. 1 Extended Art / Commander / Special Rare or Mythic
     const isMythic3 = Math.random() < 0.15;
     const rarePool3 = isMythic3 ? setData.mythics : setData.rares;
-    const specialRare = pickRandom(rarePool3);
+    const specialRare = pickCollatedCard(rarePool3, usedNamesInPack, boxHistory, true);
     if (specialRare) {
         packCards.push(createPackCard(specialRare, Math.random() < 0.5, packNumber, 'Extended Art / Special'));
     }
 
     // 7. 2 Additional Wildcard Rares / Mythics (Foil or Alternate Treatment)
     for (let w = 1; w <= 2; w++) {
-        const isMythicW = Math.random() < 0.20;
-        const wildcardRare = pickRandom(isMythicW ? setData.mythics : setData.rares);
+        const isMythicW = Math.random() < 0.18;
+        const wildcardRare = pickCollatedCard(isMythicW ? setData.mythics : setData.rares, usedNamesInPack, boxHistory, true);
         if (wildcardRare) {
-            packCards.push(createPackCard(wildcardRare, true, packNumber, isMythicW ? 'Foil Mythic Wildcard' : 'Foil Rare Wildcard'));
+            packCards.push(createPackCard(wildcardRare, true, packNumber, wildcardRare.rarity === 'mythic' ? 'Foil Mythic Wildcard' : 'Foil Rare Wildcard'));
         }
     }
 
     // 8. 1 Traditional Foil Basic Land (Full-Art or Showcase)
     if (setData.basics.length > 0) {
-        const landCard = pickRandom(setData.basics);
+        const landCard = setData.basics[Math.floor(Math.random() * setData.basics.length)];
         packCards.push(createPackCard(landCard, true, packNumber, 'Foil Basic Land'));
     }
 
-    // 9. 1 Foil Bonus Slot (15th card: high-variance foil hit)
-    const isRareBonus = Math.random() < 0.40;
-    const bonusPool = isRareBonus ? (Math.random() < 0.25 ? setData.mythics : setData.rares) : setData.uncommons;
-    const bonusCard = pickRandom(bonusPool);
-    if (bonusCard) {
-        packCards.push(createPackCard(bonusCard, true, packNumber, isRareBonus ? 'Collector Foil Hit' : 'Foil Bonus'));
+    // 9. 1 Foil Bonus Slot (15th card: high-variance hit or ultra-chase serialized/headliner)
+    // Ultra-chase check: ~1.5% chance per collector pack for Headliner/Serialized/Gleaming card
+    if (setData.ultraChase && setData.ultraChase.length > 0 && Math.random() < 0.015) {
+        const chaseHit = pickCollatedCard(setData.ultraChase, usedNamesInPack, boxHistory, false);
+        if (chaseHit) {
+            packCards.push(createPackCard(chaseHit, true, packNumber, 'Ultra Rare Chase / Headliner'));
+        }
+    } else {
+        const isRareBonus = Math.random() < 0.40;
+        const bonusPool = isRareBonus ? (Math.random() < 0.25 ? setData.mythics : setData.rares) : setData.uncommons;
+        const bonusCard = pickCollatedCard(bonusPool, usedNamesInPack, boxHistory, true);
+        if (bonusCard) {
+            packCards.push(createPackCard(bonusCard, true, packNumber, isRareBonus ? 'Collector Foil Hit' : 'Foil Bonus'));
+        }
     }
 
     return packCards;
@@ -566,7 +606,7 @@ export function calculateSetEV(setData, market = 'usd', packEdition = 'play', is
     const boxEV = packEV * numPacks;
 
     // Find top 3 chase cards in set (using raw prices for accurate display)
-    const allSetCards = [...(setData.mythics || []), ...(setData.rares || []), ...(setData.showcases || [])];
+    const allSetCards = [...(setData.mythics || []), ...(setData.rares || []), ...(setData.showcases || []), ...(setData.ultraChase || [])];
     const uniqueChases = [];
     const seenNames = new Set();
     allSetCards.sort((a, b) => getRawVal(b, true) - getRawVal(a, true)).forEach(c => {
@@ -917,12 +957,13 @@ export async function crackBoosterProduct(utils) {
         // Perform smooth, paced opening animation
         await playBoosterOpenAnimation(setObj, isBox, numPacks, utils, packEdition);
 
-        // Generate packs
+        // Generate packs with sheet-level collation tracking across the box
         let allCards = [];
+        const boxHistory = isBox ? new Map() : null;
         for (let i = 1; i <= numPacks; i++) {
             const packCards = isCollector 
-                ? generateCollectorBoosterPack(setData, i) 
-                : generateBoosterPack(setData, i);
+                ? generateCollectorBoosterPack(setData, i, boxHistory) 
+                : generateBoosterPack(setData, i, boxHistory);
             allCards.push(...packCards);
         }
 
