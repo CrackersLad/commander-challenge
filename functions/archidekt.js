@@ -362,10 +362,17 @@ exports.checkSetProgress = onRequest({ cors: true, timeoutSeconds: 120, memory: 
     try {
         let rawCollectionItems = [];
 
-        if (collectionData && Array.isArray(collectionData)) {
+        // Check if collectionData has valid cards with set info
+        const hasRichCollectionData = collectionData && Array.isArray(collectionData) && collectionData.length > 0 &&
+            collectionData.some(c => c.setCode || c.set || c.edition || c.card?.edition);
+
+        if (hasRichCollectionData) {
             rawCollectionItems = collectionData;
         } else if (collectionId) {
+            // Fetch fresh collection from Archidekt to get full set, edition, collector number info
             rawCollectionItems = await fetchArchidektCollection(collectionId);
+        } else if (collectionData && Array.isArray(collectionData)) {
+            rawCollectionItems = collectionData;
         }
 
         const shouldIncludeBasicLands = Boolean(includeBasicLands === true || includeBasicLands === 'true');
@@ -378,30 +385,32 @@ exports.checkSetProgress = onRequest({ cors: true, timeoutSeconds: 120, memory: 
             setScope
         });
 
+        const mappedCachedCollection = (rawCollectionItems && rawCollectionItems.length > 0) ? rawCollectionItems.map(c => {
+            const cardInfo = c.card || c || {};
+            const oracleData = cardInfo.oracleCard || cardInfo;
+            const set = (cardInfo.edition?.editioncode || cardInfo.edition?.code || cardInfo.edition?.editionname || c.set || c.setCode || '').toLowerCase();
+            const colNum = (cardInfo.collectorNumber || cardInfo.collector_number || c.collectorNumber || c.collector_number || c.number || '').toString().trim();
+            const qty = Number(c.quantity || c.count || c.owned) || 1;
+            return {
+                id: c.id,
+                name: oracleData?.name || cardInfo.name || c.name || '',
+                set: set,
+                setCode: set.toUpperCase(),
+                collector_number: colNum,
+                collectorNumber: colNum,
+                modifier: c.modifier || cardInfo.modifier || '',
+                finish: c.modifier || c.finish || cardInfo.finish || '',
+                foil: Boolean(c.foil || cardInfo.foil),
+                quantity: qty,
+                owned: qty,
+                inDecks: Number(c.inDecks || cardInfo.inDecks) || 0,
+                prices: cardInfo.prices || c.prices || null
+            };
+        }) : undefined;
+
         res.status(200).json({
             ...result,
-            cachedCollectionData: (collectionId && !collectionData && rawCollectionItems) ? rawCollectionItems.map(c => {
-                const cardInfo = c.card || c || {};
-                const oracleData = cardInfo.oracleCard || cardInfo;
-                const set = (cardInfo.edition?.editioncode || cardInfo.edition?.code || c.set || c.setCode || '').toLowerCase();
-                const colNum = (cardInfo.collectorNumber || cardInfo.collector_number || c.collectorNumber || c.collector_number || c.number || '').toString().trim();
-                const qty = Number(c.quantity || c.count || c.owned) || 1;
-                return {
-                    id: c.id,
-                    name: oracleData?.name || cardInfo.name || c.name || '',
-                    set: set,
-                    setCode: set.toUpperCase(),
-                    collector_number: colNum,
-                    collectorNumber: colNum,
-                    modifier: c.modifier || '',
-                    finish: c.modifier || c.finish || '',
-                    foil: Boolean(c.foil || cardInfo.foil),
-                    quantity: qty,
-                    owned: qty,
-                    inDecks: Number(c.inDecks || cardInfo.inDecks) || 0,
-                    prices: cardInfo.prices || c.prices || null
-                };
-            }) : undefined
+            cachedCollectionData: mappedCachedCollection
         });
     } catch (error) {
         console.error("[ERROR] checkSetProgress error:", error);
@@ -734,6 +743,14 @@ exports.compareDecks = onRequest({ cors: true, timeoutSeconds: 300, memory: "512
                 owned: ownedQty,
                 inDecks: inDecksQty,
                 inDecksBreakdown: deckInfo.breakdown,
+                set: collData?.set || '',
+                setCode: collData?.setCode || '',
+                collectorNumber: collData?.collectorNumber || '',
+                collector_number: collData?.collectorNumber || '',
+                finish: collData?.finish || 'Normal',
+                modifier: collData?.modifier || '',
+                isFoil: Boolean(collData?.isFoil),
+                foil: Boolean(collData?.foil),
                 colors: colors,
                 typeLine: deckInfo.typeLine || collData?.typeLine || '',
                 manaCost: deckInfo.manaCost || collData?.manaCost || '',

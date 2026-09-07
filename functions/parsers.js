@@ -171,9 +171,39 @@ function parseCards(jsonData, options = {}) {
                 // In MTG Commander rules, only legendary creatures and cards with explicit "can be your commander" text are commanders
                 const isCommander = (isLegendary && isCreature) || canBeCommanderText || isCommanderCategory;
 
+                const rawSet = (
+                    cardInfo.edition?.editioncode ||
+                    cardInfo.edition?.code ||
+                    cardInfo.edition?.editionname ||
+                    cardInfo.edition?.editionName ||
+                    item.set ||
+                    item.setCode ||
+                    cardInfo.set ||
+                    cardInfo.setCode ||
+                    ""
+                ).toString().toLowerCase();
+                const colNum = (
+                    cardInfo.collectorNumber ||
+                    cardInfo.collector_number ||
+                    item.collectorNumber ||
+                    item.collector_number ||
+                    item.number ||
+                    ""
+                ).toString().trim();
+                const rawMod = item.modifier || item.finish || cardInfo.modifier || cardInfo.finish || "";
+                const isFoil = Boolean(item.foil || cardInfo.foil || rawMod.toLowerCase().includes("foil"));
+
                 counts[cleanName] = {
                     quantity: 0,
                     originalName: name,
+                    set: rawSet,
+                    setCode: rawSet.toUpperCase(),
+                    collectorNumber: colNum,
+                    collector_number: colNum,
+                    modifier: rawMod,
+                    finish: rawMod || (isFoil ? "Foil" : "Normal"),
+                    isFoil,
+                    foil: isFoil,
                     colors: Array.isArray(rawColors) ? rawColors : [],
                     isCommander: isCommander,
                     edhrecRank: oracleDataSource.edhrecRank || oracleDataSource.edhrec_rank || null,

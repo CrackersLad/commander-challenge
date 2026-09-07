@@ -18,6 +18,27 @@ function normalizeSetCode(code) {
 }
 
 /**
+ * Resolves a raw set code, abbreviation, or full set name to its canonical Scryfall set code.
+ */
+function resolveSetCode(rawSet, setList = cachedSets) {
+    if (!rawSet) return "";
+    const clean = normalizeSetCode(rawSet);
+    if (!clean) return "";
+    if (setList && setList.length > 0) {
+        const byCode = setList.find(s => s.code === clean);
+        if (byCode) return byCode.code;
+        const strippedClean = clean.replace(/^universes beyond:?\s*/i, '').trim();
+        const byName = setList.find(s => {
+            const sName = s.name.toLowerCase();
+            const strippedSName = sName.replace(/^universes beyond:?\s*/i, '').trim();
+            return sName === clean || strippedSName === strippedClean || sName === strippedClean || strippedSName === clean;
+        });
+        if (byName) return byName.code;
+    }
+    return clean;
+}
+
+/**
  * Fetches all Magic: The Gathering sets from Scryfall.
  */
 async function fetchAllSets() {
@@ -231,7 +252,7 @@ function normalizeFinishString(rawModifier = "", isFoilBool = false) {
 /**
  * Parses user collection into fast lookup maps by name and by set, preserving finishes and specific print details.
  */
-function buildCollectionLookup(collectionItems = []) {
+function buildCollectionLookup(collectionItems = [], setList = cachedSets) {
     const byName = new Map(); // cleanName -> { quantity, originalName, editions: Map(setCode -> qty), printDetails: [] }
     const bySetAndName = new Map(); // `${setCode}:${cleanName}` -> { quantity, printDetails: [] }
     const bySetAndNumber = new Map(); // `${setCode}:${collectorNumber}` -> { quantity, printDetails: [] }
@@ -245,7 +266,7 @@ function buildCollectionLookup(collectionItems = []) {
         if (!rawName) continue;
 
         const cleanName = normalizeCardName(rawName);
-        const setCode = normalizeSetCode(
+        const rawSet = (
             cardInfo.edition?.editioncode ||
             cardInfo.edition?.code ||
             cardInfo.edition?.set ||
@@ -253,15 +274,20 @@ function buildCollectionLookup(collectionItems = []) {
             item.edition?.editioncode ||
             item.edition?.code ||
             cardInfo.edition?.editionName ||
+            cardInfo.edition?.editionname ||
+            item.edition?.editionName ||
+            item.edition?.editionname ||
             cardInfo.set ||
             cardInfo.setCode ||
             cardInfo.set_code ||
             item.set ||
             item.setCode ||
             item.set_code ||
-            item.edition ||
+            (typeof item.edition === 'string' ? item.edition : '') ||
+            (typeof cardInfo.edition === 'string' ? cardInfo.edition : '') ||
             ""
         );
+        const setCode = resolveSetCode(rawSet, setList);
         const collectorNumber = (
             cardInfo.collectorNumber ||
             cardInfo.collector_number ||
@@ -360,7 +386,7 @@ function buildCollectionLookup(collectionItems = []) {
  * Checks if a set card matches user's collection, preserving specific finishes (e.g. Surge Foil, Normal, Foil)
  * and accurately distinguishing prints in this exact set vs other variants vs other sets.
  */
-function findCollectionMatch(setCard, collectionLookup, matchMode = "exact", setScope = "distinct") {
+function findCollectionMatch(setCard, collectionLookup, matchMode = "exact", setScope = "distinct", setList = cachedSets) {
     const { byName, bySetAndName, bySetAndNumber } = collectionLookup;
     const cleanName = setCard.cleanName;
     const setCode = normalizeSetCode(setCard.set || setCard.scryfall_uri?.split("/")[4] || "");
@@ -411,34 +437,42 @@ function findCollectionMatch(setCard, collectionLookup, matchMode = "exact", set
     // Separate prints into:
     // 1. exactCardPrints: same set AND same collector number (or collection item did not specify a collector number)
     // 2. sameSetOtherPrints: same set BUT different collector number (e.g. alt art #199 vs standard #3)
-    // 3. otherSetPrints: different set code
+    // 3. otherSetPrints: explicitly different set code
     const exactCardPrints = [];
     const sameSetOtherPrints = [];
     const otherSetPrints = [];
 
     for (const p of allRawPrintDetails) {
-        const pSet = normalizeSetCode(p.setCode || "");
+        const pSet = resolveSetCode(p.setCode || "", setList);
         const pNum = (p.collectorNumber || "").toString().trim().toLowerCase();
         const pStrippedNum = pNum.replace(/^0+([1-9])/, '$1');
 
-        if (pSet === setCode) {
+        // Check if print matches the target set:
+        // - If pSet matches setCode -> matches set!
+        // - If pSet is empty/unspecified -> matches set! (User owns card, no set restriction specified)
+        const matchesThisSet = !pSet || pSet === setCode;
+
+        if (matchesThisSet) {
             if (!pNum || !cleanNum || pNum === cleanNum || (strippedNum && pStrippedNum === strippedNum)) {
                 exactCardPrints.push(p);
             } else {
                 sameSetOtherPrints.push(p);
             }
         } else {
+            // ONLY if explicitly a DIFFERENT set code
             otherSetPrints.push(p);
         }
     }
 
     // Aggregate prints by setCode, collectorNumber, and finish so quantities sum cleanly
-    function aggregate(list) {
+    function aggregate(list, isOtherSetList = false) {
         const map = new Map();
         for (const p of list) {
             const pFinish = p.finish || "Normal";
-            const pNum = (p.collectorNumber || collectorNumber || "").toString().trim();
-            const pSet = (p.setCode || setCode).toUpperCase();
+            const pNum = (p.collectorNumber || (isOtherSetList ? "" : collectorNumber) || "").toString().trim();
+            const pSet = p.setCode
+                ? normalizeSetCode(p.setCode).toUpperCase()
+                : (isOtherSetList ? "OTHER" : setCode.toUpperCase());
             const key = `${pSet}:${pNum}:${pFinish}`;
             if (!map.has(key)) {
                 map.set(key, {
@@ -463,11 +497,11 @@ function findCollectionMatch(setCard, collectionLookup, matchMode = "exact", set
         return Array.from(map.values());
     }
 
-    const aggExactCardPrints = aggregate(exactCardPrints);
-    const aggSameSetOtherPrints = aggregate(sameSetOtherPrints);
-    const aggOtherSetPrints = aggregate(otherSetPrints);
-    const aggThisSetAllPrints = aggregate([...exactCardPrints, ...sameSetOtherPrints]);
-    const aggAllPrints = aggregate(allRawPrintDetails);
+    const aggExactCardPrints = aggregate(exactCardPrints, false);
+    const aggSameSetOtherPrints = aggregate(sameSetOtherPrints, false);
+    const aggOtherSetPrints = aggregate(otherSetPrints, true);
+    const aggThisSetAllPrints = aggregate([...exactCardPrints, ...sameSetOtherPrints], false);
+    const aggAllPrints = aggregate(allRawPrintDetails, false);
 
     // Quantities
     const exactCardQty = aggExactCardPrints.reduce((sum, p) => sum + p.quantity, 0);
@@ -567,8 +601,9 @@ async function compareCollectionToSet({
     includeBasicLands = false,
     setScope = "distinct" // "distinct" (1 per card name) or "all" (every collector number)
 }) {
+    const allSets = await fetchAllSets().catch(() => []);
     const { setInfo, cards: rawSetCards } = await fetchSetCards(setCode);
-    const lookup = buildCollectionLookup(collectionItems);
+    const lookup = buildCollectionLookup(collectionItems, allSets);
 
     // Filter basic lands if requested
     let targetCards = rawSetCards;
@@ -620,7 +655,7 @@ async function compareCollectionToSet({
     const resultCards = [];
 
     for (const card of targetCards) {
-        const match = findCollectionMatch(card, lookup, matchMode, setScope);
+        const match = findCollectionMatch(card, lookup, matchMode, setScope, allSets);
         const cardUsd = card.prices.numericUsd;
         const cardEur = card.prices.numericEur;
 

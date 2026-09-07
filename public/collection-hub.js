@@ -4251,10 +4251,10 @@
             let qtyIdx = headers.findIndex(h => h === 'quantity' || h === 'count' || h === 'qty' || h === 'amount');
             if (qtyIdx === -1) qtyIdx = headers.findIndex(h => h.includes('quantity') || h.includes('count') || h.includes('qty'));
 
-            let setIdx = headers.findIndex(h => h === 'set code' || h === 'edition code' || h === 'set' || h === 'edition' || h === 'setcode');
-            if (setIdx === -1) setIdx = headers.findIndex(h => h.includes('set') || h.includes('edition'));
+            let setIdx = headers.findIndex(h => h === 'set code' || h === 'edition code' || h === 'expansion code' || h === 'set' || h === 'edition' || h === 'expansion' || h === 'setcode');
+            if (setIdx === -1) setIdx = headers.findIndex(h => h.includes('set') || h.includes('edition') || h.includes('expansion'));
 
-            let numIdx = headers.findIndex(h => h === 'collector number' || h === 'card number' || h === 'number' || h === 'num');
+            let numIdx = headers.findIndex(h => h === 'collector number' || h === 'card number' || h === 'number' || h === 'num' || h === 'card #' || h === 'card#');
             if (numIdx === -1) numIdx = headers.findIndex(h => h.includes('collector') || h.includes('number'));
 
             let finishIdx = headers.findIndex(h => h === 'finish' || h === 'modifier' || h === 'foil' || h === 'printing');
@@ -6262,14 +6262,18 @@
                 }
             }
 
-            // If we already have cached Archidekt collection in memory or storage, pass it directly for instant lookups!
+            // If we have an Archidekt collection ID and NO uploaded CSV:
+            // Check if currentCollectionData has valid set codes. If it's just raw name counts (e.g. from /compare),
+            // do NOT send it as collectionData; let the backend fetch/use the rich Archidekt collection with all edition info!
             if (!collectionCsvData && collectionId) {
-                const cachedArch = (currentCollectionData && currentCollectionData.length > 0)
-                    ? currentCollectionData
-                    : AppStorage.loadArchidektCollection(collectionId);
-                if (cachedArch && cachedArch.length > 0) {
-                    collectionCsvData = cachedArch;
-                    currentCollectionData = cachedArch;
+                const storedArch = AppStorage.loadArchidektCollection(collectionId);
+                const candidate = (storedArch && storedArch.length > 0)
+                    ? storedArch
+                    : ((currentCollectionData && currentCollectionData.length > 0) ? currentCollectionData : null);
+
+                if (candidate && candidate.some(c => c.setCode || c.set || c.edition || c.card?.edition)) {
+                    collectionCsvData = candidate;
+                    currentCollectionData = candidate;
                     updateCollectionStatusBadge();
                 }
             }
@@ -6294,13 +6298,20 @@
             progressDashboard.style.display = 'none';
             setResultsContainer.style.display = 'none';
 
+            // Only pass collectionData payload if it actually contains rich set information,
+            // otherwise let the server fetch the full Archidekt collection via collectionId.
+            const validCollectionData = (collectionCsvData && collectionCsvData.length > 0 &&
+                collectionCsvData.some(c => c.setCode || c.set || c.edition || c.card?.edition))
+                ? collectionCsvData
+                : undefined;
+
             try {
                 let response = await fetch('/checkSetProgress', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         collectionId,
-                        collectionData: collectionCsvData,
+                        collectionData: validCollectionData,
                         setCode: selectedSet.code,
                         matchMode,
                         includeBasicLands,
