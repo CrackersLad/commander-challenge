@@ -40,8 +40,8 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=4.32">
-    <link rel="stylesheet" href="collection-hub.css?v=4.32">
+    <link rel="stylesheet" href="styles.css?v=4.35">
+    <link rel="stylesheet" href="collection-hub.css?v=4.35">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -339,7 +339,7 @@
                     <div class="action-card-badge comparator-badge">Deck Overlap</div>
                     <div class="action-card-icon">🔄</div>
                     <h3 class="action-card-title">Deck Comparator</h3>
-                    <p class="action-card-desc">Compare your Archidekt collection to my built decks (or any Moxfield / Archidekt list). See which cards you own vs. what to acquire.</p>
+                    <p class="action-card-desc">Compare your collection to your built decks (Archidekt, Moxfield, or text lists). See which cards you own vs. what to acquire.</p>
                     <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #0284c7, #0ea5e9);" onclick="window.openCollectionTab('deck'); event.stopPropagation();">Compare Decks</button>
                 </div>
 
@@ -937,7 +937,7 @@
 
     <!-- ==================== VIEW 10: COLLECTION & DECKS HUB ==================== -->
     <main id="view-collection-hub" class="view-section collection-hub-scope">
-        <div class="lobby-view-wrapper" style="max-width: 960px; margin: 0 auto; padding: 10px 15px 40px 15px;">
+        <div class="collection-view-wrapper" style="max-width: 1480px; width: 100%; margin: 0 auto; padding: 10px 20px 40px 20px; box-sizing: border-box;">
             <div class="view-top-breadcrumb" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
                 <button class="breadcrumb-btn" onclick="window.goToMainMenu()">
                     <span>🏠</span> Return to Hub
@@ -950,7 +950,7 @@
         <!-- Header -->
         <div class="header">
             <div class="header-title-area">
-                <h1>Archidekt Hub</h1>
+                <h1>Collection Hub</h1>
                 <div class="header-subtitle">Deck Comparator & Set Completion Tracker</div>
             </div>
             <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
@@ -1060,9 +1060,9 @@
             <div class="card">
                 <div class="form-group">
                     <label for="deckInput">2. Decks to Compare<span class="help-icon"
-                            data-tooltip="Paste Archidekt links or decklist text e.g.:&#xa;archidekt.com/decks/12345/my-deck&#xa;&#xa;Paste multiple links separated by spaces or commas!">?</span></label>
+                            data-tooltip="Paste Archidekt or Moxfield links e.g.:&#xa;archidekt.com/decks/12345/my-deck&#xa;moxfield.com/decks/abc123&#xa;&#xa;Paste multiple links separated by spaces or commas!">?</span></label>
                     <div class="input-group">
-                        <input type="text" id="deckInput" placeholder="Paste Archidekt Deck URL(s) or ID(s)...">
+                        <input type="text" id="deckInput" placeholder="Paste Archidekt or Moxfield Deck URL(s)...">
                         <button type="button" class="add-btn" onclick="addDeck()">Add</button>
                     </div>
                     <div id="deckChips" class="chips-container"></div>
@@ -2127,7 +2127,7 @@
 
             <div style="padding: 1.25rem 1.5rem;">
                 <p style="font-size: 0.88rem; color: var(--text-muted); margin: 0 0 1rem 0; line-height: 1.5;">
-                    Anyone with this link can view your available cards and wishlist, and compare it in 1-click against their own Archidekt collection to see which cards you both need from each other!
+                    Anyone with this link can view your available cards and wishlist, and compare it in 1-click against their own collection to see which cards you both need from each other!
                 </p>
 
                 <div class="form-group">
@@ -2168,7 +2168,7 @@
                 <div style="display: flex; align-items: center; gap: 0.65rem;">
                     <span style="font-size: 1.5rem;" id="authModalIcon">🧙‍♂️</span>
                     <div>
-                        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;" id="authModalTitle">Welcome to Archidekt Hub</h3>
+                        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;" id="authModalTitle">Welcome to Collection Hub</h3>
                         <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 500;" id="authModalSubtitle">Sign in or register to manage your collection</div>
                     </div>
                 </div>
@@ -2288,7 +2288,7 @@
     <!-- Firebase Compat SDK for Collection Hub -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-    <script src="./collection-hub.js?v=4.32"></script>
-    <script type="module" src="./script.js?v=4.32"></script>
+    <script src="./collection-hub.js?v=4.35"></script>
+    <script type="module" src="./script.js?v=4.35"></script>
 </body>
 </html>
