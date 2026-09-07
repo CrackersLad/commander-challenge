@@ -1,5 +1,6 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenAI } = require("@google/genai");
+const admin = require("firebase-admin");
 const fs = require("fs");
 const path = require("path");
 const { parseCards, normalizeMoxfield, enrichCardsWithScryfall, parseDecklistText, parseDeckIdentifier } = require("./parsers.js");
@@ -16,7 +17,7 @@ const deckNameCache = new Map(); // compositeKey -> { timestamp, name }
 const DECK_NAME_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 const collectionCache = new Map(); // collectionId -> { timestamp, cards }
-const COLLECTION_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+const COLLECTION_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 /**
  * Fast & rate-limit safe collection fetcher with multi-round retry to guarantee 100% complete card retrieval.
@@ -52,6 +53,26 @@ async function fetchArchidektCollection(collectionId) {
         }
     } catch (e) {
         console.warn("[WARN] Could not read /tmp cache:", e.message);
+    }
+
+    // 3. Firebase Realtime Database check (persists across cold starts and container recycles)
+    try {
+        if (admin.apps && admin.apps.length) {
+            const dbRef = admin.database().ref(`cached_collections/${cleanId}`);
+            const dbSnap = await dbRef.once('value');
+            const dbVal = dbSnap.val();
+            if (dbVal && Array.isArray(dbVal.cards) && dbVal.cards.length > 0) {
+                const age = Date.now() - (dbVal.timestamp || 0);
+                if (age < 12 * 60 * 60 * 1000) { // 12 hours
+                    console.log(`[RTDB CACHE] Returning cloud-cached collection for ID ${cleanId} (${dbVal.cards.length} cards)`);
+                    collectionCache.set(cleanId, { timestamp: Date.now(), cards: dbVal.cards });
+                    return dbVal.cards;
+                }
+                if (!staleFallbackCards) staleFallbackCards = dbVal.cards;
+            }
+        }
+    } catch (e) {
+        console.warn("[WARN] Could not read RTDB cache:", e.message);
     }
 
     const firstPageUrl = `https://archidekt.com/api/collection/${cleanId}/?page=1`;
@@ -125,8 +146,8 @@ async function fetchArchidektCollection(collectionId) {
                     }
                 });
 
-                // Fetch 2 pages in parallel with polite 350ms spacing between batches to prevent 429 rate limits
-                const batchResults = await runWithConcurrency(taskFns, 2, 350);
+                // Fetch 2 pages in parallel with polite 220ms spacing between batches
+                const batchResults = await runWithConcurrency(taskFns, 2, 220);
                 for (const res of batchResults) {
                     if (res && Array.isArray(res.results)) {
                         res.results.forEach(c => allCardsMap.set(c.id || Math.random(), c));
@@ -139,8 +160,8 @@ async function fetchArchidektCollection(collectionId) {
                 pendingPages.push(...failedInRound);
 
                 if (pendingPages.length > 0 && round < 3) {
-                    console.log(`[COLLECTION] ${pendingPages.length} pages pending after round ${round}. Pausing 4s before retry...`);
-                    await new Promise(r => setTimeout(r, 4000));
+                    console.log(`[COLLECTION] ${pendingPages.length} pages pending after round ${round}. Pausing 2.5s before retry...`);
+                    await new Promise(r => setTimeout(r, 2500));
                 }
                 round++;
             }
@@ -157,6 +178,17 @@ async function fetchArchidektCollection(collectionId) {
         });
         try {
             fs.writeFileSync(tmpFilePath, JSON.stringify(allCards));
+        } catch (e) {}
+
+        // Persist to Firebase Realtime Database asynchronously for cross-instance permanence
+        try {
+            if (admin.apps && admin.apps.length) {
+                admin.database().ref(`cached_collections/${cleanId}`).set({
+                    timestamp: Date.now(),
+                    count: allCards.length,
+                    cards: allCards
+                }).catch(e => console.warn("[WARN] Could not write RTDB cache:", e.message));
+            }
         } catch (e) {}
         console.log(`[COLLECTION] Cached collection (${allCards.length} cards) for ID ${cleanId}`);
     }
