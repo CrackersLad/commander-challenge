@@ -240,7 +240,7 @@ function buildCollectionLookup(collectionItems = []) {
         const cardInfo = item.card || item || {};
         const oracleData = cardInfo.oracleCard || cardInfo;
         const rawName = oracleData.name || cardInfo.name || item.name || cardInfo.parts?.find(p => p.name)?.name;
-        const quantity = Math.max(1, parseInt(item.quantity) || 1);
+        const quantity = Math.max(1, parseInt(item.quantity || item.owned || item.count || cardInfo.quantity || cardInfo.owned || cardInfo.count) || 1);
 
         if (!rawName) continue;
 
@@ -248,15 +248,29 @@ function buildCollectionLookup(collectionItems = []) {
         const setCode = normalizeSetCode(
             cardInfo.edition?.editioncode ||
             cardInfo.edition?.code ||
+            cardInfo.edition?.set ||
+            cardInfo.edition?.setCode ||
             item.edition?.editioncode ||
             item.edition?.code ||
             cardInfo.edition?.editionName ||
             cardInfo.set ||
+            cardInfo.setCode ||
+            cardInfo.set_code ||
             item.set ||
+            item.setCode ||
+            item.set_code ||
             item.edition ||
             ""
         );
-        const collectorNumber = (cardInfo.collectorNumber || cardInfo.collector_number || item.collectorNumber || item.collector_number || item.number || "").toString().trim();
+        const collectorNumber = (
+            cardInfo.collectorNumber ||
+            cardInfo.collector_number ||
+            item.collectorNumber ||
+            item.collector_number ||
+            item.number ||
+            cardInfo.number ||
+            ""
+        ).toString().trim();
         const inDecks = Math.max(0, parseInt(item.inDecks || item.in_decks || cardInfo.inDecks || cardInfo.in_decks || 0) || 0);
 
         // Extract finish / modifier
@@ -268,6 +282,7 @@ function buildCollectionLookup(collectionItems = []) {
         const imageUrl = cardInfo.images?.normal || cardInfo.scryfall_image || (setCode && collectorNumber ? `https://api.scryfall.com/cards/${setCode.toLowerCase()}/${collectorNumber}?format=image` : "");
 
         const printDetail = {
+            cleanName,
             setCode,
             collectorNumber,
             finish,
@@ -384,7 +399,9 @@ function findCollectionMatch(setCard, collectionLookup, matchMode = "exact", set
         const snumEntry = bySetAndNumber.get(`${setCode}:${cleanNum}`) || bySetAndNumber.get(`${setCode}:${strippedNum}`);
         if (snumEntry && Array.isArray(snumEntry.printDetails)) {
             for (const p of snumEntry.printDetails) {
-                if (!allRawPrintDetails.some(x => x === p || (x.setCode === p.setCode && x.collectorNumber === p.collectorNumber && x.finish === p.finish))) {
+                // IMPORTANT: Only match bySetAndNumber if names are compatible (exact match, substring, or split face)
+                const nameCompatible = !p.cleanName || p.cleanName === cleanName || cleanName.includes(p.cleanName) || p.cleanName.includes(cleanName);
+                if (nameCompatible && !allRawPrintDetails.some(x => x === p || (x.setCode === p.setCode && x.collectorNumber === p.collectorNumber && x.finish === p.finish))) {
                     allRawPrintDetails.push(p);
                 }
             }
@@ -392,7 +409,7 @@ function findCollectionMatch(setCard, collectionLookup, matchMode = "exact", set
     }
 
     // Separate prints into:
-    // 1. exactCardPrints: same set AND same collector number
+    // 1. exactCardPrints: same set AND same collector number (or collection item did not specify a collector number)
     // 2. sameSetOtherPrints: same set BUT different collector number (e.g. alt art #199 vs standard #3)
     // 3. otherSetPrints: different set code
     const exactCardPrints = [];
@@ -405,7 +422,7 @@ function findCollectionMatch(setCard, collectionLookup, matchMode = "exact", set
         const pStrippedNum = pNum.replace(/^0+([1-9])/, '$1');
 
         if (pSet === setCode) {
-            if (pNum === cleanNum || (strippedNum && pStrippedNum === strippedNum)) {
+            if (!pNum || !cleanNum || pNum === cleanNum || (strippedNum && pStrippedNum === strippedNum)) {
                 exactCardPrints.push(p);
             } else {
                 sameSetOtherPrints.push(p);

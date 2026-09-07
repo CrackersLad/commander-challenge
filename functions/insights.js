@@ -142,7 +142,11 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
             item.edition?.editioncode ||
             item.edition?.code ||
             cardInfo.set ||
+            cardInfo.setCode ||
+            cardInfo.set_code ||
             item.set ||
+            item.setCode ||
+            item.set_code ||
             ""
         ).toUpperCase();
 

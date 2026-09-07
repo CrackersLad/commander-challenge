@@ -675,7 +675,23 @@
             loadCsv() {
                 try {
                     const raw = localStorage.getItem('archidekt_cachedCsvData');
-                    return raw ? JSON.parse(raw) : null;
+                    if (!raw) return null;
+                    const list = JSON.parse(raw);
+                    if (!Array.isArray(list)) return null;
+                    return list.map(c => {
+                        const s = (c.set || c.setCode || '').toLowerCase();
+                        const num = (c.collectorNumber || c.collector_number || c.number || '').toString().trim();
+                        const q = Number(c.quantity || c.owned || c.count) || 1;
+                        return {
+                            ...c,
+                            set: s,
+                            setCode: s.toUpperCase(),
+                            collectorNumber: num,
+                            collector_number: num,
+                            quantity: q,
+                            owned: q
+                        };
+                    });
                 } catch (e) {
                     return null;
                 }
@@ -700,7 +716,20 @@
                     const parsed = JSON.parse(raw);
                     // 2 hour cache validity
                     if (Date.now() - (parsed.timestamp || 0) < 2 * 60 * 60 * 1000 && Array.isArray(parsed.cards)) {
-                        return parsed.cards;
+                        return parsed.cards.map(c => {
+                            const s = (c.set || c.setCode || '').toLowerCase();
+                            const num = (c.collectorNumber || c.collector_number || c.number || '').toString().trim();
+                            const q = Number(c.quantity || c.owned || c.count) || 1;
+                            return {
+                                ...c,
+                                set: s,
+                                setCode: s.toUpperCase(),
+                                collectorNumber: num,
+                                collector_number: num,
+                                quantity: q,
+                                owned: q
+                            };
+                        });
                     }
                     return null;
                 } catch (e) {
@@ -2684,13 +2713,6 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ collectionId })
                     });
-                    if (response.status === 502 || response.status === 504) {
-                        response = await fetch('https://getcollectioninsights-v3miuc3wbq-uc.a.run.app', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ collectionId })
-                        });
-                    }
                     const data = await response.json();
                     const collCards = (data.collection && Array.isArray(data.collection) && data.collection.length > 0)
                         ? data.collection
@@ -4272,8 +4294,11 @@
                 if (name) data.push({
                     name,
                     quantity: isNaN(qty) ? 1 : qty,
+                    owned: isNaN(qty) ? 1 : qty,
                     set,
+                    setCode: set.toUpperCase(),
                     collectorNumber,
+                    collector_number: collectorNumber,
                     finish: finishVal,
                     modifier: finishVal,
                     isFoil,
@@ -6208,7 +6233,7 @@
                 }
             }
 
-            let collectionId = document.getElementById('collectionId').value.trim();
+            let collectionId = document.getElementById('collectionId')?.value.trim() || localStorage.getItem('archidekt_collectionId') || '';
             const collMatch = collectionId.match(/(?:archidekt\.com\/collections?\/)(\d+)/i);
             if (collMatch) collectionId = collMatch[1];
             else {
@@ -6217,27 +6242,11 @@
             }
 
             const csvInput = document.getElementById('csvUpload');
-            const csvFile = csvInput.files.length > 0 ? csvInput.files[0] : null;
+            const csvFile = csvInput && csvInput.files && csvInput.files.length > 0 ? csvInput.files[0] : null;
 
-            if (!collectionId && !csvFile && !cachedParsedCsv) {
-                alert("Please enter an Archidekt Collection ID or upload a CSV collection.");
-                return;
-            }
+            let collectionCsvData = cachedParsedCsv || AppStorage.loadCsv();
+            if (collectionCsvData && !cachedParsedCsv) cachedParsedCsv = collectionCsvData;
 
-            const matchMode = document.querySelector('input[name="matchMode"]:checked')?.value || 'exact';
-            const includeBasicLands = document.getElementById('setIncludeBasicLands').checked;
-            const setScope = document.getElementById('setScopeAllVariants').checked ? 'all' : 'distinct';
-
-            const btn = document.getElementById('checkSetBtn');
-            const progressDashboard = document.getElementById('setProgressDashboard');
-            const setResultsContainer = document.getElementById('setResultsContainer');
-
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Checking Set Progress...';
-            progressDashboard.style.display = 'none';
-            setResultsContainer.style.display = 'none';
-
-            let collectionCsvData = cachedParsedCsv;
             if (csvFile && !collectionCsvData) {
                 try {
                     const csvText = await readCSVFile(csvFile);
@@ -6265,6 +6274,26 @@
                 }
             }
 
+            if (!collectionId && !csvFile && !collectionCsvData) {
+                alert("Please enter a Collection ID or upload a CSV collection in Step 1 first.");
+                btn.disabled = false;
+                btn.innerHTML = '<span>Check Set Progress</span>';
+                return;
+            }
+
+            const matchMode = document.querySelector('input[name="matchMode"]:checked')?.value || 'exact';
+            const includeBasicLands = document.getElementById('setIncludeBasicLands').checked;
+            const setScope = document.getElementById('setScopeAllVariants').checked ? 'all' : 'distinct';
+
+            const btn = document.getElementById('checkSetBtn');
+            const progressDashboard = document.getElementById('setProgressDashboard');
+            const setResultsContainer = document.getElementById('setResultsContainer');
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Checking Set Progress...';
+            progressDashboard.style.display = 'none';
+            setResultsContainer.style.display = 'none';
+
             try {
                 let response = await fetch('/checkSetProgress', {
                     method: 'POST',
@@ -6278,22 +6307,6 @@
                         setScope
                     })
                 });
-
-                if (response.status === 502 || response.status === 504) {
-                    console.warn("Hosting gateway timeout (502/504), trying direct function URL...");
-                    response = await fetch('https://checksetprogress-v3miuc3wbq-uc.a.run.app', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            collectionId,
-                            collectionData: collectionCsvData,
-                            setCode: selectedSet.code,
-                            matchMode,
-                            includeBasicLands,
-                            setScope
-                        })
-                    });
-                }
 
                 let data;
                 try {

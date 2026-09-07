@@ -380,18 +380,28 @@ exports.checkSetProgress = onRequest({ cors: true, timeoutSeconds: 120, memory: 
 
         res.status(200).json({
             ...result,
-            cachedCollectionData: (collectionId && !collectionData && rawCollectionItems) ? rawCollectionItems.map(c => ({
-                id: c.id,
-                name: c.card?.oracleCard?.name || c.card?.name || c.name || '',
-                set: c.card?.edition?.editioncode || c.set || '',
-                collector_number: c.card?.collectorNumber || c.collector_number || '',
-                modifier: c.modifier || '',
-                finish: c.modifier || c.finish || '',
-                foil: Boolean(c.foil || c.card?.foil),
-                quantity: Number(c.quantity) || 1,
-                inDecks: Number(c.inDecks) || 0,
-                prices: c.card?.prices || null
-            })) : undefined
+            cachedCollectionData: (collectionId && !collectionData && rawCollectionItems) ? rawCollectionItems.map(c => {
+                const cardInfo = c.card || c || {};
+                const oracleData = cardInfo.oracleCard || cardInfo;
+                const set = (cardInfo.edition?.editioncode || cardInfo.edition?.code || c.set || c.setCode || '').toLowerCase();
+                const colNum = (cardInfo.collectorNumber || cardInfo.collector_number || c.collectorNumber || c.collector_number || c.number || '').toString().trim();
+                const qty = Number(c.quantity || c.count || c.owned) || 1;
+                return {
+                    id: c.id,
+                    name: oracleData?.name || cardInfo.name || c.name || '',
+                    set: set,
+                    setCode: set.toUpperCase(),
+                    collector_number: colNum,
+                    collectorNumber: colNum,
+                    modifier: c.modifier || '',
+                    finish: c.modifier || c.finish || '',
+                    foil: Boolean(c.foil || cardInfo.foil),
+                    quantity: qty,
+                    owned: qty,
+                    inDecks: Number(c.inDecks || cardInfo.inDecks) || 0,
+                    prices: cardInfo.prices || c.prices || null
+                };
+            }) : undefined
         });
     } catch (error) {
         console.error("[ERROR] checkSetProgress error:", error);
@@ -426,15 +436,22 @@ exports.getCollectionInsights = onRequest({ cors: true, timeoutSeconds: 120, mem
             const cardInfo = c.card || c || {};
             const oracleData = cardInfo.oracleCard || cardInfo;
             const name = oracleData.name || cardInfo.name || c.name || '';
-            const owned = Math.max(1, parseInt(c.quantity || c.count) || 1);
+            const owned = Math.max(1, parseInt(c.quantity || c.count || c.owned) || 1);
             const inDecks = Math.max(0, parseInt(c.inDecks || c.in_decks || cardInfo.inDecks || 0) || 0);
+            const set = (cardInfo.edition?.editioncode || cardInfo.edition?.code || c.set || c.setCode || '').toLowerCase();
+            const setCode = set.toUpperCase();
+            const colNum = (cardInfo.collectorNumber || cardInfo.collector_number || c.collectorNumber || c.collector_number || c.number || '').toString().trim();
             return {
                 id: c.id || Math.random(),
                 name,
                 owned,
+                quantity: owned,
                 inDecks,
                 available: Math.max(0, owned - inDecks),
-                setCode: (cardInfo.edition?.editioncode || cardInfo.edition?.code || c.set || '').toUpperCase(),
+                set,
+                setCode,
+                collector_number: colNum,
+                collectorNumber: colNum,
                 colors: oracleData.colors || oracleData.colorIdentity || cardInfo.colors || c.colors || [],
                 typeLine: oracleData.type_line || cardInfo.type_line || c.type_line || '',
                 isCommander: Boolean(oracleData.isCommander || cardInfo.isCommander || c.isCommander),
