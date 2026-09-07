@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=4.35';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=4.35';
-import { getArchives } from './data-service.js?v=4.35';
-import { initDeckActionsModule } from './deck-actions.js?v=4.35';
-import { initRoomActionsModule } from './room-actions.js?v=4.35';
-import { initPlayerViewModule } from './player-view.js?v=4.35';
-import { initAdminModule } from './admin.js?v=4.35';
-import { initCalendarModule } from './calendar.js?v=4.35';
-import { initAuthModule } from './auth.js?v=4.35';
-import { initHubModule } from './hub.js?v=4.35';
-import { initProfileModule } from './profile.js?v=4.35';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=4.35';
-import { initWarRoom, openWarRoom } from './war-room.js?v=4.35';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=4.35';
-import { initBoosterDraftModule } from './booster-draft.js?v=4.35';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=4.35';
+import { db, auth, functions } from './firebase-setup.js?v=4.37';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=4.37';
+import { getArchives } from './data-service.js?v=4.37';
+import { initDeckActionsModule } from './deck-actions.js?v=4.37';
+import { initRoomActionsModule } from './room-actions.js?v=4.37';
+import { initPlayerViewModule } from './player-view.js?v=4.37';
+import { initAdminModule } from './admin.js?v=4.37';
+import { initCalendarModule } from './calendar.js?v=4.37';
+import { initAuthModule } from './auth.js?v=4.37';
+import { initHubModule } from './hub.js?v=4.37';
+import { initProfileModule } from './profile.js?v=4.37';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=4.37';
+import { initWarRoom, openWarRoom } from './war-room.js?v=4.37';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=4.37';
+import { initBoosterDraftModule } from './booster-draft.js?v=4.37';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=4.37';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -1852,7 +1852,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=4.35').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=4.37').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
@@ -1968,6 +1968,15 @@ window.testLobbyDiscordWebhook = async () => {
 
 // --- PWA SERVICE WORKER REGISTRATION ---
 if ('serviceWorker' in navigator) {
+    let swRefreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!swRefreshing) {
+            swRefreshing = true;
+            console.log('🔄 New service worker activated, reloading for latest updates...');
+            window.location.reload();
+        }
+    });
+
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/service-worker.js')
             .then(registration => {

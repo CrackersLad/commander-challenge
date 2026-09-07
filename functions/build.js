@@ -30,7 +30,7 @@ indexHtml = indexHtml.replace(/(styles\.css\?v=)[^"']+/g, `$1${newVersion}`);
 indexHtml = indexHtml.replace(/(collection-hub\.css\?v=)[^"']+/g, `$1${newVersion}`);
 indexHtml = indexHtml.replace(/(script\.js\?v=)[^"']+/g, `$1${newVersion}`);
 indexHtml = indexHtml.replace(/(\.js\?v=)[^"']+/g, `$1${newVersion}`);
-indexHtml = indexHtml.replace(/(<span id="appVersion">v?)[^<]+(<\/span>)/g, `$1${newVersion}$2`);
+indexHtml = indexHtml.replace(/(<span id="appVersion"[^>]*>v?)[^<]+(<\/span>)/g, `$1${newVersion}$2`);
 fs.writeFileSync(indexPath, indexHtml);
 
 console.log(`Updated version in index.html to ${newVersion}`);

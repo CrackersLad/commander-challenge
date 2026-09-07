@@ -71,13 +71,21 @@
             box-sizing: border-box;
         }
 
-        .collection-hub-scope { padding: 1.5rem 1rem; color: var(--text-color); font-family: var(--font-body); }
+        .collection-hub-scope { 
+            padding: 1.5rem 1rem; 
+            color: var(--text-color); 
+            font-family: var(--font-body); 
+            text-align: left; 
+            width: 100%; 
+            max-width: 100%; 
+        }
 
         .container {
-            max-width: 1440px;
+            max-width: 1560px;
             width: 100%;
             margin: 0 auto;
             box-sizing: border-box;
+            text-align: left;
         }
 
         /* Header */
