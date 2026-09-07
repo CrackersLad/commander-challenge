@@ -786,8 +786,8 @@ exports.compareDecks = onRequest({ cors: true, timeoutSeconds: 300, memory: "512
 
 // Lightweight proxy to fetch a single deck's name (bypasses CORS) with caching & rate limit retry
 exports.getDeckName = onRequest({ cors: true, timeoutSeconds: 60, memory: "256MiB" }, async (req, res) => {
-    const rawId = req.query.id || req.body.id;
-    const platformParam = req.query.platform || req.body.platform;
+    const rawId = req.query?.id || req.body?.id;
+    const platformParam = req.query?.platform || req.body?.platform;
     if (!rawId) return res.status(400).json({ error: "Missing deck ID" });
 
     try {
@@ -795,6 +795,10 @@ exports.getDeckName = onRequest({ cors: true, timeoutSeconds: 60, memory: "256Mi
         if (!parsed || !parsed.id) return res.status(400).json({ error: "Invalid deck ID" });
 
         const { platform, id, compositeKey } = parsed;
+
+        if (platform === 'custom') {
+            return res.status(200).json({ name: id || 'Custom Deck' });
+        }
 
         // Check memory cache
         const cached = deckNameCache.get(compositeKey);
@@ -824,7 +828,8 @@ exports.getDeckName = onRequest({ cors: true, timeoutSeconds: 60, memory: "256Mi
 
         if (!fetchRes || !fetchRes.ok) {
             const status = fetchRes ? fetchRes.status : "unknown";
-            throw new Error(`HTTP ${status}`);
+            const fallbackName = platform === 'moxfield' ? `Moxfield (${id})` : `Deck #${id}`;
+            return res.status(200).json({ name: fallbackName, warning: `Remote returned HTTP ${status}` });
         }
 
         const data = await fetchRes.json();
@@ -836,9 +841,11 @@ exports.getDeckName = onRequest({ cors: true, timeoutSeconds: 60, memory: "256Mi
         });
 
         res.set("Cache-Control", "public, max-age=3600");
-        res.status(200).json({ name: deckName });
+        return res.status(200).json({ name: deckName });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("getDeckName error:", error);
+        const fallback = String(rawId).split('/')[0].split('?')[0];
+        return res.status(200).json({ name: `Deck ${fallback}`, warning: error.message });
     }
 });
 

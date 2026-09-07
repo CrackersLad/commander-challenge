@@ -35,8 +35,8 @@ function parseDeckIdentifier(input) {
     const moxfieldMatch = s.match(/(?:moxfield\.com\/decks\/)([a-zA-Z0-9_-]+)/i);
     // Check for Archidekt URL (e.g. archidekt.com/decks/12345/slug or api/decks/12345/)
     const archidektMatch = s.match(/(?:archidekt\.com\/(?:api\/)?decks\/)(\d+)/i);
-    // Check for prefix syntax e.g. archidekt:123 or moxfield:abc
-    const prefixMatch = s.match(/^(archidekt|moxfield):(.+)$/i);
+    // Check for prefix syntax e.g. archidekt:123, moxfield:abc, or custom:my-deck
+    const prefixMatch = s.match(/^(archidekt|moxfield|custom):(.+)$/i);
 
     if (prefixMatch) {
         platform = prefixMatch[1].toLowerCase();
@@ -44,7 +44,7 @@ function parseDeckIdentifier(input) {
         if (platform === 'archidekt') {
             const num = id.match(/\d+/);
             id = num ? num[0] : id;
-        } else {
+        } else if (platform === 'moxfield') {
             id = id.split('/')[0].split('?')[0].split('#')[0];
         }
     } else if (moxfieldMatch) {

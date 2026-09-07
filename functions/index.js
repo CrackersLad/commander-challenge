@@ -2,6 +2,7 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onValueUpdated, onValueCreated, onValueDeleted, onValueWritten } = require("firebase-functions/v2/database");
 const admin = require("firebase-admin");
+const { DEFAULT_HEADERS, fetchWithRetry } = require("./http.js");
 admin.initializeApp();
 
 function extractAll(obj, results = []) {
@@ -457,7 +458,7 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         image_uris: { normal: c.image_uris?.normal || c.card_faces?.[0]?.image_uris?.normal || "" },
         card_faces: c.card_faces ? c.card_faces.map(face => ({ image_uris: { normal: face.image_uris?.normal || "" } })) : null,
         prices: { usd: parseFloat(c.prices?.usd || 9999), eur: parseFloat(c.prices?.eur || 9999) },
-        display_rank: c.rank_edhrec || null,
+        display_rank: c.display_rank !== undefined ? c.display_rank : (c.rank_edhrec || null),
         color_identity: c.color_identity || [],
         scryfall_uri: c.scryfall_uri || "https://scryfall.com",
         cmc: c.cmc || 0,
@@ -580,12 +581,15 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
         return { success: true };
 
     } else if (settings.draftMode === 'set_draft' && settings.draftSet) {
-        // Existing SET DRAFT logic (interactive drafting from a set)
-        pool = await fetchBoosterCardsForSet(settings.draftSet); // Use the renamed function
+        // SET DRAFT logic (interactive drafting from an MTG set)
+        pool = await fetchBoosterCardsForSet(settings.draftSet);
+        if (!pool || pool.length === 0) {
+            throw new HttpsError('not-found', `No cards found for set ${settings.draftSet}`);
+        }
 
         const existingNames = new Set();
         const packs = [];
-        const totalPacks = N * (settings.packsPerPlayer || 3); // Assuming packsPerPlayer is still relevant for interactive set draft
+        const totalPacks = N * (settings.packsPerPlayer || 3);
 
         for (let i = 0; i < totalPacks; i++) {
             const packCards = [];
@@ -594,14 +598,14 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
                 do {
                     card = pool[Math.floor(Math.random() * pool.length)];
                     attempts++;
-                } while (existingNames.has(card.name) && attempts < 100); // Ensure unique cards within the overall draft pool
+                } while (existingNames.has(card.name) && attempts < 100);
                 packCards.push(formatCard(card));
                 existingNames.add(card.name);
             }
             packs.push({ id: `pack_${i}`, cards: packCards });
         }
 
-        // Distribute packs for interactive set draft (async/snake)
+        // Distribute packs for interactive set draft (async/snake/burn)
         if (settings.draftFormat === 'async_draft') {
             const queues = {};
             const drafted = {};
@@ -617,9 +621,8 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
             activeDraftPayload.drafted = drafted;
             activeDraftPayload.draftGoal = (settings.packsPerPlayer || 3) * (settings.packSize || 15);
         } else if (settings.draftFormat === 'snake_draft') {
-            // This block is for snake draft with set_draft mode
             const pickOrder = [];
-            const rounds = settings.numOptions; // numOptions here means picks per player
+            const rounds = settings.numOptions || 3;
             for (let round = 0; round < rounds; round++) {
                 let roundOrder = [...playerIds];
                 if (round % 2 !== 0) roundOrder.reverse();
@@ -628,12 +631,31 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
 
             const drafted = Object.fromEntries(playerIds.map(id => [id, []]));
 
-            activeDraftPayload.pool = packs.flat().map(p => p.cards).flat(); // Combine all cards from all packs into one pool
+            activeDraftPayload.pool = packs.flat().map(p => p.cards).flat();
             activeDraftPayload.pickOrder = pickOrder;
             activeDraftPayload.turn = 0;
             activeDraftPayload.drafted = drafted;
             activeDraftPayload.draftGoal = rounds;
+        } else if (settings.draftFormat === 'burn_draft') {
+            const queues = {};
+            const drafted = {};
+            playerIds.forEach((id, i) => {
+                queues[id] = [ packs[i] ];
+                drafted[id] = [];
+            });
+            activeDraftPayload.queues = queues;
+            activeDraftPayload.drafted = drafted;
+            activeDraftPayload.draftGoal = 1;
         }
+
+        const updates = {
+            [`rooms/${roomId}/settings`]: { ...settings, status: 'rolling' },
+            [`rooms/${roomId}/activeDraft`]: activeDraftPayload
+        };
+        await db.ref().update(updates);
+        await db.ref('stats').update({ commandersRolled: admin.database.ServerValue.increment(N * (settings.numOptions || 3)) });
+
+        return { success: true };
 
     } else { // Commander Draft (existing logic)
         const now = Date.now();
@@ -1183,7 +1205,8 @@ exports.notifyPlayerProgress = onValueUpdated({ ref: "/rooms/{roomId}/players/{p
         title = "Commander Locked In! 🔒";
         body = hideInfo ? `${after.name} has locked in a mysterious Commander!` : `${after.name} has chosen ${after.selected}!`;
         
-        const edhrecSlug = after.selected.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const firstCmdr = after.selected.split(' // ')[0].trim();
+        const edhrecSlug = firstCmdr.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
         const discordMsg = hideInfo ? `🔒 **${after.name}** has locked in a mysterious Commander!` : `🔒 **${after.name}** has chosen **${after.selected}**!\n${edhrecLink}`;
         await sendDiscordWebhook(event.params.roomId, discordMsg);
@@ -1303,7 +1326,7 @@ exports.adminClearTokens = onCall(async (request) => {
 });
 
 exports.getDeckPrice = onCall({ cors: true, timeoutSeconds: 60, memory: "256MiB" }, async (request) => {
-    const { deckUrl } = request.data;
+    const { deckUrl } = request.data || {};
     if (!deckUrl) {
         throw new HttpsError('invalid-argument', 'The function must be called with a "deckUrl" argument.');
     }
@@ -1317,8 +1340,18 @@ exports.getDeckPrice = onCall({ cors: true, timeoutSeconds: 60, memory: "256MiB"
             const deckId = archMatch ? archMatch[1] : null;
             if (!deckId) throw new HttpsError('invalid-argument', 'Invalid Archidekt URL.');
             
-            const response = await fetch(`https://archidekt.com/api/decks/${deckId}/`);
-            if (!response.ok) throw new HttpsError('not-found', `Archidekt API failed with status: ${response.status}`);
+            const response = await fetchWithRetry(`https://archidekt.com/api/decks/${deckId}/`, {
+                headers: {
+                    ...DEFAULT_HEADERS,
+                    "Referer": "https://archidekt.com/"
+                },
+                timeoutMs: 8000
+            }, 2);
+            if (!response.ok) {
+                if (response.status === 404) throw new HttpsError('not-found', 'Archidekt deck not found. Ensure it is public.');
+                if (response.status === 429) throw new HttpsError('resource-exhausted', 'Archidekt rate limit reached. Please wait a moment.');
+                throw new HttpsError('internal', `Archidekt API failed with status: ${response.status}`);
+            }
             return await response.json();
         }
 
@@ -1327,13 +1360,24 @@ exports.getDeckPrice = onCall({ cors: true, timeoutSeconds: 60, memory: "256MiB"
             const deckId = moxMatch ? moxMatch[1] : null;
             if (!deckId) throw new HttpsError('invalid-argument', 'Invalid Moxfield URL.');
 
-            const response = await fetch(`https://api.moxfield.com/v2/decks/all/${deckId}`);
-            if (!response.ok) throw new HttpsError('not-found', `Moxfield API failed with status: ${response.status}`);
+            const response = await fetchWithRetry(`https://api.moxfield.com/v2/decks/all/${deckId}`, {
+                headers: {
+                    ...DEFAULT_HEADERS,
+                    "Referer": "https://www.moxfield.com/"
+                },
+                timeoutMs: 8000
+            }, 2);
+            if (!response.ok) {
+                if (response.status === 403) throw new HttpsError('permission-denied', 'Moxfield blocked automated access (Cloudflare). Use "Paste Decklist Text" to import.');
+                if (response.status === 404) throw new HttpsError('not-found', 'Moxfield deck not found. Ensure it is public.');
+                throw new HttpsError('internal', `Moxfield API failed with status: ${response.status}`);
+            }
             return await response.json();
         }
     } catch (error) {
+        if (error instanceof HttpsError) throw error;
         console.error("Deck price fetch error:", error);
-        throw new HttpsError('internal', 'Failed to fetch deck data from the source API.');
+        throw new HttpsError('internal', error.message || 'Failed to fetch deck data from the source API.');
     }
     
     throw new HttpsError('unknown', 'Could not process the provided URL.');
