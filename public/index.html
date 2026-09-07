@@ -29,8 +29,19 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=4.30">
-    <link rel="stylesheet" href="collection-hub.css?v=4.30">
+    <script>
+        window.openCollectionTab = function(tab, options) {
+            document.querySelectorAll('.view-section').forEach(function(el) { el.classList.remove('active'); });
+            var viewEl = document.getElementById('view-collection-hub');
+            if (viewEl) viewEl.classList.add('active');
+            window.scrollTo(0, 0);
+            if (typeof window.switchTab === 'function') {
+                window.switchTab(tab);
+            }
+        };
+    </script>
+    <link rel="stylesheet" href="styles.css?v=4.32">
+    <link rel="stylesheet" href="collection-hub.css?v=4.32">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -2277,7 +2288,7 @@
     <!-- Firebase Compat SDK for Collection Hub -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-    <script src="./collection-hub.js?v=4.30"></script>
-    <script type="module" src="./script.js?v=4.30"></script>
+    <script src="./collection-hub.js?v=4.32"></script>
+    <script type="module" src="./script.js?v=4.32"></script>
 </body>
 </html>

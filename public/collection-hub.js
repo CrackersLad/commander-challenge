@@ -12,6 +12,47 @@
 
         let currentAuthUser = null;
 
+        window.openCollectionTab = function(tab, options = {}) {
+            // 1. Direct view switch to view-collection-hub
+            if (typeof window.switchView === 'function') {
+                window.switchView('view-collection-hub');
+            } else {
+                document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+                const el = document.getElementById('view-collection-hub');
+                if (el) el.classList.add('active');
+                window.scrollTo(0, 0);
+                document.body.scrollTop = 0;
+            }
+
+            // 2. Switch the active collection sub-tab
+            if (typeof switchTab === 'function') {
+                switchTab(tab);
+            } else if (typeof window.switchTab === 'function') {
+                window.switchTab(tab);
+            }
+
+            // 3. Handle upgrader drawer
+            if (options && options.openUpgrader) {
+                setTimeout(() => {
+                    const upgraderDrawer = document.getElementById('aiUpgradesDrawer') || document.getElementById('aiUpgradeContainer') || document.getElementById('suggestImprovementsBtn');
+                    if (upgraderDrawer) {
+                        upgraderDrawer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    const expandBtn = document.getElementById('openAiUpgradeBtn') || document.getElementById('toggleUpgradesBtn');
+                    if (expandBtn) expandBtn.click();
+                }, 200);
+            }
+
+            // 4. Handle preloaded deck
+            if (options && options.preloadDeck && typeof addDeck === 'function') {
+                const deckInput = document.getElementById('deckInput');
+                if (deckInput) {
+                    deckInput.value = options.preloadDeck;
+                    addDeck();
+                }
+            }
+        };
+
         function initFirebaseAuth() {
             if (typeof firebase === 'undefined') return;
             try {
@@ -544,6 +585,7 @@
             window.history.replaceState({}, '', `${window.location.pathname}?${params}`);
             localStorage.setItem('archidekt_activeTab', tab);
         }
+        window.switchTab = switchTab;
 
         // ==================== PERSISTENCE & STORAGE HELPERS ====================
         let cachedInsightsData = null;
@@ -6723,7 +6765,7 @@
 
         // ==================== INITIALIZATION ====================
         window.addEventListener('DOMContentLoaded', async () => {
-            await loadSetsList();
+            loadSetsList().catch(err => console.warn('Sets load warning:', err));
 
             const deckInput = document.getElementById('deckInput');
             const collectionInput = document.getElementById('collectionId');

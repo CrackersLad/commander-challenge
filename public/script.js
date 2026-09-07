@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=4.30';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=4.30';
-import { getArchives } from './data-service.js?v=4.30';
-import { initDeckActionsModule } from './deck-actions.js?v=4.30';
-import { initRoomActionsModule } from './room-actions.js?v=4.30';
-import { initPlayerViewModule } from './player-view.js?v=4.30';
-import { initAdminModule } from './admin.js?v=4.30';
-import { initCalendarModule } from './calendar.js?v=4.30';
-import { initAuthModule } from './auth.js?v=4.30';
-import { initHubModule } from './hub.js?v=4.30';
-import { initProfileModule } from './profile.js?v=4.30';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=4.30';
-import { initWarRoom, openWarRoom } from './war-room.js?v=4.30';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=4.30';
-import { initBoosterDraftModule } from './booster-draft.js?v=4.30';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=4.30';
+import { db, auth, functions } from './firebase-setup.js?v=4.32';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=4.32';
+import { getArchives } from './data-service.js?v=4.32';
+import { initDeckActionsModule } from './deck-actions.js?v=4.32';
+import { initRoomActionsModule } from './room-actions.js?v=4.32';
+import { initPlayerViewModule } from './player-view.js?v=4.32';
+import { initAdminModule } from './admin.js?v=4.32';
+import { initCalendarModule } from './calendar.js?v=4.32';
+import { initAuthModule } from './auth.js?v=4.32';
+import { initHubModule } from './hub.js?v=4.32';
+import { initProfileModule } from './profile.js?v=4.32';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=4.32';
+import { initWarRoom, openWarRoom } from './war-room.js?v=4.32';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=4.32';
+import { initBoosterDraftModule } from './booster-draft.js?v=4.32';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=4.32';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -438,6 +438,7 @@ function switchView(viewId, pushState = true) {
         window.history.pushState({ viewId }, '', `#${viewId}`);
     }
 }
+window.switchView = switchView;
 
 window.addEventListener('popstate', (event) => {
     if (event.state && event.state.viewId) {
@@ -448,6 +449,8 @@ window.addEventListener('popstate', (event) => {
             switchView('view-booster-draft', false);
         } else if (hash === '#view-booster-simulator' || hash === '#booster-simulator') {
             switchView('view-booster-simulator', false);
+        } else if (hash === '#view-collection-hub' || hash.startsWith('#collection') || hash.startsWith('#trade-')) {
+            switchView('view-collection-hub', false);
         } else {
             switchView('view-landing', false);
         }
@@ -1759,12 +1762,7 @@ if (roomParam && !currentRoom) {
     }
 }
 
-if(currentRoom && currentPlayerId) {
-    get(ref(db, `rooms/${currentRoom}`)).then(snap => {
-        if(snap.exists()) snap.val().settings.status === 'rolling' ? initDashboard() : initLobby();
-        else { clearSession(); switchView('view-landing'); } 
-    });
-}
+// Auto-redirect to cached lobby disabled: users stay on the 'What do you want to do' portal hub by default.
 
 /**
  * Makes a horizontal element draggable for scrolling.
@@ -1854,7 +1852,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=4.30').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=4.32').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
