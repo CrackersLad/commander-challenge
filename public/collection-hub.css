@@ -183,14 +183,24 @@
         }
 
         /* Card Container */
+        .collection-hub-scope .card,
+        .collection-hub-modal .card,
         .card {
-            background-color: var(--card-bg);
-            padding: 1.5rem;
-            border-radius: 14px;
-            border: 1px solid var(--border-color);
-            margin-bottom: 1.5rem;
-            box-shadow: var(--shadow-md);
-            transition: background-color 0.25s ease, border-color 0.25s ease;
+            background-color: var(--card-bg) !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            padding: 1.5rem !important;
+            border-radius: 14px !important;
+            border: 1px solid var(--border-color) !important;
+            margin-bottom: 1.5rem !important;
+            box-shadow: var(--shadow-md) !important;
+            transition: background-color 0.25s ease, border-color 0.25s ease !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            flex: none !important;
+            box-sizing: border-box !important;
+            text-align: left !important;
         }
 
         .form-group {
@@ -209,6 +219,10 @@
             color: var(--text-color);
         }
 
+        .collection-hub-scope input[type="text"],
+        .collection-hub-scope input[type="file"],
+        .collection-hub-scope select,
+        .collection-hub-scope textarea,
         input[type="text"],
         input[type="file"],
         select,
@@ -223,6 +237,7 @@
             font-size: 0.95rem;
             transition: border-color 0.2s, box-shadow 0.2s;
             font-family: inherit;
+            text-align: left;
         }
 
         textarea {

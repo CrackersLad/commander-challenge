@@ -1603,7 +1603,7 @@ select:focus {
     box-sizing: border-box;
 }
 
-.card {
+.dashboard .card {
     background: rgba(18, 18, 26, 0.85);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -1621,7 +1621,7 @@ select:focus {
     box-sizing: border-box;
 }
 
-.card:hover {
+.dashboard .card:hover {
     border-color: var(--gold);
     transform: translateY(-6px);
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 0 25px var(--gold-subtle);
