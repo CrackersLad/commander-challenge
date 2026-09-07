@@ -1354,6 +1354,11 @@
             document.getElementById('tradeWantsCount').textContent = totalWantsCount;
             document.getElementById('tradeWantsBadge').textContent = `${totalWantsCount} items`;
 
+            const mobileHavesEl = document.getElementById('tradeHavesMobileCount');
+            if (mobileHavesEl) mobileHavesEl.textContent = totalHavesCount;
+            const mobileWantsEl = document.getElementById('tradeWantsMobileCount');
+            if (mobileWantsEl) mobileWantsEl.textContent = totalWantsCount;
+
             const diff = totalHavesValue - totalWantsValue;
             const diffEl = document.getElementById('tradeBalanceValue');
             if (diff >= 0) {
@@ -1364,6 +1369,26 @@
                 diffEl.style.color = '#f87171';
             }
         }
+
+        window.switchTradeMobileTab = function(tab) {
+            const cols = document.querySelectorAll('.trade-column');
+            const btnHaves = document.getElementById('tradeMobileBtnHaves');
+            const btnWants = document.getElementById('tradeMobileBtnWants');
+            if (cols.length < 2) return;
+            const havesCol = cols[0];
+            const wantsCol = cols[1];
+            if (tab === 'haves') {
+                havesCol.classList.remove('mobile-hidden');
+                wantsCol.classList.add('mobile-hidden');
+                if (btnHaves) btnHaves.classList.add('active');
+                if (btnWants) btnWants.classList.remove('active');
+            } else {
+                havesCol.classList.add('mobile-hidden');
+                wantsCol.classList.remove('mobile-hidden');
+                if (btnHaves) btnHaves.classList.remove('active');
+                if (btnWants) btnWants.classList.add('active');
+            }
+        };
 
         // Sharing logic
         async function generateTradeShareUrl() {

@@ -40,8 +40,8 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=6.4">
-    <link rel="stylesheet" href="collection-hub.css?v=6.4">
+    <link rel="stylesheet" href="styles.css?v=6.5">
+    <link rel="stylesheet" href="collection-hub.css?v=6.5">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -63,11 +63,11 @@
         </div>
 
         <div class="nav-right">
-            <button class="nav-icon-btn nav-hub-btn" onclick="window.goToMainMenu()" title="Main Portal">🏠 Home</button>
+            <button class="nav-icon-btn nav-hub-btn" onclick="window.goToMainMenu()" title="Main Portal"><span>🏠</span><span class="nav-btn-text"> Home</span></button>
 
             <!-- Play Tools Menu -->
             <div class="nav-dropdown-wrapper">
-                <button class="nav-icon-btn draft-nav-btn" onclick="window.toggleNavMenu('playMenu', event)" title="Start Playing">⚔️ Play ▾</button>
+                <button class="nav-icon-btn draft-nav-btn" onclick="window.toggleNavMenu('playMenu', event)" title="Start Playing"><span>⚔️</span><span class="nav-btn-text"> Play</span> ▾</button>
                 <div id="playMenu" class="nav-popup-menu" style="display: none;">
                     <div class="nav-popup-item" onclick="window.goToMainMenu(); window.scrollToSection('section-play'); window.closeAllNavMenus();">
                         <span>⚔️</span> Commander Challenge
@@ -83,7 +83,7 @@
 
             <!-- Collection Tools Menu -->
             <div class="nav-dropdown-wrapper">
-                <button class="nav-icon-btn booster-nav-btn" onclick="window.toggleNavMenu('collectionMenu', event)" title="My Collection">📦 Collection ▾</button>
+                <button class="nav-icon-btn booster-nav-btn" onclick="window.toggleNavMenu('collectionMenu', event)" title="My Collection"><span>📦</span><span class="nav-btn-text"> Collection</span> ▾</button>
                 <div id="collectionMenu" class="nav-popup-menu" style="display: none;">
                     <div class="nav-popup-item" onclick="window.openCollectionTab('deck'); window.closeAllNavMenus();">
                         <span>🔄</span> Deck Comparator
@@ -107,7 +107,7 @@
             </div>
 
             <div id="audioContainer" class="nav-audio-box">
-                <button id="sfxToggle" class="nav-icon-btn" title="Toggle Sound Effects">🔊 SFX</button>
+                <button id="sfxToggle" class="nav-icon-btn" title="Toggle Sound Effects"><span>🔊</span><span class="nav-btn-text"> SFX</span></button>
             </div>
             
             <div id="globalAccountBtn" class="nav-account-pill" onclick="window.openAccountModal()" title="Manage Player Identity">
@@ -937,12 +937,12 @@
 
     <!-- ==================== VIEW 10: COLLECTION & DECKS HUB ==================== -->
     <main id="view-collection-hub" class="view-section collection-hub-scope">
-        <div class="collection-view-wrapper" style="max-width: 1600px; width: 100%; margin: 0 auto; padding: 10px 20px 40px 20px; box-sizing: border-box; text-align: left;">
-            <div class="view-top-breadcrumb" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; max-width: 100%;">
+        <div class="collection-view-wrapper">
+            <div class="view-top-breadcrumb">
                 <button class="breadcrumb-btn" onclick="window.goToMainMenu()">
                     <span>🏠</span> Return to Hub
                 </button>
-                <div style="color: var(--gold); font-family: var(--font-display); font-size: 0.95rem; font-weight: 600; letter-spacing: 0.5px;">
+                <div class="breadcrumb-title">
                     ✦ MY COLLECTION & DECKS ✦
                 </div>
             </div>
@@ -953,7 +953,7 @@
                 <h1>Collection Hub</h1>
                 <div class="header-subtitle">Deck Comparator & Set Completion Tracker</div>
             </div>
-            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+            <div class="header-actions-area">
                 <div class="market-select-wrapper" title="Global Pricing Marketplace (affects all cards, binders, and sets)">
                     <span style="font-size: 0.88rem;">🌐</span>
                     <select id="globalMarketSelect" class="market-select" onchange="changeGlobalMarket(this.value)">
@@ -1218,10 +1218,8 @@
 
                     <!-- DECK VIEW CONTROLS -->
                     <div id="deckViewControls">
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
-                            <div
-                                style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0;">
+                        <div class="deck-view-header-row">
+                            <div class="deck-selector-area">
                                 <label
                                     style="margin: 0; font-size: 0.9rem; font-weight: 700; white-space: nowrap;">Viewing
                                     Deck:</label>
@@ -1231,7 +1229,7 @@
                                     <option value="all">All Decks Combined</option>
                                 </select>
                             </div>
-                            <div class="actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <div class="actions deck-results-actions">
                                 <button type="button" class="secondary-btn ai-btn" id="btnAiOptimizer" onclick="openAiOptimizer()"
                                     title="Find deck improvements from your collection using Gemini AI">
                                     <span>✨</span> AI Improvements
@@ -1251,7 +1249,7 @@
                             style="background: var(--bg-color); border: 1px solid var(--border-color); padding: 0.85rem 1rem; border-radius: 10px; display: flex; flex-direction: column; gap: 0.65rem;">
                             <!-- Status Filters + Live Counter -->
                             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <div class="status-filters-group">
                                     <button type="button" class="secondary-btn active" id="btnDeckFilterAll"
                                         onclick="setDeckCardsStatusFilter('all')">📋 All Cards (<span
                                             id="deckCountAll">0</span>)</button>
@@ -1590,7 +1588,7 @@
                     <div
                         style="background: var(--bg-color); border: 1px solid var(--border-color); padding: 0.85rem 1rem; border-radius: 10px; display: flex; flex-direction: column; gap: 0.65rem;">
                         <!-- Status Filter Tabs -->
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <div class="status-filters-group">
                             <button type="button" class="secondary-btn active" id="btnFilterMissing"
                                 onclick="setListStatusFilter('missing')">❌ Missing Only (<span
                                     id="countTabMissing">0</span>)</button>
@@ -1794,7 +1792,7 @@
                         Organize cards you want to trade away and cards you're looking for, then send a link to friends!
                     </div>
                 </div>
-                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <div class="trade-header-actions">
                     <button type="button" class="main-btn" onclick="shareTradeOfferModal()" style="padding: 0.55rem 1.1rem;">
                         <span>🔗 Share Trade Link</span>
                     </button>
@@ -1808,28 +1806,32 @@
             </div>
 
             <!-- Quick Card Add Form -->
-            <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+            <div class="trade-add-card-box">
                 <div style="font-size: 0.84rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-muted);">
                     ⚡ QUICK ADD TO BINDER (OR CLICK "+ HAVE" / "+ WANT" ACROSS SETS & DECKS):
                 </div>
-                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-                    <input type="text" id="tradeAddCardInput" placeholder="Enter card name (e.g. Sauron, Sol Ring)..."
-                        style="flex: 2; min-width: 160px; padding: 0.45rem 0.75rem; font-size: 0.9rem;"
-                        onkeypress="if(event.key==='Enter') addCardFromTradeInput('have')">
-                    <input type="number" id="tradeAddCardQty" value="1" min="1" max="99" style="width: 55px; padding: 0.45rem 0.5rem; text-align: center;" title="Quantity">
-                    <select id="tradeAddCardFinish" class="secondary-btn" style="padding: 0.45rem 0.65rem; font-size: 0.85rem;" title="Select card finish">
-                        <option value="Normal">Normal</option>
-                        <option value="Foil">✨ Foil</option>
-                        <option value="Surge Foil">🌊 Surge Foil</option>
-                        <option value="Etched">⚡ Etched</option>
-                        <option value="Textured Foil">💎 Textured Foil</option>
-                    </select>
-                    <button type="button" class="secondary-btn have-btn" style="color: #34d399; border-color: rgba(16, 185, 129, 0.4);" onclick="addCardFromTradeInput('have')">
-                        + For Trade (Have)
-                    </button>
-                    <button type="button" class="secondary-btn want-btn" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);" onclick="addCardFromTradeInput('want')">
-                        + Wishlist (Want)
-                    </button>
+                <div class="trade-add-box-form">
+                    <div class="trade-add-inputs-row">
+                        <input type="text" id="tradeAddCardInput" placeholder="Enter card name (e.g. Sauron, Sol Ring)..."
+                            class="trade-input-name"
+                            onkeypress="if(event.key==='Enter') addCardFromTradeInput('have')">
+                        <input type="number" id="tradeAddCardQty" value="1" min="1" max="99" class="trade-input-qty" title="Quantity">
+                        <select id="tradeAddCardFinish" class="secondary-btn trade-input-finish" title="Select card finish">
+                            <option value="Normal">Normal</option>
+                            <option value="Foil">✨ Foil</option>
+                            <option value="Surge Foil">🌊 Surge Foil</option>
+                            <option value="Etched">⚡ Etched</option>
+                            <option value="Textured Foil">💎 Textured Foil</option>
+                        </select>
+                    </div>
+                    <div class="trade-add-buttons-row">
+                        <button type="button" class="secondary-btn have-btn" style="color: #34d399; border-color: rgba(16, 185, 129, 0.4);" onclick="addCardFromTradeInput('have')">
+                            + For Trade (Have)
+                        </button>
+                        <button type="button" class="secondary-btn want-btn" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);" onclick="addCardFromTradeInput('want')">
+                            + Wishlist (Want)
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1847,6 +1849,16 @@
                     <div class="fact-val" id="tradeBalanceValue">$0.00</div>
                     <div class="fact-lbl">Net Balance (Have - Want)</div>
                 </div>
+            </div>
+
+            <!-- Mobile Segmented Toggle Bar -->
+            <div class="trade-mobile-toggle-bar" id="tradeMobileToggleBar">
+                <button type="button" class="trade-mobile-toggle-btn active" id="tradeMobileBtnHaves" onclick="switchTradeMobileTab('haves')">
+                    🟢 For Trade (<span id="tradeHavesMobileCount">0</span>)
+                </button>
+                <button type="button" class="trade-mobile-toggle-btn" id="tradeMobileBtnWants" onclick="switchTradeMobileTab('wants')">
+                    🔵 Wishlist (<span id="tradeWantsMobileCount">0</span>)
+                </button>
             </div>
 
             <!-- Two-Column Grid: Haves vs Wants -->
@@ -2171,13 +2183,13 @@
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
-        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v6.4</span>
+        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v6.5</span>
     </footer>
 
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script src="./collection-hub.js?v=6.4"></script>
-    <script type="module" src="./script.js?v=6.4"></script>
+    <script src="./collection-hub.js?v=6.5"></script>
+    <script type="module" src="./script.js?v=6.5"></script>
 </body>
 </html>
