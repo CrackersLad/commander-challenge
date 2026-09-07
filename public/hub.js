@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=6.5';
+import { db, auth } from './firebase-setup.js?v=6.6';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -26,6 +26,12 @@ export function initHubModule(utils, state, coreUi) {
     document.addEventListener('click', () => {
         window.closeAllNavMenus();
     });
+
+    document.addEventListener('touchstart', (e) => {
+        if (!e.target.closest('.nav-dropdown-wrapper')) {
+            window.closeAllNavMenus();
+        }
+    }, { passive: true });
 
     window.scrollToSection = (sectionId) => {
         const el = document.getElementById(sectionId);
@@ -148,7 +154,7 @@ export function initHubModule(utils, state, coreUi) {
     async function loadPreconData() {
         if (localPrecons && localPrecons.length > 0) return localPrecons;
         try {
-            const res = await fetch('./commander-precons.json?v=6.5');
+            const res = await fetch('./commander-precons.json?v=6.6');
             if (res.ok) {
                 localPrecons = await res.json();
                 return localPrecons;
