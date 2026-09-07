@@ -23,11 +23,16 @@ const COLLECTION_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
  */
 async function fetchArchidektCollection(collectionId) {
     const cleanId = String(collectionId).trim();
+    let staleFallbackCards = null;
+
     // 1. In-memory cache check
     const cached = collectionCache.get(cleanId);
-    if (cached && (Date.now() - cached.timestamp < COLLECTION_CACHE_TTL)) {
-        console.log(`[CACHE] Returning in-memory cached collection for ID ${cleanId} (${cached.cards.length} cards)`);
-        return cached.cards;
+    if (cached && Array.isArray(cached.cards) && cached.cards.length > 0) {
+        if (Date.now() - cached.timestamp < COLLECTION_CACHE_TTL) {
+            console.log(`[CACHE] Returning in-memory cached collection for ID ${cleanId} (${cached.cards.length} cards)`);
+            return cached.cards;
+        }
+        staleFallbackCards = cached.cards;
     }
 
     // 2. /tmp disk cache check (persists across warm Cloud Run instances)
@@ -35,13 +40,14 @@ async function fetchArchidektCollection(collectionId) {
     try {
         if (fs.existsSync(tmpFilePath)) {
             const stat = fs.statSync(tmpFilePath);
-            if (Date.now() - stat.mtimeMs < COLLECTION_CACHE_TTL) {
-                const data = JSON.parse(fs.readFileSync(tmpFilePath, "utf8"));
-                if (Array.isArray(data) && data.length > 0) {
+            const data = JSON.parse(fs.readFileSync(tmpFilePath, "utf8"));
+            if (Array.isArray(data) && data.length > 0) {
+                if (Date.now() - stat.mtimeMs < COLLECTION_CACHE_TTL) {
                     collectionCache.set(cleanId, { timestamp: Date.now(), cards: data });
                     console.log(`[DISK CACHE] Returning cached collection for ID ${cleanId} (${data.length} cards) from /tmp`);
                     return data;
                 }
+                if (!staleFallbackCards) staleFallbackCards = data;
             }
         }
     } catch (e) {
@@ -49,16 +55,29 @@ async function fetchArchidektCollection(collectionId) {
     }
 
     const firstPageUrl = `https://archidekt.com/api/collection/${cleanId}/?page=1`;
-    const firstRes = await fetchWithRetry(firstPageUrl, {
-        headers: {
-            ...DEFAULT_HEADERS,
-            "Referer": "https://archidekt.com/"
-        },
-        timeoutMs: 8000
-    }, 3);
+    let firstRes;
+    try {
+        firstRes = await fetchWithRetry(firstPageUrl, {
+            headers: {
+                ...DEFAULT_HEADERS,
+                "Referer": "https://archidekt.com/"
+            },
+            timeoutMs: 10000
+        }, 3);
+    } catch (err) {
+        if (staleFallbackCards && staleFallbackCards.length > 0) {
+            console.warn(`[RECOVERY] Network error fetching collection ${cleanId}. Serving fallback cached collection (${staleFallbackCards.length} cards).`);
+            return staleFallbackCards;
+        }
+        throw err;
+    }
 
     if (!firstRes || !firstRes.ok) {
         const status = firstRes ? firstRes.status : "unknown";
+        if (staleFallbackCards && staleFallbackCards.length > 0) {
+            console.warn(`[RECOVERY] Archidekt returned HTTP ${status}. Serving fallback cached collection (${staleFallbackCards.length} cards) for ID ${cleanId}.`);
+            return staleFallbackCards;
+        }
         if (status === 429) {
             throw new Error(`Archidekt rate limit (HTTP 429) reached for collection ${cleanId}. Please wait a moment before trying again.`);
         }
@@ -91,7 +110,7 @@ async function fetchArchidektCollection(collectionId) {
                                 ...DEFAULT_HEADERS,
                                 "Referer": "https://archidekt.com/"
                             },
-                            timeoutMs: 8000
+                            timeoutMs: 9000
                         }, 2);
                         if (r.ok) {
                             const d = await r.json();
@@ -106,8 +125,8 @@ async function fetchArchidektCollection(collectionId) {
                     }
                 });
 
-                // Fetch 4 pages in parallel with polite 120ms spacing between batches
-                const batchResults = await runWithConcurrency(taskFns, 4, 120);
+                // Fetch 2 pages in parallel with polite 350ms spacing between batches to prevent 429 rate limits
+                const batchResults = await runWithConcurrency(taskFns, 2, 350);
                 for (const res of batchResults) {
                     if (res && Array.isArray(res.results)) {
                         res.results.forEach(c => allCardsMap.set(c.id || Math.random(), c));
@@ -120,8 +139,8 @@ async function fetchArchidektCollection(collectionId) {
                 pendingPages.push(...failedInRound);
 
                 if (pendingPages.length > 0 && round < 3) {
-                    console.log(`[COLLECTION] ${pendingPages.length} pages pending after round ${round}. Pausing 2s before retry...`);
-                    await new Promise(r => setTimeout(r, 2000));
+                    console.log(`[COLLECTION] ${pendingPages.length} pages pending after round ${round}. Pausing 4s before retry...`);
+                    await new Promise(r => setTimeout(r, 4000));
                 }
                 round++;
             }
@@ -131,7 +150,7 @@ async function fetchArchidektCollection(collectionId) {
     const allCards = Array.from(allCardsMap.values());
     const expectedCount = firstData.count || allCards.length;
 
-    if (allCards.length >= expectedCount) {
+    if (allCards.length >= expectedCount || allCards.length > 0) {
         collectionCache.set(cleanId, {
             timestamp: Date.now(),
             cards: allCards
@@ -139,9 +158,12 @@ async function fetchArchidektCollection(collectionId) {
         try {
             fs.writeFileSync(tmpFilePath, JSON.stringify(allCards));
         } catch (e) {}
-        console.log(`[COLLECTION] Fetched and cached 100% of collection (${allCards.length} cards) for ID ${cleanId}`);
-    } else {
-        console.warn(`[WARN] Retrieved ${allCards.length}/${expectedCount} cards for collection ${cleanId}. Not caching incomplete data.`);
+        console.log(`[COLLECTION] Cached collection (${allCards.length} cards) for ID ${cleanId}`);
+    }
+
+    if (allCards.length < expectedCount && staleFallbackCards && staleFallbackCards.length > allCards.length) {
+        console.warn(`[RECOVERY] Partial fetch (${allCards.length}/${expectedCount}). Serving fuller stale cache (${staleFallbackCards.length} cards).`);
+        return staleFallbackCards;
     }
 
     return allCards;

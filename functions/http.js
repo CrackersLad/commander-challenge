@@ -53,11 +53,11 @@ async function fetchWithRetry(url, options = {}, maxRetries = 2) {
                     }
                 }
 
-                // Rate limit cooldown backoff: minimum 1.5s so Archidekt sliding window clears
+                // Rate limit cooldown backoff: minimum 3.5s so Archidekt sliding window clears
                 if (!delayMs || delayMs <= 0) {
-                    const baseBackoff = 1500 * (attempt + 1);
-                    const jitter = Math.floor(Math.random() * 400);
-                    delayMs = Math.min(3500, baseBackoff + jitter);
+                    const baseBackoff = 3500 * (attempt + 1);
+                    const jitter = Math.floor(Math.random() * 500);
+                    delayMs = Math.min(9000, baseBackoff + jitter);
                 }
 
                 console.warn(`[RATE LIMIT 429] Received 429 for ${url}. Backing off ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})...`);

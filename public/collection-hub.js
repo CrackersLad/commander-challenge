@@ -6263,15 +6263,14 @@
             }
 
             // If we have an Archidekt collection ID and NO uploaded CSV:
-            // Check if currentCollectionData has valid set codes. If it's just raw name counts (e.g. from /compare),
-            // do NOT send it as collectionData; let the backend fetch/use the rich Archidekt collection with all edition info!
+            // Use stored or in-memory collection cards directly for sub-second execution with zero external API hits!
             if (!collectionCsvData && collectionId) {
                 const storedArch = AppStorage.loadArchidektCollection(collectionId);
                 const candidate = (storedArch && storedArch.length > 0)
                     ? storedArch
                     : ((currentCollectionData && currentCollectionData.length > 0) ? currentCollectionData : null);
 
-                if (candidate && candidate.some(c => c.setCode || c.set || c.edition || c.card?.edition)) {
+                if (candidate && candidate.length > 0) {
                     collectionCsvData = candidate;
                     currentCollectionData = candidate;
                     updateCollectionStatusBadge();
@@ -6298,10 +6297,8 @@
             progressDashboard.style.display = 'none';
             setResultsContainer.style.display = 'none';
 
-            // Only pass collectionData payload if it actually contains rich set information,
-            // otherwise let the server fetch the full Archidekt collection via collectionId.
-            const validCollectionData = (collectionCsvData && collectionCsvData.length > 0 &&
-                collectionCsvData.some(c => c.setCode || c.set || c.edition || c.card?.edition))
+            // Pass collectionCsvData if available so the request runs instantly with zero Archidekt rate limit risk!
+            const validCollectionData = (collectionCsvData && collectionCsvData.length > 0)
                 ? collectionCsvData
                 : undefined;
 
