@@ -133,6 +133,69 @@
             }
         }
 
+        let isCloudSyncIncoming = false;
+        let activeCollectionPrefsUnsubscribe = null;
+        let activeTradeBinderUnsubscribe = null;
+        let syncTradeTimeout = null;
+        let syncPrefsTimeout = null;
+
+        function syncCollectionPrefsToCloud() {
+            const user = currentAuthUser || getUnifiedUser();
+            if (!user || user.isAnonymous) return;
+            if (isCloudSyncIncoming) return;
+
+            clearTimeout(syncPrefsTimeout);
+            syncPrefsTimeout = setTimeout(async () => {
+                const collId = document.getElementById('collectionId')?.value.trim() || localStorage.getItem('archidekt_collectionId') || '';
+                const remoteIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:')).join(',');
+                const payload = {
+                    collectionId: collId,
+                    deckIds: remoteIds,
+                    deckNames: deckNames || {},
+                    customDecks: customPastedDecks || [],
+                    updatedAt: Date.now()
+                };
+
+                try {
+                    localStorage.setItem(`archidekt_cloud_sync_${user.uid}`, JSON.stringify(payload));
+                    if (window.db && window.firebaseSet && window.firebaseRef) {
+                        await window.firebaseSet(window.firebaseRef(window.db, `users/${user.uid}/collectionPrefs`), payload);
+                    }
+                } catch (e) {
+                    console.warn("Failed to auto-sync collectionPrefs to cloud:", e);
+                }
+            }, 600);
+        }
+
+        function syncTradeBinderToCloud(binder) {
+            const user = currentAuthUser || getUnifiedUser();
+            if (!user || user.isAnonymous) return;
+            if (isCloudSyncIncoming) return;
+
+            clearTimeout(syncTradeTimeout);
+            syncTradeTimeout = setTimeout(async () => {
+                const targetBinder = binder || tradeBinder;
+                const payload = {
+                    haves: (targetBinder && targetBinder.haves) || [],
+                    wants: (targetBinder && targetBinder.wants) || [],
+                    updatedAt: Date.now()
+                };
+                try {
+                    if (window.db && window.firebaseSet && window.firebaseRef) {
+                        await window.firebaseSet(window.firebaseRef(window.db, `users/${user.uid}/tradeBinder`), payload);
+                    }
+                } catch (e) {
+                    console.warn("Failed to auto-sync tradeBinder to cloud:", e);
+                }
+            }, 600);
+        }
+
+        function saveTradeBinderToStorage() {
+            if (typeof AppStorage !== 'undefined' && AppStorage.saveTradeBinder) {
+                AppStorage.saveTradeBinder(tradeBinder);
+            }
+        }
+
         async function syncUserDataToCloud() {
             const user = currentAuthUser || getUnifiedUser();
             if (!user || user.isAnonymous) {
@@ -142,67 +205,183 @@
                 showToast("Please sign in with Google or Discord to sync your collection & decks.");
                 return;
             }
-            const collId = document.getElementById('collectionId')?.value.trim();
+            const collId = document.getElementById('collectionId')?.value.trim() || localStorage.getItem('archidekt_collectionId') || '';
             const deckIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:')).join(',');
             const syncPayload = {
-                uid: user.uid,
-                email: user.email || '',
-                displayName: user.displayName || localStorage.getItem('playerName') || '',
-                collectionId: collId || '',
-                deckIds: deckIds || '',
-                syncedAt: Date.now()
+                collectionId: collId,
+                deckIds: deckIds,
+                deckNames: deckNames || {},
+                customDecks: customPastedDecks || [],
+                updatedAt: Date.now()
             };
+            const tradePayload = {
+                haves: tradeBinder?.haves || [],
+                wants: tradeBinder?.wants || [],
+                updatedAt: Date.now()
+            };
+
             try {
                 localStorage.setItem(`archidekt_cloud_sync_${user.uid}`, JSON.stringify(syncPayload));
                 if (user.displayName) {
                     localStorage.setItem('archidekt_playerName', user.displayName);
                 }
-                if (window.db && window.firebaseUpdate && window.firebaseRef) {
-                    await window.firebaseUpdate(window.firebaseRef(window.db, `users/${user.uid}/collectionPrefs`), {
-                        collectionId: collId || '',
-                        deckIds: deckIds || '',
-                        syncedAt: Date.now()
-                    });
+                if (window.db && window.firebaseSet && window.firebaseRef) {
+                    await window.firebaseSet(window.firebaseRef(window.db, `users/${user.uid}/collectionPrefs`), syncPayload);
+                    await window.firebaseSet(window.firebaseRef(window.db, `users/${user.uid}/tradeBinder`), tradePayload);
                 }
                 closeUserDropdown();
-                showToast("Collection and decks synced to your account across devices!");
+                showToast("Collection, decks, and trade binder synced to your cloud account!");
             } catch (e) {
                 console.warn("Cloud sync error:", e);
                 closeUserDropdown();
-                showToast("Collection and decks saved to your account!");
+                showToast("Data saved to your cloud account!");
             }
         }
 
         async function autoLoadUserPreferences(user) {
             if (!user || user.isAnonymous) return;
-            let prefs = null;
-            try {
-                const raw = localStorage.getItem(`archidekt_cloud_sync_${user.uid}`);
-                if (raw) prefs = JSON.parse(raw);
-            } catch (e) {}
 
-            if (window.db && window.firebaseGet && window.firebaseRef) {
-                try {
-                    const snap = await window.firebaseGet(window.firebaseRef(window.db, `users/${user.uid}/collectionPrefs`));
-                    if (snap.exists()) {
-                        const cloudVal = snap.val();
-                        if (cloudVal) prefs = Object.assign({}, prefs || {}, cloudVal);
-                    }
-                } catch (e) { console.warn("Failed to load cloud collection prefs:", e); }
+            // Unsubscribe existing listeners if user changed
+            if (activeCollectionPrefsUnsubscribe) {
+                try { activeCollectionPrefsUnsubscribe(); } catch (e) {}
+                activeCollectionPrefsUnsubscribe = null;
+            }
+            if (activeTradeBinderUnsubscribe) {
+                try { activeTradeBinderUnsubscribe(); } catch (e) {}
+                activeTradeBinderUnsubscribe = null;
             }
 
-            if (prefs) {
-                const collInput = document.getElementById('collectionId');
-                if (collInput && !collInput.value.trim() && prefs.collectionId) {
-                    collInput.value = prefs.collectionId;
-                    localStorage.setItem('archidekt_collectionId', prefs.collectionId);
-                }
-                if (prefs.deckIds && (!activeDeckIds || activeDeckIds.size === 0)) {
-                    const deckInput = document.getElementById('deckInput');
-                    if (deckInput && !deckInput.value.trim()) {
-                        deckInput.value = prefs.deckIds;
+            if (!window.db || !window.firebaseRef) return;
+
+            // 1. Real-time sync for Collection Prefs & Decks
+            if (window.firebaseOnValue) {
+                const prefsRef = window.firebaseRef(window.db, `users/${user.uid}/collectionPrefs`);
+                activeCollectionPrefsUnsubscribe = window.firebaseOnValue(prefsRef, (snap) => {
+                    if (!snap.exists()) {
+                        const localCollId = document.getElementById('collectionId')?.value.trim() || localStorage.getItem('archidekt_collectionId');
+                        if (activeDeckIds.size > 0 || localCollId) {
+                            syncCollectionPrefsToCloud();
+                        }
+                        return;
                     }
-                }
+
+                    const cloudVal = snap.val();
+                    if (!cloudVal) return;
+
+                    isCloudSyncIncoming = true;
+                    try {
+                        let changedDecks = false;
+
+                        // Restore Collection ID
+                        if (cloudVal.collectionId) {
+                            const collInput = document.getElementById('collectionId');
+                            if (collInput && collInput.value.trim() !== cloudVal.collectionId) {
+                                collInput.value = cloudVal.collectionId;
+                                localStorage.setItem('archidekt_collectionId', cloudVal.collectionId);
+                                if (typeof toggleCollectionInputs === 'function') toggleCollectionInputs();
+                                if (typeof updateCollectionStatusBadge === 'function') updateCollectionStatusBadge();
+                            }
+                        }
+
+                        // Restore Deck Names
+                        if (cloudVal.deckNames && typeof cloudVal.deckNames === 'object') {
+                            Object.assign(deckNames, cloudVal.deckNames);
+                            localStorage.setItem('archidekt_deckNames', JSON.stringify(deckNames));
+                        }
+
+                        // Restore Custom Pasted Decks
+                        if (Array.isArray(cloudVal.customDecks)) {
+                            cloudVal.customDecks.forEach(cd => {
+                                if (cd && cd.id && !customPastedDecks.some(d => d.id === cd.id)) {
+                                    customPastedDecks.push(cd);
+                                    activeDeckIds.add(cd.id);
+                                    if (cd.name) deckNames[cd.id] = cd.name;
+                                    changedDecks = true;
+                                }
+                            });
+                        }
+
+                        // Restore Remote Deck IDs
+                        if (cloudVal.deckIds) {
+                            const ids = cloudVal.deckIds.split(/[,\s\n]+/).map(s => s.trim()).filter(Boolean);
+                            ids.forEach(id => {
+                                const sanitized = sanitizeDeckInput(id);
+                                if (sanitized && !activeDeckIds.has(sanitized)) {
+                                    activeDeckIds.add(sanitized);
+                                    fetchDeckName(sanitized);
+                                    changedDecks = true;
+                                }
+                            });
+                        }
+
+                        if (changedDecks || (cloudVal.deckIds && (!activeDeckIds || activeDeckIds.size === 0))) {
+                            renderDeckChips();
+                            const remoteIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:'));
+                            localStorage.setItem('archidekt_deckIds', remoteIds.join(','));
+                            localStorage.setItem('archidekt_customDecks', JSON.stringify(customPastedDecks));
+                        }
+                    } finally {
+                        setTimeout(() => { isCloudSyncIncoming = false; }, 300);
+                    }
+                });
+
+                // 2. Real-time sync for Trade Binder
+                const tradeRef = window.firebaseRef(window.db, `users/${user.uid}/tradeBinder`);
+                activeTradeBinderUnsubscribe = window.firebaseOnValue(tradeRef, (snap) => {
+                    if (!snap.exists()) {
+                        const localTotal = (tradeBinder.haves || []).length + (tradeBinder.wants || []).length;
+                        if (localTotal > 0) {
+                            syncTradeBinderToCloud(tradeBinder);
+                        }
+                        return;
+                    }
+
+                    const cloudBinder = snap.val();
+                    if (!cloudBinder) return;
+
+                    isCloudSyncIncoming = true;
+                    try {
+                        const cloudHaves = Array.isArray(cloudBinder.haves) ? cloudBinder.haves : [];
+                        const cloudWants = Array.isArray(cloudBinder.wants) ? cloudBinder.wants : [];
+
+                        function mergeList(targetList, sourceList) {
+                            sourceList.forEach(item => {
+                                if (!item || !item.name) return;
+                                const existing = targetList.find(c =>
+                                    c.name.toLowerCase() === item.name.toLowerCase() &&
+                                    (!item.setCode || (c.setCode || '').toUpperCase() === (item.setCode || '').toUpperCase()) &&
+                                    (!item.collectorNumber || String(c.collectorNumber || '').toLowerCase() === String(item.collectorNumber || '').toLowerCase()) &&
+                                    (c.finish || 'Normal').toLowerCase() === (item.finish || 'Normal').toLowerCase()
+                                );
+                                if (existing) {
+                                    existing.quantity = Math.max(existing.quantity || 1, item.quantity || 1);
+                                    if (item.imageUrl && !existing.imageUrl) existing.imageUrl = item.imageUrl;
+                                    if (item.prices) existing.prices = item.prices;
+                                } else {
+                                    targetList.push(item);
+                                }
+                            });
+                        }
+
+                        if (!tradeBinder.haves) tradeBinder.haves = [];
+                        if (!tradeBinder.wants) tradeBinder.wants = [];
+
+                        mergeList(tradeBinder.haves, cloudHaves);
+                        mergeList(tradeBinder.wants, cloudWants);
+
+                        try {
+                            localStorage.setItem('archidekt_tradeBinder', JSON.stringify(tradeBinder));
+                        } catch (e) {}
+
+                        updateTradeBadge();
+                        const activeTab = localStorage.getItem('archidekt_activeTab');
+                        if (activeTab === 'trade' && typeof renderTradeBinder === 'function') {
+                            renderTradeBinder();
+                        }
+                    } finally {
+                        setTimeout(() => { isCloudSyncIncoming = false; }, 300);
+                    }
+                });
             }
         }
 
@@ -238,10 +417,22 @@
         let currentDecksData = [];
         let currentDeckSummary = null;
         let activeDeckViewId = 'all'; // 'all' or specific deck ID
-        let deckCardsStatusFilter = 'all'; // 'all' | 'missing' | 'owned'
-        let customPastedDecks = [];
+        let customPastedDecks = (() => {
+            try {
+                const raw = localStorage.getItem('archidekt_customDecks');
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                return [];
+            }
+        })();
         let activeDeckIds = new Set();
         let deckNames = JSON.parse(localStorage.getItem('archidekt_deckNames') || '{}');
+        customPastedDecks.forEach(d => {
+            if (d && d.id) {
+                activeDeckIds.add(d.id);
+                if (d.name) deckNames[d.id] = d.name;
+            }
+        });
         let fetchedDecks = new Set();
         let cachedParsedCsv = null;
 
@@ -591,6 +782,7 @@
             saveTradeBinder(binder) {
                 try {
                     localStorage.setItem('archidekt_tradeBinder', JSON.stringify(binder));
+                    syncTradeBinderToCloud(binder);
                 } catch (e) {}
             },
             loadTradeBinder() {
@@ -3991,6 +4183,7 @@
             document.getElementById('customDeckText').value = '';
             togglePasteDeckForm();
             renderDeckChips();
+            saveDecksState();
             showToast(`Added custom deck: "${name}"!`);
         }
 
@@ -4017,6 +4210,13 @@
         function saveDecksState() {
             const remoteIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:'));
             localStorage.setItem('archidekt_deckIds', remoteIds.join(','));
+            localStorage.setItem('archidekt_customDecks', JSON.stringify(customPastedDecks));
+            localStorage.setItem('archidekt_deckNames', JSON.stringify(deckNames));
+            const collId = document.getElementById('collectionId')?.value.trim();
+            if (collId) {
+                localStorage.setItem('archidekt_collectionId', collId);
+            }
+            syncCollectionPrefsToCloud();
         }
 
         function toggleCollectionInputs() {
