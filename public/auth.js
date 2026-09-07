@@ -1,4 +1,4 @@
-import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=6.2';
+import { app, db, auth, googleProvider, discordProvider } from './firebase-setup.js?v=6.3';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInWithPopup, signOut, onAuthStateChanged, signInAnonymously, linkWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithRedirect, linkWithRedirect, getRedirectResult } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
@@ -28,11 +28,16 @@ export function initAuthModule(utils, state) {
 
     onAuthStateChanged(auth, async (user) => {
         try {
+            window.currentUser = user;
             if (user && !user.isAnonymous) {
                 await handleAuthenticatedUser(user);
             } else {
                 await handleGuestUser(user);
             }
+            if (typeof window.onUnifiedAuthStateChanged === 'function') {
+                window.onUnifiedAuthStateChanged(user);
+            }
+            window.dispatchEvent(new CustomEvent('global-auth-changed', { detail: { user } }));
         } catch (err) {
             console.error("Auth state error:", err);
         }
@@ -362,13 +367,37 @@ export function initAuthModule(utils, state) {
             };
         }
 
+        window.handleGlobalSignOut = async () => {
+            try {
+                playSound('sfx-click');
+                window.isExplicitSignOut = true;
+                await signOut(auth);
+                window.currentUser = null;
+                if (typeof window.onUnifiedAuthStateChanged === 'function') {
+                    window.onUnifiedAuthStateChanged(null);
+                }
+                window.dispatchEvent(new CustomEvent('global-auth-changed', { detail: { user: null } }));
+                window.location.reload();
+            } catch (e) {
+                console.error("Sign out error:", e);
+                showToast("Sign out failed: " + e.message, true);
+            }
+        };
+
+        window.openAuthModal = () => {
+            if (typeof window.openAccountModal === 'function') {
+                window.openAccountModal();
+            }
+        };
+
         const signOutBtn = document.getElementById('signOutBtn');
         if (signOutBtn) {
-            signOutBtn.onclick = async () => {
-                playSound('sfx-click');
-                await signOut(auth);
-                window.location.reload();
-            };
+            signOutBtn.onclick = window.handleGlobalSignOut;
+        }
+
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.onclick = window.handleGlobalSignOut;
         }
     }
     

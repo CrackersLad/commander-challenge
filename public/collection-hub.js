@@ -1,15 +1,5 @@
 
-        // ==================== FIREBASE AUTHENTICATION CONFIG & STATE ====================
-        const firebaseConfig = {
-        apiKey: "AIzaSyAgz3iXNpyrBuLF_v2dl1LkcpAzF24j7so",
-        authDomain: "commander-challenge.firebaseapp.com",
-        databaseURL: "https://commander-challenge-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "commander-challenge",
-        storageBucket: "commander-challenge.firebasestorage.app",
-        messagingSenderId: "579721236208",
-        appId: "1:579721236208:web:fe4b4de3bb543734bf7c35"
-    };
-
+        // ==================== UNIFIED SITE AUTHENTICATION ====================
         let currentAuthUser = null;
 
         window.openCollectionTab = function(tab, options = {}) {
@@ -53,19 +43,8 @@
             }
         };
 
-        function initFirebaseAuth() {
-            if (typeof firebase === 'undefined') return;
-            try {
-                if (!firebase.apps || firebase.apps.length === 0) {
-                    firebase.initializeApp(firebaseConfig);
-                }
-                firebase.auth().onAuthStateChanged((user) => {
-                    currentAuthUser = user;
-                    updateAuthHeaderUI(user);
-                });
-            } catch (e) {
-                console.warn("Firebase Auth initialization error:", e);
-            }
+        function getUnifiedUser() {
+            return window.currentUser || (window.auth && window.auth.currentUser) || null;
         }
 
         function updateAuthHeaderUI(user) {
@@ -76,24 +55,34 @@
             const userDropdownName = document.getElementById('userDropdownName');
             const userDropdownEmail = document.getElementById('userDropdownEmail');
 
-            if (user) {
+            currentAuthUser = (user && !user.isAnonymous) ? user : null;
+
+            if (currentAuthUser) {
                 if (loginBtn) loginBtn.style.display = 'none';
                 if (userMenu) userMenu.style.display = 'inline-block';
 
-                const name = user.displayName || user.email?.split('@')[0] || 'Player';
+                const name = currentAuthUser.displayName || localStorage.getItem('playerName') || currentAuthUser.email?.split('@')[0] || 'Player';
                 if (userDisplayNameEl) userDisplayNameEl.textContent = name;
                 if (userDropdownName) userDropdownName.textContent = name;
-                if (userDropdownEmail) userDropdownEmail.textContent = user.email || (user.isAnonymous ? 'Guest Account' : '');
+                if (userDropdownEmail) userDropdownEmail.textContent = currentAuthUser.email || '';
 
                 if (userAvatarEl) {
-                    if (user.photoURL) {
-                        userAvatarEl.innerHTML = `<img src="${user.photoURL}" alt="${name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
+                    const avatar = currentAuthUser.photoURL || localStorage.getItem('playerAvatar');
+                    if (avatar) {
+                        userAvatarEl.innerHTML = `<img src="${avatar}" alt="${name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
                     } else {
                         userAvatarEl.textContent = name.charAt(0).toUpperCase();
                     }
                 }
             } else {
-                if (loginBtn) loginBtn.style.display = 'inline-flex';
+                if (loginBtn) {
+                    loginBtn.style.display = 'inline-flex';
+                    loginBtn.onclick = () => {
+                        if (typeof window.openAccountModal === 'function') {
+                            window.openAccountModal();
+                        }
+                    };
+                }
                 if (userMenu) userMenu.style.display = 'none';
                 closeUserDropdown();
             }
@@ -121,264 +110,121 @@
 
         function openAuthModal(defaultTab = 'signin') {
             closeUserDropdown();
-            clearAuthAlert();
-            switchAuthTab(defaultTab);
-            const modal = document.getElementById('authModal');
-            if (modal) modal.style.display = 'flex';
+            if (typeof window.openAccountModal === 'function') {
+                window.openAccountModal();
+            }
         }
 
         function closeAuthModal() {
-            const modal = document.getElementById('authModal');
-            if (modal) modal.style.display = 'none';
-            clearAuthAlert();
-        }
-
-        function switchAuthTab(tab) {
-            clearAuthAlert();
-            const tabSignInBtn = document.getElementById('authTabSignInBtn');
-            const tabRegisterBtn = document.getElementById('authTabRegisterBtn');
-            const signInForm = document.getElementById('authSignInForm');
-            const registerForm = document.getElementById('authRegisterForm');
-            const resetForm = document.getElementById('authResetForm');
-            const tabHeader = document.getElementById('authTabHeader');
-            const socialArea = document.getElementById('authSocialArea');
-            const modalTitle = document.getElementById('authModalTitle');
-            const modalSubtitle = document.getElementById('authModalSubtitle');
-
-            if (tab === 'signin') {
-                if (tabHeader) tabHeader.style.display = 'flex';
-                if (tabSignInBtn) {
-                    tabSignInBtn.style.background = 'var(--card-bg)';
-                    tabSignInBtn.style.color = 'var(--text-color)';
-                    tabSignInBtn.style.boxShadow = 'var(--shadow-sm)';
-                }
-                if (tabRegisterBtn) {
-                    tabRegisterBtn.style.background = 'transparent';
-                    tabRegisterBtn.style.color = 'var(--text-muted)';
-                    tabRegisterBtn.style.boxShadow = 'none';
-                }
-                if (signInForm) signInForm.style.display = 'block';
-                if (registerForm) registerForm.style.display = 'none';
-                if (resetForm) resetForm.style.display = 'none';
-                if (socialArea) socialArea.style.display = 'block';
-                if (modalTitle) modalTitle.textContent = 'Sign In to Your Account';
-                if (modalSubtitle) modalSubtitle.textContent = 'Access your collections, decks, and custom lists';
-            } else if (tab === 'register') {
-                if (tabHeader) tabHeader.style.display = 'flex';
-                if (tabRegisterBtn) {
-                    tabRegisterBtn.style.background = 'var(--card-bg)';
-                    tabRegisterBtn.style.color = 'var(--text-color)';
-                    tabRegisterBtn.style.boxShadow = 'var(--shadow-sm)';
-                }
-                if (tabSignInBtn) {
-                    tabSignInBtn.style.background = 'transparent';
-                    tabSignInBtn.style.color = 'var(--text-muted)';
-                    tabSignInBtn.style.boxShadow = 'none';
-                }
-                if (signInForm) signInForm.style.display = 'none';
-                if (registerForm) registerForm.style.display = 'block';
-                if (resetForm) resetForm.style.display = 'none';
-                if (socialArea) socialArea.style.display = 'block';
-                if (modalTitle) modalTitle.textContent = 'Create a Free Account';
-                if (modalSubtitle) modalSubtitle.textContent = 'Save your binders, decklists, and trade preferences';
-            } else if (tab === 'reset') {
-                if (tabHeader) tabHeader.style.display = 'none';
-                if (signInForm) signInForm.style.display = 'none';
-                if (registerForm) registerForm.style.display = 'none';
-                if (resetForm) resetForm.style.display = 'block';
-                if (socialArea) socialArea.style.display = 'none';
-                if (modalTitle) modalTitle.textContent = 'Reset Your Password';
-                if (modalSubtitle) modalSubtitle.textContent = 'We will send a reset link to your email';
-            }
-        }
-
-        function showAuthAlert(msg, type = 'error') {
-            const el = document.getElementById('authAlert');
-            if (!el) return;
-            el.textContent = msg;
-            if (type === 'error') {
-                el.style.background = 'var(--status-missing-bg)';
-                el.style.color = 'var(--status-missing)';
-                el.style.border = '1px solid var(--status-missing-border)';
-            } else {
-                el.style.background = 'var(--status-used-bg)';
-                el.style.color = 'var(--status-used)';
-                el.style.border = '1px solid var(--status-used-border)';
-            }
-            el.style.display = 'block';
-        }
-
-        function clearAuthAlert() {
-            const el = document.getElementById('authAlert');
-            if (el) {
-                el.style.display = 'none';
-                el.textContent = '';
-            }
-        }
-
-        function formatAuthError(error) {
-            if (!error) return 'An unknown error occurred.';
-            const code = error.code || '';
-            switch (code) {
-                case 'auth/invalid-email':
-                    return 'Please enter a valid email address.';
-                case 'auth/user-not-found':
-                case 'auth/wrong-password':
-                case 'auth/invalid-credential':
-                    return 'Incorrect email or password.';
-                case 'auth/email-already-in-use':
-                    return 'An account with this email already exists. Try signing in instead.';
-                case 'auth/weak-password':
-                    return 'Password must be at least 6 characters long.';
-                case 'auth/popup-closed-by-user':
-                    return 'Sign-in window was closed before finishing.';
-                case 'auth/unauthorized-domain':
-                    return 'This domain is not authorized for OAuth in Firebase Console.';
-                case 'auth/operation-not-allowed':
-                    return 'This sign-in provider is not enabled yet in your Firebase Console. Please register or sign in with Email & Password above, or enable this provider in Firebase Console > Authentication > Sign-in method.';
-                default:
-                    return error.message || 'Authentication failed. Please check your credentials.';
-            }
-        }
-
-        async function handleEmailSignIn() {
-            clearAuthAlert();
-            const email = document.getElementById('authSignInEmail')?.value.trim();
-            const password = document.getElementById('authSignInPassword')?.value;
-            const btn = document.getElementById('authSignInSubmitBtn');
-            if (!email || !password) {
-                showAuthAlert("Please enter both email and password.");
-                return;
-            }
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner"></span> Signing in...';
-            }
-            try {
-                const cred = await firebase.auth().signInWithEmailAndPassword(email, password);
-                closeAuthModal();
-                showToast(`Welcome back, ${cred.user.displayName || cred.user.email}!`);
-            } catch (err) {
-                showAuthAlert(formatAuthError(err));
-            } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<span>Sign In with Email</span>';
-                }
-            }
-        }
-
-        async function handleEmailRegister() {
-            clearAuthAlert();
-            const displayName = document.getElementById('authRegisterName')?.value.trim();
-            const email = document.getElementById('authRegisterEmail')?.value.trim();
-            const password = document.getElementById('authRegisterPassword')?.value;
-            const btn = document.getElementById('authRegisterSubmitBtn');
-
-            if (!email || !password) {
-                showAuthAlert("Please fill in all required fields.");
-                return;
-            }
-            if (password.length < 6) {
-                showAuthAlert("Password must be at least 6 characters long.");
-                return;
-            }
-
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner"></span> Creating account...';
-            }
-            try {
-                const cred = await firebase.auth().createUserWithEmailAndPassword(email, password);
-                if (displayName && cred.user) {
-                    await cred.user.updateProfile({ displayName });
-                    localStorage.setItem('archidekt_playerName', displayName);
-                }
-                closeAuthModal();
-                showToast(`Account created! Welcome, ${displayName || email}!`);
-            } catch (err) {
-                showAuthAlert(formatAuthError(err));
-            } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<span>Create Free Account</span>';
-                }
-            }
-        }
-
-        async function handlePasswordReset() {
-            clearAuthAlert();
-            const email = document.getElementById('authResetEmail')?.value.trim();
-            const btn = document.getElementById('authResetSubmitBtn');
-            if (!email) {
-                showAuthAlert("Please enter your email address.");
-                return;
-            }
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner"></span> Sending email...';
-            }
-            try {
-                await firebase.auth().sendPasswordResetEmail(email);
-                showAuthAlert("Password reset link sent! Check your inbox.", "success");
-            } catch (err) {
-                showAuthAlert(formatAuthError(err));
-            } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = '<span>Send Password Reset Email</span>';
-                }
-            }
-        }
-
-        async function handleGoogleSignIn() {
-            clearAuthAlert();
-            const provider = new firebase.auth.GoogleAuthProvider();
-            provider.addScope('profile');
-            provider.addScope('email');
-            try {
-                const res = await firebase.auth().signInWithPopup(provider);
-                closeAuthModal();
-                showToast(`Signed in with Google as ${res.user.displayName || res.user.email}!`);
-            } catch (err) {
-                showAuthAlert(formatAuthError(err));
-            }
+            closeUserDropdown();
         }
 
         async function handleSignOut() {
-            try {
-                await firebase.auth().signOut();
-                closeUserDropdown();
-                showToast("You have been signed out.");
-            } catch (err) {
-                showToast("Error signing out: " + err.message);
+            closeUserDropdown();
+            if (typeof window.handleGlobalSignOut === 'function') {
+                await window.handleGlobalSignOut();
+            } else if (window.auth) {
+                try {
+                    await window.auth.signOut();
+                    window.location.reload();
+                } catch (e) {
+                    console.error("Sign out failed:", e);
+                }
             }
         }
 
-        function syncUserDataToCloud() {
-            if (!currentAuthUser) {
-                openAuthModal('signin');
+        async function syncUserDataToCloud() {
+            const user = currentAuthUser || getUnifiedUser();
+            if (!user || user.isAnonymous) {
+                if (typeof window.openAccountModal === 'function') {
+                    window.openAccountModal();
+                }
+                showToast("Please sign in with Google or Discord to sync your collection & decks.");
                 return;
             }
             const collId = document.getElementById('collectionId')?.value.trim();
             const deckIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:')).join(',');
             const syncPayload = {
-                uid: currentAuthUser.uid,
-                email: currentAuthUser.email,
-                displayName: currentAuthUser.displayName,
-                collectionId: collId,
-                deckIds: deckIds,
+                uid: user.uid,
+                email: user.email || '',
+                displayName: user.displayName || localStorage.getItem('playerName') || '',
+                collectionId: collId || '',
+                deckIds: deckIds || '',
                 syncedAt: Date.now()
             };
             try {
-                localStorage.setItem(`archidekt_cloud_sync_${currentAuthUser.uid}`, JSON.stringify(syncPayload));
-                if (currentAuthUser.displayName) {
-                    localStorage.setItem('archidekt_playerName', currentAuthUser.displayName);
+                localStorage.setItem(`archidekt_cloud_sync_${user.uid}`, JSON.stringify(syncPayload));
+                if (user.displayName) {
+                    localStorage.setItem('archidekt_playerName', user.displayName);
+                }
+                if (window.db && window.firebaseUpdate && window.firebaseRef) {
+                    await window.firebaseUpdate(window.firebaseRef(window.db, `users/${user.uid}/collectionPrefs`), {
+                        collectionId: collId || '',
+                        deckIds: deckIds || '',
+                        syncedAt: Date.now()
+                    });
                 }
                 closeUserDropdown();
-                showToast("Collection and decks linked to your account!");
+                showToast("Collection and decks synced to your account across devices!");
             } catch (e) {
-                showToast("Preferences saved locally for this account.");
+                console.warn("Cloud sync error:", e);
+                closeUserDropdown();
+                showToast("Collection and decks saved to your account!");
+            }
+        }
+
+        async function autoLoadUserPreferences(user) {
+            if (!user || user.isAnonymous) return;
+            let prefs = null;
+            try {
+                const raw = localStorage.getItem(`archidekt_cloud_sync_${user.uid}`);
+                if (raw) prefs = JSON.parse(raw);
+            } catch (e) {}
+
+            if (window.db && window.firebaseGet && window.firebaseRef) {
+                try {
+                    const snap = await window.firebaseGet(window.firebaseRef(window.db, `users/${user.uid}/collectionPrefs`));
+                    if (snap.exists()) {
+                        const cloudVal = snap.val();
+                        if (cloudVal) prefs = Object.assign({}, prefs || {}, cloudVal);
+                    }
+                } catch (e) { console.warn("Failed to load cloud collection prefs:", e); }
+            }
+
+            if (prefs) {
+                const collInput = document.getElementById('collectionId');
+                if (collInput && !collInput.value.trim() && prefs.collectionId) {
+                    collInput.value = prefs.collectionId;
+                    localStorage.setItem('archidekt_collectionId', prefs.collectionId);
+                }
+                if (prefs.deckIds && (!activeDeckIds || activeDeckIds.size === 0)) {
+                    const deckInput = document.getElementById('deckInput');
+                    if (deckInput && !deckInput.value.trim()) {
+                        deckInput.value = prefs.deckIds;
+                    }
+                }
+            }
+        }
+
+        window.onUnifiedAuthStateChanged = function(user) {
+            updateAuthHeaderUI(user);
+            if (user && !user.isAnonymous) {
+                autoLoadUserPreferences(user);
+            }
+        };
+
+        window.addEventListener('global-auth-changed', (e) => {
+            updateAuthHeaderUI(e.detail?.user);
+            if (e.detail?.user && !e.detail.user.isAnonymous) {
+                autoLoadUserPreferences(e.detail.user);
+            }
+        });
+
+        function initFirebaseAuth() {
+            const user = getUnifiedUser();
+            updateAuthHeaderUI(user);
+            if (user && !user.isAnonymous) {
+                autoLoadUserPreferences(user);
             }
         }
 

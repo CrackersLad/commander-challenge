@@ -1,23 +1,30 @@
-import { db, auth, functions } from './firebase-setup.js?v=6.2';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=6.2';
-import { getArchives } from './data-service.js?v=6.2';
-import { initDeckActionsModule } from './deck-actions.js?v=6.2';
-import { initRoomActionsModule } from './room-actions.js?v=6.2';
-import { initPlayerViewModule } from './player-view.js?v=6.2';
-import { initAdminModule } from './admin.js?v=6.2';
-import { initCalendarModule } from './calendar.js?v=6.2';
-import { initAuthModule } from './auth.js?v=6.2';
-import { initHubModule } from './hub.js?v=6.2';
-import { initProfileModule } from './profile.js?v=6.2';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=6.2';
-import { initWarRoom, openWarRoom } from './war-room.js?v=6.2';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=6.2';
-import { initBoosterDraftModule } from './booster-draft.js?v=6.2';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=6.2';
+import { db, auth, functions } from './firebase-setup.js?v=6.3';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=6.3';
+import { getArchives } from './data-service.js?v=6.3';
+import { initDeckActionsModule } from './deck-actions.js?v=6.3';
+import { initRoomActionsModule } from './room-actions.js?v=6.3';
+import { initPlayerViewModule } from './player-view.js?v=6.3';
+import { initAdminModule } from './admin.js?v=6.3';
+import { initCalendarModule } from './calendar.js?v=6.3';
+import { initAuthModule } from './auth.js?v=6.3';
+import { initHubModule } from './hub.js?v=6.3';
+import { initProfileModule } from './profile.js?v=6.3';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=6.3';
+import { initWarRoom, openWarRoom } from './war-room.js?v=6.3';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=6.3';
+import { initBoosterDraftModule } from './booster-draft.js?v=6.3';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=6.3';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 window.openCardInspector = openCardInspector;
+
+window.db = db;
+window.auth = auth;
+window.functions = functions;
+window.firebaseRef = ref;
+window.firebaseGet = get;
+window.firebaseUpdate = update;
 
 // Optimize for mobile/WebView: Ensure viewport is set correctly
 
@@ -1852,7 +1859,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=6.2').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=6.3').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
