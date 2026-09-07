@@ -6211,3 +6211,189 @@ select:focus {
         gap: 8px;
     }
 }
+
+/* ==========================================================================
+   UNIFIED MTG PORTAL TILES & NAVIGATION STYLES
+   ========================================================================== */
+
+/* Navbar Dropdowns */
+.nav-dropdown-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.nav-popup-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 220px;
+    background: rgba(18, 18, 26, 0.96);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    border-radius: var(--radius-md);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
+    padding: 8px 6px;
+    z-index: 1000;
+    animation: navPopupFade 0.18s ease-out;
+}
+
+@keyframes navPopupFade {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.nav-popup-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    color: #e2e8f0;
+    font-size: 0.92rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+
+.nav-popup-item:hover {
+    background: rgba(212, 175, 55, 0.15);
+    color: #fff;
+    transform: translateX(4px);
+}
+
+.nav-popup-item span {
+    font-size: 1.15rem;
+    width: 22px;
+    text-align: center;
+}
+
+/* Category Headers */
+.hub-category-section {
+    width: 100%;
+    margin-bottom: 24px;
+}
+
+.hub-category-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 35px 0 18px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hub-category-icon {
+    font-size: 1.7rem;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(212, 175, 55, 0.12);
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hub-category-title {
+    font-family: var(--font-display);
+    font-size: 1.45rem;
+    color: var(--gold);
+    margin: 0;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.hub-category-subtitle {
+    font-size: 0.88rem;
+    color: #94a3b8;
+    margin: 3px 0 0 0;
+}
+
+/* Tiles Grid */
+.hub-tiles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+/* Custom Tile Variants for Collection */
+.action-card-comparator {
+    border-color: rgba(56, 189, 248, 0.25);
+}
+.action-card-comparator:hover {
+    border-color: rgba(56, 189, 248, 0.6);
+    box-shadow: 0 10px 30px rgba(56, 189, 248, 0.2);
+}
+.comparator-badge {
+    background: rgba(56, 189, 248, 0.18);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.action-card-trade {
+    border-color: rgba(16, 185, 129, 0.25);
+}
+.action-card-trade:hover {
+    border-color: rgba(16, 185, 129, 0.6);
+    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.2);
+}
+.trade-badge-pill {
+    background: rgba(16, 185, 129, 0.18);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.action-card-sets {
+    border-color: rgba(245, 158, 11, 0.25);
+}
+.action-card-sets:hover {
+    border-color: rgba(245, 158, 11, 0.6);
+    box-shadow: 0 10px 30px rgba(245, 158, 11, 0.2);
+}
+.sets-badge {
+    background: rgba(245, 158, 11, 0.18);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.action-card-build {
+    border-color: rgba(168, 85, 247, 0.25);
+}
+.action-card-build:hover {
+    border-color: rgba(168, 85, 247, 0.6);
+    box-shadow: 0 10px 30px rgba(168, 85, 247, 0.2);
+}
+.build-badge {
+    background: rgba(168, 85, 247, 0.18);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.action-card-ai {
+    border-color: rgba(236, 72, 153, 0.25);
+    background: linear-gradient(145deg, rgba(18, 18, 26, 0.85), rgba(30, 20, 36, 0.9));
+}
+.action-card-ai:hover {
+    border-color: rgba(236, 72, 153, 0.65);
+    box-shadow: 0 10px 30px rgba(236, 72, 153, 0.25);
+}
+.ai-badge {
+    background: rgba(236, 72, 153, 0.18);
+    color: #f472b6;
+    border: 1px solid rgba(236, 72, 153, 0.35);
+}
+
+.action-card-insights {
+    border-color: rgba(99, 102, 241, 0.25);
+}
+.action-card-insights:hover {
+    border-color: rgba(99, 102, 241, 0.6);
+    box-shadow: 0 10px 30px rgba(99, 102, 241, 0.2);
+}
+.insights-badge {
+    background: rgba(99, 102, 241, 0.18);
+    color: #818cf8;
+    border: 1px solid rgba(99, 102, 241, 0.35);
+}

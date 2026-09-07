@@ -29,15 +29,16 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=4.28">
+    <link rel="stylesheet" href="styles.css?v=4.30">
+    <link rel="stylesheet" href="collection-hub.css?v=4.30">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
     <header class="master-navbar" id="globalNavbar">
         <div class="nav-left">
-            <div class="nav-brand" onclick="window.goToMainMenu()" title="Commander Draft Challenge">
-                <img src="icon.png" alt="Commander Draft" class="nav-logo">
-                <span class="nav-brand-text">EDH Challenge</span>
+            <div class="nav-brand" onclick="window.goToMainMenu()" title="MTG Command Center">
+                <img src="icon.png" alt="MTG Command Center" class="nav-logo">
+                <span class="nav-brand-text">MTG Command Center</span>
             </div>
         </div>
         
@@ -51,8 +52,49 @@
         </div>
 
         <div class="nav-right">
-            <button class="nav-icon-btn draft-nav-btn" onclick="window.openBoosterDraftHub()" title="Multiplayer Booster Draft">🎴 Booster Draft</button>
-            <button class="nav-icon-btn booster-nav-btn" onclick="window.openBoosterSimulator()" title="Booster Simulator">📦 Booster Sim</button>
+            <button class="nav-icon-btn nav-hub-btn" onclick="window.goToMainMenu()" title="Main Portal">🏠 Home</button>
+
+            <!-- Play Tools Menu -->
+            <div class="nav-dropdown-wrapper">
+                <button class="nav-icon-btn draft-nav-btn" onclick="window.toggleNavMenu('playMenu', event)" title="Start Playing">⚔️ Play ▾</button>
+                <div id="playMenu" class="nav-popup-menu" style="display: none;">
+                    <div class="nav-popup-item" onclick="window.goToMainMenu(); window.scrollToSection('section-play'); window.closeAllNavMenus();">
+                        <span>⚔️</span> Commander Challenge
+                    </div>
+                    <div class="nav-popup-item" onclick="window.openBoosterDraftHub(); window.closeAllNavMenus();">
+                        <span>🎴</span> Booster Draft Lobby
+                    </div>
+                    <div class="nav-popup-item" onclick="window.openBoosterSimulator(); window.closeAllNavMenus();">
+                        <span>📦</span> Booster Simulator
+                    </div>
+                </div>
+            </div>
+
+            <!-- Collection Tools Menu -->
+            <div class="nav-dropdown-wrapper">
+                <button class="nav-icon-btn booster-nav-btn" onclick="window.toggleNavMenu('collectionMenu', event)" title="My Collection">📦 Collection ▾</button>
+                <div id="collectionMenu" class="nav-popup-menu" style="display: none;">
+                    <div class="nav-popup-item" onclick="window.openCollectionTab('deck'); window.closeAllNavMenus();">
+                        <span>🔄</span> Deck Comparator
+                    </div>
+                    <div class="nav-popup-item" onclick="window.openCollectionTab('trade'); window.closeAllNavMenus();">
+                        <span>🤝</span> Trade Binder
+                    </div>
+                    <div class="nav-popup-item" onclick="window.openCollectionTab('set'); window.closeAllNavMenus();">
+                        <span>📊</span> Set Completion
+                    </div>
+                    <div class="nav-popup-item" onclick="window.openCollectionTab('build'); window.closeAllNavMenus();">
+                        <span>⚡</span> What Can I Build?
+                    </div>
+                    <div class="nav-popup-item" onclick="window.openCollectionTab('deck', { openUpgrader: true }); window.closeAllNavMenus();">
+                        <span>🧠</span> Upgrade My Decks (AI)
+                    </div>
+                    <div class="nav-popup-item" onclick="window.openCollectionTab('collection'); window.closeAllNavMenus();">
+                        <span>📈</span> Collection Insights
+                    </div>
+                </div>
+            </div>
+
             <div id="audioContainer" class="nav-audio-box">
                 <button id="sfxToggle" class="nav-icon-btn" title="Toggle Sound Effects">🔊 SFX</button>
             </div>
@@ -212,62 +254,133 @@
     <main id="view-landing" class="view-section active">
         <!-- Hero Title Section -->
         <div class="hero-container">
-            <div class="hero-badge">✦ Interactive EDH & Draft Platform ✦</div>
-            <h1 class="hero-title">COMMANDER DRAFT CHALLENGE</h1>
-            <p class="hero-subtitle">Roll random commanders, enforce custom budgets, build on Moxfield / Archidekt, and battle with your playgroup.</p>
+            <div class="hero-badge">✦ Unified Magic: The Gathering Suite ✦</div>
+            <h1 class="hero-title" style="letter-spacing: 1px;">WHAT DO YOU WANT TO DO?</h1>
+            <p class="hero-subtitle">Select an activity below to jump straight into play with your friends, draft booster packs, or manage, upgrade, and trade from your physical collection.</p>
             
             <!-- Quick Name Setup Card -->
             <div class="player-identity-bar">
                 <span class="identity-icon">👤</span>
-                <input type="text" id="playerNameInput" placeholder="Enter Your Challenger Name" maxlength="15" class="hero-name-input">
+                <input type="text" id="playerNameInput" placeholder="Enter Your Player Name" maxlength="15" class="hero-name-input">
                 <button class="identity-pill-btn" onclick="window.openAccountModal()">Identity & Stats</button>
             </div>
         </div>
 
-        <!-- Main Action Cards Grid -->
-        <div class="action-grid-container">
-            <!-- Mode 1: Commander Challenge -->
-            <div class="action-card action-card-primary">
-                <div class="action-card-badge">Full Challenge</div>
-                <div class="action-card-icon">⚔️</div>
-                <h3 class="action-card-title">Commander Draft</h3>
-                <p class="action-card-desc">Host a custom draft with budget caps, blind drafts, power brackets, and automated Scryfall validation.</p>
-                <button class="select-btn action-cta-btn" id="createBtn">Host Challenge</button>
-            </div>
-
-            <!-- Mode 2: Join Playgroup -->
-            <div class="action-card action-card-join" id="joinCard">
-                <div class="action-card-badge join-badge">Room Code</div>
-                <div class="action-card-icon">🛡️</div>
-                <h3 class="action-card-title">Join Playgroup</h3>
-                <p class="action-card-desc">Enter the 4-letter room code shared by your playgroup host to jump straight into the challenge.</p>
-                <div class="join-input-box">
-                    <input type="text" id="roomCodeInput" placeholder="CODE" maxlength="4" class="room-code-input">
-                    <button class="select-btn join-submit-btn" id="joinBtn">Join</button>
+        <!-- ==================== CATEGORY 1: START PLAYING ==================== -->
+        <div class="hub-category-section" id="section-play">
+            <div class="hub-category-header">
+                <div class="hub-category-icon">⚔️</div>
+                <div>
+                    <h2 class="hub-category-title">Start Playing</h2>
+                    <p class="hub-category-subtitle">Multiplayer lobbies, draft battlegrounds, and interactive pack opening</p>
                 </div>
             </div>
 
-            <!-- Mode 3: Multiplayer Booster Draft -->
-            <div class="action-card action-card-draft" onclick="window.openBoosterDraftHub()">
-                <div class="action-card-badge draft-badge">Limited Arena</div>
-                <div class="action-card-icon">🎴</div>
-                <h3 class="action-card-title">Booster Draft</h3>
-                <p class="action-card-desc">Draft with friends! Supports Commander Limited (Pick 2), Traditional 8-Player, 6-Pack Sealed, Grid, Winston, Winchester, and Rochester drafts.</p>
-                <button class="select-btn action-cta-btn" onclick="window.openBoosterDraftHub(); event.stopPropagation();">Draft Boosters</button>
+            <div class="hub-tiles-grid">
+                <!-- Tile 1: Commander Challenge -->
+                <div class="action-card action-card-primary">
+                    <div class="action-card-badge">Full Challenge</div>
+                    <div class="action-card-icon">⚔️</div>
+                    <h3 class="action-card-title">Commander Challenge</h3>
+                    <p class="action-card-desc">Start or join a Commander Build Challenge with friends. Roll commanders, set budgets & brackets, and battle in the War Room.</p>
+                    <div style="display: flex; gap: 8px; margin-top: auto; flex-wrap: wrap;">
+                        <button class="select-btn action-cta-btn" id="createBtn" style="flex: 1; min-width: 120px;">Host Challenge</button>
+                    </div>
+                    <div class="join-input-box" style="margin-top: 10px;">
+                        <input type="text" id="roomCodeInput" placeholder="ROOM CODE" maxlength="4" class="room-code-input">
+                        <button class="select-btn join-submit-btn" id="joinBtn">Join</button>
+                    </div>
+                </div>
+
+                <!-- Tile 2: Booster Draft Lobby -->
+                <div class="action-card action-card-draft" onclick="window.openBoosterDraftHub()">
+                    <div class="action-card-badge draft-badge">Limited Arena</div>
+                    <div class="action-card-icon">🎴</div>
+                    <h3 class="action-card-title">Booster Draft Lobby</h3>
+                    <p class="action-card-desc">Start a Booster Draft lobby. 8-player live drafting with friends or bots. Supports Commander Limited (Pick 2), Cube, Sealed, and Winston drafts.</p>
+                    <button class="select-btn action-cta-btn" onclick="window.openBoosterDraftHub(); event.stopPropagation();">Start Draft Lobby</button>
+                </div>
+
+                <!-- Tile 3: Booster Simulator -->
+                <div class="action-card action-card-booster" onclick="window.openBoosterSimulator()">
+                    <div class="action-card-badge booster-badge">Pack Cracking</div>
+                    <div class="action-card-icon">📦</div>
+                    <h3 class="action-card-title">Booster Simulator</h3>
+                    <p class="action-card-desc">Simulate cracking some packs or full 36-pack boxes for any MTG set. Features live market pricing, realistic foils, and EV profit/loss tracking!</p>
+                    <button class="select-btn action-cta-btn" onclick="window.openBoosterSimulator(); event.stopPropagation();">Crack Some Packs</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== CATEGORY 2: MY COLLECTION & DECKS ==================== -->
+        <div class="hub-category-section" id="section-collection">
+            <div class="hub-category-header">
+                <div class="hub-category-icon" style="background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.3);">📦</div>
+                <div>
+                    <h2 class="hub-category-title" style="color: #38bdf8;">My Collection & Decks</h2>
+                    <p class="hub-category-subtitle">Compare, improve, trade, and track completion of your physical card collection</p>
+                </div>
             </div>
 
-            <!-- Mode 4: Booster Simulator -->
-            <div class="action-card action-card-booster" onclick="window.openBoosterSimulator()">
-                <div class="action-card-badge booster-badge">Market Simulator</div>
-                <div class="action-card-icon">📦</div>
-                <h3 class="action-card-title">Booster Simulator</h3>
-                <p class="action-card-desc">Simulate opening single booster packs or full 36-pack boxes for any MTG set. Features live market pricing, realistic foils, and profit/loss tracking!</p>
-                <button class="select-btn action-cta-btn" onclick="window.openBoosterSimulator(); event.stopPropagation();">Crack Boosters</button>
+            <div class="hub-tiles-grid">
+                <!-- Tile 4: Deck Comparator -->
+                <div class="action-card action-card-comparator" onclick="window.openCollectionTab('deck')">
+                    <div class="action-card-badge comparator-badge">Deck Overlap</div>
+                    <div class="action-card-icon">🔄</div>
+                    <h3 class="action-card-title">Deck Comparator</h3>
+                    <p class="action-card-desc">Compare your Archidekt collection to my built decks (or any Moxfield / Archidekt list). See which cards you own vs. what to acquire.</p>
+                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #0284c7, #0ea5e9);" onclick="window.openCollectionTab('deck'); event.stopPropagation();">Compare Decks</button>
+                </div>
+
+                <!-- Tile 5: Trade Binder -->
+                <div class="action-card action-card-trade" onclick="window.openCollectionTab('trade')">
+                    <div class="action-card-badge trade-badge-pill">Trade Lists</div>
+                    <div class="action-card-icon">🤝</div>
+                    <h3 class="action-card-title">Trade Binder</h3>
+                    <p class="action-card-desc">Setup a trade list to share with friends. Automatically isolates cards in your collection not currently in any of your built decks.</p>
+                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #059669, #10b981);" onclick="window.openCollectionTab('trade'); event.stopPropagation();">Open Trade Binder</button>
+                </div>
+
+                <!-- Tile 6: Set Completion -->
+                <div class="action-card action-card-sets" onclick="window.openCollectionTab('set')">
+                    <div class="action-card-badge sets-badge">Set Tracker</div>
+                    <div class="action-card-icon">📊</div>
+                    <h3 class="action-card-title">Set Completion</h3>
+                    <p class="action-card-desc">Check how far I am from completing a set. Visual progress bars, rarity breakdowns, and missing card checklists for any MTG set.</p>
+                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #d97706, #f59e0b);" onclick="window.openCollectionTab('set'); event.stopPropagation();">Check Set Progress</button>
+                </div>
+
+                <!-- Tile 7: What Can I Build? -->
+                <div class="action-card action-card-build" onclick="window.openCollectionTab('build')">
+                    <div class="action-card-badge build-badge">Smart Match</div>
+                    <div class="action-card-icon">⚡</div>
+                    <h3 class="action-card-title">What Can I Build?</h3>
+                    <p class="action-card-desc">Get recommendations on what decks I can build from my collection. Scans top EDHREC & community commanders for your highest owned card matches.</p>
+                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #7c3aed, #8b5cf6);" onclick="window.openCollectionTab('build'); event.stopPropagation();">Get Recommendations</button>
+                </div>
+
+                <!-- Tile 8: Upgrade & Improve Decks (AI) -->
+                <div class="action-card action-card-ai" onclick="window.openCollectionTab('deck', { openUpgrader: true })">
+                    <div class="action-card-badge ai-badge">AI Advisor</div>
+                    <div class="action-card-icon">🧠</div>
+                    <h3 class="action-card-title">Deck Upgrader (AI)</h3>
+                    <p class="action-card-desc">Upgrade and improve my existing decks. Uses Gemini AI to analyze your deck synergy, mana curve, and recommend card swaps directly from your collection.</p>
+                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #db2777, #ec4899);" onclick="window.openCollectionTab('deck', { openUpgrader: true }); event.stopPropagation();">Upgrade My Decks</button>
+                </div>
+
+                <!-- Tile 9: Collection Insights -->
+                <div class="action-card action-card-insights" onclick="window.openCollectionTab('collection')">
+                    <div class="action-card-badge insights-badge">Analytics</div>
+                    <div class="action-card-icon">📈</div>
+                    <h3 class="action-card-title">Collection Insights</h3>
+                    <p class="action-card-desc">Deep visual breakdown of your entire collection. View estimated financial value, color wheel balance, mana curves, and top format staples.</p>
+                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #4f46e5, #6366f1);" onclick="window.openCollectionTab('collection'); event.stopPropagation();">View Insights</button>
+                </div>
             </div>
         </div>
 
         <!-- Quick Roll Section: Instant Commander & Commander Precon -->
-        <div class="quick-rolls-container">
+        <div class="quick-rolls-container" style="margin-top: 20px;">
             <!-- 1. Instant Commander Quick Roll -->
             <div class="quick-roll-card" onclick="window.quickRollCommander()">
                 <div class="quick-roll-content">
@@ -811,6 +924,1347 @@
         <div id="boosterDraftRoot"></div>
     </main>
 
+    <!-- ==================== VIEW 10: COLLECTION & DECKS HUB ==================== -->
+    <main id="view-collection-hub" class="view-section collection-hub-scope">
+        <div class="lobby-view-wrapper" style="max-width: 960px; margin: 0 auto; padding: 10px 15px 40px 15px;">
+            <div class="view-top-breadcrumb" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                <button class="breadcrumb-btn" onclick="window.goToMainMenu()">
+                    <span>🏠</span> Return to Hub
+                </button>
+                <div style="color: var(--gold); font-family: var(--font-display); font-size: 0.95rem; font-weight: 600; letter-spacing: 0.5px;">
+                    ✦ MY COLLECTION & DECKS ✦
+                </div>
+            </div>
+            <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-title-area">
+                <h1>Archidekt Hub</h1>
+                <div class="header-subtitle">Deck Comparator & Set Completion Tracker</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                <div class="market-select-wrapper" title="Global Pricing Marketplace (affects all cards, binders, and sets)">
+                    <span style="font-size: 0.88rem;">🌐</span>
+                    <select id="globalMarketSelect" class="market-select" onchange="changeGlobalMarket(this.value)">
+                        <option value="tcg">TCGPlayer ($)</option>
+                        <option value="cardmarket">Cardmarket (€)</option>
+                        <option value="ck">Card Kingdom ($)</option>
+                    </select>
+                </div>
+                <button id="themeToggle" class="theme-btn" aria-label="Toggle Theme">☀️</button>
+
+                <!-- User Account Actions -->
+                <button type="button" id="authLoginBtn" class="secondary-btn" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.85rem; font-size: 0.85rem; border-color: var(--primary-border); color: var(--primary);" onclick="openAuthModal('signin')">
+                    <span>👤</span>
+                    <span>Sign In</span>
+                </button>
+
+                <div id="userMenuWrapper" style="position: relative; display: none;">
+                    <button type="button" id="userProfileBtn" class="secondary-btn" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.75rem; font-size: 0.85rem;" onclick="toggleUserDropdown(event)">
+                        <span id="userAvatar" style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: #0f172a; font-weight: 800; font-size: 0.75rem; overflow: hidden;">U</span>
+                        <span id="userDisplayName" style="max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">User</span>
+                        <span style="font-size: 0.7rem;">▼</span>
+                    </button>
+                    <div id="userDropdown" class="user-dropdown-menu" style="display: none;">
+                        <div class="user-dropdown-header">
+                            <div id="userDropdownName" style="font-weight: 700; color: var(--text-color); font-size: 0.9rem;"></div>
+                            <div id="userDropdownEmail" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem;"></div>
+                        </div>
+                        <div class="user-dropdown-divider"></div>
+                        <button type="button" class="user-dropdown-item" onclick="syncUserDataToCloud()">
+                            <span>☁️</span> Cloud Sync My Decks
+                        </button>
+                        <button type="button" class="user-dropdown-item" onclick="handleSignOut()">
+                            <span>🚪</span> Sign Out
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs" role="tablist">
+            <button class="nav-tab active" id="tabDeckBtn" onclick="switchTab('deck')">
+                <span>🔄</span> Deck Comparator
+            </button>
+            <button class="nav-tab" id="tabSetBtn" onclick="switchTab('set')">
+                <span>📦</span> Set Completion
+            </button>
+            <button class="nav-tab" id="tabCollectionBtn" onclick="switchTab('collection')">
+                <span>📊</span> Collection Insights
+            </button>
+            <button class="nav-tab" id="tabTradeBtn" onclick="switchTab('trade')">
+                <span>🤝</span> Trade Binder <span id="tradeCountBadge" class="badge" style="display: none; background: var(--primary); color: #0f172a; font-weight: 800; padding: 2px 6px; border-radius: 999px; font-size: 0.72rem; margin-left: 4px;">0</span>
+            </button>
+            <button class="nav-tab" id="tabBuildBtn" onclick="switchTab('build')">
+                <span>⚡</span> What Can I Build?
+            </button>
+        </div>
+
+        <!-- Shared Collection Source Card -->
+        <div class="card" style="padding-bottom: 1.25rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                    <span>1. Your Collection Source</span>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                        <span id="collectionStatusBadge"
+                            style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);"></span>
+                        <button type="button" id="refreshCollectionBtn" class="secondary-btn" onclick="refreshActiveCollection()"
+                            title="Re-fetch collection from source" style="display: none; padding: 0.2rem 0.6rem; font-size: 0.75rem;">🔄 Refresh</button>
+                        <button type="button" id="clearCollectionCacheBtn" class="secondary-btn" onclick="clearSavedCollection()"
+                            title="Clear saved collection" style="display: none; padding: 0.2rem 0.6rem; font-size: 0.75rem;">🗑️ Clear</button>
+                    </div>
+                </label>
+                <div
+                    style="background: var(--bg-color); border: 1px solid var(--border-color); padding: 1rem; border-radius: 10px;">
+                    <div style="margin-bottom: 0.75rem;">
+                        <label for="collectionId"
+                            style="font-size: 0.9em; font-weight: 700; margin-bottom: 0.35rem;">Archidekt Collection
+                            ID<span class="help-icon"
+                                data-tooltip="URL Example:&#xa;archidekt.com/collection/67890&#xa;&#xa;Paste full link or just the number!">?</span></label>
+                        <input type="text" id="collectionId"
+                            placeholder="e.g., 123456 or https://archidekt.com/collection/123456"
+                            oninput="toggleCollectionInputs()">
+                    </div>
+                    <div
+                        style="text-align: center; color: var(--text-dim); font-weight: 800; font-size: 0.78em; margin: 0.75rem 0; letter-spacing: 0.05em;">
+                        — OR —</div>
+                    <div>
+                        <label for="csvUpload"
+                            style="font-size: 0.9em; font-weight: 700; margin-bottom: 0.35rem;">Upload CSV (Archidekt,
+                            Moxfield, TCGPlayer, ManaBox, etc.)<span class="help-icon"
+                                data-tooltip="Supports CSVs with 'Name' and 'Quantity' columns.&#xa;Also matches sets and collector numbers!">?</span></label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="file" id="csvUpload" accept=".csv" onchange="toggleCollectionInputs()">
+                            <button type="button" class="secondary-btn" id="clearCsvBtn" onclick="clearCsv()"
+                                style="display: none;">Clear</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 1: DECK COMPARATOR ==================== -->
+        <div id="deckSection">
+            <div class="card">
+                <div class="form-group">
+                    <label for="deckInput">2. Decks to Compare<span class="help-icon"
+                            data-tooltip="Paste Archidekt links or decklist text e.g.:&#xa;archidekt.com/decks/12345/my-deck&#xa;&#xa;Paste multiple links separated by spaces or commas!">?</span></label>
+                    <div class="input-group">
+                        <input type="text" id="deckInput" placeholder="Paste Archidekt Deck URL(s) or ID(s)...">
+                        <button type="button" class="add-btn" onclick="addDeck()">Add</button>
+                    </div>
+                    <div id="deckChips" class="chips-container"></div>
+                </div>
+
+                <!-- Text Decklist Paste Accordion -->
+                <div style="margin-bottom: 1.25rem;">
+                    <button type="button" class="secondary-btn" onclick="togglePasteDeckForm()"
+                        style="font-size: 0.85rem;">
+                        <span>📝</span> <span id="togglePasteText">Or Paste Decklist Text (Moxfield / MTGO / Text
+                            list)</span>
+                    </button>
+                    <div id="pasteDeckForm"
+                        style="display: none; margin-top: 0.75rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem;">
+                        <label style="font-size: 0.88rem; margin-bottom: 0.35rem;">Deck Name</label>
+                        <input type="text" id="customDeckName" placeholder="e.g. My Commander Deck"
+                            style="margin-bottom: 0.75rem;">
+                        <label style="font-size: 0.88rem; margin-bottom: 0.35rem;">Paste Cards (Arena / MTGO / Text list
+                            e.g. '1 Sol Ring')</label>
+                        <textarea id="customDeckText" rows="6"
+                            placeholder="1 Sol Ring&#xa;1 Arcane Signet&#xa;1 Command Tower&#xa;..."></textarea>
+                        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem;">
+                            <button type="button" class="secondary-btn" onclick="togglePasteDeckForm()">Cancel</button>
+                            <button type="button" class="secondary-btn active" onclick="saveCustomDeck()">Add Custom
+                                Deck</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <label class="toggle-label">
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="includeSideboards" checked>
+                            <span class="slider"></span>
+                        </div>
+                        <span>Include Maybeboard & Sideboard</span>
+                    </label>
+                    <label class="toggle-label">
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="includeBasicLands">
+                            <span class="slider"></span>
+                        </div>
+                        <span>Include Basic Lands</span>
+                    </label>
+                </div>
+
+                <button id="compareBtn" class="main-btn" onclick="runComparison()">
+                    <span>Scan & Compare Decks</span>
+                </button>
+            </div>
+
+            <!-- Saved Comparison Banner -->
+            <div id="comparisonCacheBanner" style="display: none; margin-bottom: 1.25rem; padding: 0.85rem 1.15rem; border-radius: 10px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.28); justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 0.65rem; color: var(--text-color);">
+                    <span style="font-size: 1.2rem;">⚡</span>
+                    <div>
+                        <div style="font-weight: 700; color: var(--primary); font-size: 0.95rem;">Previous Comparison Restored Instantly</div>
+                        <div id="comparisonCacheBannerText" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.15rem;">Results loaded from your previous session.</div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button type="button" class="main-btn" style="font-size: 0.82rem; padding: 0.35rem 0.85rem; height: auto;" onclick="runComparison()">
+                        🔄 Re-scan Decks
+                    </button>
+                    <button type="button" class="secondary-btn" style="font-size: 0.82rem; padding: 0.35rem 0.75rem; height: auto;" onclick="clearSavedComparison()" title="Clear saved comparison and results">
+                        ✕ Clear Results
+                    </button>
+                </div>
+            </div>
+
+            <!-- Decks Overview Dashboard -->
+            <div class="card" id="decksOverviewCard" style="display: none; padding-top: 1.5rem;">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                    <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;">Compared Decks Overview</h3>
+                    <div id="deckSummaryBadge" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">
+                    </div>
+                </div>
+                <div class="deck-cards-grid" id="deckCardsGrid"></div>
+            </div>
+
+            <!-- Deck Facts Trivia Card -->
+            <div class="card" id="factsCard" style="display: none; padding-top: 1.5rem; padding-bottom: 1.5rem;">
+                <div
+                    style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                    <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;">Collection & Decks Insights</h3>
+                    <button type="button" class="secondary-btn" onclick="openCommandersModal()"
+                        style="font-size: 0.82rem; padding: 0.35rem 0.75rem; border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.12); color: #c084fc;">
+                        <span>👑</span> View All Commanders
+                    </button>
+                </div>
+                <div class="facts-grid">
+                    <div class="fact-box">
+                        <h4>Total Unused</h4>
+                        <p id="factTotal" style="color: var(--primary);">0</p>
+                        <div class="fact-subtext">Cards spare for new decks</div>
+                    </div>
+                    <div class="fact-box"
+                        style="border-color: var(--status-missing-border); background: var(--status-missing-bg);">
+                        <h4 style="color: var(--status-missing);">Cards to Buy</h4>
+                        <p id="factMissing" style="color: var(--status-missing);">0</p>
+                        <div class="fact-subtext" style="color: var(--status-missing);">Missing across all decks</div>
+                    </div>
+                    <div class="fact-box">
+                        <h4>Top Mana Color</h4>
+                        <p id="factColor">-</p>
+                        <div class="color-bar-container" id="colorBarTrack" title="Mana distribution across collection">
+                        </div>
+                        <div class="color-dots-legend" id="colorDotsLegend"></div>
+                    </div>
+                    <div class="fact-box">
+                        <h4>Most Duplicated</h4>
+                        <div id="factDupes" class="fact-card-title-clamp">-</div>
+                        <div id="factDupesSub" class="fact-subtext">Highest copies in collection</div>
+                    </div>
+                    <div class="fact-box">
+                        <h4>Most Popular Unused</h4>
+                        <div id="factPopular" class="fact-card-title-clamp">-</div>
+                        <div id="factPopularSub" class="fact-subtext">Highest EDHREC popularity</div>
+                    </div>
+                    <div class="fact-box fact-box-clickable" onclick="openCommandersModal()"
+                        style="border-color: rgba(168, 85, 247, 0.35); background: rgba(168, 85, 247, 0.08);"
+                        title="Click to view all potential commanders in your collection">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h4 style="color: #c084fc; margin: 0;">Commanders</h4>
+                            <span class="badge"
+                                style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-size: 0.7rem;">View
+                                ↗</span>
+                        </div>
+                        <p id="factCommandersCount" style="color: #c084fc; margin-top: 0.35rem;">0</p>
+                        <div class="fact-subtext" style="color: #c084fc;">Click to view & sort commanders</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Comparison Results (Decks Breakdown + Inventory Breakdown) -->
+            <div class="results" id="resultsContainer" style="display: none;">
+                <div class="results-header">
+                    <!-- View Mode Switcher -->
+                    <div class="view-mode-tabs">
+                        <button type="button" class="view-mode-tab active" id="btnModeDeckView"
+                            onclick="switchDeckResultsMode('deck')">
+                            <span>🎴</span> By Deck Breakdown
+                        </button>
+                        <button type="button" class="view-mode-tab" id="btnModeInventoryView"
+                            onclick="switchDeckResultsMode('inventory')">
+                            <span>📦</span> Collection Inventory
+                        </button>
+                    </div>
+
+                    <!-- DECK VIEW CONTROLS -->
+                    <div id="deckViewControls">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
+                            <div
+                                style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0;">
+                                <label
+                                    style="margin: 0; font-size: 0.9rem; font-weight: 700; white-space: nowrap;">Viewing
+                                    Deck:</label>
+                                <select id="deckSelectorDropdown" class="secondary-btn"
+                                    style="font-weight: 700; padding: 0.45rem 0.85rem; max-width: 320px;"
+                                    onchange="selectDeckView(this.value)">
+                                    <option value="all">All Decks Combined</option>
+                                </select>
+                            </div>
+                            <div class="actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button type="button" class="secondary-btn ai-btn" id="btnAiOptimizer" onclick="openAiOptimizer()"
+                                    title="Find deck improvements from your collection using Gemini AI">
+                                    <span>✨</span> AI Improvements
+                                </button>
+                                <button type="button" class="secondary-btn" onclick="openBuyMissingModal('deck')"
+                                    title="Buy missing cards on TCGPlayer or Cardmarket" style="border-color: #38bdf8; color: #38bdf8;">
+                                    <span>🛒</span> Buy Missing
+                                </button>
+                                <button type="button" class="secondary-btn" onclick="copyDeckMissing()"
+                                    title="Copy missing cards for selected deck">📋 Copy Missing</button>
+                                <button type="button" class="secondary-btn" onclick="exportDeckCSV()"
+                                    title="Download CSV of cards in selected deck">📥 Deck CSV</button>
+                            </div>
+                        </div>
+
+                        <div
+                            style="background: var(--bg-color); border: 1px solid var(--border-color); padding: 0.85rem 1rem; border-radius: 10px; display: flex; flex-direction: column; gap: 0.65rem;">
+                            <!-- Status Filters + Live Counter -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                    <button type="button" class="secondary-btn active" id="btnDeckFilterAll"
+                                        onclick="setDeckCardsStatusFilter('all')">📋 All Cards (<span
+                                            id="deckCountAll">0</span>)</button>
+                                    <button type="button" class="secondary-btn" id="btnDeckFilterMissing"
+                                        onclick="setDeckCardsStatusFilter('missing')">❌ Missing Only (<span
+                                            id="deckCountMissing">0</span>)</button>
+                                    <button type="button" class="secondary-btn" id="btnDeckFilterOwned"
+                                        onclick="setDeckCardsStatusFilter('owned')">✅ Owned Only (<span
+                                            id="deckCountOwned">0</span>)</button>
+                                </div>
+                                <div id="deckLiveMatchCounter" class="live-counter-pill">
+                                    <span>Showing:</span> <span id="deckShowingCount" class="live-counter-highlight">0</span> / <span id="deckTotalCount">0</span>
+                                </div>
+                            </div>
+
+                            <!-- Dynamic Live Search & Multi-Filter Bar -->
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                                <div class="search-bar-wrapper">
+                                    <span class="search-bar-icon">🔍</span>
+                                    <input type="text" id="deckCardSearch" class="search-bar-input"
+                                        placeholder="Live search cards by name, type, mana cost..."
+                                        oninput="onDeckSearchInput(this.value)">
+                                    <button type="button" id="deckSearchClearBtn" class="search-clear-btn"
+                                        onclick="clearDeckSearch()" title="Clear search">✖</button>
+                                </div>
+
+                                <select id="deckCategoryFilter" class="secondary-btn" style="padding: 0.45rem 0.75rem;"
+                                    onchange="renderDeckCardsList()">
+                                    <option value="all">All Categories</option>
+                                    <option value="Creatures">Creatures</option>
+                                    <option value="Planeswalkers">Planeswalkers</option>
+                                    <option value="Instants">Instants</option>
+                                    <option value="Sorceries">Sorceries</option>
+                                    <option value="Artifacts">Artifacts</option>
+                                    <option value="Enchantments">Enchantments</option>
+                                    <option value="Battles">Battles</option>
+                                    <option value="Lands">Lands</option>
+                                    <option value="Sideboard">Sideboard / Maybeboard</option>
+                                </select>
+
+                                <select id="deckSortOrder" class="secondary-btn" style="padding: 0.45rem 0.75rem;"
+                                    onchange="renderDeckCardsList()">
+                                    <option value="category">Sort: Category & Name</option>
+                                    <option value="name">Sort: Name (A-Z)</option>
+                                    <option value="missing">Sort: Missing First</option>
+                                    <option value="quantity">Sort: Qty Needed (High-Low)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- INVENTORY VIEW CONTROLS -->
+                    <div id="inventoryViewControls" style="display: none;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.75rem;">
+                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800;">Collection Inventory Analysis
+                            </h3>
+                            <div class="actions" style="gap: 0.5rem;">
+                                <button class="secondary-btn" onclick="openCommandersModal()"
+                                    title="View discovered commanders">👑 Commanders</button>
+                                <button class="secondary-btn" onclick="exportCSV()" title="Download as CSV">📥
+                                    CSV</button>
+                                <button class="secondary-btn" onclick="copyToClipboard()"
+                                    title="Copy unused cards to clipboard">📋 Copy Unused</button>
+                            </div>
+                        </div>
+
+                        <div
+                            style="background: var(--bg-color); border: 1px solid var(--border-color); padding: 0.85rem 1rem; border-radius: 10px; display: flex; flex-direction: column; gap: 0.65rem;">
+                            <!-- Toggles + Live Counter -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                                <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                                    <label class="toggle-label">
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" id="filterUnused"
+                                                onchange="if(this.checked) document.getElementById('filterMissing').checked = false; renderList()">
+                                            <span class="slider"></span>
+                                        </div>
+                                        <span>Show unused only</span>
+                                    </label>
+                                    <label class="toggle-label">
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" id="filterMissing"
+                                                onchange="if(this.checked) document.getElementById('filterUnused').checked = false; renderList()">
+                                            <span class="slider"></span>
+                                        </div>
+                                        <span style="color: var(--status-missing);">Show missing only</span>
+                                    </label>
+                                    <label class="toggle-label">
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" id="filterCommandersOnly" onchange="renderList()">
+                                            <span class="slider"></span>
+                                        </div>
+                                        <span style="color: #c084fc; font-weight: 700;">👑 Commanders only</span>
+                                    </label>
+                                </div>
+
+                                <div id="inventoryLiveCounter" class="live-counter-pill">
+                                    <span>Showing:</span> <span id="inventoryShowingCount" class="live-counter-highlight">0</span> / <span id="inventoryTotalCount">0</span>
+                                </div>
+                            </div>
+
+                            <!-- Live Search & Filters for Inventory -->
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                                <div class="search-bar-wrapper">
+                                    <span class="search-bar-icon">🔍</span>
+                                    <input type="text" id="inventorySearch" class="search-bar-input"
+                                        placeholder="Live search 1,700+ collection cards by name, type, colors, deck..."
+                                        oninput="onInventorySearchInput(this.value)">
+                                    <button type="button" id="inventorySearchClearBtn" class="search-clear-btn"
+                                        onclick="clearInventorySearch()" title="Clear search">✖</button>
+                                </div>
+
+                                <select id="inventoryColorFilter" class="secondary-btn" style="padding: 0.45rem 0.75rem;"
+                                    onchange="renderList()">
+                                    <option value="all">All Colors</option>
+                                    <option value="W">⚪ White (W)</option>
+                                    <option value="U">🔵 Blue (U)</option>
+                                    <option value="B">⚫ Black (B)</option>
+                                    <option value="R">🔴 Red (R)</option>
+                                    <option value="G">🟢 Green (G)</option>
+                                    <option value="multi">🌈 Multicolor</option>
+                                    <option value="colorless">⚪ Colorless</option>
+                                </select>
+
+                                <select id="inventoryCategoryFilter" class="secondary-btn" style="padding: 0.45rem 0.75rem;"
+                                    onchange="renderList()">
+                                    <option value="all">All Types</option>
+                                    <option value="Creatures">Creatures</option>
+                                    <option value="Planeswalkers">Planeswalkers</option>
+                                    <option value="Instants">Instants</option>
+                                    <option value="Sorceries">Sorceries</option>
+                                    <option value="Artifacts">Artifacts</option>
+                                    <option value="Enchantments">Enchantments</option>
+                                    <option value="Battles">Battles</option>
+                                    <option value="Lands">Lands</option>
+                                </select>
+
+                                <select id="sortOrder" class="secondary-btn" style="padding: 0.45rem 0.75rem;"
+                                    onchange="renderList()">
+                                    <option value="name">Sort: Name (A-Z)</option>
+                                    <option value="edhrec">Sort: EDHREC Rank</option>
+                                    <option value="available">Sort: Most Available (Unused)</option>
+                                    <option value="missing">Sort: Highest Missing Deficit</option>
+                                    <option value="used">Sort: Most in Decks</option>
+                                    <option value="owned">Sort: Highest Owned</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DECK CARDS LIST -->
+                <div id="deckCardsListContainer">
+                    <ul id="deckCardsListUl"></ul>
+                </div>
+
+                <!-- INVENTORY CARDS LIST -->
+                <div id="inventoryCardsListContainer" style="display: none;">
+                    <ul id="collectionList"></ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 2: SET CHECKLIST ==================== -->
+        <div id="setSection" style="display: none;">
+            <div class="card">
+                <div class="form-group">
+                    <label for="setSearchInput">2. Search & Select Magic Set<span class="help-icon"
+                            data-tooltip="Search MTG sets by name (e.g., 'Foundations', 'Bloomburrow') or code (e.g., 'FDN', 'BLB', 'MH3').">?</span></label>
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="setSearchInput"
+                            placeholder="Type a set name or 3-letter code (e.g. Foundations, FDN, BLB)..."
+                            autocomplete="off" oninput="handleSetSearch(this.value)"
+                            onfocus="handleSetSearch(this.value)">
+                        <div id="setDropdown" class="autocomplete-dropdown"></div>
+                    </div>
+
+                    <!-- Quick Pick Sets -->
+                    <div class="quick-sets-container" id="quickSets">
+                        <span
+                            style="font-size: 0.8rem; color: var(--text-muted); align-self: center; font-weight: 700;">Popular:</span>
+                        <button type="button" class="quick-set-pill" onclick="selectSetByCode('fdn')">Foundations
+                            (FDN)</button>
+                        <button type="button" class="quick-set-pill" onclick="selectSetByCode('dsk')">Duskmourn
+                            (DSK)</button>
+                        <button type="button" class="quick-set-pill" onclick="selectSetByCode('blb')">Bloomburrow
+                            (BLB)</button>
+                        <button type="button" class="quick-set-pill" onclick="selectSetByCode('mh3')">Modern Horizons 3
+                            (MH3)</button>
+                        <button type="button" class="quick-set-pill" onclick="selectSetByCode('otj')">Outlaws
+                            (OTJ)</button>
+                        <button type="button" class="quick-set-pill" onclick="selectSetByCode('lci')">Lost Caverns
+                            (LCI)</button>
+                    </div>
+
+                    <!-- Selected Set Preview Box -->
+                    <div id="selectedSetBox" class="selected-set-box" style="display: none;">
+                        <div class="selected-set-info">
+                            <img id="selectedSetIcon" class="set-icon-img" src="" alt="Set Icon">
+                            <div>
+                                <div style="font-weight: 700; font-size: 1.05rem;" id="selectedSetName">Set Name</div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted);" id="selectedSetMeta">Code •
+                                    Year • Cards</div>
+                            </div>
+                        </div>
+                        <button type="button" class="secondary-btn" onclick="clearSelectedSet()"
+                            title="Change Set">Change</button>
+                    </div>
+                </div>
+
+                <!-- Set Options -->
+                <div class="form-group"
+                    style="background: var(--bg-color); border: 1px solid var(--border-color); padding: 1rem; border-radius: 10px; display: flex; flex-direction: column; gap: 0.85rem;">
+                    <div
+                        style="font-weight: 700; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">
+                        Comparison Options</div>
+
+                    <div>
+                        <label style="font-size: 0.9rem; margin-bottom: 0.35rem;">Card Matching Mode</label>
+                        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <label class="toggle-label" style="font-weight: normal; font-size: 0.9rem;">
+                                <input type="radio" name="matchMode" value="exact" checked
+                                    style="accent-color: var(--primary);">
+                                <span><strong>Exact Printing</strong> (Default: Only counts cards printed in this specific set)</span>
+                            </label>
+                            <label class="toggle-label" style="font-weight: normal; font-size: 0.9rem;">
+                                <input type="radio" name="matchMode" value="name"
+                                    style="accent-color: var(--primary);">
+                                <span><strong>Any Edition</strong> (Counts if you own any reprint/printing from ANY set)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div
+                        style="display: flex; gap: 1.5rem; flex-wrap: wrap; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+                        <label class="toggle-label">
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="setIncludeBasicLands">
+                                <span class="slider"></span>
+                            </div>
+                            <span>Include Basic Lands</span>
+                        </label>
+
+                        <label class="toggle-label">
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="setScopeAllVariants">
+                                <span class="slider"></span>
+                            </div>
+                            <span>Include All Variants / Showcase</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button id="checkSetBtn" class="main-btn" onclick="runSetComparison()">
+                    <span>Check Set Progress</span>
+                </button>
+            </div>
+
+            <!-- Set Progress Overview Dashboard -->
+            <div class="card" id="setProgressDashboard" style="display: none; padding-top: 1.5rem;">
+                <div class="progress-hero">
+                    <div
+                        style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                        <img id="dashSetIcon" class="set-icon-img" src="" alt="" style="width: 28px; height: 28px;">
+                        <h2 id="dashSetName" style="margin: 0; font-size: 1.4rem; font-weight: 800;">Set Name</h2>
+                        <span id="dashSetBadge" class="badge badge-code" style="font-size: 0.85rem;">SET</span>
+                    </div>
+
+                    <div class="hero-pct" id="heroPercent">0.0%</div>
+                    <div class="hero-subtitle" id="heroSubtitle">0 / 0 Cards Collected • 0 Missing</div>
+
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="heroProgressBar" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <!-- Key Metrics Grid -->
+                <div class="facts-grid">
+                    <div class="fact-box">
+                        <h4>Total in Set</h4>
+                        <p id="factSetTotal">0</p>
+                    </div>
+                    <div class="fact-box"
+                        style="border-color: var(--status-used-border); background: var(--status-used-bg);">
+                        <h4 style="color: var(--status-used);">Collected</h4>
+                        <p id="factSetCollected" style="color: var(--status-used);">0</p>
+                    </div>
+                    <div class="fact-box"
+                        style="border-color: var(--status-missing-border); background: var(--status-missing-bg);">
+                        <h4 style="color: var(--status-missing);">Missing</h4>
+                        <p id="factSetMissing" style="color: var(--status-missing);">0</p>
+                    </div>
+                    <div class="fact-box"
+                        style="border-color: var(--status-missing-border); background: var(--status-missing-bg);">
+                        <h4 style="color: var(--status-missing);">Est. Cost to Buy</h4>
+                        <p id="factSetCost" style="color: var(--status-missing); font-size: 1.25rem;">$0.00</p>
+                    </div>
+                    <div class="fact-box">
+                        <h4>Est. Owned Value</h4>
+                        <p id="factSetOwnedValue" style="font-size: 1.25rem;">$0.00</p>
+                    </div>
+                </div>
+
+                <!-- Rarity Breakdown -->
+                <div style="margin-top: 1.5rem;">
+                    <h4
+                        style="margin: 0 0 0.5rem 0; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;">
+                        Rarity Completion</h4>
+                    <div class="rarity-grid" id="rarityGrid"></div>
+                </div>
+            </div>
+
+            <!-- Set Card Checklist Results -->
+            <div class="results" id="setResultsContainer" style="display: none;">
+                <div class="results-header">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <h3 id="checklistTitle" style="margin: 0; font-size: 1.15rem; font-weight: 800;">Set Card
+                            Checklist</h3>
+                        <div class="actions">
+                            <button class="secondary-btn" onclick="openBuyMissingModal('set')"
+                                title="Buy missing set cards on TCGPlayer or Cardmarket" style="border-color: #38bdf8; color: #38bdf8;">
+                                <span>🛒</span> Buy Missing
+                            </button>
+                            <button class="secondary-btn" onclick="exportSetCSV('missing')"
+                                title="Download missing cards CSV">📥 Missing CSV</button>
+                            <button class="secondary-btn" onclick="copyMissingToClipboard()"
+                                title="Copy missing card names">📋 Copy Missing</button>
+                            <button class="secondary-btn" onclick="exportSetCSV('all')"
+                                title="Download full set checklist CSV">📥 Full CSV</button>
+                        </div>
+                    </div>
+
+                    <!-- Filter / Search Controls -->
+                    <div
+                        style="background: var(--bg-color); border: 1px solid var(--border-color); padding: 0.85rem 1rem; border-radius: 10px; display: flex; flex-direction: column; gap: 0.65rem;">
+                        <!-- Status Filter Tabs -->
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button type="button" class="secondary-btn active" id="btnFilterMissing"
+                                onclick="setListStatusFilter('missing')">❌ Missing Only (<span
+                                    id="countTabMissing">0</span>)</button>
+                            <button type="button" class="secondary-btn" id="btnFilterCollected"
+                                onclick="setListStatusFilter('collected')">✅ Collected Only (<span
+                                    id="countTabCollected">0</span>)</button>
+                            <button type="button" class="secondary-btn" id="btnFilterAll"
+                                onclick="setListStatusFilter('all')">📋 All Cards (<span
+                                    id="countTabAll">0</span>)</button>
+                        </div>
+
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                            <input type="text" id="cardSearchFilter" placeholder="Filter by card name or type..."
+                                style="flex: 2; min-width: 160px; padding: 0.45rem 0.75rem; font-size: 0.9rem;"
+                                oninput="renderSetCardsList()">
+
+                            <select id="rarityFilter" class="secondary-btn" style="padding: 0.45rem 0.75rem;"
+                                onchange="renderSetCardsList()">
+                                <option value="all">All Rarities</option>
+                                <option value="mythic">Mythic</option>
+                                <option value="rare">Rare</option>
+                                <option value="uncommon">Uncommon</option>
+                                <option value="common">Common</option>
+                            </select>
+
+                            <select id="setSortOrder" class="secondary-btn" style="padding: 0.45rem 0.75rem;"
+                                onchange="renderSetCardsList()">
+                                <option value="number">Collector # (1-N)</option>
+                                <option value="name">Name (A-Z)</option>
+                                <option value="price_desc">Price: High to Low</option>
+                                <option value="price_asc">Price: Low to High</option>
+                                <option value="rarity">Rarity (Mythic-Common)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <ul id="setCardsListUl"></ul>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 3: COLLECTION INSIGHTS ==================== -->
+        <div id="collectionSection" style="display: none;">
+            <div class="card" id="collectionInsightsLoading" style="display: none; text-align: center; padding: 3.5rem 1.5rem;">
+                <div class="spinner" style="margin: 0 auto 1.25rem; width: 36px; height: 36px; border-width: 3.5px; border-top-color: var(--primary);"></div>
+                <div style="font-size: 1.2rem; font-weight: 800;">Analyzing Collection Insights...</div>
+                <div style="font-size: 0.88rem; color: var(--text-muted); margin-top: 0.35rem;">Computing live market valuation, crown jewels, color spread, and format staples...</div>
+            </div>
+
+            <div class="card" id="collectionInsightsEmpty" style="text-align: center; padding: 3.5rem 1.5rem;">
+                <div style="font-size: 3rem; margin-bottom: 0.75rem;">📊</div>
+                <h3 style="margin: 0 0 0.5rem 0; font-size: 1.35rem; font-weight: 800;">No Collection Loaded Yet</h3>
+                <p style="color: var(--text-muted); max-width: 520px; margin: 0 auto 1.5rem; font-size: 0.92rem; line-height: 1.5;">
+                    Enter your Archidekt Collection ID or upload a CSV in <strong>Step 1</strong> above, then click here to explore your collection's estimated market value, rarest crown jewels, color spread, and staple radar.
+                </p>
+                <button type="button" class="main-btn" onclick="document.getElementById('collectionId').focus()" style="max-width: 220px; margin: 0 auto;">
+                    <span>Load Collection</span>
+                </button>
+            </div>
+
+            <div id="collectionInsightsDashboard" style="display: none;">
+                <!-- Hero Overview -->
+                <div class="card" style="padding: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+                        <div>
+                            <h2 style="margin: 0; font-size: 1.45rem; font-weight: 800;">Collection Valuation & Health</h2>
+                            <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;" id="insightsSubtitle">Live Scryfall & TCGPlayer pricing</div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button type="button" class="secondary-btn" onclick="fetchCollectionInsights(true)">
+                                <span>🔄</span> Re-Sync Insights
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Facts Grid -->
+                    <div class="facts-grid">
+                        <div class="fact-box">
+                            <div class="fact-val" id="factTotalValuePrimary" style="color: #34d399;">$0.00</div>
+                            <div class="fact-lbl" id="factTotalValuePrimaryLabel">Est. Collection Valuation</div>
+                        </div>
+                        <div class="fact-box">
+                            <div class="fact-val" id="factActiveMarketName" style="color: #38bdf8;">TCGPlayer ($)</div>
+                            <div class="fact-lbl">Active Pricing Market</div>
+                        </div>
+                        <div class="fact-box">
+                            <div class="fact-val" id="factUniqueCards">0</div>
+                            <div class="fact-lbl">Unique Cards</div>
+                        </div>
+                        <div class="fact-box">
+                            <div class="fact-val" id="factTotalCopies">0</div>
+                            <div class="fact-lbl">Total Physical Copies</div>
+                        </div>
+                        <div class="fact-box">
+                            <div class="fact-val" id="factAvailableCopies" style="color: #38bdf8;">0</div>
+                            <div class="fact-lbl">Available in Binders</div>
+                        </div>
+                        <div class="fact-box">
+                            <div class="fact-val" id="factStaplesOwned" style="color: #c084fc;">0 / 20</div>
+                            <div class="fact-lbl">Top Staples Owned</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Crown Jewels (Top 12 Most Valuable Cards) -->
+                <div class="card" style="margin-top: 1.5rem; padding: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;">💎 Crown Jewels</h3>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem;">Your top 12 most valuable cards owned (click to open Scryfall • hover to preview)</div>
+                        </div>
+                    </div>
+                    <div id="crownJewelsGrid" class="crown-jewels-grid"></div>
+                </div>
+
+                <!-- Distribution Analytics Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+                    <!-- Color Breakdown -->
+                    <div class="card" style="padding: 1.5rem;">
+                        <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; font-weight: 800;">🎨 Color Distribution</h3>
+                        <div id="colorDistContainer"></div>
+                    </div>
+
+                    <!-- Type Breakdown -->
+                    <div class="card" style="padding: 1.5rem;">
+                        <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; font-weight: 800;">⚔️ Card Types</h3>
+                        <div id="typeDistContainer"></div>
+                    </div>
+
+                    <!-- Rarity Breakdown -->
+                    <div class="card" style="padding: 1.5rem;">
+                        <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; font-weight: 800;">⭐ Rarity Breakdown</h3>
+                        <div id="rarityDistContainer"></div>
+                    </div>
+
+                    <!-- Price Tier Distribution -->
+                    <div class="card" style="padding: 1.5rem;">
+                        <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; font-weight: 800;">💵 Price Brackets</h3>
+                        <div id="priceTierContainer"></div>
+                    </div>
+                </div>
+
+                <!-- Commander Staples Radar -->
+                <div class="card" style="margin-top: 1.5rem; padding: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;">👑 Top 20 Commander Staples Radar</h3>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem;">Key MTG Commander format staples in your collection vs. needed</div>
+                        </div>
+                    </div>
+                    <div id="staplesGrid" class="staples-grid"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TRADE BINDER SECTION ==================== -->
+    <div id="tradeSection" style="display: none;">
+        <!-- Incoming Friend Trade Offer Banner -->
+        <div id="friendTradeBanner" class="friend-banner" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
+                <div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                        <span style="font-size: 1.5rem;">🤝</span>
+                        <h3 style="margin: 0; font-size: 1.35rem; font-weight: 800;" id="friendOfferTitle">Friend Trade Offer</h3>
+                        <span class="badge" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);">Public Link</span>
+                    </div>
+                    <div style="font-size: 0.88rem; color: var(--text-muted); margin-top: 0.25rem;" id="friendOfferSubtitle">
+                        Loading trade details...
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button type="button" class="secondary-btn" onclick="importFriendTradeToBinder()">
+                        📥 Copy to My Binder
+                    </button>
+                    <button type="button" class="secondary-btn" onclick="dismissFriendTradeBanner()">
+                        ✕ Dismiss
+                    </button>
+                </div>
+            </div>
+
+            <!-- Collection Comparison Bar for Friend -->
+            <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                <div style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.5rem;">
+                    🔍 Compare Against Your Collection
+                </div>
+                <div id="friendTradeCollectionNotice" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                    Uses your active collection from Step 1 above.
+                </div>
+                <div id="friendTradeMatches" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                    <!-- Rendered by JS: Cards you need from friend vs cards friend wants that you have -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Trade Binder Main Card -->
+        <div class="card" style="padding: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+                <div>
+                    <h2 style="margin: 0; font-size: 1.45rem; font-weight: 800;">Trade Offers & Binder</h2>
+                    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">
+                        Organize cards you want to trade away and cards you're looking for, then send a link to friends!
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button type="button" class="main-btn" onclick="shareTradeOfferModal()" style="padding: 0.55rem 1.1rem;">
+                        <span>🔗 Share Trade Link</span>
+                    </button>
+                    <button type="button" class="secondary-btn" onclick="copyTradeTextList()" title="Copy formatted text list">
+                        📋 Copy Text
+                    </button>
+                    <button type="button" class="secondary-btn" onclick="clearTradeBinder()" title="Clear all cards in binder" style="color: var(--status-missing);">
+                        🗑️ Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Card Add Form -->
+            <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+                <div style="font-size: 0.84rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-muted);">
+                    ⚡ QUICK ADD TO BINDER (OR CLICK "+ HAVE" / "+ WANT" ACROSS SETS & DECKS):
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                    <input type="text" id="tradeAddCardInput" placeholder="Enter card name (e.g. Sauron, Sol Ring)..."
+                        style="flex: 2; min-width: 160px; padding: 0.45rem 0.75rem; font-size: 0.9rem;"
+                        onkeypress="if(event.key==='Enter') addCardFromTradeInput('have')">
+                    <input type="number" id="tradeAddCardQty" value="1" min="1" max="99" style="width: 55px; padding: 0.45rem 0.5rem; text-align: center;" title="Quantity">
+                    <select id="tradeAddCardFinish" class="secondary-btn" style="padding: 0.45rem 0.65rem; font-size: 0.85rem;" title="Select card finish">
+                        <option value="Normal">Normal</option>
+                        <option value="Foil">✨ Foil</option>
+                        <option value="Surge Foil">🌊 Surge Foil</option>
+                        <option value="Etched">⚡ Etched</option>
+                        <option value="Textured Foil">💎 Textured Foil</option>
+                    </select>
+                    <button type="button" class="secondary-btn have-btn" style="color: #34d399; border-color: rgba(16, 185, 129, 0.4);" onclick="addCardFromTradeInput('have')">
+                        + For Trade (Have)
+                    </button>
+                    <button type="button" class="secondary-btn want-btn" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);" onclick="addCardFromTradeInput('want')">
+                        + Wishlist (Want)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Balance Summary Cards -->
+            <div class="facts-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 1.25rem;">
+                <div class="fact-box">
+                    <div class="fact-val" id="tradeHavesValue" style="color: #34d399;">$0.00</div>
+                    <div class="fact-lbl">Available for Trade (<span id="tradeHavesCount">0</span> cards)</div>
+                </div>
+                <div class="fact-box">
+                    <div class="fact-val" id="tradeWantsValue" style="color: #38bdf8;">$0.00</div>
+                    <div class="fact-lbl">Looking For / Wants (<span id="tradeWantsCount">0</span> cards)</div>
+                </div>
+                <div class="fact-box">
+                    <div class="fact-val" id="tradeBalanceValue">$0.00</div>
+                    <div class="fact-lbl">Net Balance (Have - Want)</div>
+                </div>
+            </div>
+
+            <!-- Two-Column Grid: Haves vs Wants -->
+            <div class="trade-binder-grid">
+                <!-- Column 1: For Trade -->
+                <div class="trade-column">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.25rem;">🟢</span>
+                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800;">Cards for Trade</h3>
+                        </div>
+                        <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399;" id="tradeHavesBadge">0 items</span>
+                    </div>
+                    <ul id="tradeHavesList" class="trade-item-list">
+                        <!-- Populated by JS -->
+                    </ul>
+                </div>
+
+                <!-- Column 2: Wishlist -->
+                <div class="trade-column">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.25rem;">🔵</span>
+                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800;">Cards I Want</h3>
+                        </div>
+                        <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;" id="tradeWantsBadge">0 items</span>
+                    </div>
+                    <ul id="tradeWantsList" class="trade-item-list">
+                        <!-- Populated by JS -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== WHAT CAN I BUILD & PRECON UPGRADER SECTION ==================== -->
+    <div id="buildSection" style="display: none;">
+        <div class="card" style="padding: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+                <div>
+                    <h2 style="margin: 0; font-size: 1.45rem; font-weight: 800; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>⚡</span> What Can I Build?
+                    </h2>
+                    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.25rem;">
+                        Evaluate your unused cards to discover completeable decks (50%+), completion costs, wishlist integration, and upgrades for your active decks!
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button type="button" class="secondary-btn" onclick="renderBuildSection(true)">
+                        <span>🔄</span> Refresh Calculations
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sub-Navigation Modes -->
+            <div class="build-sub-nav">
+                <button type="button" class="secondary-btn active" id="buildSubNavNew" onclick="switchBuildSubTab('new')">
+                    🏗️ Build New Decks
+                </button>
+                <button type="button" class="secondary-btn" id="buildSubNavUpgrades" onclick="switchBuildSubTab('upgrades')">
+                    🚀 Upgrade My Existing Decks
+                </button>
+                <button type="button" class="secondary-btn" id="buildSubNavCommanders" onclick="switchBuildSubTab('commanders')">
+                    👑 Commanders in My Collection
+                </button>
+            </div>
+
+            <!-- VIEW 1: BUILD NEW DECKS -->
+            <div id="buildNewDecksView">
+                <!-- Filter & Controls Toolbar -->
+                <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.25rem; background: rgba(0,0,0,0.15); padding: 0.85rem; border-radius: 10px; border: 1px solid var(--border-color);">
+                    <!-- Row 1: Match Threshold Filters -->
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                        <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-right: 0.25rem;">MATCH THRESHOLD:</span>
+                        <button type="button" class="secondary-btn active" id="buildThreshold50" onclick="setBuildThreshold(50)">
+                            🎯 50%+ Owned (Recommended)
+                        </button>
+                        <button type="button" class="secondary-btn" id="buildThreshold25" onclick="setBuildThreshold(25)">
+                            ✨ 25%+ Match
+                        </button>
+                        <button type="button" class="secondary-btn" id="buildThreshold75" onclick="setBuildThreshold(75)">
+                            ⚡ 75%+ Nearly Ready
+                        </button>
+                        <button type="button" class="secondary-btn" id="buildThreshold0" onclick="setBuildThreshold(0)">
+                            📋 All Decks (0-100%)
+                        </button>
+                        <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; margin-left: auto; cursor: pointer; user-select: none; color: var(--text-color);">
+                            <input type="checkbox" id="buildUnusedOnlyCheckbox" onchange="renderBuildSection()" style="cursor: pointer;">
+                            <span>⚡ <strong>Unused Cards Only</strong> (Exclude cards in decks)</span>
+                        </label>
+                    </div>
+
+                    <!-- Row 2: Categories, Sorting & Search -->
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                        <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                            <button type="button" class="secondary-btn active" id="buildFilterAll" onclick="setBuildFilter('all')">All Types</button>
+                            <button type="button" class="secondary-btn" id="buildFilterPrecons" onclick="setBuildFilter('precon')">Precons</button>
+                            <button type="button" class="secondary-btn" id="buildFilterEdhrec" onclick="setBuildFilter('edhrec')">EDHREC Meta</button>
+                            <button type="button" class="secondary-btn" id="buildFilterOwnedCmdrs" onclick="setBuildFilter('owned_cmdrs')">👑 Commanders I Own</button>
+                        </div>
+
+                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto; flex-wrap: wrap;">
+                            <select id="buildSortSelect" onchange="renderBuildSection()" style="padding: 0.45rem 0.65rem; font-size: 0.82rem; border-radius: 6px; background: var(--bg-color); color: var(--text-color); border: 1px solid var(--border-color);">
+                                <option value="pct_desc">Sort: Highest % Match</option>
+                                <option value="cost_asc">Sort: Lowest Cost to Finish</option>
+                                <option value="owned_desc">Sort: Most Cards Owned</option>
+                            </select>
+
+                            <input type="text" id="buildSearchInput" placeholder="Filter by commander, set, color..."
+                                style="min-width: 180px; padding: 0.45rem 0.75rem; font-size: 0.85rem;"
+                                oninput="renderBuildSection()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Build Deck Grid -->
+                <div id="buildDeckGrid" class="build-deck-grid">
+                    <!-- Populated dynamically by JS -->
+                </div>
+            </div>
+
+            <!-- VIEW 2: UPGRADE EXISTING DECKS -->
+            <div id="buildUpgradesView" style="display: none;">
+                <div id="buildUpgradesContent">
+                    <!-- Populated dynamically by JS -->
+                </div>
+            </div>
+
+            <!-- VIEW 3: COMMANDERS IN MY COLLECTION -->
+            <div id="buildCommandersView" style="display: none;">
+                <div id="buildCommandersContent">
+                    <!-- Populated dynamically by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Image Preview Container -->
+    <div id="imagePreview"
+        style="display: none; position: fixed; z-index: 5000; pointer-events: none; border-radius: 4.75% / 3.5%; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,0.6); transition: opacity 0.15s ease;">
+        <img id="previewImg" src="" style="width: 250px; display: block; background-color: var(--card-bg);"
+            alt="Card Preview">
+    </div>
+
+    <!-- ==================== COMMANDERS MODAL ==================== -->
+    <div id="commandersModal" class="modal-backdrop" style="display: none;"
+        onclick="if(event.target === this) closeCommandersModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                    <span style="font-size: 1.5rem;">👑</span>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;">Collection Commanders</h3>
+                        <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 500;"
+                            id="modalCommandersSubtitle">0 unique commanders found</div>
+                    </div>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeCommandersModal()"
+                    aria-label="Close Modal">&times;</button>
+            </div>
+
+            <div class="modal-controls">
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; width: 100%;">
+                    <input type="text" id="modalCommanderSearch"
+                        placeholder="Search commanders by name, color, type line..."
+                        style="flex: 2; min-width: 180px; padding: 0.45rem 0.75rem; font-size: 0.9rem;"
+                        oninput="renderCommandersModalList()">
+                    <select id="modalCommanderSort" class="secondary-btn" style="padding: 0.45rem 0.75rem;"
+                        onchange="renderCommandersModalList()">
+                        <option value="edhrec">EDHREC Rank (Popularity #1 to N)</option>
+                        <option value="available">Most Available (Unused)</option>
+                        <option value="owned">Highest Owned</option>
+                        <option value="name">Name (A-Z)</option>
+                    </select>
+                </div>
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; width: 100%;">
+                    <label class="toggle-label" style="font-size: 0.85rem;">
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="modalFilterUnusedOnly" onchange="renderCommandersModalList()">
+                            <span class="slider"></span>
+                        </div>
+                        <span>Show Available (Unused) Only</span>
+                    </label>
+                    <div class="actions" style="gap: 0.4rem;">
+                        <button type="button" class="secondary-btn" onclick="copyCommandersList()" title="Copy all commander names">📋 Copy List</button>
+                        <button type="button" class="secondary-btn" onclick="exportCommandersCSV()" title="Download commanders CSV">📥 CSV</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-body">
+                <ul id="modalCommandersListUl"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== AI DECK OPTIMIZER MODAL ==================== -->
+    <div id="aiOptimizerModal" class="modal-backdrop" style="display: none;"
+        onclick="if(event.target === this) closeAiOptimizer()">
+        <div class="ai-modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(99, 102, 241, 0.08));">
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; flex: 1;">
+                    <span style="font-size: 1.6rem;">✨</span>
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <h3 id="aiModalDeckTitle" style="margin: 0; font-size: 1.25rem; font-weight: 800;">Deck Improvement Assistant</h3>
+                            <span class="ai-pill-badge">✨ Gemini AI</span>
+                        </div>
+                        <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 500;" id="aiModalDeckSubtitle">
+                            Finding high-impact upgrades from your collection
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeAiOptimizer()" aria-label="Close Modal">&times;</button>
+            </div>
+
+            <div id="aiModalBody" class="modal-body" style="padding: 1.25rem 1.5rem; overflow-y: auto; max-height: calc(88vh - 120px);">
+                <!-- Dynamic Content Rendered by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== BUY MISSING (TCGPLAYER / CARDMARKET) MODAL ==================== -->
+    <div id="buyMissingModal" class="modal-backdrop" style="display: none;" onclick="if(event.target === this) closeBuyMissingModal()">
+        <div class="modal-content" style="max-width: 620px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                    <span style="font-size: 1.5rem;">🛒</span>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;" id="buyMissingModalTitle">Buy Missing Cards</h3>
+                        <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 500;" id="buyMissingModalSubtitle">Format for 1-click marketplace cart import</div>
+                    </div>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeBuyMissingModal()" aria-label="Close Modal">&times;</button>
+            </div>
+
+            <div style="padding: 1.25rem 1.5rem 0.5rem;">
+                <div class="nav-tabs" style="margin-bottom: 0.85rem;">
+                    <button type="button" class="nav-tab active" id="tabTcgPlayerBtn" onclick="switchBuyMarketTab('tcg')">
+                        TCGPlayer Mass Entry
+                    </button>
+                    <button type="button" class="nav-tab" id="tabCardmarketBtn" onclick="switchBuyMarketTab('cardmarket')">
+                        Cardmarket Wants List
+                    </button>
+                </div>
+                <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.65rem; line-height: 1.4;" id="buyMarketHelp">
+                    Copy the list below and paste directly into TCGPlayer Mass Entry to load all missing cards into your cart at once.
+                </div>
+                <textarea id="buyMissingTextarea" rows="11" readonly
+                    style="font-family: 'Consolas', 'Courier New', monospace; font-size: 0.84rem; width: 100%; resize: vertical; border-radius: 8px; padding: 0.75rem; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-color); box-sizing: border-box;"></textarea>
+            </div>
+
+            <div style="padding: 1rem 1.5rem 1.25rem; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <button type="button" class="secondary-btn" onclick="closeBuyMissingModal()">Close</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button type="button" class="secondary-btn" id="copyBuyBtn" onclick="copyBuyMissingText()">
+                        <span id="copyBuyBtnIcon">📋</span> <span id="copyBuyBtnText">Copy List</span>
+                    </button>
+                    <a id="openMarketplaceBtn" href="https://store.tcgplayer.com/massentry" target="_blank" rel="noopener noreferrer" class="main-btn" style="padding: 0.5rem 1.15rem; text-decoration: none; font-size: 0.88rem;">
+                        <span>↗ Open TCGPlayer</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== SHARE TRADE OFFER MODAL ==================== -->
+    <div id="shareTradeModal" class="modal-backdrop" style="display: none;" onclick="if(event.target === this) closeShareTradeModal()">
+        <div class="modal-content" style="max-width: 580px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                    <span style="font-size: 1.5rem;">🔗</span>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;">Share Your Trade Binder</h3>
+                        <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 500;">Direct link for friends to review and compare against their collection</div>
+                    </div>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeShareTradeModal()" aria-label="Close Modal">&times;</button>
+            </div>
+
+            <div style="padding: 1.25rem 1.5rem;">
+                <p style="font-size: 0.88rem; color: var(--text-muted); margin: 0 0 1rem 0; line-height: 1.5;">
+                    Anyone with this link can view your available cards and wishlist, and compare it in 1-click against their own Archidekt collection to see which cards you both need from each other!
+                </p>
+
+                <div class="form-group">
+                    <label for="shareTradeUrlInput">Your Shareable Link:</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="shareTradeUrlInput" readonly
+                            style="flex: 1; padding: 0.55rem 0.75rem; font-size: 0.85rem; font-family: monospace; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 8px;"
+                            onclick="this.select()">
+                        <button type="button" class="main-btn" onclick="copyTradeUrlFromInput()" style="padding: 0.55rem 1rem;">
+                            <span id="copyTradeBtnText">Copy Link</span>
+                        </button>
+                    </div>
+                    <div id="shortLinkStatus" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.45rem; line-height: 1.4;"></div>
+                </div>
+
+                <div style="margin-top: 1rem; padding: 0.85rem; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 8px;">
+                    <div style="font-size: 0.82rem; font-weight: 700; margin-bottom: 0.35rem;">💡 How Friends Use This:</div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
+                        When your friend opens this link, the site will automatically cross-reference their collection to highlight:
+                        <ul style="margin: 0.35rem 0 0 1.25rem; padding: 0;">
+                            <li>Cards you have that they <strong>DON'T own</strong></li>
+                            <li>Cards on your wishlist that they have <strong>extras</strong> of</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div style="padding: 1rem 1.5rem 1.25rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button type="button" class="secondary-btn" onclick="closeShareTradeModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== AUTHENTICATION & ACCOUNT MODAL ==================== -->
+    <div id="authModal" class="modal-backdrop" style="display: none;" onclick="if(event.target === this) closeAuthModal()">
+        <div class="modal-content" style="max-width: 440px;" onclick="event.stopPropagation()">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-color); padding: 1.25rem 1.5rem 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                    <span style="font-size: 1.5rem;" id="authModalIcon">🧙‍♂️</span>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;" id="authModalTitle">Welcome to Archidekt Hub</h3>
+                        <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 500;" id="authModalSubtitle">Sign in or register to manage your collection</div>
+                    </div>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeAuthModal()" aria-label="Close Modal">&times;</button>
+            </div>
+
+            <div style="padding: 1.25rem 1.5rem 1.5rem;">
+                <!-- Tab Buttons -->
+                <div id="authTabHeader" style="display: flex; gap: 0.5rem; background: var(--bg-color); padding: 0.25rem; border-radius: 8px; margin-bottom: 1.25rem; border: 1px solid var(--border-color);">
+                    <button type="button" id="authTabSignInBtn" class="auth-tab-btn" onclick="switchAuthTab('signin')" style="flex: 1; padding: 0.5rem 0.75rem; font-size: 0.88rem; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; transition: all 0.15s ease;">
+                        Sign In
+                    </button>
+                    <button type="button" id="authTabRegisterBtn" class="auth-tab-btn" onclick="switchAuthTab('register')" style="flex: 1; padding: 0.5rem 0.75rem; font-size: 0.88rem; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; transition: all 0.15s ease;">
+                        Register
+                    </button>
+                </div>
+
+                <!-- Alert Message -->
+                <div id="authAlert" style="display: none; margin-bottom: 1rem; padding: 0.65rem 0.85rem; border-radius: 8px; font-size: 0.82rem; font-weight: 500;"></div>
+
+                <!-- 1. SIGN IN FORM -->
+                <form id="authSignInForm" onsubmit="event.preventDefault(); handleEmailSignIn();">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="authSignInEmail" style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.35rem;">Email Address</label>
+                        <input type="email" id="authSignInEmail" required placeholder="name@example.com" autocomplete="email"
+                            style="width: 100%; padding: 0.65rem 0.85rem; font-size: 0.9rem; border-radius: 8px; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-color); box-sizing: border-box;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                            <label for="authSignInPassword" style="font-size: 0.82rem; font-weight: 600;">Password</label>
+                            <button type="button" onclick="switchAuthTab('reset')" style="background: none; border: none; color: var(--primary); font-size: 0.78rem; cursor: pointer; padding: 0; text-decoration: underline;">
+                                Forgot password?
+                            </button>
+                        </div>
+                        <input type="password" id="authSignInPassword" required placeholder="••••••••" autocomplete="current-password"
+                            style="width: 100%; padding: 0.65rem 0.85rem; font-size: 0.9rem; border-radius: 8px; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-color); box-sizing: border-box;">
+                    </div>
+                    <button type="submit" id="authSignInSubmitBtn" class="main-btn" style="width: 100%; margin-top: 1rem; padding: 0.7rem;">
+                        <span>Sign In with Email</span>
+                    </button>
+                </form>
+
+                <!-- 2. REGISTER FORM -->
+                <form id="authRegisterForm" style="display: none;" onsubmit="event.preventDefault(); handleEmailRegister();">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="authRegisterName" style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.35rem;">Display / Player Name</label>
+                        <input type="text" id="authRegisterName" required placeholder="e.g. CommanderPlayer" autocomplete="name"
+                            style="width: 100%; padding: 0.65rem 0.85rem; font-size: 0.9rem; border-radius: 8px; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-color); box-sizing: border-box;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="authRegisterEmail" style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.35rem;">Email Address</label>
+                        <input type="email" id="authRegisterEmail" required placeholder="name@example.com" autocomplete="email"
+                            style="width: 100%; padding: 0.65rem 0.85rem; font-size: 0.9rem; border-radius: 8px; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-color); box-sizing: border-box;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0.5rem;">
+                        <label for="authRegisterPassword" style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.35rem;">Password (min 6 characters)</label>
+                        <input type="password" id="authRegisterPassword" minlength="6" required placeholder="••••••••" autocomplete="new-password"
+                            style="width: 100%; padding: 0.65rem 0.85rem; font-size: 0.9rem; border-radius: 8px; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-color); box-sizing: border-box;">
+                    </div>
+                    <button type="submit" id="authRegisterSubmitBtn" class="main-btn" style="width: 100%; margin-top: 1rem; padding: 0.7rem;">
+                        <span>Create Free Account</span>
+                    </button>
+                </form>
+
+                <!-- 3. RESET PASSWORD FORM -->
+                <form id="authResetForm" style="display: none;" onsubmit="event.preventDefault(); handlePasswordReset();">
+                    <p style="font-size: 0.83rem; color: var(--text-muted); margin: 0 0 1rem 0; line-height: 1.4;">
+                        Enter your registered email and we'll send you instructions to reset your password.
+                    </p>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="authResetEmail" style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 0.35rem;">Email Address</label>
+                        <input type="email" id="authResetEmail" required placeholder="name@example.com"
+                            style="width: 100%; padding: 0.65rem 0.85rem; font-size: 0.9rem; border-radius: 8px; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-color); box-sizing: border-box;">
+                    </div>
+                    <button type="submit" id="authResetSubmitBtn" class="main-btn" style="width: 100%; padding: 0.7rem;">
+                        <span>Send Password Reset Email</span>
+                    </button>
+                    <div style="text-align: center; margin-top: 0.85rem;">
+                        <button type="button" onclick="switchAuthTab('signin')" style="background: none; border: none; color: var(--text-muted); font-size: 0.82rem; cursor: pointer;">
+                            ← Back to Sign In
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Social Sign-in Options (Hidden on reset) -->
+                <div id="authSocialArea">
+                    <div class="auth-divider">or continue with</div>
+                    <div style="display: flex; flex-direction: column; gap: 0.65rem;">
+                        <button type="button" class="auth-social-btn" onclick="handleGoogleSignIn()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" style="display: inline-block; vertical-align: middle;">
+                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                            </svg>
+                            <span>Continue with Google</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (v10 compat) -->
+        </div>
+    </main>
+
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
@@ -820,6 +2274,10 @@
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script type="module" src="./script.js?v=4.28"></script>
+    <!-- Firebase Compat SDK for Collection Hub -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="./collection-hub.js?v=4.30"></script>
+    <script type="module" src="./script.js?v=4.30"></script>
 </body>
 </html>

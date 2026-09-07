@@ -1,5 +1,5 @@
-import { db } from './firebase-setup.js?v=4.28';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=4.28';
+import { db } from './firebase-setup.js?v=4.30';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=4.30';
 import { ref, get, update } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initDeckActionsModule(utils, state) {
@@ -100,5 +100,31 @@ export function initDeckActionsModule(utils, state) {
 
         if (Object.keys(updates).length > 0) { await update(ref(db), updates); showToast(`Successfully refreshed ${updatedCount} deck(s)!`, false, 3000, true); } 
         else { showToast("No valid decks found to refresh.", true); }
+    };
+
+    window.compareMyDeckWithCollection = async () => {
+        playSound('sfx-click');
+        const snap = await get(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`));
+        const myData = snap.val();
+        if (!myData || !myData.deck) return showToast("Please submit your deck URL first.", true);
+        if (window.openCollectionTab) {
+            window.openCollectionTab('deck', { preloadDeck: myData.deck });
+            showToast("Transferred deck to Deck Comparator!", false, 3000, true);
+        } else {
+            showToast("Collection tool is loading...", true);
+        }
+    };
+
+    window.upgradeMyDeckWithCollection = async () => {
+        playSound('sfx-click');
+        const snap = await get(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`));
+        const myData = snap.val();
+        if (!myData || !myData.deck) return showToast("Please submit your deck URL first.", true);
+        if (window.openCollectionTab) {
+            window.openCollectionTab('deck', { preloadDeck: myData.deck, openUpgrader: true });
+            showToast("Transferred deck to AI Deck Upgrader!", false, 3000, true);
+        } else {
+            showToast("Collection tool is loading...", true);
+        }
     };
 }

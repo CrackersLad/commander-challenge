@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=4.28';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=4.28';
-import { getArchives } from './data-service.js?v=4.28';
-import { initDeckActionsModule } from './deck-actions.js?v=4.28';
-import { initRoomActionsModule } from './room-actions.js?v=4.28';
-import { initPlayerViewModule } from './player-view.js?v=4.28';
-import { initAdminModule } from './admin.js?v=4.28';
-import { initCalendarModule } from './calendar.js?v=4.28';
-import { initAuthModule } from './auth.js?v=4.28';
-import { initHubModule } from './hub.js?v=4.28';
-import { initProfileModule } from './profile.js?v=4.28';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=4.28';
-import { initWarRoom, openWarRoom } from './war-room.js?v=4.28';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=4.28';
-import { initBoosterDraftModule } from './booster-draft.js?v=4.28';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=4.28';
+import { db, auth, functions } from './firebase-setup.js?v=4.30';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=4.30';
+import { getArchives } from './data-service.js?v=4.30';
+import { initDeckActionsModule } from './deck-actions.js?v=4.30';
+import { initRoomActionsModule } from './room-actions.js?v=4.30';
+import { initPlayerViewModule } from './player-view.js?v=4.30';
+import { initAdminModule } from './admin.js?v=4.30';
+import { initCalendarModule } from './calendar.js?v=4.30';
+import { initAuthModule } from './auth.js?v=4.30';
+import { initHubModule } from './hub.js?v=4.30';
+import { initProfileModule } from './profile.js?v=4.30';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=4.30';
+import { initWarRoom, openWarRoom } from './war-room.js?v=4.30';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=4.30';
+import { initBoosterDraftModule } from './booster-draft.js?v=4.30';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=4.30';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -1726,6 +1726,8 @@ function initDashboard() {
                 if (pData.deck) {
                     armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.9rem; background-color: #4a4a5e; border-color: #696982;" onclick="window.refreshMyDeckPrice()">Refresh Price</button>`;
                     armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.9rem; background-color: #6a4a4a; border-color: #826969;" onclick="window.lockMyDeckPrice()">Lock In Price</button>`;
+                    armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.85rem; background: linear-gradient(135deg, #0284c7, #0ea5e9); border-color: rgba(56,189,248,0.4);" onclick="window.compareMyDeckWithCollection()">🔄 Compare to My Collection</button>`;
+                    armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.85rem; background: linear-gradient(135deg, #8b5cf6, #a855f7); border-color: rgba(168,85,247,0.4);" onclick="window.upgradeMyDeckWithCollection()">🧠 AI Upgrades from Collection</button>`;
                 }
                 armoryInfoHtml += `</div>`;
             }
@@ -1852,7 +1854,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=4.28').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=4.30').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

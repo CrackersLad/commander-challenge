@@ -1,9 +1,36 @@
-import { db, auth } from './firebase-setup.js?v=4.28';
+import { db, auth } from './firebase-setup.js?v=4.30';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
     const { playSound, switchView, sanitizeHTML, getRoomCreationTime, getArchives, showToast, getColorBadges } = utils;
     const { initDashboard, initLobby } = coreUi;
+
+    window.toggleNavMenu = (menuId, event) => {
+        if (event) {
+            event.stopPropagation();
+            event.preventDefault();
+        }
+        const menu = document.getElementById(menuId);
+        if (!menu) return;
+        const isVisible = menu.style.display === 'block';
+        window.closeAllNavMenus();
+        if (!isVisible) {
+            menu.style.display = 'block';
+        }
+    };
+
+    window.closeAllNavMenus = () => {
+        document.querySelectorAll('.nav-popup-menu').forEach(m => m.style.display = 'none');
+    };
+
+    document.addEventListener('click', () => {
+        window.closeAllNavMenus();
+    });
+
+    window.scrollToSection = (sectionId) => {
+        const el = document.getElementById(sectionId);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
 
     window.quickRollCommander = async () => {
         playSound('sfx-click');
@@ -121,7 +148,7 @@ export function initHubModule(utils, state, coreUi) {
     async function loadPreconData() {
         if (localPrecons && localPrecons.length > 0) return localPrecons;
         try {
-            const res = await fetch('./commander-precons.json?v=4.28');
+            const res = await fetch('./commander-precons.json?v=4.30');
             if (res.ok) {
                 localPrecons = await res.json();
                 return localPrecons;

@@ -1338,3 +1338,14 @@ exports.getDeckPrice = onCall({ cors: true, timeoutSeconds: 60, memory: "256MiB"
     
     throw new HttpsError('unknown', 'Could not process the provided URL.');
 });
+
+// ==================== ARCHIDEKT COMPARATOR & COLLECTION TOOLS ====================
+const archidekt = require("./archidekt.js");
+exports.shortenUrl = archidekt.shortenUrl;
+exports.getSets = archidekt.getSets;
+exports.checkSetProgress = archidekt.checkSetProgress;
+exports.getCollectionInsights = archidekt.getCollectionInsights;
+exports.compareDecks = archidekt.compareDecks;
+exports.getDeckName = archidekt.getDeckName;
+exports.suggestImprovements = archidekt.suggestImprovements;
+

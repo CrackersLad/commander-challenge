@@ -28,6 +28,34 @@
     ],
     "rewrites": [
       {
+        "source": "/compareDecks",
+        "function": "compareDecks"
+      },
+      {
+        "source": "/getDeckName",
+        "function": "getDeckName"
+      },
+      {
+        "source": "/getSets",
+        "function": "getSets"
+      },
+      {
+        "source": "/checkSetProgress",
+        "function": "checkSetProgress"
+      },
+      {
+        "source": "/suggestImprovements",
+        "function": "suggestImprovements"
+      },
+      {
+        "source": "/getCollectionInsights",
+        "function": "getCollectionInsights"
+      },
+      {
+        "source": "/shortenUrl",
+        "function": "shortenUrl"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

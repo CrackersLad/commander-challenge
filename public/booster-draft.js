@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=4.28';
+import { db, auth } from './firebase-setup.js?v=4.30';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -18,7 +18,7 @@ import {
     getCardPrice,
     formatCurrency,
     getSetBasicLands 
-} from './booster-simulator.js?v=4.28';
+} from './booster-simulator.js?v=4.30';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -172,6 +172,19 @@ export function initBoosterDraftModule(utils, state) {
     window.toggleHoverPreview = toggleHoverPreview;
     window.autoAddBasicLands = autoAddBasicLands;
     window.copyDraftDecklist = copyDraftDecklist;
+    window.compareDraftWithCollection = async () => {
+        playSound('sfx-click');
+        const deckText = await buildDecklistText();
+        if (!deckText || !deckText.trim()) {
+            return showToast("No drafted deck found to compare.", true);
+        }
+        if (window.openCollectionTab) {
+            window.openCollectionTab('deck', { preloadDeck: deckText });
+            showToast("Drafted deck transferred to Deck Comparator!", false, 3000, true);
+        } else {
+            showToast("Collection tool is loading, please try again in a second.", true);
+        }
+    };
     window.inspectDraftCard = (cardIdentifier) => {
         if (window.openCardInspector) {
             const foundCard = myDraftedPool.find(c => c.id === cardIdentifier || c.name === cardIdentifier || c.uid === cardIdentifier) || cardIdentifier;
@@ -2027,6 +2040,9 @@ function renderDraftDeckWorkspace(pool, formatId) {
                 <div class="deck-export-col">
                     <button class="select-btn export-deck-cta" onclick="window.copyDraftDecklist()">
                         📋 Copy Decklist
+                    </button>
+                    <button class="select-btn export-deck-cta" style="background: linear-gradient(135deg, #0284c7, #0ea5e9); border-color: rgba(56, 189, 248, 0.4); margin-top: 8px;" onclick="window.compareDraftWithCollection()">
+                        🔄 Compare with Collection
                     </button>
                 </div>
             </div>
