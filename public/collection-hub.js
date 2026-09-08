@@ -2155,7 +2155,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=6.10');
+                    const res = await fetch('./commander-precons.json?v=6.11');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2191,7 +2191,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=6.10');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=6.11');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -2214,10 +2214,243 @@
             return buildDecksLoadedPromise;
         }
 
+        let liveArchidektDecks = [];
+        let hasLiveSearchResults = false;
+        let lastRealtimeSearchCommander = '';
+        let isRealtimeSearching = false;
+        window.hasLiveSearchResults = false;
+
         function findBuildDeck(deckId) {
+            if (hasLiveSearchResults) {
+                const live = liveArchidektDecks.find(d => d.id === deckId);
+                if (live) return live;
+            }
             return BUILD_DECKS_CATALOG.find(d => d.id === deckId);
         }
         window.PRECON_DECKS_DATABASE = BUILD_DECKS_CATALOG;
+
+        function getOwnedCommandersList() {
+            let ownedCardsList = (cachedParsedCsv && cachedParsedCsv.length > 0) ? cachedParsedCsv : (currentCollectionData || []);
+            if (!ownedCardsList || ownedCardsList.length === 0) return [];
+
+            const commanderMap = new Map();
+            ownedCardsList.forEach(item => {
+                const name = (item.name || item.card?.name || item.card?.oracleCard?.name || '').trim();
+                const typeLine = (item.typeLine || item.type_line || item.card?.type_line || item.card?.oracleCard?.type_line || (item.card?.oracleCard?.types ? [...(item.card?.oracleCard?.superTypes || []), ...(item.card?.oracleCard?.types || [])].join(' ') : '') || item.category || '').toLowerCase();
+                const isCommander = Boolean(item.isCommander) || (typeLine.includes('legendary') && (typeLine.includes('creature') || typeLine.includes('planeswalker') || typeLine.includes('can be your commander')));
+
+                if (isCommander && name) {
+                    const cleanKey = name.toLowerCase().trim();
+                    const count = Number(item.owned ?? item.quantity ?? item.count ?? 1);
+                    if (!commanderMap.has(cleanKey)) {
+                        commanderMap.set(cleanKey, {
+                            name,
+                            count
+                        });
+                    } else {
+                        commanderMap.get(cleanKey).count += count;
+                    }
+                }
+            });
+
+            return Array.from(commanderMap.values()).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+        }
+
+        function populateOwnedCommandersUI() {
+            const datalist = document.getElementById('ownedCommandersDatalist');
+            const chipsContainer = document.getElementById('ownedCommandersChips');
+            if (!datalist || !chipsContainer) return;
+
+            const ownedCmdrs = getOwnedCommandersList();
+            if (ownedCmdrs.length === 0) {
+                datalist.innerHTML = '';
+                chipsContainer.innerHTML = '<span style="color: var(--text-muted); font-style: italic; font-size: 0.76rem;">Load your collection above to see your commanders</span>';
+                return;
+            }
+
+            // Populate datalist
+            datalist.innerHTML = ownedCmdrs.map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)} (${c.count} owned)</option>`).join('');
+
+            // Populate top 8 quick chips
+            const topChips = ownedCmdrs.slice(0, 8);
+            chipsContainer.innerHTML = topChips.map(c => `
+                <button type="button" class="secondary-btn" style="padding: 2px 8px; font-size: 0.74rem; border-radius: 20px; display: inline-flex; align-items: center; gap: 4px; background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.25);"
+                        onclick="selectAndSearchCommander('${escapeHtml(c.name.replace(/'/g, "\\'"))}')"
+                        title="Search Archidekt for community decks using ${escapeHtml(c.name)}">
+                    <span>👑</span>
+                    <strong>${escapeHtml(c.name.length > 22 ? c.name.slice(0, 20) + '...' : c.name)}</strong>
+                    <span style="color: var(--text-muted); font-size: 0.68rem;">(${c.count})</span>
+                </button>
+            `).join('') + (ownedCmdrs.length > 8 ? `<span style="color: var(--text-muted); font-size: 0.74rem;">+${ownedCmdrs.length - 8} more in dropdown</span>` : '');
+        }
+
+        function selectAndSearchCommander(name) {
+            const input = document.getElementById('realtimeCommanderInput');
+            if (input) {
+                input.value = name;
+            }
+            executeRealtimeCommanderSearch(false);
+        }
+
+        async function executeRealtimeCommanderSearch(isRedo = false) {
+            const input = document.getElementById('realtimeCommanderInput');
+            let commanderName = (input?.value || '').trim();
+
+            if (!commanderName) {
+                if (lastRealtimeSearchCommander) {
+                    commanderName = lastRealtimeSearchCommander;
+                    if (input) input.value = commanderName;
+                } else {
+                    const owned = getOwnedCommandersList();
+                    if (owned.length > 0) {
+                        commanderName = owned[0].name;
+                        if (input) input.value = commanderName;
+                    } else {
+                        showToast('Please select or type a commander name to search on Archidekt.');
+                        if (input) input.focus();
+                        return;
+                    }
+                }
+            }
+
+            if (isRealtimeSearching) return;
+            isRealtimeSearching = true;
+
+            const searchBtn = document.getElementById('realtimeSearchBtn');
+            const searchBtnText = document.getElementById('realtimeSearchBtnText');
+            const redoBtn = document.getElementById('realtimeRedoBtn');
+            const clearBtn = document.getElementById('realtimeClearBtn');
+
+            if (searchBtnText) searchBtnText.textContent = isRedo ? 'Redoing Search...' : 'Searching...';
+            if (searchBtn) searchBtn.disabled = true;
+
+            const sortFilter = document.getElementById('realtimeSortFilter')?.value || 'match_desc';
+            let orderBy = '-viewCount';
+            if (sortFilter === 'views_desc') orderBy = '-viewCount';
+
+            showToast(`Searching Archidekt in real-time for decks featuring "${commanderName}"... 🔍`);
+
+            try {
+                const resp = await fetch('/searchCommanderDecks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        commander: commanderName,
+                        orderBy,
+                        count: 10
+                    })
+                });
+
+                if (!resp.ok) {
+                    const errData = await resp.json().catch(() => ({}));
+                    throw new Error(errData.error || `Server returned HTTP ${resp.status}`);
+                }
+
+                const data = await resp.json();
+                const returnedDecks = data.decks || [];
+
+                if (returnedDecks.length === 0) {
+                    showToast(`No community decks found on Archidekt for "${commanderName}". Try searching with a broader name.`);
+                } else {
+                    liveArchidektDecks = returnedDecks;
+                    hasLiveSearchResults = true;
+                    window.hasLiveSearchResults = true;
+                    lastRealtimeSearchCommander = commanderName;
+                    if (redoBtn) redoBtn.style.display = 'inline-flex';
+                    if (clearBtn) clearBtn.style.display = 'inline-flex';
+                    showToast(`Found ${returnedDecks.length} Archidekt decks for "${commanderName}"! Evaluating against your collection... ⚡`);
+                    renderBuildSection();
+                }
+            } catch (e) {
+                console.error('Error executing realtime commander search:', e);
+                showToast(`Real-time search error: ${e.message}`);
+            } finally {
+                isRealtimeSearching = false;
+                if (searchBtnText) searchBtnText.textContent = 'Search Archidekt';
+                if (searchBtn) searchBtn.disabled = false;
+            }
+        }
+
+        async function quickScanTopOwnedCommanders() {
+            const owned = getOwnedCommandersList();
+            if (owned.length === 0) {
+                showToast('Load a collection first to scan your top owned commanders!');
+                return;
+            }
+
+            const topCmdrs = owned.slice(0, 3);
+            const searchBtn = document.getElementById('realtimeSearchBtn');
+            const searchBtnText = document.getElementById('realtimeSearchBtnText');
+            const redoBtn = document.getElementById('realtimeRedoBtn');
+            const clearBtn = document.getElementById('realtimeClearBtn');
+
+            if (searchBtnText) searchBtnText.textContent = 'Scanning Top Owned...';
+            if (searchBtn) searchBtn.disabled = true;
+
+            showToast(`Scanning top 3 owned commanders (${topCmdrs.map(c => c.name).join(', ')}) on Archidekt... ⚡`);
+
+            try {
+                const allFetched = [];
+                for (const cmdr of topCmdrs) {
+                    try {
+                        const resp = await fetch('/searchCommanderDecks', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                commander: cmdr.name,
+                                orderBy: '-viewCount',
+                                count: 4
+                            })
+                        });
+                        if (resp.ok) {
+                            const data = await resp.json();
+                            if (data.decks && Array.isArray(data.decks)) {
+                                allFetched.push(...data.decks);
+                            }
+                        }
+                    } catch (err) {
+                        console.warn(`Error scanning ${cmdr.name}:`, err);
+                    }
+                }
+
+                if (allFetched.length > 0) {
+                    // Deduplicate by deck ID
+                    const seen = new Set();
+                    liveArchidektDecks = allFetched.filter(d => {
+                        if (seen.has(d.id)) return false;
+                        seen.add(d.id);
+                        return true;
+                    });
+                    hasLiveSearchResults = true;
+                    window.hasLiveSearchResults = true;
+                    lastRealtimeSearchCommander = topCmdrs.map(c => c.name).join(', ');
+                    if (redoBtn) redoBtn.style.display = 'inline-flex';
+                    if (clearBtn) clearBtn.style.display = 'inline-flex';
+                    showToast(`Loaded ${liveArchidektDecks.length} community decks for your top owned commanders!`);
+                    renderBuildSection();
+                } else {
+                    showToast('No decks could be loaded for your top owned commanders.');
+                }
+            } finally {
+                if (searchBtnText) searchBtnText.textContent = 'Search Archidekt';
+                if (searchBtn) searchBtn.disabled = false;
+            }
+        }
+
+        function clearRealtimeSearchResults() {
+            liveArchidektDecks = [];
+            hasLiveSearchResults = false;
+            window.hasLiveSearchResults = false;
+            lastRealtimeSearchCommander = '';
+            const input = document.getElementById('realtimeCommanderInput');
+            if (input) input.value = '';
+            const redoBtn = document.getElementById('realtimeRedoBtn');
+            const clearBtn = document.getElementById('realtimeClearBtn');
+            if (redoBtn) redoBtn.style.display = 'none';
+            if (clearBtn) clearBtn.style.display = 'none';
+            showToast('Reset back to catalog of Commander precons & meta decks.');
+            renderBuildSection();
+        }
 
         function switchBuildSubTab(subTab) {
             currentBuildSubTab = subTab;
@@ -2519,6 +2752,8 @@
             const grid = document.getElementById('buildDeckGrid');
             if (!grid) return;
 
+            populateOwnedCommandersUI();
+
             // Ensure catalog of 180+ decks is loaded
             await loadBuildDecksCatalog();
 
@@ -2749,7 +2984,8 @@
             banner.style.gap = '0.5rem';
 
             // Compute statistics for each deck
-            const computedDecks = BUILD_DECKS_CATALOG.map(deck => {
+            const decksToCompute = (hasLiveSearchResults && liveArchidektDecks.length > 0) ? liveArchidektDecks : BUILD_DECKS_CATALOG;
+            const computedDecks = decksToCompute.map(deck => {
                 const cardList = deck.cards || deck.keyCards || [];
                 // Completely exclude basic lands from the lookup
                 const nonBasicCards = cardList.filter(item => {
@@ -2819,18 +3055,54 @@
                 }
             }
             filterNotes.push('Basic lands excluded');
-            if (ownedPreconCount > 0 && !showOwnedPrecons && !hidePrecons) {
+            if (ownedPreconCount > 0 && !showOwnedPrecons && !hidePrecons && !hasLiveSearchResults) {
                 filterNotes.push(`📦 ${ownedPreconCount} complete precon${ownedPreconCount > 1 ? 's' : ''} (100% owned) hidden`);
             }
 
-            banner.innerHTML = `
-                <span>⚡ Evaluated against <strong>${ownedCardNames.size.toLocaleString()} unique cards</strong> in your collection <span style="color: var(--text-muted); font-size: 0.8rem;">(${filterNotes.join(' • ')})</span></span>
-                <span style="color: var(--text-muted); font-size: 0.82rem;">Showing decks matching threshold: <strong>${currentBuildThreshold > 0 ? `${currentBuildThreshold}%+` : 'All (0-100%)'}</strong> (${BUILD_DECKS_CATALOG.length} decks in catalog)</span>
-            `;
-            grid.appendChild(banner);
+            if (hasLiveSearchResults) {
+                const liveBanner = document.createElement('div');
+                liveBanner.style.gridColumn = '1 / -1';
+                liveBanner.style.display = 'flex';
+                liveBanner.style.justifyContent = 'space-between';
+                liveBanner.style.alignItems = 'center';
+                liveBanner.style.background = 'linear-gradient(135deg, rgba(56, 189, 248, 0.14) 0%, rgba(99, 102, 241, 0.14) 100%)';
+                liveBanner.style.border = '1px solid rgba(56, 189, 248, 0.38)';
+                liveBanner.style.padding = '0.85rem 1.25rem';
+                liveBanner.style.borderRadius = '10px';
+                liveBanner.style.flexWrap = 'wrap';
+                liveBanner.style.gap = '0.75rem';
+                liveBanner.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                        <span style="font-size: 1.4rem;">🌐</span>
+                        <div>
+                            <div style="font-weight: 800; font-size: 0.98rem; color: var(--text-color);">
+                                Live Archidekt Community Search: <em>"${escapeHtml(lastRealtimeSearchCommander)}"</em>
+                            </div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                                Evaluating <strong>${liveArchidektDecks.length} live community decks</strong> against your collection cards <span style="color: var(--text-muted); font-size: 0.78rem;">(${filterNotes.join(' • ')})</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <button type="button" class="main-btn" onclick="executeRealtimeCommanderSearch(true)" style="padding: 0.4rem 0.9rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                            <span>🔄</span> Redo Search
+                        </button>
+                        <button type="button" class="secondary-btn" onclick="clearRealtimeSearchResults()" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                            ✕ Back to Precons/Meta
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(liveBanner);
+            } else {
+                banner.innerHTML = `
+                    <span>⚡ Evaluated against <strong>${ownedCardNames.size.toLocaleString()} unique cards</strong> in your collection <span style="color: var(--text-muted); font-size: 0.8rem;">(${filterNotes.join(' • ')})</span></span>
+                    <span style="color: var(--text-muted); font-size: 0.82rem;">Showing decks matching threshold: <strong>${currentBuildThreshold > 0 ? `${currentBuildThreshold}%+` : 'All (0-100%)'}</strong> (${BUILD_DECKS_CATALOG.length} decks in catalog)</span>
+                `;
+                grid.appendChild(banner);
+            }
 
             // Informative alert showing 100% owned precons are hidden because they already own the precon
-            if (ownedPreconCount > 0 && !hidePrecons) {
+            if (ownedPreconCount > 0 && !hidePrecons && !hasLiveSearchResults) {
                 const preconNotice = document.createElement('div');
                 preconNotice.style.gridColumn = '1 / -1';
                 preconNotice.style.display = 'flex';
@@ -2871,13 +3143,19 @@
             }
 
             // Always hide 100% owned precons unless user explicitly toggled showOwnedPrecons
-            if (!showOwnedPrecons) {
+            if (!showOwnedPrecons && !hasLiveSearchResults) {
                 filtered = filtered.filter(d => !(d.type === 'precon' && d.pctOwned >= 100));
             }
 
             // Filter by Precon visibility
-            if (hidePrecons) {
+            if (hidePrecons && !hasLiveSearchResults) {
                 filtered = filtered.filter(d => d.type !== 'precon');
+            }
+
+            // Realtime Bracket Filter
+            const realtimeBracket = document.getElementById('realtimeBracketFilter')?.value || 'all';
+            if (realtimeBracket !== 'all') {
+                filtered = filtered.filter(d => String(d.bracket) === String(realtimeBracket));
             }
 
             // Filter by Category
@@ -2905,12 +3183,15 @@
             }
 
             // Sort
-            if (sortMode === 'pct_desc') {
-                filtered.sort((a, b) => b.pctOwned - a.pctOwned || a.estMissingCostLocal - b.estMissingCostLocal);
-            } else if (sortMode === 'cost_asc') {
+            const realtimeSort = hasLiveSearchResults ? (document.getElementById('realtimeSortFilter')?.value || 'match_desc') : null;
+            if (realtimeSort === 'cost_asc' || (!hasLiveSearchResults && sortMode === 'cost_asc')) {
                 filtered.sort((a, b) => a.estMissingCostLocal - b.estMissingCostLocal);
-            } else if (sortMode === 'owned_desc') {
+            } else if (realtimeSort === 'views_desc') {
+                filtered.sort((a, b) => (b.views || 0) - (a.views || 0));
+            } else if (!hasLiveSearchResults && sortMode === 'owned_desc') {
                 filtered.sort((a, b) => b.ownedCount - a.ownedCount);
+            } else { // default pct_desc / match_desc
+                filtered.sort((a, b) => b.pctOwned - a.pctOwned || a.estMissingCostLocal - b.estMissingCostLocal);
             }
 
             function renderDeckCards(deckList) {
@@ -3052,6 +3333,32 @@
             }
 
             if (filtered.length === 0) {
+                if (hasLiveSearchResults) {
+                    const notice = document.createElement('div');
+                    notice.style.gridColumn = '1 / -1';
+                    notice.style.padding = '2.5rem 1.5rem';
+                    notice.style.textAlign = 'center';
+                    notice.style.color = 'var(--text-muted)';
+                    notice.style.background = 'rgba(56, 189, 248, 0.06)';
+                    notice.style.borderRadius = '12px';
+                    notice.style.border = '1px dashed rgba(56, 189, 248, 0.3)';
+                    notice.style.marginBottom = '1.25rem';
+                    notice.innerHTML = `
+                        <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">🔍</div>
+                        <h4 style="margin: 0 0 0.5rem 0; font-size: 1.2rem; color: var(--text-color);">No decks for "${escapeHtml(lastRealtimeSearchCommander)}" meet current criteria</h4>
+                        <p style="font-size: 0.88rem; max-width: 520px; margin: 0 auto 1.25rem auto;">
+                            We found decks on Archidekt, but none match your current bracket/threshold filter. Try adjusting your criteria or re-running the search.
+                        </p>
+                        <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+                            <button type="button" class="main-btn" onclick="executeRealtimeCommanderSearch(true)">🔄 Redo Search</button>
+                            <button type="button" class="secondary-btn" onclick="const b = document.getElementById('realtimeBracketFilter'); if (b) b.value='all'; setBuildThreshold(0);">Reset Filters (All Brackets / 0%+)</button>
+                            <button type="button" class="secondary-btn" onclick="clearRealtimeSearchResults()">✕ Return to Catalog</button>
+                        </div>
+                    `;
+                    grid.appendChild(notice);
+                    return;
+                }
+
                 const poolForClosest = computedDecks.filter(d => {
                     if (hidePrecons && d.type === 'precon') return false;
                     if (!showOwnedPrecons && d.type === 'precon' && d.pctOwned >= 100) return false;
@@ -7205,3 +7512,9 @@
         window.closeCommandersModal = typeof closeCommandersModal === 'function' ? closeCommandersModal : () => {};
         window.copyCommandersList = typeof copyCommandersList === 'function' ? copyCommandersList : () => {};
         window.exportCommandersCSV = typeof exportCommandersCSV === 'function' ? exportCommandersCSV : () => {};
+        window.getOwnedCommandersList = typeof getOwnedCommandersList === 'function' ? getOwnedCommandersList : () => [];
+        window.populateOwnedCommandersUI = typeof populateOwnedCommandersUI === 'function' ? populateOwnedCommandersUI : () => {};
+        window.selectAndSearchCommander = typeof selectAndSearchCommander === 'function' ? selectAndSearchCommander : () => {};
+        window.executeRealtimeCommanderSearch = typeof executeRealtimeCommanderSearch === 'function' ? executeRealtimeCommanderSearch : () => {};
+        window.quickScanTopOwnedCommanders = typeof quickScanTopOwnedCommanders === 'function' ? quickScanTopOwnedCommanders : () => {};
+        window.clearRealtimeSearchResults = typeof clearRealtimeSearchResults === 'function' ? clearRealtimeSearchResults : () => {};

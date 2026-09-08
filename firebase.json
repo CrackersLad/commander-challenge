@@ -52,6 +52,10 @@
         "function": "getCollectionInsights"
       },
       {
+        "source": "/searchCommanderDecks",
+        "function": "searchCommanderDecks"
+      },
+      {
         "source": "/shortenUrl",
         "function": "shortenUrl"
       },

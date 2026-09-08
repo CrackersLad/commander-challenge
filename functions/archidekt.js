@@ -974,6 +974,111 @@ exports.getDeckName = onRequest({ cors: true, timeoutSeconds: 60, memory: "256Mi
     }
 });
 
+/**
+ * Endpoint: Real-time search of Archidekt community decks matching a specific commander or keyword.
+ * Fetches the top-rated decks and returns their full cardlists for collection matching.
+ */
+exports.searchCommanderDecks = onRequest({ cors: true, timeoutSeconds: 60, memory: "256MiB" }, async (req, res) => {
+    if (req.method === "OPTIONS") {
+        return res.status(204).send("");
+    }
+    const { commander, count = 8, orderBy = "-viewCount" } = req.body || req.query || {};
+    if (!commander) {
+        return res.status(400).json({ error: "Missing commander name" });
+    }
+
+    try {
+        // Strip epithet if comma separated (e.g. "Wilhelt, the Rotcleaver" -> "Wilhelt") for broader Archidekt search
+        const cleanName = commander.includes(',') ? commander.split(',')[0].trim() : commander.trim();
+        const searchUrl = `https://archidekt.com/api/decks/v3/?name=${encodeURIComponent(cleanName)}&orderBy=${encodeURIComponent(orderBy)}&pageSize=15&formats=3`;
+        
+        const searchRes = await fetchWithRetry(searchUrl, {
+            headers: { ...DEFAULT_HEADERS, "Referer": "https://archidekt.com/" },
+            timeoutMs: 9000
+        }, 2);
+
+        if (!searchRes || !searchRes.ok) {
+            const status = searchRes ? searchRes.status : "unknown";
+            return res.status(502).json({ error: `Archidekt search returned HTTP ${status}` });
+        }
+
+        const searchData = await searchRes.json();
+        const results = searchData.results || [];
+
+        // Exclude precon accounts so we get genuine player/community builds
+        const candidateDecks = results.filter(d => {
+            const owner = (d.owner?.username || '').toLowerCase();
+            const name = (d.name || '').toLowerCase();
+            if (owner.includes('precon') || owner === 'archidekt_precons') return false;
+            if (name.includes('commander deck') && (name.includes('commander 20') || name.includes('precon'))) return false;
+            return true;
+        }).slice(0, Math.min(Number(count) || 8, 10));
+
+        if (candidateDecks.length === 0) {
+            return res.status(200).json({ decks: [], message: `No community decks found for "${cleanName}"` });
+        }
+
+        // Fetch candidate deck details with concurrency
+        const fetchTasks = candidateDecks.map(meta => async () => {
+            try {
+                const dUrl = `https://archidekt.com/api/decks/${meta.id}/`;
+                const dRes = await fetchWithRetry(dUrl, {
+                    headers: { ...DEFAULT_HEADERS, "Referer": "https://archidekt.com/" },
+                    timeoutMs: 9000
+                }, 2);
+                if (!dRes || !dRes.ok) return null;
+                const d = await dRes.json();
+
+                const commanderCards = (d.cards || []).filter(c => Array.isArray(c.categories) && c.categories.includes('Commander'));
+                const actualCommanderName = commanderCards[0]?.card?.oracleCard?.name || commanderCards[0]?.card?.name || commander;
+                const commanderColors = commanderCards[0]?.card?.oracleCard?.colors || commanderCards[0]?.card?.colors || [];
+
+                const mainCards = (d.cards || []).filter(c => {
+                    const cats = c.categories || [];
+                    return !cats.includes('Maybeboard') && !cats.includes('Sideboard');
+                });
+
+                const cards = mainCards.map(c => {
+                    const name = c.card?.oracleCard?.name || c.card?.name || '';
+                    const qty = Number(c.quantity || 1);
+                    const type = c.card?.oracleCard?.typeLine || c.card?.typeLine || 'Card';
+                    const price = Number(c.card?.prices?.tcg?.normal || c.card?.prices?.ck?.normal || 0.75);
+                    return { name, quantity: qty, type, price };
+                }).filter(c => c.name.length > 0);
+
+                const featuredImg = d.featured || `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(actualCommanderName)}&format=image&version=art_crop`;
+
+                return {
+                    id: `archidekt-${d.id}`,
+                    name: d.name,
+                    commander: actualCommanderName,
+                    type: 'community',
+                    platform: 'archidekt',
+                    creator: d.owner?.username || 'Community Deckbuilder',
+                    views: d.viewCount || meta.viewCount || 0,
+                    colors: commanderColors,
+                    imageUrl: featuredImg,
+                    sourceUrl: `https://archidekt.com/decks/${d.id}`,
+                    theme: `Archidekt Deck by ${d.owner?.username || 'Community'} (${(d.viewCount || 0).toLocaleString()} views)`,
+                    strategy: d.description ? d.description.slice(0, 180) + '...' : `Top-rated ${actualCommanderName} Commander deck on Archidekt with ${(d.viewCount || 0).toLocaleString()} views.`,
+                    cardCount: cards.reduce((acc, c) => acc + c.quantity, 0),
+                    decklist: cards.map(c => `${c.quantity} ${c.name}`).join('\n'),
+                    cards
+                };
+            } catch (err) {
+                console.warn(`[WARN] Error fetching deck ${meta.id}:`, err.message);
+                return null;
+            }
+        });
+
+        const fetchedDecks = (await runWithConcurrency(fetchTasks, 3, 200)).filter(Boolean);
+        return res.status(200).json({ decks: fetchedDecks });
+    } catch (error) {
+        console.error("[ERROR] searchCommanderDecks error:", error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
 // Gemini AI-Powered Deck Optimization Assistant
 exports.suggestImprovements = onRequest({ cors: true, timeoutSeconds: 120, memory: "512MiB" }, async (req, res) => {
     if (req.method === "OPTIONS") {

@@ -1392,4 +1392,5 @@ exports.getCollectionInsights = archidekt.getCollectionInsights;
 exports.compareDecks = archidekt.compareDecks;
 exports.getDeckName = archidekt.getDeckName;
 exports.suggestImprovements = archidekt.suggestImprovements;
+exports.searchCommanderDecks = archidekt.searchCommanderDecks;
 
