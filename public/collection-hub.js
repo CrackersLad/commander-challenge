@@ -734,6 +734,7 @@
                         const s = (c.set || c.setCode || '').toLowerCase();
                         const num = (c.collectorNumber || c.collector_number || c.number || '').toString().trim();
                         const q = Number(c.quantity || c.owned || c.count) || 1;
+                        const inD = Number(c.inDecks || c.in_decks || 0);
                         return {
                             ...c,
                             set: s,
@@ -741,7 +742,9 @@
                             collectorNumber: num,
                             collector_number: num,
                             quantity: q,
-                            owned: q
+                            owned: q,
+                            inDecks: inD,
+                            in_decks: inD
                         };
                     });
                 } catch (e) {
@@ -772,6 +775,7 @@
                             const s = (c.set || c.setCode || '').toLowerCase();
                             const num = (c.collectorNumber || c.collector_number || c.number || '').toString().trim();
                             const q = Number(c.quantity || c.owned || c.count) || 1;
+                            const inD = Number(c.inDecks || c.in_decks || 0);
                             return {
                                 ...c,
                                 set: s,
@@ -779,7 +783,9 @@
                                 collectorNumber: num,
                                 collector_number: num,
                                 quantity: q,
-                                owned: q
+                                owned: q,
+                                inDecks: inD,
+                                in_decks: inD
                             };
                         });
                     }
@@ -1938,6 +1944,146 @@
             return cards;
         }
 
+        // Official Commander Power Bracket Card Sets (Game Changers, Mass Land Denial, Extra Turns)
+        const BRACKET_GAME_CHANGERS = new Set([
+            "ad nauseam", "ancient tomb", "apocalypse chimera", "armageddon", "bolas's citadel",
+            "brain freeze", "cataclysm", "channel", "chrome mox", "consecrated sphinx",
+            "craterhoof behemoth", "cyclonic rift", "deflecting swat", "demonic consultation",
+            "demonic tutor", "dockside extortionist", "doomsday", "drannith magistrate",
+            "eladamri's call", "enlightened tutor", "esper sentinel", "expropriate",
+            "fierce guardianship", "finale of devastation", "flusterstorm", "food chain",
+            "force of despair", "force of negation", "force of vigor", "force of will", "gaea's cradle",
+            "gamble", "gilded drake", "god-pharaoh's statue", "grand abolisher", "grim monolith",
+            "hullbreacher", "imperial seal", "intuition", "isochron scepter", "jeska's will",
+            "jeweled lotus", "jokulhaups", "karn, the great creator", "kinnan, bonder prodigy",
+            "koll, the forgemaster", "koma, cosmos serpent", "korvold, fae-cursed king",
+            "krark, the thumbless", "kroxa, titan of death's hunger", "leovold, emissary of trest",
+            "lion's eye diamond", "lotus petal", "mana crypt", "mana drain", "mana vault",
+            "mental misstep", "mindbreak trap", "mishra's workshop", "mox diamond", "mox opal",
+            "mystical tutor", "narset, parter of veils", "nature's will", "necropotence",
+            "notion thief", "najeela, the blade-blossom", "opposition agent", "orcish bowmasters",
+            "pact of negation", "peer into the abyss", "phyrexian altar", "prossh, skyraider of kher",
+            "protean hulk", "razaketh, the foulblooded", "rhystic study", "serra ascendant",
+            "silence", "smothering tithe", "staff of domination", "stasis", "survival of the fittest",
+            "swan song", "sword of feast and famine", "sylvan library", "tainted pact",
+            "teferi, hero of dominaria", "teferi, time raveler", "teferi's protection",
+            "thassa's oracle", "the great henge", "the one ring", "time sieve",
+            "time stretch", "time warp", "timetwister", "tivit, seller of secrets",
+            "tooth and nail", "torment of hailfire", "toxic deluge", "triumph of the hordes",
+            "trouble in pairs", "underworld breach", "urza, lord high artificer",
+            "vampiric tutor", "vorinclex, voice of hunger", "wheel of fortune",
+            "windfall", "winter orb", "worldly tutor", "yuriko, the tiger's shadow"
+        ]);
+
+        const BRACKET_MASS_LAND_DENIAL = new Set([
+            "armageddon", "cataclysm", "jokulhaups", "obliterate", "ravages of war",
+            "ruination", "decree of annihilation", "fall of the thran", "impending disaster",
+            "sunder", "wildfire", "devastating dreams", "worldfire"
+        ]);
+
+        const BRACKET_EXTRA_TURNS = new Set([
+            "time warp", "time stretch", "expropriate", "temporal manipulation",
+            "capture of jingzhou", "nexus of fate", "beacon of tomorrows",
+            "karn's temporal sundering", "alrund's epiphany", "walk the aeons",
+            "temporal trespass", "part the waterveil", "plea for power"
+        ]);
+
+        function getDeckPowerBracket(deck) {
+            if (deck.bracket && !isNaN(parseInt(deck.bracket, 10))) {
+                return parseInt(deck.bracket, 10);
+            }
+            if (deck.edhBracket && !isNaN(parseInt(deck.edhBracket, 10))) {
+                return parseInt(deck.edhBracket, 10);
+            }
+            if (deck.type === 'precon') {
+                return 2;
+            }
+
+            const title = ((deck.name || '') + ' ' + (deck.theme || '') + ' ' + (deck.strategy || '')).toLowerCase();
+            if (/\bcedh\b/i.test(title)) return 5;
+            const bMatch = title.match(/bracket\s*([1-5])/i) || title.match(/\bb([1-5])\b/i);
+            if (bMatch) return parseInt(bMatch[1], 10);
+
+            const cardList = deck.cards || deck.keyCards || (deck.decklist ? parseDecklistCards(deck.decklist, deck.commander) : []);
+            let gcCount = 0;
+            let mldCount = 0;
+            let turnCount = 0;
+
+            for (let c of cardList) {
+                const rawName = typeof c === 'string' ? c : (c.name || c.n || '');
+                const norm = rawName.toLowerCase().trim();
+                const qty = typeof c === 'object' && c.quantity ? c.quantity : 1;
+                if (BRACKET_GAME_CHANGERS.has(norm)) gcCount += qty;
+                if (BRACKET_MASS_LAND_DENIAL.has(norm)) mldCount += qty;
+                if (BRACKET_EXTRA_TURNS.has(norm)) turnCount += qty;
+            }
+
+            if (gcCount >= 8) return 5;
+            if (gcCount >= 4 || mldCount >= 1 || turnCount >= 2) return 4;
+            if (gcCount >= 1) return 3;
+            return 2;
+        }
+
+        function getBracketInfo(bracketNum) {
+            const b = parseInt(bracketNum, 10) || 2;
+            switch (b) {
+                case 1:
+                    return {
+                        num: 1,
+                        label: 'Exhibition',
+                        color: '#94a3b8',
+                        bg: 'rgba(148, 163, 184, 0.15)',
+                        border: 'rgba(148, 163, 184, 0.35)',
+                        desc: 'Bracket 1: Exhibition / Casual Jank'
+                    };
+                case 2:
+                    return {
+                        num: 2,
+                        label: 'Core Casual',
+                        color: '#38bdf8',
+                        bg: 'rgba(56, 189, 248, 0.15)',
+                        border: 'rgba(56, 189, 248, 0.35)',
+                        desc: 'Bracket 2: Core Casual'
+                    };
+                case 3:
+                    return {
+                        num: 3,
+                        label: 'Upgraded',
+                        color: '#c084fc',
+                        bg: 'rgba(168, 85, 247, 0.2)',
+                        border: 'rgba(168, 85, 247, 0.45)',
+                        desc: 'Bracket 3: Upgraded Casual (1-3 Game Changers)'
+                    };
+                case 4:
+                    return {
+                        num: 4,
+                        label: 'Optimized',
+                        color: '#fbbf24',
+                        bg: 'rgba(245, 158, 11, 0.2)',
+                        border: 'rgba(245, 158, 11, 0.45)',
+                        desc: 'Bracket 4: Optimized / High Power (4+ Game Changers / Combos)'
+                    };
+                case 5:
+                    return {
+                        num: 5,
+                        label: 'cEDH',
+                        color: '#f87171',
+                        bg: 'rgba(244, 63, 94, 0.2)',
+                        border: 'rgba(244, 63, 94, 0.45)',
+                        desc: 'Bracket 5: cEDH / Max Competitive Power'
+                    };
+                default:
+                    return {
+                        num: b,
+                        label: `Bracket ${b}`,
+                        color: '#c084fc',
+                        bg: 'rgba(168, 85, 247, 0.2)',
+                        border: 'rgba(168, 85, 247, 0.45)',
+                        desc: `Bracket ${b}`
+                    };
+            }
+        }
+
         // Popular EDHREC archetypes with full 100-card Commander decklists
         const EDHREC_META_DECKS = [
             {
@@ -1997,7 +2143,7 @@
         let buildDecksLoadedPromise = null;
 
         async function loadBuildDecksCatalog() {
-            if (BUILD_DECKS_CATALOG.length > EDHREC_META_DECKS.length) {
+            if (BUILD_DECKS_CATALOG.length > EDHREC_META_DECKS.length + 10) {
                 return BUILD_DECKS_CATALOG;
             }
             if (buildDecksLoadedPromise) {
@@ -2005,12 +2151,15 @@
             }
 
             buildDecksLoadedPromise = (async () => {
+                let precons = [];
+                let popularDecks = [];
+
                 try {
-                    const res = await fetch('./commander-precons.json?v=6.9');
+                    const res = await fetch('./commander-precons.json?v=6.10');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
-                            const precons = preconsData.map(p => {
+                            precons = preconsData.map(p => {
                                 const id = `precon-${(p.code || 'cmd').toLowerCase()}-${(p.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
                                 const cards = parseDecklistCards(p.decklist, p.commander);
                                 const bannerUrl = p.scryfallId
@@ -2035,14 +2184,30 @@
                                     cards
                                 };
                             });
-
-                            BUILD_DECKS_CATALOG = [...precons, ...EDHREC_META_DECKS];
-                            window.PRECON_DECKS_DATABASE = BUILD_DECKS_CATALOG;
                         }
                     }
                 } catch (e) {
                     console.warn('Failed to load commander-precons.json:', e);
                 }
+
+                try {
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=6.10');
+                    if (popRes.ok) {
+                        const popData = await popRes.json();
+                        if (Array.isArray(popData) && popData.length > 0) {
+                            popularDecks = popData.map(d => ({
+                                ...d,
+                                type: 'community',
+                                cards: (d.cards && d.cards.length > 0) ? d.cards : parseDecklistCards(d.decklist, d.commander)
+                            }));
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to load archidekt-popular-decks.json:', e);
+                }
+
+                BUILD_DECKS_CATALOG = [...precons, ...EDHREC_META_DECKS, ...popularDecks];
+                window.PRECON_DECKS_DATABASE = BUILD_DECKS_CATALOG;
                 return BUILD_DECKS_CATALOG;
             })();
 
@@ -2098,18 +2263,20 @@
 
             if (filter === 'precon' && hidePreconsCheckbox) {
                 hidePreconsCheckbox.checked = false;
-            } else if (filter === 'edhrec' && hidePreconsCheckbox) {
+            } else if ((filter === 'edhrec' || filter === 'community') && hidePreconsCheckbox) {
                 hidePreconsCheckbox.checked = true;
             }
 
             const btnAll = document.getElementById('buildFilterAll');
             const btnPrecons = document.getElementById('buildFilterPrecons');
             const btnEdhrec = document.getElementById('buildFilterEdhrec');
+            const btnCommunity = document.getElementById('buildFilterCommunity');
             const btnOwnedCmdrs = document.getElementById('buildFilterOwnedCmdrs');
 
             if (btnAll) btnAll.className = filter === 'all' ? 'secondary-btn active' : 'secondary-btn';
             if (btnPrecons) btnPrecons.className = filter === 'precon' ? 'secondary-btn active' : 'secondary-btn';
             if (btnEdhrec) btnEdhrec.className = filter === 'edhrec' ? 'secondary-btn active' : 'secondary-btn';
+            if (btnCommunity) btnCommunity.className = filter === 'community' ? 'secondary-btn active' : 'secondary-btn';
             if (btnOwnedCmdrs) btnOwnedCmdrs.className = filter === 'owned_cmdrs' ? 'secondary-btn active' : 'secondary-btn';
 
             renderBuildSection();
@@ -2140,7 +2307,16 @@
             const bodyEl = document.getElementById('buildDecklistModalBody');
 
             if (titleEl) titleEl.textContent = deck.name;
-            if (subEl) subEl.innerHTML = `Commander: <strong>${deck.commander}</strong> • ${deck.type === 'precon' ? `Precon (${deck.set})` : 'EDHREC Meta Archetype'}`;
+            if (subEl) {
+                const bInfo = deck.type !== 'precon' ? getBracketInfo(deck.bracket || getDeckPowerBracket(deck)) : null;
+                subEl.innerHTML = `
+                    Commander: <strong>${deck.commander}</strong> • 
+                    ${deck.type === 'precon' 
+                        ? `Precon (${deck.set})` 
+                        : `EDHREC Meta Archetype ${bInfo ? `• <span class="badge" style="background: ${bInfo.bg}; color: ${bInfo.color}; border: 1px solid ${bInfo.border}; font-size: 0.74rem; font-weight: 800; padding: 2px 7px;" title="${bInfo.desc}">⚖️ Bracket ${bInfo.num} (${bInfo.label})</span>` : ''}`
+                    }
+                `;
+            }
             if (sourceLink) {
                 if (deck.sourceUrl) {
                     sourceLink.href = deck.sourceUrl;
@@ -2261,14 +2437,26 @@
                 `;
             }
 
-            if (bodyEl) bodyEl.innerHTML = html;
+            if (bodyEl) {
+                bodyEl.innerHTML = html;
+                bodyEl.scrollTop = 0;
+            }
             modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
         }
 
         function closeBuildDecklistModal() {
             const modal = document.getElementById('buildDecklistModal');
             if (modal) modal.style.display = 'none';
+            document.body.style.overflow = '';
         }
+
+        let showOwnedPrecons = false;
+        function toggleShowOwnedPrecons() {
+            showOwnedPrecons = !showOwnedPrecons;
+            renderBuildSection();
+        }
+        window.toggleShowOwnedPrecons = toggleShowOwnedPrecons;
 
         function copyBuildDecklistText() {
             if (!cachedModalDecklistRaw) return;
@@ -2425,20 +2613,77 @@
             const searchInput = document.getElementById('buildSearchInput');
             const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
             const sortMode = document.getElementById('buildSortSelect')?.value || 'pct_desc';
-            const unusedOnly = document.getElementById('buildUnusedOnlyCheckbox')?.checked ?? false;
+            const unusedOnly = (document.getElementById('buildUnusedOnlyCheckbox')?.checked) || 
+                               (document.getElementById('buildExcludeComparatorDecksCheckbox')?.checked) || false;
             const hidePrecons = document.getElementById('buildHidePreconsCheckbox')?.checked ?? false;
-            const excludeCompared = document.getElementById('buildExcludeComparatorDecksCheckbox')?.checked ?? false;
+            const excludeCompared = unusedOnly;
 
-            // Track card usage across all active compared decks in the Deck Comparator
+            // If user wants to exclude decks, ensure comparator decks are restored from AppStorage cache if memory variable is empty
+            if (unusedOnly && (!currentDecksData || currentDecksData.length === 0)) {
+                try {
+                    const cachedComp = await AppStorage.loadComparison();
+                    if (cachedComp?.data?.decks && Array.isArray(cachedComp.data.decks) && cachedComp.data.decks.length > 0) {
+                        currentDecksData = cachedComp.data.decks;
+                    }
+                } catch (e) {
+                    console.warn("Could not load cached comparison decks:", e);
+                }
+            }
+
+            let allCompDecks = [...(currentDecksData || []), ...(customPastedDecks || [])];
+
+            // If user has deck IDs in activeDeckIds but currentDecksData has not been compared yet, fetch decks on demand
+            if (unusedOnly && allCompDecks.length === 0 && typeof activeDeckIds !== 'undefined' && activeDeckIds.size > 0) {
+                try {
+                    const deckIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:')).join(',');
+                    if (deckIds || (customPastedDecks && customPastedDecks.length > 0)) {
+                        const resp = await fetch('/compareDecks', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                deckIds,
+                                customDecks: customPastedDecks,
+                                collectionData: (ownedCardsList && ownedCardsList.length > 0) ? ownedCardsList.slice(0, 5) : [],
+                                includeSideboards: true,
+                                includeBasicLands: false
+                            })
+                        });
+                        if (resp.ok) {
+                            const compData = await resp.json();
+                            if (compData.decks && compData.decks.length > 0) {
+                                currentDecksData = compData.decks;
+                                allCompDecks = [...currentDecksData, ...(customPastedDecks || [])];
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Could not auto-fetch deck cards for exclusion:", e);
+                }
+            }
+
+            // Track card usage across all active compared / Archidekt decks
             const comparatorCardUsage = new Map();
-            const allCompDecks = [...(currentDecksData || []), ...(customPastedDecks || [])];
-            if (excludeCompared && allCompDecks.length > 0) {
+            if (unusedOnly && allCompDecks.length > 0) {
                 allCompDecks.forEach(deck => {
                     (deck.cards || []).forEach(card => {
-                        const rawName = card.name || card.card?.name || '';
+                        const rawName = card.name || card.card?.name || card.card?.oracleCard?.name || '';
+                        if (!rawName) return;
                         const n = normalizeCardName(rawName);
+                        const qty = Number(card.quantity || card.count || card.qty || 1);
                         if (n) {
-                            comparatorCardUsage.set(n, (comparatorCardUsage.get(n) || 0) + Number(card.quantity || 1));
+                            comparatorCardUsage.set(n, (comparatorCardUsage.get(n) || 0) + qty);
+                        }
+                        const low = rawName.toLowerCase().trim();
+                        if (low && low !== n) {
+                            comparatorCardUsage.set(low, (comparatorCardUsage.get(low) || 0) + qty);
+                        }
+                        if (rawName.includes('//')) {
+                            rawName.split('//').forEach(part => {
+                                const pNorm = normalizeCardName(part);
+                                if (pNorm) {
+                                    comparatorCardUsage.set(pNorm, (comparatorCardUsage.get(pNorm) || 0) + qty);
+                                }
+                            });
                         }
                     });
                 });
@@ -2448,6 +2693,7 @@
             const ownedCardNames = new Set();
             let totalEvaluatedCards = 0;
             let totalAvailableCopies = 0;
+            let totalCardsExcludedByDecks = 0;
 
             ownedCardsList.forEach(it => {
                 const rawName = it.name || it.card?.name || it.card?.oracleCard?.name || '';
@@ -2459,12 +2705,17 @@
 
                 let owned = Number(it.owned ?? it.quantity ?? it.count ?? 1);
                 if (unusedOnly) {
-                    const inDecks = Number(it.inDecks ?? it.in_decks ?? 0);
-                    owned = Math.max(0, owned - inDecks);
-                }
-                if (excludeCompared && comparatorCardUsage.size > 0) {
-                    const usedInComp = comparatorCardUsage.get(norm) || 0;
-                    owned = Math.max(0, owned - usedInComp);
+                    const rawLow = rawName.toLowerCase().trim();
+                    const usedInComp = Math.max(
+                        comparatorCardUsage.get(norm) || 0,
+                        comparatorCardUsage.get(rawLow) || 0
+                    );
+                    const inDecksMeta = Number(it.inDecks ?? it.in_decks ?? 0);
+                    const totalDeducted = Math.max(usedInComp, inDecksMeta);
+                    if (totalDeducted > 0) {
+                        totalCardsExcludedByDecks += Math.min(owned, totalDeducted);
+                        owned = Math.max(0, owned - totalDeducted);
+                    }
                 }
 
                 if (owned <= 0) return;
@@ -2496,20 +2747,6 @@
             banner.style.fontSize = '0.88rem';
             banner.style.flexWrap = 'wrap';
             banner.style.gap = '0.5rem';
-
-            const filterNotes = [];
-            if (hidePrecons) filterNotes.push('Precons hidden');
-            if (excludeCompared) filterNotes.push(`${allCompDecks.length} compared decks excluded`);
-            if (unusedOnly) filterNotes.push('Archidekt in-deck cards excluded');
-            filterNotes.push('Basic lands excluded');
-
-            banner.innerHTML = `
-                <span>⚡ Evaluated against <strong>${ownedCardNames.size.toLocaleString()} unique cards</strong> in your collection <span style="color: var(--text-muted); font-size: 0.8rem;">(${filterNotes.join(' • ')})</span></span>
-                <span style="color: var(--text-muted); font-size: 0.82rem;">Showing decks matching threshold: <strong>${currentBuildThreshold > 0 ? `${currentBuildThreshold}%+` : 'All (0-100%)'}</strong> (${BUILD_DECKS_CATALOG.length} decks in catalog)</span>
-            `;
-            grid.appendChild(banner);
-
-            const currSymbol = getMarketCurrency();
 
             // Compute statistics for each deck
             const computedDecks = BUILD_DECKS_CATALOG.map(deck => {
@@ -2551,6 +2788,7 @@
                 // Currency conversion for display
                 const costMultiplier = currentMarket === 'cardmarket' ? 0.92 : 1.0;
                 const estMissingCostLocal = estMissingCostUsd * costMultiplier;
+                const deckBracket = getDeckPowerBracket(deck);
 
                 return {
                     ...deck,
@@ -2560,15 +2798,81 @@
                     missingCards,
                     pctOwned: pct,
                     ownsCommander,
+                    bracket: deckBracket,
                     estMissingCostUsd,
                     estMissingCostLocal
                 };
             });
 
+            // Identify complete precons (100% owned)
+            const ownedCompletePrecons = computedDecks.filter(d => d.type === 'precon' && d.pctOwned >= 100);
+            const ownedPreconCount = ownedCompletePrecons.length;
+
+            const filterNotes = [];
+            if (hidePrecons) filterNotes.push('Precons hidden');
+            if (unusedOnly) {
+                if (comparatorCardUsage.size > 0 || totalCardsExcludedByDecks > 0) {
+                    const deckCountStr = allCompDecks.length > 0 ? `in ${allCompDecks.length} Archidekt deck${allCompDecks.length > 1 ? 's' : ''}` : 'in Archidekt decks';
+                    filterNotes.push(`⚡ Excluded ${totalCardsExcludedByDecks} card${totalCardsExcludedByDecks !== 1 ? 's' : ''} ${deckCountStr}`);
+                } else {
+                    filterNotes.push('⚡ Exclude Archidekt decks (no active decks loaded in comparator)');
+                }
+            }
+            filterNotes.push('Basic lands excluded');
+            if (ownedPreconCount > 0 && !showOwnedPrecons && !hidePrecons) {
+                filterNotes.push(`📦 ${ownedPreconCount} complete precon${ownedPreconCount > 1 ? 's' : ''} (100% owned) hidden`);
+            }
+
+            banner.innerHTML = `
+                <span>⚡ Evaluated against <strong>${ownedCardNames.size.toLocaleString()} unique cards</strong> in your collection <span style="color: var(--text-muted); font-size: 0.8rem;">(${filterNotes.join(' • ')})</span></span>
+                <span style="color: var(--text-muted); font-size: 0.82rem;">Showing decks matching threshold: <strong>${currentBuildThreshold > 0 ? `${currentBuildThreshold}%+` : 'All (0-100%)'}</strong> (${BUILD_DECKS_CATALOG.length} decks in catalog)</span>
+            `;
+            grid.appendChild(banner);
+
+            // Informative alert showing 100% owned precons are hidden because they already own the precon
+            if (ownedPreconCount > 0 && !hidePrecons) {
+                const preconNotice = document.createElement('div');
+                preconNotice.style.gridColumn = '1 / -1';
+                preconNotice.style.display = 'flex';
+                preconNotice.style.justifyContent = 'space-between';
+                preconNotice.style.alignItems = 'center';
+                preconNotice.style.padding = '0.75rem 1rem';
+                preconNotice.style.borderRadius = '10px';
+                preconNotice.style.background = showOwnedPrecons ? 'rgba(16, 185, 129, 0.08)' : 'rgba(56, 189, 248, 0.08)';
+                preconNotice.style.border = showOwnedPrecons ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(56, 189, 248, 0.25)';
+                preconNotice.style.marginBottom = '0.75rem';
+                preconNotice.style.flexWrap = 'wrap';
+                preconNotice.style.gap = '0.5rem';
+
+                const samplePreconNames = ownedCompletePrecons.slice(0, 3).map(p => `<strong>${p.name}</strong>`).join(', ');
+                const moreCount = ownedPreconCount > 3 ? ` and ${ownedPreconCount - 3} more` : '';
+
+                preconNotice.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; color: var(--text-color);">
+                        <span style="font-size: 1.2rem;">📦</span>
+                        <span>
+                            ${showOwnedPrecons 
+                                ? `Showing <strong>${ownedPreconCount}</strong> complete precon${ownedPreconCount > 1 ? 's' : ''} you already own 100% of.` 
+                                : `<strong>${ownedPreconCount} complete precon${ownedPreconCount > 1 ? 's' : ''}</strong> (${samplePreconNames}${moreCount}) hidden because you already own them.`
+                            }
+                        </span>
+                    </div>
+                    <button type="button" class="secondary-btn" style="padding: 0.35rem 0.75rem; font-size: 0.78rem;" onclick="toggleShowOwnedPrecons()">
+                        ${showOwnedPrecons ? 'Hide 100% Owned Precons' : `Show ${ownedPreconCount} Owned Precons`}
+                    </button>
+                `;
+                grid.appendChild(preconNotice);
+            }
+
             // Filter by Match Threshold
             let filtered = computedDecks;
             if (currentBuildThreshold > 0) {
                 filtered = filtered.filter(d => d.pctOwned >= currentBuildThreshold);
+            }
+
+            // Always hide 100% owned precons unless user explicitly toggled showOwnedPrecons
+            if (!showOwnedPrecons) {
+                filtered = filtered.filter(d => !(d.type === 'precon' && d.pctOwned >= 100));
             }
 
             // Filter by Precon visibility
@@ -2581,6 +2885,8 @@
                 filtered = filtered.filter(d => d.type === 'precon');
             } else if (currentBuildFilter === 'edhrec') {
                 filtered = filtered.filter(d => d.type === 'edhrec');
+            } else if (currentBuildFilter === 'community') {
+                filtered = filtered.filter(d => d.type === 'community');
             } else if (currentBuildFilter === 'owned_cmdrs') {
                 filtered = filtered.filter(d => d.ownsCommander);
             }
@@ -2590,8 +2896,10 @@
                 filtered = filtered.filter(d =>
                     d.name.toLowerCase().includes(query) ||
                     d.commander.toLowerCase().includes(query) ||
+                    (d.creator && d.creator.toLowerCase().includes(query)) ||
                     (d.set && d.set.toLowerCase().includes(query)) ||
                     (d.theme && d.theme.toLowerCase().includes(query)) ||
+                    (d.bracket && `bracket ${d.bracket} b${d.bracket}`.includes(query)) ||
                     d.colors.join('').toLowerCase().includes(query)
                 );
             }
@@ -2620,6 +2928,21 @@
                         const fallbackImg = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(d.commander)}&format=image&version=art_crop`;
                         const missingList = Array.isArray(d.missingCards) ? d.missingCards : [];
                         const costDisplay = (d.estMissingCostLocal || 0).toFixed(2);
+                        const bInfo = d.type !== 'precon' ? getBracketInfo(d.bracket || getDeckPowerBracket(d)) : null;
+
+                        let typeBadgeHtml = '';
+                        if (d.type === 'precon') {
+                            typeBadgeHtml = `Precon (${d.set})`;
+                        } else if (d.type === 'community') {
+                            typeBadgeHtml = `⭐ Archidekt Top Rated`;
+                        } else {
+                            typeBadgeHtml = `EDHREC Meta`;
+                        }
+
+                        let sourceLabel = '↗ Source';
+                        if (d.type === 'community') sourceLabel = '↗ Archidekt';
+                        else if (d.type === 'precon') sourceLabel = '↗ Precon';
+                        else if (d.type === 'edhrec') sourceLabel = '↗ EDHREC';
 
                         card.innerHTML = `
                             <div class="build-deck-banner">
@@ -2628,10 +2951,15 @@
                                 <div class="build-deck-banner-overlay">
                                     <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
                                         <span class="badge" style="background: rgba(15, 23, 42, 0.85); color: #f8fafc; font-size: 0.72rem; border: 1px solid rgba(255, 255, 255, 0.2);">
-                                            ${d.type === 'precon' ? `Precon (${d.set})` : 'EDHREC Meta'}
+                                            ${typeBadgeHtml}
                                         </span>
+                                        ${bInfo ? `
+                                            <span class="badge" style="background: ${bInfo.bg}; color: ${bInfo.color}; border: 1px solid ${bInfo.border}; font-size: 0.72rem; font-weight: 800; padding: 1px 6px;" title="${bInfo.desc}">
+                                                ⚖️ Bracket ${bInfo.num} (${bInfo.label})
+                                            </span>
+                                        ` : ''}
                                         ${d.ownsCommander ? `<span class="badge" style="background: rgba(16, 185, 129, 0.9); color: #fff; font-size: 0.72rem; font-weight: 800;">👑 Own Commander</span>` : ''}
-                                        ${d.sourceUrl ? `<a href="${d.sourceUrl}" target="_blank" rel="noopener noreferrer" class="badge" style="background: rgba(15, 23, 42, 0.85); color: #38bdf8; text-decoration: none; border: 1px solid rgba(56, 189, 248, 0.35); font-size: 0.72rem;" title="View official decklist source / EDHREC">↗ Source</a>` : ''}
+                                        ${d.sourceUrl ? `<a href="${d.sourceUrl}" target="_blank" rel="noopener noreferrer" class="badge" style="background: rgba(15, 23, 42, 0.85); color: #38bdf8; text-decoration: none; border: 1px solid rgba(56, 189, 248, 0.35); font-size: 0.72rem;" title="View official decklist source">${sourceLabel}</a>` : ''}
                                     </div>
                                     <div style="display: flex; gap: 0.25rem;">
                                         ${colorPips}
@@ -2641,7 +2969,13 @@
                             <div style="padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; flex: 1;">
                                 <div>
                                     <h4 style="margin: 0; font-size: 1.08rem; font-weight: 800;">${d.name}</h4>
-                                    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">Commander: <strong>${d.commander}</strong>${d.theme ? ` • <span style="color: #94a3b8;">${d.theme}</span>` : ''}</div>
+                                    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+                                        <span>Commander: <strong>${d.commander}</strong></span>
+                                        ${d.creator ? `<span>• by <strong>${d.creator}</strong></span>` : ''}
+                                        ${d.views ? `<span>• 👁️ ${(d.views).toLocaleString()}</span>` : ''}
+                                        ${d.theme && !d.creator ? `<span>• <span style="color: #94a3b8;">${d.theme}</span></span>` : ''}
+                                        ${bInfo ? `<span class="badge" style="background: ${bInfo.bg}; color: ${bInfo.color}; border: 1px solid ${bInfo.border}; font-size: 0.68rem; padding: 1px 6px; font-weight: 800;" title="${bInfo.desc}">⚖️ Bracket ${bInfo.num}</span>` : ''}
+                                    </div>
                                 </div>
 
                                 <!-- Progress Bar -->
@@ -2718,7 +3052,12 @@
             }
 
             if (filtered.length === 0) {
-                const closestDecks = [...computedDecks].sort((a, b) => b.pctOwned - a.pctOwned).slice(0, 6);
+                const poolForClosest = computedDecks.filter(d => {
+                    if (hidePrecons && d.type === 'precon') return false;
+                    if (!showOwnedPrecons && d.type === 'precon' && d.pctOwned >= 100) return false;
+                    return true;
+                });
+                const closestDecks = [...poolForClosest].sort((a, b) => b.pctOwned - a.pctOwned).slice(0, 6);
                 const notice = document.createElement('div');
                 notice.style.gridColumn = '1 / -1';
                 notice.style.padding = '2rem 1.5rem';
@@ -4090,6 +4429,12 @@
             let typeIdx = headers.findIndex(h => h === 'type' || h === 'type line' || h === 'typeline' || h === 'type_line');
             if (typeIdx === -1) typeIdx = headers.findIndex(h => h.includes('type'));
 
+            let inDecksIdx = headers.findIndex(h => 
+                h === 'in decks' || h === 'in_decks' || h === 'indecks' || 
+                h === 'in deck' || h === 'in_deck' || h === 'indeck' || 
+                h === 'decks' || h === 'deck' || h === 'used in decks' || h.includes('in deck')
+            );
+
             const data = [];
             for (let i = 1; i < lines.length; i++) {
                 const values = parseCSVLine(lines[i]);
@@ -4121,6 +4466,18 @@
                     finishVal = 'Normal';
                 }
 
+                let inDecksVal = 0;
+                if (inDecksIdx !== -1) {
+                    const rawInDecks = values[inDecksIdx]?.replace(/^"|"$/g, '').trim() || '';
+                    const numParsed = parseInt(rawInDecks, 10);
+                    if (!isNaN(numParsed)) {
+                        inDecksVal = Math.max(0, numParsed);
+                    } else if (rawInDecks.length > 0) {
+                        const deckList = rawInDecks.split(/[,;|]/).filter(s => s.trim().length > 0);
+                        inDecksVal = deckList.length;
+                    }
+                }
+
                 let rawColorsVal = colorIdx !== -1 ? (values[colorIdx]?.replace(/^"|"$/g, '').trim() || '') : '';
                 let rawTypeVal = typeIdx !== -1 ? (values[typeIdx]?.replace(/^"|"$/g, '').trim() || '') : '';
 
@@ -4128,6 +4485,8 @@
                     name,
                     quantity: isNaN(qty) ? 1 : qty,
                     owned: isNaN(qty) ? 1 : qty,
+                    inDecks: inDecksVal,
+                    in_decks: inDecksVal,
                     set,
                     setCode: set.toUpperCase(),
                     collectorNumber,
@@ -4868,6 +5227,9 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 closeCommandersModal();
+                if (typeof closeBuildDecklistModal === 'function') {
+                    closeBuildDecklistModal();
+                }
             }
         });
 

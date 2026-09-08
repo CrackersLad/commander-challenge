@@ -64,8 +64,8 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=6.9">
-    <link rel="stylesheet" href="collection-hub.css?v=6.9">
+    <link rel="stylesheet" href="styles.css?v=6.10">
+    <link rel="stylesheet" href="collection-hub.css?v=6.10">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -1974,13 +1974,9 @@
                                 <input type="checkbox" id="buildHidePreconsCheckbox" onchange="renderBuildSection()" style="cursor: pointer;">
                                 <span>🚫 <strong>Hide Precons</strong></span>
                             </label>
-                            <label style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; cursor: pointer; user-select: none; color: var(--text-color);" title="Only consider cards that are not committed to decks currently in the Deck Comparator">
-                                <input type="checkbox" id="buildExcludeComparatorDecksCheckbox" onchange="renderBuildSection()" style="cursor: pointer;">
-                                <span>⚔️ <strong>Exclude Compared Decks</strong></span>
-                            </label>
-                            <label style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; cursor: pointer; user-select: none; color: var(--text-muted);" title="Exclude cards marked as inside decks in your Archidekt collection">
+                            <label style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; cursor: pointer; user-select: none; color: var(--text-color);" title="Exclude cards already committed to your Archidekt decks or Deck Comparator">
                                 <input type="checkbox" id="buildUnusedOnlyCheckbox" onchange="renderBuildSection()" style="cursor: pointer;">
-                                <span>⚡ Exclude Archidekt Decks</span>
+                                <span>⚡ <strong>Exclude Archidekt Decks</strong></span>
                             </label>
                         </div>
                     </div>
@@ -1991,6 +1987,7 @@
                             <button type="button" class="secondary-btn active" id="buildFilterAll" onclick="setBuildFilter('all')">All Types</button>
                             <button type="button" class="secondary-btn" id="buildFilterPrecons" onclick="setBuildFilter('precon')">Precons</button>
                             <button type="button" class="secondary-btn" id="buildFilterEdhrec" onclick="setBuildFilter('edhrec')">EDHREC Meta</button>
+                            <button type="button" class="secondary-btn" id="buildFilterCommunity" onclick="setBuildFilter('community')">⭐ Archidekt Top Rated</button>
                             <button type="button" class="secondary-btn" id="buildFilterOwnedCmdrs" onclick="setBuildFilter('owned_cmdrs')">👑 Commanders I Own</button>
                         </div>
 
@@ -2030,15 +2027,21 @@
         </div>
     </div>
 
+    
+
+        </div>
+        </div>
+    </main>
+
     <!-- Hidden Image Preview Container -->
     <div id="imagePreview"
-        style="display: none; position: fixed; z-index: 5000; pointer-events: none; border-radius: 4.75% / 3.5%; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,0.6); transition: opacity 0.15s ease;">
+        style="display: none; position: fixed; z-index: 100000; pointer-events: none; border-radius: 4.75% / 3.5%; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,0.6); transition: opacity 0.15s ease;">
         <img id="previewImg" src="" style="width: 250px; display: block; background-color: var(--card-bg);"
             alt="Card Preview">
     </div>
 
     <!-- ==================== BUILD DECKLIST MODAL ==================== -->
-    <div id="buildDecklistModal" class="modal-backdrop" style="display: none;"
+    <div id="buildDecklistModal" class="modal-backdrop collection-hub-modal" style="display: none;"
         onclick="if(event.target === this) closeBuildDecklistModal()">
         <div class="modal-content" style="max-width: 680px; max-height: 85vh; display: flex; flex-direction: column;">
             <div class="modal-header">
@@ -2067,7 +2070,7 @@
     </div>
 
     <!-- ==================== COMMANDERS MODAL ==================== -->
-    <div id="commandersModal" class="modal-backdrop" style="display: none;"
+    <div id="commandersModal" class="modal-backdrop collection-hub-modal" style="display: none;"
         onclick="if(event.target === this) closeCommandersModal()">
         <div class="modal-content">
             <div class="modal-header">
@@ -2120,7 +2123,7 @@
     </div>
 
     <!-- ==================== AI DECK OPTIMIZER MODAL ==================== -->
-    <div id="aiOptimizerModal" class="modal-backdrop" style="display: none;"
+    <div id="aiOptimizerModal" class="modal-backdrop collection-hub-modal" style="display: none;"
         onclick="if(event.target === this) closeAiOptimizer()">
         <div class="ai-modal-content" onclick="event.stopPropagation()">
             <div class="modal-header" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(99, 102, 241, 0.08));">
@@ -2146,7 +2149,7 @@
     </div>
 
     <!-- ==================== BUY MISSING (TCGPLAYER / CARDMARKET) MODAL ==================== -->
-    <div id="buyMissingModal" class="modal-backdrop" style="display: none;" onclick="if(event.target === this) closeBuyMissingModal()">
+    <div id="buyMissingModal" class="modal-backdrop collection-hub-modal" style="display: none;" onclick="if(event.target === this) closeBuyMissingModal()">
         <div class="modal-content" style="max-width: 620px;" onclick="event.stopPropagation()">
             <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 0.65rem;">
@@ -2190,7 +2193,7 @@
     </div>
 
     <!-- ==================== SHARE TRADE OFFER MODAL ==================== -->
-    <div id="shareTradeModal" class="modal-backdrop" style="display: none;" onclick="if(event.target === this) closeShareTradeModal()">
+    <div id="shareTradeModal" class="modal-backdrop collection-hub-modal" style="display: none;" onclick="if(event.target === this) closeShareTradeModal()">
         <div class="modal-content" style="max-width: 580px;" onclick="event.stopPropagation()">
             <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 0.65rem;">
@@ -2239,20 +2242,16 @@
         </div>
     </div>
 
-        </div>
-        </div>
-    </main>
-
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
-        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v6.9</span>
+        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v6.10</span>
     </footer>
 
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script src="./collection-hub.js?v=6.9"></script>
-    <script type="module" src="./script.js?v=6.9"></script>
+    <script src="./collection-hub.js?v=6.10"></script>
+    <script type="module" src="./script.js?v=6.10"></script>
 </body>
 </html>
