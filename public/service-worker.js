@@ -91,7 +91,27 @@ self.addEventListener('install', event => {
 self.addEventListener('fetch', event => {
     if (event.request.method !== 'GET') return;
 
-    // Network-First for everything: always serve fresh assets when online
+    const url = new URL(event.request.url);
+
+    // Skip non-HTTP/HTTPS and cross-origin external APIs (e.g. Scryfall, Archidekt, Firebase RTDB)
+    if (!url.protocol.startsWith('http')) return;
+    if (url.origin !== self.location.origin) {
+        // Let cross-origin requests bypass SW fetch handler so browser handles CORS and 404s natively
+        return;
+    }
+
+    // Skip API / Cloud Function routes from caching
+    if (url.pathname.startsWith('/compareDecks') || 
+        url.pathname.startsWith('/searchCommanderDecks') || 
+        url.pathname.startsWith('/getCollectionInsights') ||
+        url.pathname.startsWith('/suggestImprovements') ||
+        url.pathname.startsWith('/shortenUrl') ||
+        url.pathname.startsWith('/getSets') ||
+        url.pathname.startsWith('/checkSetCollection')) {
+        return;
+    }
+
+    // Network-First for same-origin assets: always serve fresh assets when online
     event.respondWith(
         fetch(event.request)
             .then(networkResponse => {
@@ -101,10 +121,17 @@ self.addEventListener('fetch', event => {
                 }
                 return networkResponse;
             })
-            .catch(() => {
-                return caches.match(event.request).then(cached => {
-                    if (cached) return cached;
-                    if (event.request.mode === 'navigate') return caches.match('/index.html');
+            .catch(async () => {
+                const cached = await caches.match(event.request);
+                if (cached) return cached;
+                if (event.request.mode === 'navigate') {
+                    const fallbackHtml = await caches.match('/index.html');
+                    if (fallbackHtml) return fallbackHtml;
+                }
+                return new Response('Network error or offline', {
+                    status: 503,
+                    statusText: 'Service Unavailable',
+                    headers: { 'Content-Type': 'text/plain' }
                 });
             })
     );
