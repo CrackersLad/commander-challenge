@@ -3048,10 +3048,10 @@
             if (hidePrecons) filterNotes.push('Precons hidden');
             if (unusedOnly) {
                 if (comparatorCardUsage.size > 0 || totalCardsExcludedByDecks > 0) {
-                    const deckCountStr = allCompDecks.length > 0 ? `in ${allCompDecks.length} Archidekt deck${allCompDecks.length > 1 ? 's' : ''}` : 'in Archidekt decks';
+                    const deckCountStr = allCompDecks.length > 0 ? `in ${allCompDecks.length} searched/compared deck${allCompDecks.length > 1 ? 's' : ''}` : 'in searched decks';
                     filterNotes.push(`⚡ Excluded ${totalCardsExcludedByDecks} card${totalCardsExcludedByDecks !== 1 ? 's' : ''} ${deckCountStr}`);
                 } else {
-                    filterNotes.push('⚡ Exclude Archidekt decks (no active decks loaded in comparator)');
+                    filterNotes.push('⚡ Exclude searched decks (no active decks loaded in comparator)');
                 }
             }
             filterNotes.push('Basic lands excluded');
