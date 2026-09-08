@@ -64,8 +64,8 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=6.8">
-    <link rel="stylesheet" href="collection-hub.css?v=6.8">
+    <link rel="stylesheet" href="styles.css?v=6.9">
+    <link rel="stylesheet" href="collection-hub.css?v=6.9">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -1969,10 +1969,20 @@
                         <button type="button" class="secondary-btn" id="buildThreshold0" onclick="setBuildThreshold(0)">
                             📋 All Decks (0-100%)
                         </button>
-                        <label style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; margin-left: auto; cursor: pointer; user-select: none; color: var(--text-color);">
-                            <input type="checkbox" id="buildUnusedOnlyCheckbox" onchange="renderBuildSection()" style="cursor: pointer;">
-                            <span>⚡ <strong>Unused Cards Only</strong> (Exclude cards in decks)</span>
-                        </label>
+                        <div style="display: flex; gap: 0.85rem; align-items: center; margin-left: auto; flex-wrap: wrap;">
+                            <label style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; cursor: pointer; user-select: none; color: var(--text-color);" title="Filter out precon decks to only view EDHREC meta archetypes">
+                                <input type="checkbox" id="buildHidePreconsCheckbox" onchange="renderBuildSection()" style="cursor: pointer;">
+                                <span>🚫 <strong>Hide Precons</strong></span>
+                            </label>
+                            <label style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; cursor: pointer; user-select: none; color: var(--text-color);" title="Only consider cards that are not committed to decks currently in the Deck Comparator">
+                                <input type="checkbox" id="buildExcludeComparatorDecksCheckbox" onchange="renderBuildSection()" style="cursor: pointer;">
+                                <span>⚔️ <strong>Exclude Compared Decks</strong></span>
+                            </label>
+                            <label style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; cursor: pointer; user-select: none; color: var(--text-muted);" title="Exclude cards marked as inside decks in your Archidekt collection">
+                                <input type="checkbox" id="buildUnusedOnlyCheckbox" onchange="renderBuildSection()" style="cursor: pointer;">
+                                <span>⚡ Exclude Archidekt Decks</span>
+                            </label>
+                        </div>
                     </div>
 
                     <!-- Row 2: Categories, Sorting & Search -->
@@ -2025,6 +2035,35 @@
         style="display: none; position: fixed; z-index: 5000; pointer-events: none; border-radius: 4.75% / 3.5%; overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,0.6); transition: opacity 0.15s ease;">
         <img id="previewImg" src="" style="width: 250px; display: block; background-color: var(--card-bg);"
             alt="Card Preview">
+    </div>
+
+    <!-- ==================== BUILD DECKLIST MODAL ==================== -->
+    <div id="buildDecklistModal" class="modal-backdrop" style="display: none;"
+        onclick="if(event.target === this) closeBuildDecklistModal()">
+        <div class="modal-content" style="max-width: 680px; max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                    <span style="font-size: 1.5rem;">📜</span>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800;" id="buildDecklistModalTitle">Decklist</h3>
+                        <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 500;" id="buildDecklistModalSubtitle">100 cards</div>
+                    </div>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeBuildDecklistModal()" aria-label="Close Modal">&times;</button>
+            </div>
+
+            <div style="padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; background: rgba(0,0,0,0.15);">
+                <div id="buildDecklistStats" style="font-size: 0.85rem;"></div>
+                <div style="display: flex; gap: 0.4rem; align-items: center;">
+                    <a id="buildDecklistSourceLink" href="#" target="_blank" rel="noopener noreferrer" class="secondary-btn" style="padding: 0.35rem 0.65rem; font-size: 0.78rem; text-decoration: none;">↗ Original Source</a>
+                    <button type="button" class="secondary-btn" id="buildDecklistCopyBtn" onclick="copyBuildDecklistText()" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;">📋 Copy Decklist</button>
+                </div>
+            </div>
+
+            <div id="buildDecklistModalBody" style="padding: 1rem 1.25rem; overflow-y: auto; flex: 1;">
+                <!-- Filled dynamically by JS -->
+            </div>
+        </div>
     </div>
 
     <!-- ==================== COMMANDERS MODAL ==================== -->
@@ -2207,13 +2246,13 @@
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
-        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v6.8</span>
+        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v6.9</span>
     </footer>
 
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script src="./collection-hub.js?v=6.8"></script>
-    <script type="module" src="./script.js?v=6.8"></script>
+    <script src="./collection-hub.js?v=6.9"></script>
+    <script type="module" src="./script.js?v=6.9"></script>
 </body>
 </html>

@@ -1948,6 +1948,7 @@
                 set: 'M13',
                 colors: ['R'],
                 imageUrl: 'https://api.scryfall.com/cards/named?exact=Krenko%2C%20Mob%20Boss&format=image&version=art_crop',
+                sourceUrl: 'https://edhrec.com/commanders/krenko-mob-boss',
                 theme: "Goblin Swarm & Exponential Tokens",
                 strategy: "Multiply Goblin tokens exponentially with Krenko. Overwhelm opponents with haste anthems, burn on creature entry, and sacrificial artillery.",
                 cardCount: 100,
@@ -1961,6 +1962,7 @@
                 set: 'C18',
                 colors: ['U', 'B'],
                 imageUrl: 'https://api.scryfall.com/cards/named?exact=Yuriko%2C%20the%20Tiger%27s%20Shadow&format=image&version=art_crop',
+                sourceUrl: 'https://edhrec.com/commanders/yuriko-the-tigers-shadow',
                 theme: "Commander Ninjutsu & Big-Mana Burn",
                 strategy: "Cheat Yuriko into play uncounterably via Commander Ninjutsu. Stack the top of your deck with colossal mana value spells to burn opponents simultaneously.",
                 cardCount: 100,
@@ -1974,6 +1976,7 @@
                 set: 'CLB',
                 colors: ['G', 'U', 'R'],
                 imageUrl: 'https://api.scryfall.com/cards/named?exact=Miirym%2C%20Sentinel%20Wyrm&format=image&version=art_crop',
+                sourceUrl: 'https://edhrec.com/commanders/miirym-sentinel-wyrm',
                 theme: "Dragon Tribal & Token Duplication",
                 strategy: "Cast colossal Dragons that Miirym duplicates for free into non-legendary token clones. Trigger explosive enter-the-battlefield burn and overwhelm the skies.",
                 cardCount: 100,
@@ -1984,6 +1987,10 @@
         // Process EDHREC meta decks cards
         EDHREC_META_DECKS.forEach(d => {
             d.cards = parseDecklistCards(d.decklist, d.commander);
+            if (!d.sourceUrl && d.commander) {
+                const slug = d.commander.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                d.sourceUrl = `https://edhrec.com/commanders/${slug}`;
+            }
         });
 
         let BUILD_DECKS_CATALOG = [...EDHREC_META_DECKS];
@@ -1999,7 +2006,7 @@
 
             buildDecksLoadedPromise = (async () => {
                 try {
-                    const res = await fetch('./commander-precons.json?v=6.8');
+                    const res = await fetch('./commander-precons.json?v=6.9');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2009,6 +2016,7 @@
                                 const bannerUrl = p.scryfallId
                                     ? `https://api.scryfall.com/cards/${p.scryfallId}?format=image&version=art_crop`
                                     : `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(p.commander)}&format=image&version=art_crop`;
+                                const sourceUrl = p.source || (p.code ? `https://mtg.fandom.com/wiki/${encodeURIComponent(p.name)}` : '');
                                 return {
                                     id,
                                     name: p.name,
@@ -2019,6 +2027,7 @@
                                     colors: p.colors || [],
                                     scryfallId: p.scryfallId || null,
                                     imageUrl: bannerUrl,
+                                    sourceUrl,
                                     theme: p.theme || 'Commander Precon',
                                     strategy: p.strategy || '',
                                     cardCount: p.cardCount || 100,
@@ -2085,6 +2094,14 @@
 
         function setBuildFilter(filter) {
             currentBuildFilter = filter;
+            const hidePreconsCheckbox = document.getElementById('buildHidePreconsCheckbox');
+
+            if (filter === 'precon' && hidePreconsCheckbox) {
+                hidePreconsCheckbox.checked = false;
+            } else if (filter === 'edhrec' && hidePreconsCheckbox) {
+                hidePreconsCheckbox.checked = true;
+            }
+
             const btnAll = document.getElementById('buildFilterAll');
             const btnPrecons = document.getElementById('buildFilterPrecons');
             const btnEdhrec = document.getElementById('buildFilterEdhrec');
@@ -2106,6 +2123,169 @@
             }
             renderBuildSection();
         }
+
+        let cachedModalDecklistRaw = '';
+
+        function openBuildDecklistModal(deckId) {
+            const deck = findBuildDeck(deckId);
+            if (!deck) return;
+
+            const modal = document.getElementById('buildDecklistModal');
+            if (!modal) return;
+
+            const titleEl = document.getElementById('buildDecklistModalTitle');
+            const subEl = document.getElementById('buildDecklistModalSubtitle');
+            const statsEl = document.getElementById('buildDecklistStats');
+            const sourceLink = document.getElementById('buildDecklistSourceLink');
+            const bodyEl = document.getElementById('buildDecklistModalBody');
+
+            if (titleEl) titleEl.textContent = deck.name;
+            if (subEl) subEl.innerHTML = `Commander: <strong>${deck.commander}</strong> • ${deck.type === 'precon' ? `Precon (${deck.set})` : 'EDHREC Meta Archetype'}`;
+            if (sourceLink) {
+                if (deck.sourceUrl) {
+                    sourceLink.href = deck.sourceUrl;
+                    sourceLink.style.display = 'inline-flex';
+                } else {
+                    sourceLink.style.display = 'none';
+                }
+            }
+
+            // Build collection lookup for marking owned/missing
+            let ownedCardsList = (cachedParsedCsv && cachedParsedCsv.length > 0) ? cachedParsedCsv : (currentCollectionData || []);
+            const ownedCardNames = new Set();
+            ownedCardsList.forEach(it => {
+                const rawName = it.name || it.card?.name || it.card?.oracleCard?.name || '';
+                if (!rawName) return;
+                const n = normalizeCardName(rawName);
+                if (n) ownedCardNames.add(n);
+                ownedCardNames.add(rawName.toLowerCase().trim());
+            });
+
+            // Categorize cards
+            const categories = {
+                'Commander': [],
+                'Creatures': [],
+                'Instants & Sorceries': [],
+                'Artifacts & Enchantments': [],
+                'Planeswalkers': [],
+                'Non-Basic Lands': [],
+                'Basic Lands': []
+            };
+
+            const fullDeckCards = deck.cards || parseDecklistCards(deck.decklist, deck.commander);
+            cachedModalDecklistRaw = fullDeckCards.map(c => `${c.quantity || 1} ${c.name}`).join('\n');
+
+            let nonBasicCount = 0;
+            let nonBasicOwned = 0;
+
+            fullDeckCards.forEach(c => {
+                const cName = c.name;
+                const cNorm = normalizeCardName(cName);
+                const isBasic = c.isBasic || BASIC_LAND_NAMES.has(cNorm) || BASIC_LAND_NAMES.has(cName.toLowerCase());
+                const isOwned = ownedCardNames.has(cNorm) || ownedCardNames.has(cName.toLowerCase().trim());
+                const isCmdr = c.isCommander || (deck.commander && cNorm === normalizeCardName(deck.commander));
+
+                if (!isBasic) {
+                    nonBasicCount += (c.quantity || 1);
+                    if (isOwned) nonBasicOwned += (c.quantity || 1);
+                }
+
+                const cardObj = {
+                    ...c,
+                    isBasic,
+                    isOwned,
+                    isCommander: isCmdr
+                };
+
+                const typeLower = (c.type || '').toLowerCase();
+                if (isCmdr) {
+                    categories['Commander'].push(cardObj);
+                } else if (isBasic) {
+                    categories['Basic Lands'].push(cardObj);
+                } else if (typeLower.includes('land') || /land/i.test(cName)) {
+                    categories['Non-Basic Lands'].push(cardObj);
+                } else if (typeLower.includes('creature')) {
+                    categories['Creatures'].push(cardObj);
+                } else if (typeLower.includes('instant') || typeLower.includes('sorcery')) {
+                    categories['Instants & Sorceries'].push(cardObj);
+                } else if (typeLower.includes('planeswalker')) {
+                    categories['Planeswalkers'].push(cardObj);
+                } else if (typeLower.includes('artifact') || typeLower.includes('enchantment')) {
+                    categories['Artifacts & Enchantments'].push(cardObj);
+                } else {
+                    categories['Creatures'].push(cardObj);
+                }
+            });
+
+            const pctNonBasic = nonBasicCount > 0 ? Math.round((nonBasicOwned / nonBasicCount) * 100) : 100;
+            if (statsEl) {
+                statsEl.innerHTML = `
+                    <span>📊 <strong>${pctNonBasic}% Owned</strong> (${nonBasicOwned}/${nonBasicCount} non-basic cards)</span>
+                    <span style="color: var(--text-muted); margin-left: 0.5rem;">• Total deck: ${fullDeckCards.reduce((a, c) => a + (c.quantity || 1), 0)} cards</span>
+                `;
+            }
+
+            // Build HTML
+            let html = '';
+            for (const [catName, cardsInCat] of Object.entries(categories)) {
+                if (cardsInCat.length === 0) continue;
+                const countInCat = cardsInCat.reduce((a, c) => a + (c.quantity || 1), 0);
+                html += `
+                    <div style="margin-bottom: 1.25rem;">
+                        <div style="font-size: 0.82rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.5rem; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 0.25rem;">
+                            <span>${catName}</span>
+                            <span>(${countInCat})</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.35rem;">
+                            ${cardsInCat.map(c => {
+                                const safeCName = (c.name || '').replace(/'/g, "\\'");
+                                return `
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0.55rem; background: rgba(255,255,255,0.02); border-radius: 6px; font-size: 0.82rem;">
+                                        <span class="hover-card-link" onmouseenter="bindHoverName(this, '${safeCName}')" style="color: var(--text-color); cursor: pointer; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 180px;">
+                                            ${c.quantity && c.quantity > 1 ? `<strong>${c.quantity}x</strong> ` : ''}${c.name}
+                                        </span>
+                                        <div style="display: flex; align-items: center; gap: 0.35rem;">
+                                            ${c.isBasic ? `
+                                                <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; font-size: 0.68rem;">Basic</span>
+                                            ` : (c.isOwned ? `
+                                                <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 0.68rem; font-weight: 700;">✓ Owned</span>
+                                            ` : `
+                                                <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; font-size: 0.68rem; font-weight: 700;">✗ Missing</span>
+                                            `)}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (bodyEl) bodyEl.innerHTML = html;
+            modal.style.display = 'flex';
+        }
+
+        function closeBuildDecklistModal() {
+            const modal = document.getElementById('buildDecklistModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function copyBuildDecklistText() {
+            if (!cachedModalDecklistRaw) return;
+            navigator.clipboard.writeText(cachedModalDecklistRaw).then(() => {
+                const btn = document.getElementById('buildDecklistCopyBtn');
+                if (btn) {
+                    const orig = btn.textContent;
+                    btn.textContent = '✓ Copied!';
+                    setTimeout(() => { btn.textContent = orig; }, 2000);
+                }
+            }).catch(() => {
+                alert('Could not copy to clipboard.');
+            });
+        }
+        window.openBuildDecklistModal = openBuildDecklistModal;
+        window.closeBuildDecklistModal = closeBuildDecklistModal;
+        window.copyBuildDecklistText = copyBuildDecklistText;
 
         function addMissingCardsToWants(deckId) {
             const deck = findBuildDeck(deckId);
@@ -2246,8 +2426,25 @@
             const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
             const sortMode = document.getElementById('buildSortSelect')?.value || 'pct_desc';
             const unusedOnly = document.getElementById('buildUnusedOnlyCheckbox')?.checked ?? false;
+            const hidePrecons = document.getElementById('buildHidePreconsCheckbox')?.checked ?? false;
+            const excludeCompared = document.getElementById('buildExcludeComparatorDecksCheckbox')?.checked ?? false;
 
-            // Build collection lookup set with normalized names, split handling, and available copy checks
+            // Track card usage across all active compared decks in the Deck Comparator
+            const comparatorCardUsage = new Map();
+            const allCompDecks = [...(currentDecksData || []), ...(customPastedDecks || [])];
+            if (excludeCompared && allCompDecks.length > 0) {
+                allCompDecks.forEach(deck => {
+                    (deck.cards || []).forEach(card => {
+                        const rawName = card.name || card.card?.name || '';
+                        const n = normalizeCardName(rawName);
+                        if (n) {
+                            comparatorCardUsage.set(n, (comparatorCardUsage.get(n) || 0) + Number(card.quantity || 1));
+                        }
+                    });
+                });
+            }
+
+            // Build collection lookup set with normalized names, basic land filtering, and available copy checks
             const ownedCardNames = new Set();
             let totalEvaluatedCards = 0;
             let totalAvailableCopies = 0;
@@ -2256,16 +2453,25 @@
                 const rawName = it.name || it.card?.name || it.card?.oracleCard?.name || '';
                 if (!rawName) return;
 
-                const owned = Number(it.owned ?? it.quantity ?? it.count ?? 1);
-                const inDecks = Number(it.inDecks ?? it.in_decks ?? 0);
-                const available = Math.max(0, owned - inDecks);
+                const norm = normalizeCardName(rawName);
+                // Completely remove basic lands from the lookup
+                if (BASIC_LAND_NAMES.has(norm)) return;
 
-                if (unusedOnly && available <= 0) return;
+                let owned = Number(it.owned ?? it.quantity ?? it.count ?? 1);
+                if (unusedOnly) {
+                    const inDecks = Number(it.inDecks ?? it.in_decks ?? 0);
+                    owned = Math.max(0, owned - inDecks);
+                }
+                if (excludeCompared && comparatorCardUsage.size > 0) {
+                    const usedInComp = comparatorCardUsage.get(norm) || 0;
+                    owned = Math.max(0, owned - usedInComp);
+                }
+
+                if (owned <= 0) return;
 
                 totalEvaluatedCards++;
-                totalAvailableCopies += (unusedOnly ? available : owned);
+                totalAvailableCopies += owned;
 
-                const norm = normalizeCardName(rawName);
                 if (norm) ownedCardNames.add(norm);
                 ownedCardNames.add(rawName.toLowerCase().trim());
 
@@ -2290,8 +2496,15 @@
             banner.style.fontSize = '0.88rem';
             banner.style.flexWrap = 'wrap';
             banner.style.gap = '0.5rem';
+
+            const filterNotes = [];
+            if (hidePrecons) filterNotes.push('Precons hidden');
+            if (excludeCompared) filterNotes.push(`${allCompDecks.length} compared decks excluded`);
+            if (unusedOnly) filterNotes.push('Archidekt in-deck cards excluded');
+            filterNotes.push('Basic lands excluded');
+
             banner.innerHTML = `
-                <span>⚡ Evaluated against <strong>${ownedCardNames.size.toLocaleString()} cards</strong> in your collection (${unusedOnly ? '<strong>Unused / Available only</strong>' : 'All owned cards'})</span>
+                <span>⚡ Evaluated against <strong>${ownedCardNames.size.toLocaleString()} unique cards</strong> in your collection <span style="color: var(--text-muted); font-size: 0.8rem;">(${filterNotes.join(' • ')})</span></span>
                 <span style="color: var(--text-muted); font-size: 0.82rem;">Showing decks matching threshold: <strong>${currentBuildThreshold > 0 ? `${currentBuildThreshold}%+` : 'All (0-100%)'}</strong> (${BUILD_DECKS_CATALOG.length} decks in catalog)</span>
             `;
             grid.appendChild(banner);
@@ -2301,22 +2514,29 @@
             // Compute statistics for each deck
             const computedDecks = BUILD_DECKS_CATALOG.map(deck => {
                 const cardList = deck.cards || deck.keyCards || [];
-                const totalCards = 100;
+                // Completely exclude basic lands from the lookup
+                const nonBasicCards = cardList.filter(item => {
+                    const cName = typeof item === 'string' ? item : (item.name || item.n || '');
+                    const cNorm = normalizeCardName(cName);
+                    const isBasic = item.isBasic || BASIC_LAND_NAMES.has(cNorm) || BASIC_LAND_NAMES.has(cName.toLowerCase());
+                    return !isBasic;
+                });
+
+                const totalNonBasic = nonBasicCards.reduce((acc, item) => acc + (item.quantity || 1), 0);
                 let ownedCount = 0;
                 const missingCards = [];
                 let estMissingCostUsd = 0;
 
-                cardList.forEach(item => {
+                nonBasicCards.forEach(item => {
                     const cName = typeof item === 'string' ? item : (item.name || item.n);
                     const qty = item.quantity || 1;
                     const cPrice = typeof item === 'object' && (item.price || item.p) ? (item.price || item.p) : 0.75;
                     const cType = typeof item === 'object' && (item.type || item.t) ? (item.type || item.t) : 'Card';
 
                     const cNorm = normalizeCardName(cName);
-                    const isBasic = item.isBasic || BASIC_LAND_NAMES.has(cNorm) || BASIC_LAND_NAMES.has(cName.toLowerCase());
                     const isOwned = ownedCardNames.has(cNorm) || ownedCardNames.has(cName.toLowerCase().trim());
 
-                    if (isOwned || isBasic) {
+                    if (isOwned) {
                         ownedCount += qty;
                     } else {
                         missingCards.push({ name: cName, price: cPrice, quantity: qty, type: cType });
@@ -2324,9 +2544,7 @@
                     }
                 });
 
-                // Standard Commander deck size cap (100)
-                const finalOwnedCount = Math.min(totalCards, ownedCount);
-                const pct = Math.round((finalOwnedCount / totalCards) * 100);
+                const pct = totalNonBasic > 0 ? Math.round((ownedCount / totalNonBasic) * 100) : 100;
                 const cmdrNorm = normalizeCardName(deck.commander);
                 const ownsCommander = ownedCardNames.has(cmdrNorm) || ownedCardNames.has(deck.commander.toLowerCase().trim());
 
@@ -2336,8 +2554,9 @@
 
                 return {
                     ...deck,
-                    totalCards,
-                    ownedCount: finalOwnedCount,
+                    totalCards: totalNonBasic,
+                    totalNonBasic,
+                    ownedCount,
                     missingCards,
                     pctOwned: pct,
                     ownsCommander,
@@ -2350,6 +2569,11 @@
             let filtered = computedDecks;
             if (currentBuildThreshold > 0) {
                 filtered = filtered.filter(d => d.pctOwned >= currentBuildThreshold);
+            }
+
+            // Filter by Precon visibility
+            if (hidePrecons) {
+                filtered = filtered.filter(d => d.type !== 'precon');
             }
 
             // Filter by Category
@@ -2407,6 +2631,7 @@
                                             ${d.type === 'precon' ? `Precon (${d.set})` : 'EDHREC Meta'}
                                         </span>
                                         ${d.ownsCommander ? `<span class="badge" style="background: rgba(16, 185, 129, 0.9); color: #fff; font-size: 0.72rem; font-weight: 800;">👑 Own Commander</span>` : ''}
+                                        ${d.sourceUrl ? `<a href="${d.sourceUrl}" target="_blank" rel="noopener noreferrer" class="badge" style="background: rgba(15, 23, 42, 0.85); color: #38bdf8; text-decoration: none; border: 1px solid rgba(56, 189, 248, 0.35); font-size: 0.72rem;" title="View official decklist source / EDHREC">↗ Source</a>` : ''}
                                     </div>
                                     <div style="display: flex; gap: 0.25rem;">
                                         ${colorPips}
@@ -2424,12 +2649,13 @@
                                     <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; margin-bottom: 0.35rem;">
                                         <span style="color: var(--text-muted); font-weight: 600;">Match Progress:</span>
                                         <span style="font-weight: 800; color: ${d.pctOwned >= 75 ? '#34d399' : (d.pctOwned >= 50 ? '#38bdf8' : (d.pctOwned >= 25 ? '#f59e0b' : '#94a3b8'))}; font-size: 0.95rem;">
-                                            ${d.pctOwned}% (${d.ownedCount}/100 cards)
+                                            ${d.pctOwned}% (${d.ownedCount}/${d.totalNonBasic} cards)
                                         </span>
                                     </div>
                                     <div class="stat-dist-track" style="height: 8px;">
                                         <div class="stat-dist-fill" style="width: ${d.pctOwned}%; background: ${d.pctOwned >= 75 ? '#10b981' : (d.pctOwned >= 50 ? '#0284c7' : (d.pctOwned >= 25 ? '#f59e0b' : '#64748b'))};"></div>
                                     </div>
+                                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">Basic lands excluded from deck matching</div>
 
                                     <!-- Cost to Finish & Missing Cards Link -->
                                     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; font-size: 0.82rem;">
@@ -2464,17 +2690,22 @@
                                     ` : ''}
                                 </div>
 
-                                <!-- Action Buttons -->
+                                <!-- Action Buttons (AI Optimizer removed as requested) -->
                                 <div style="display: flex; gap: 0.45rem; margin-top: auto; padding-top: 0.5rem; flex-wrap: wrap;">
+                                    <button type="button" class="secondary-btn" style="flex: 1; padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="openBuildDecklistModal('${d.id}')">
+                                        📜 View Decklist
+                                    </button>
                                     <button type="button" class="secondary-btn" style="flex: 1; padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="addMissingCardsToWants('${d.id}')">
-                                        📋 Add Missing to Binder
+                                        📋 Add Missing
                                     </button>
                                     <button type="button" class="secondary-btn" style="padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="loadBuildDeckIntoComparator('${d.id}', '${safeName}')">
                                         🔍 Compare
                                     </button>
-                                    <button type="button" class="secondary-btn ai-btn" style="flex: 1; padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="loadBuildDeckIntoAiOptimizer('${d.id}', '${safeName}')">
-                                        ✨ AI Optimizer
-                                    </button>
+                                    ${d.sourceUrl ? `
+                                        <a href="${d.sourceUrl}" target="_blank" rel="noopener noreferrer" class="secondary-btn" style="padding: 0.45rem 0.65rem; font-size: 0.78rem; text-decoration: none; display: inline-flex; align-items: center;" title="Open original deck source">
+                                            ↗ Source
+                                        </a>
+                                    ` : ''}
                                 </div>
                             </div>
                         `;
@@ -2751,11 +2982,20 @@
         }
 
         function startBuildingAroundCommander(commanderName, colorsStr) {
+            const customId = `custom:${Date.now()}`;
+            const text = `1 ${commanderName}\n1 Sol Ring\n1 Arcane Signet\n1 Command Tower`;
             customPastedDecks.length = 0;
             customPastedDecks.push({
+                id: customId,
                 name: `${commanderName} Deck`,
-                cards: parseDecklistText(`1 ${commanderName}\n1 Sol Ring\n1 Arcane Signet\n1 Command Tower`)
+                cards: parseDecklistText(text),
+                text: text
             });
+            activeDeckIds.clear();
+            activeDeckIds.add(customId);
+            deckNames[customId] = `${commanderName} Deck`;
+            renderDeckChips();
+            saveDecksState();
             switchTab('deck');
             showToast(`Loaded "${commanderName}" into Deck Comparator!`);
             runComparison();
@@ -2829,14 +3069,23 @@
                 text = deck.keyCards.map(c => `1 ${c.n || c.name || c}`).join('\n');
             }
 
+            const customId = `custom:${Date.now()}`;
+            const parsedCards = parseDecklistText(text);
             customPastedDecks.length = 0;
             customPastedDecks.push({
+                id: customId,
                 name: deck.name,
-                cards: parseDecklistText(text)
+                cards: parsedCards,
+                text: text
             });
+            activeDeckIds.clear();
+            activeDeckIds.add(customId);
+            deckNames[customId] = deck.name;
+            renderDeckChips();
+            saveDecksState();
 
             switchTab('deck');
-            showToast(`Loaded "${deckName}" (100 cards) into Deck Comparator! Running comparison...`);
+            showToast(`Loaded "${deckName}" into Deck Comparator! Running comparison...`);
             runComparison();
         }
 
@@ -3896,29 +4145,21 @@
         }
 
         async function runComparison() {
-            if (document.getElementById('deckInput').value.trim() !== '') addDeck();
+            const deckInputEl = document.getElementById('deckInput');
+            if (deckInputEl && deckInputEl.value.trim() !== '') addDeck();
 
             const deckIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:')).join(',');
-            let collectionId = document.getElementById('collectionId').value.trim();
+            let collectionId = (document.getElementById('collectionId')?.value || '').trim() || localStorage.getItem('archidekt_collectionId') || '';
             // Sanitize Archidekt collection ID if full URL was pasted
-            const collMatch = collectionId.match(/(?:archidekt\.com\/collections?\/)(\d+)/i);
+            const collMatch = collectionId.match(/(?:archidekt\.com\/(?:[a-z0-9_-]+\/)?collections?\/)(\d+)/i) || collectionId.match(/(\d+)/);
             if (collMatch) collectionId = collMatch[1];
-            else {
-                const rawNum = collectionId.match(/\d+/);
-                if (rawNum && /^\d+$/.test(collectionId)) collectionId = rawNum[0];
-            }
 
             const csvInput = document.getElementById('csvUpload');
-            const csvFile = csvInput.files.length > 0 ? csvInput.files[0] : null;
-            const includeSideboards = document.getElementById('includeSideboards').checked;
-            const includeBasicLands = document.getElementById('includeBasicLands').checked;
+            const csvFile = csvInput && csvInput.files.length > 0 ? csvInput.files[0] : null;
+            const includeSideboards = document.getElementById('includeSideboards')?.checked ?? true;
+            const includeBasicLands = document.getElementById('includeBasicLands')?.checked ?? false;
             const btn = document.getElementById('compareBtn');
             const resultsContainer = document.getElementById('resultsContainer');
-
-            if ((!deckIds && customPastedDecks.length === 0) || (!collectionId && !csvFile && !cachedParsedCsv)) {
-                alert("Please enter your Decks and a Collection Source.");
-                return;
-            }
 
             let collectionCsvData = cachedParsedCsv;
             if (csvFile && !collectionCsvData) {
@@ -3934,16 +4175,26 @@
                 }
             }
 
+            // Fallback to in-memory collection data if collectionId/CSV is not typed but data exists
+            if (!collectionId && !collectionCsvData && Array.isArray(currentCollectionData) && currentCollectionData.length > 0) {
+                collectionCsvData = currentCollectionData;
+            }
+
+            if ((!deckIds && customPastedDecks.length === 0) || (!collectionId && !csvFile && !cachedParsedCsv && !collectionCsvData)) {
+                alert("Please enter your Decks and a Collection Source.");
+                return;
+            }
+
             // Update URL to make it bookmarkable
             const params = new URLSearchParams(window.location.search);
             if (deckIds) params.set('deckIds', deckIds);
             params.set('includeSideboards', includeSideboards);
             params.set('includeBasicLands', includeBasicLands);
 
-            if (collectionCsvData) {
+            if (collectionCsvData && !collectionId) {
                 localStorage.removeItem('archidekt_collectionId');
                 params.delete('collectionId');
-            } else {
+            } else if (collectionId) {
                 localStorage.setItem('archidekt_collectionId', collectionId);
                 params.set('collectionId', collectionId);
             }
@@ -3953,45 +4204,44 @@
             localStorage.setItem('archidekt_includeSideboards', includeSideboards);
             localStorage.setItem('archidekt_includeBasicLands', includeBasicLands);
 
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Scanning & Comparing Decks...';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner"></span> Scanning & Comparing Decks...';
+            }
 
             const factsCard = document.getElementById('factsCard');
             const decksOverviewCard = document.getElementById('decksOverviewCard');
             if (factsCard) factsCard.style.display = 'none';
             if (decksOverviewCard) decksOverviewCard.style.display = 'none';
-            resultsContainer.style.display = 'none';
+            if (resultsContainer) resultsContainer.style.display = 'none';
+
+            const payload = {
+                collectionId,
+                deckIds,
+                customDecks: customPastedDecks,
+                includeSideboards,
+                includeBasicLands,
+                collectionData: collectionCsvData,
+                sortCommanders: true
+            };
 
             try {
-                let response = await fetch('/compareDecks', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        collectionId,
-                        deckIds,
-                        customDecks: customPastedDecks,
-                        includeSideboards,
-                        includeBasicLands,
-                        collectionData: collectionCsvData,
-                        sortCommanders: true
-                    })
-                });
-
-                // If Firebase Hosting gateway times out (502/504), retry directly against Cloud Function endpoint
-                if (response.status === 502 || response.status === 504) {
-                    console.warn("Hosting gateway timeout (502/504), falling back to direct function URL...");
+                let response;
+                try {
+                    response = await fetch('/compareDecks', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok && response.status !== 400) {
+                        throw new Error(`Hosting gateway returned status ${response.status}`);
+                    }
+                } catch (gatewayErr) {
+                    console.warn("Primary /compareDecks route failed, falling back directly to Cloud Run...", gatewayErr);
                     response = await fetch('https://comparedecks-v3miuc3wbq-uc.a.run.app', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            collectionId,
-                            deckIds,
-                            customDecks: customPastedDecks,
-                            includeSideboards,
-                            includeBasicLands,
-                            collectionData: collectionCsvData,
-                            sortCommanders: true
-                        })
+                        body: JSON.stringify(payload)
                     });
                 }
 
@@ -3999,30 +4249,35 @@
                 try {
                     data = await response.json();
                 } catch (parseError) {
-                    if (response.status === 502 || response.status === 504) {
-                        throw new Error("Scan timed out on the gateway. The collection and decks are now cached in memory — please click 'Scan & Compare Decks' again to complete instantly.");
-                    }
-                    throw new Error(`Server returned status ${response.status} without valid JSON.`);
+                    console.warn("JSON parsing from primary route failed, retrying Cloud Run directly...");
+                    response = await fetch('https://comparedecks-v3miuc3wbq-uc.a.run.app', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    data = await response.json();
                 }
 
                 if (!response.ok || data.error) {
-                    throw new Error(data.error || "Unknown server error occurred.");
+                    throw new Error(data.error || `Server error (HTTP ${response.status})`);
                 }
 
                 currentCollectionData = data.collection || [];
                 currentDecksData = data.decks || [];
                 currentDeckSummary = data.deckSummary || null;
 
-                renderDeckDashboard();
-                renderFacts();
-                populateDeckSelector();
-                renderDeckCardsList();
-                renderList();
+                if (typeof renderDeckDashboard === 'function') renderDeckDashboard();
+                if (typeof renderFacts === 'function') renderFacts();
+                if (typeof populateDeckSelector === 'function') populateDeckSelector();
+                if (typeof renderDeckCardsList === 'function') renderDeckCardsList();
+                if (typeof renderList === 'function') renderList();
 
-                decksOverviewCard.style.display = 'block';
-                factsCard.style.display = 'block';
-                resultsContainer.style.display = 'block';
-                decksOverviewCard.scrollIntoView({ behavior: 'smooth' });
+                if (decksOverviewCard) {
+                    decksOverviewCard.style.display = 'block';
+                    decksOverviewCard.scrollIntoView({ behavior: 'smooth' });
+                }
+                if (factsCard) factsCard.style.display = 'block';
+                if (resultsContainer) resultsContainer.style.display = 'block';
 
                 // Save comparison results to cache for instant reload across page refreshes
                 await AppStorage.saveComparison({
@@ -4040,12 +4295,16 @@
                 });
                 hideCachedComparisonBanner();
             } catch (error) {
+                console.error("runComparison error:", error);
                 alert(`An error occurred: ${error.message}`);
             } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<span>Scan & Compare Decks</span>';
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>Scan & Compare Decks</span>';
+                }
             }
         }
+        window.runComparison = runComparison;
 
         // ==================== RENDERING DECK DASHBOARD & CARDS ====================
 
@@ -6378,6 +6637,13 @@
 
             const deckInput = document.getElementById('deckInput');
             const collectionInput = document.getElementById('collectionId');
+            const compareBtn = document.getElementById('compareBtn');
+            if (compareBtn) {
+                compareBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    runComparison();
+                });
+            }
 
             const handleEnter = (e) => {
                 if (e.key === 'Enter') {
@@ -6391,8 +6657,9 @@
                     }
                 }
             };
-            deckInput.addEventListener('keypress', handleEnter);
-            document.getElementById('setSearchInput').addEventListener('keypress', handleEnter);
+            if (deckInput) deckInput.addEventListener('keypress', handleEnter);
+            const setSearchInput = document.getElementById('setSearchInput');
+            if (setSearchInput) setSearchInput.addEventListener('keypress', handleEnter);
 
             collectionInput.addEventListener('input', (e) => {
                 if (e.target.value.includes('archidekt.com')) {
@@ -6526,3 +6793,53 @@
         window.switchCollectionTab = function(tab) {
             if (typeof switchTab === 'function') switchTab(tab);
         };
+
+        // Explicit Global Bindings for HTML inline event handlers
+        window.runComparison = runComparison;
+        window.addDeck = addDeck;
+        window.removeDeck = removeDeck;
+        window.togglePasteDeckForm = togglePasteDeckForm;
+        window.saveCustomDeck = saveCustomDeck;
+        window.clearSavedComparison = clearSavedComparison;
+        window.clearCsv = clearCsv;
+        window.switchDeckResultsMode = switchDeckResultsMode;
+        window.selectDeckView = typeof selectDeckView === 'function' ? selectDeckView : () => {};
+        window.openBuyMissingModal = typeof openBuyMissingModal === 'function' ? openBuyMissingModal : () => {};
+        window.closeBuyMissingModal = typeof closeBuyMissingModal === 'function' ? closeBuyMissingModal : () => {};
+        window.switchBuyMarketTab = typeof switchBuyMarketTab === 'function' ? switchBuyMarketTab : () => {};
+        window.copyBuyMissingText = typeof copyBuyMissingText === 'function' ? copyBuyMissingText : () => {};
+        window.copyDeckMissing = typeof copyDeckMissing === 'function' ? copyDeckMissing : () => {};
+        window.exportDeckCSV = typeof exportDeckCSV === 'function' ? exportDeckCSV : () => {};
+        window.loadBuildDeckIntoComparator = typeof loadBuildDeckIntoComparator === 'function' ? loadBuildDeckIntoComparator : () => {};
+        window.setDeckCardsStatusFilter = typeof setDeckCardsStatusFilter === 'function' ? setDeckCardsStatusFilter : () => {};
+        window.clearDeckSearch = typeof clearDeckSearch === 'function' ? clearDeckSearch : () => {};
+        window.clearInventorySearch = typeof clearInventorySearch === 'function' ? clearInventorySearch : () => {};
+        window.exportCSV = typeof exportCSV === 'function' ? exportCSV : () => {};
+        window.copyToClipboard = typeof copyToClipboard === 'function' ? copyToClipboard : () => {};
+        window.selectSetByCode = typeof selectSetByCode === 'function' ? selectSetByCode : () => {};
+        window.clearSelectedSet = typeof clearSelectedSet === 'function' ? clearSelectedSet : () => {};
+        window.runSetComparison = typeof runSetComparison === 'function' ? runSetComparison : () => {};
+        window.exportSetCSV = typeof exportSetCSV === 'function' ? exportSetCSV : () => {};
+        window.copyMissingToClipboard = typeof copyMissingToClipboard === 'function' ? copyMissingToClipboard : () => {};
+        window.setListStatusFilter = typeof setListStatusFilter === 'function' ? setListStatusFilter : () => {};
+        window.fetchCollectionInsights = typeof fetchCollectionInsights === 'function' ? fetchCollectionInsights : () => {};
+        window.refreshActiveCollection = typeof refreshActiveCollection === 'function' ? refreshActiveCollection : () => {};
+        window.clearSavedCollection = typeof clearSavedCollection === 'function' ? clearSavedCollection : () => {};
+        window.importFriendTradeToBinder = typeof importFriendTradeToBinder === 'function' ? importFriendTradeToBinder : () => {};
+        window.dismissFriendTradeBanner = typeof dismissFriendTradeBanner === 'function' ? dismissFriendTradeBanner : () => {};
+        window.shareTradeOfferModal = typeof shareTradeOfferModal === 'function' ? shareTradeOfferModal : () => {};
+        window.closeShareTradeModal = typeof closeShareTradeModal === 'function' ? closeShareTradeModal : () => {};
+        window.copyTradeTextList = typeof copyTradeTextList === 'function' ? copyTradeTextList : () => {};
+        window.copyTradeUrlFromInput = typeof copyTradeUrlFromInput === 'function' ? copyTradeUrlFromInput : () => {};
+        window.clearTradeBinder = typeof clearTradeBinder === 'function' ? clearTradeBinder : () => {};
+        window.addCardFromTradeInput = typeof addCardFromTradeInput === 'function' ? addCardFromTradeInput : () => {};
+        window.renderBuildSection = typeof renderBuildSection === 'function' ? renderBuildSection : () => {};
+        window.switchBuildSubTab = typeof switchBuildSubTab === 'function' ? switchBuildSubTab : () => {};
+        window.setBuildThreshold = typeof setBuildThreshold === 'function' ? setBuildThreshold : () => {};
+        window.setBuildFilter = typeof setBuildFilter === 'function' ? setBuildFilter : () => {};
+        window.toggleMissingDrawer = typeof toggleMissingDrawer === 'function' ? toggleMissingDrawer : () => {};
+        window.startBuildingAroundCommander = typeof startBuildingAroundCommander === 'function' ? startBuildingAroundCommander : () => {};
+        window.openCommandersModal = typeof openCommandersModal === 'function' ? openCommandersModal : () => {};
+        window.closeCommandersModal = typeof closeCommandersModal === 'function' ? closeCommandersModal : () => {};
+        window.copyCommandersList = typeof copyCommandersList === 'function' ? copyCommandersList : () => {};
+        window.exportCommandersCSV = typeof exportCommandersCSV === 'function' ? exportCommandersCSV : () => {};
