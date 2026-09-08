@@ -3195,6 +3195,7 @@
             }
 
             function renderDeckCards(deckList) {
+                const currSymbol = getMarketCurrency();
                 deckList.forEach(d => {
                     try {
                         const card = document.createElement('div');
