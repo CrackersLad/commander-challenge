@@ -2155,7 +2155,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=6.13');
+                    const res = await fetch('./commander-precons.json?v=6.14');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2191,7 +2191,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=6.13');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=6.14');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
