@@ -11,6 +11,10 @@
       ".read": true,
       ".write": false
     },
+    "short_links": {
+      ".read": true,
+      ".write": false
+    },
     
     "admins": {
       ".read": false,

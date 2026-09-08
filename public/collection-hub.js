@@ -417,6 +417,7 @@
         let currentDecksData = [];
         let currentDeckSummary = null;
         let activeDeckViewId = 'all'; // 'all' or specific deck ID
+        let deckCardsStatusFilter = 'all'; // 'all' | 'missing' | 'owned'
         let customPastedDecks = (() => {
             try {
                 const raw = localStorage.getItem('archidekt_customDecks');
@@ -568,18 +569,32 @@
         }
 
         // Dark / Light Mode Initialization
+        function applyAppTheme(theme) {
+            const finalTheme = (theme === 'light') ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', finalTheme);
+            if (document.body) document.body.setAttribute('data-theme', finalTheme);
+            const hubScope = document.getElementById('view-collection-hub');
+            if (hubScope) hubScope.setAttribute('data-theme', finalTheme);
+            localStorage.setItem('theme', finalTheme);
+            const toggle = document.getElementById('themeToggle');
+            if (toggle) {
+                toggle.textContent = finalTheme === 'dark' ? '☀️' : '🌙';
+                toggle.setAttribute('title', finalTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode');
+            }
+        }
+        window.applyAppTheme = applyAppTheme;
+
         const themeToggle = document.getElementById('themeToggle');
         const savedTheme = localStorage.getItem('theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        themeToggle.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+        applyAppTheme(savedTheme);
 
-        themeToggle.addEventListener('click', function () {
-            let current = document.documentElement.getAttribute('data-theme') || 'dark';
-            let next = current === 'dark' ? 'light' : 'dark';
-            document.documentElement.setAttribute('data-theme', next);
-            localStorage.setItem('theme', next);
-            themeToggle.textContent = next === 'dark' ? '☀️' : '🌙';
-        });
+        if (themeToggle) {
+            themeToggle.addEventListener('click', function () {
+                let current = document.documentElement.getAttribute('data-theme') || 'dark';
+                let next = current === 'dark' ? 'light' : 'dark';
+                applyAppTheme(next);
+            });
+        }
 
         // ==================== TAB SWITCHING LOGIC ====================
         function switchTab(tab) {
@@ -1482,14 +1497,21 @@
                 // Request short URL from backend
                 let shortenedUrl = "";
                 try {
-                    const res = await fetch('/shortenUrl', {
+                    let res = await fetch('/shortenUrl', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url: compactUrl })
                     });
+                    if (!res.ok) {
+                        res = await fetch('https://us-central1-commander-challenge.cloudfunctions.net/shortenUrl', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: compactUrl })
+                        });
+                    }
                     if (res.ok) {
                         const data = await res.json();
-                        if (data && data.shortUrl && data.shortUrl.startsWith('http') && data.shortUrl.length < compactUrl.length) {
+                        if (data && data.shortUrl && data.shortUrl.startsWith('http')) {
                             shortenedUrl = data.shortUrl;
                         }
                     }
@@ -1855,794 +1877,142 @@
         let currentBuildSubTab = 'new'; // 'new' | 'upgrades' | 'commanders'
         let currentBuildFilter = 'all'; // 'all' | 'precon' | 'edhrec' | 'owned_cmdrs'
         let currentBuildThreshold = 50; // 50 (default) | 75 | 0
-        const expandedMissingDrawers = new Set();
+        const BASIC_LAND_NAMES = new Set([
+            'plains', 'island', 'swamp', 'mountain', 'forest', 'wastes',
+            'snow-covered plains', 'snow-covered island', 'snow-covered swamp',
+            'snow-covered mountain', 'snow-covered forest', 'snow-covered wastes'
+        ]);
 
-        const PRECON_DECKS_DATABASE = [
-    // --- BLOOMBURROW (BLB) ---
-    {
-        id: 'precon-animated-army',
-        name: "Animated Army",
-        commander: "Bello, Bard of the Brambles",
-        type: 'precon',
-        set: 'BLB',
-        colors: ['R', 'G'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/3/1/31e4b7a1-b377-49d2-a82e-f38b7ac11883.jpg',
-        keyCards: [
-            { n: "Bello, Bard of the Brambles", p: 4.50, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Gruul Signet", p: 0.40, t: "Artifact" },
-            { n: "Cultivate", p: 0.35, t: "Sorcery" },
-            { n: "Kodama's Reach", p: 0.40, t: "Sorcery" },
-            { n: "Beast Within", p: 1.20, t: "Instant" },
-            { n: "Chaos Warp", p: 0.95, t: "Instant" },
-            { n: "Garruk's Uprising", p: 1.10, t: "Enchantment" },
-            { n: "Elemental Bond", p: 5.50, t: "Enchantment" },
-            { n: "Gilded Goose", p: 1.40, t: "Creature" },
-            { n: "Birds of Paradise", p: 6.80, t: "Creature" },
-            { n: "Fabled Passage", p: 4.50, t: "Land" },
-            { n: "Stomping Ground", p: 12.00, t: "Land" },
-            { n: "Rootbound Crag", p: 2.50, t: "Land" },
-            { n: "Cinder Glade", p: 0.50, t: "Land" },
-            { n: "Spire Garden", p: 8.50, t: "Land" },
-            { n: "Etali, Primal Storm", p: 2.20, t: "Creature" },
-            { n: "Blasphemous Act", p: 2.80, t: "Sorcery" },
-            { n: "Bala Ged Recovery", p: 4.20, t: "Sorcery" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Thran Dynamo", p: 2.50, t: "Artifact" },
-            { n: "Gilded Lotus", p: 1.75, t: "Artifact" },
-            { n: "Unnatural Growth", p: 3.20, t: "Enchantment" },
-            { n: "Berserkers' Onslaught", p: 1.10, t: "Enchantment" }
-        ]
-    },
-    {
-        id: 'precon-family-matters',
-        name: "Family Matters",
-        commander: "Zinnia, Valley's Voice",
-        type: 'precon',
-        set: 'BLB',
-        colors: ['U', 'R', 'W'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/d/f/df36801c-3588-4b4f-ad5b-705099955f14.jpg',
-        keyCards: [
-            { n: "Zinnia, Valley's Voice", p: 3.80, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Izzet Signet", p: 0.40, t: "Artifact" },
-            { n: "Boros Signet", p: 0.45, t: "Artifact" },
-            { n: "Azorius Signet", p: 0.40, t: "Artifact" },
-            { n: "Talisman of Creativity", p: 1.10, t: "Artifact" },
-            { n: "Talisman of Conviction", p: 0.80, t: "Artifact" },
-            { n: "Swords to Plowshares", p: 1.40, t: "Instant" },
-            { n: "Path to Exile", p: 1.20, t: "Instant" },
-            { n: "Chaos Warp", p: 0.95, t: "Instant" },
-            { n: "Wear // Tear", p: 1.80, t: "Instant" },
-            { n: "Rhystic Study", p: 38.00, t: "Enchantment" },
-            { n: "Esper Sentinel", p: 26.00, t: "Creature" },
-            { n: "Mulldrifter", p: 0.45, t: "Creature" },
-            { n: "Solemn Simulacrum", p: 0.90, t: "Creature" },
-            { n: "Sun Titan", p: 0.80, t: "Creature" },
-            { n: "Sacred Foundry", p: 16.00, t: "Land" },
-            { n: "Steam Vents", p: 17.50, t: "Land" },
-            { n: "Hallowed Fountain", p: 12.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" },
-            { n: "Raugrin Triome", p: 15.00, t: "Land" }
-        ]
-    },
-    {
-        id: 'precon-peace-offering',
-        name: "Peace Offering",
-        commander: "Ms. Bumbleflower",
-        type: 'precon',
-        set: 'BLB',
-        colors: ['G', 'W', 'U'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/4/2/42bcdc21-7b1e-4345-9621-185823d779f4.jpg',
-        keyCards: [
-            { n: "Ms. Bumbleflower", p: 5.50, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Selesnya Signet", p: 0.40, t: "Artifact" },
-            { n: "Simic Signet", p: 0.45, t: "Artifact" },
-            { n: "Talisman of Curiosity", p: 0.90, t: "Artifact" },
-            { n: "Talisman of Unity", p: 0.85, t: "Artifact" },
-            { n: "Swords to Plowshares", p: 1.40, t: "Instant" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Beast Within", p: 1.20, t: "Instant" },
-            { n: "Cyclonic Rift", p: 34.00, t: "Instant" },
-            { n: "Smothering Tithe", p: 19.50, t: "Enchantment" },
-            { n: "Cultivate", p: 0.35, t: "Sorcery" },
-            { n: "Kodama's Reach", p: 0.40, t: "Sorcery" },
-            { n: "Teferi's Protection", p: 24.00, t: "Instant" },
-            { n: "Temple Garden", p: 11.50, t: "Land" },
-            { n: "Breeding Pool", p: 14.50, t: "Land" },
-            { n: "Hallowed Fountain", p: 12.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" },
-            { n: "Spara's Headquarters", p: 14.00, t: "Land" }
-        ]
-    },
-    {
-        id: 'precon-squirreled-away',
-        name: "Squirreled Away",
-        commander: "Hazel of the Rootbloom",
-        type: 'precon',
-        set: 'BLB',
-        colors: ['B', 'G'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/1/2/1269ca79-907e-4932-9856-a2855e1e1e7b.jpg',
-        keyCards: [
-            { n: "Hazel of the Rootbloom", p: 4.80, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Golgari Signet", p: 0.45, t: "Artifact" },
-            { n: "Talisman of Resilience", p: 0.90, t: "Artifact" },
-            { n: "Chatterfang, Squirrel General", p: 6.50, t: "Creature" },
-            { n: "Deep Forest Hermit", p: 1.80, t: "Creature" },
-            { n: "Toski, Bearer of Secrets", p: 7.20, t: "Creature" },
-            { n: "Beast Within", p: 1.20, t: "Instant" },
-            { n: "Assassin's Trophy", p: 3.80, t: "Instant" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Demonic Tutor", p: 36.00, t: "Sorcery" },
-            { n: "Toxic Deluge", p: 7.50, t: "Sorcery" },
-            { n: "Cultivate", p: 0.35, t: "Sorcery" },
-            { n: "Kodama's Reach", p: 0.40, t: "Sorcery" },
-            { n: "Skullclamp", p: 6.80, t: "Artifact" },
-            { n: "Overgrown Tomb", p: 14.00, t: "Land" },
-            { n: "Undergrowth Stadium", p: 8.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" },
-            { n: "Llanowar Wastes", p: 0.95, t: "Land" }
-        ]
-    },
+        function parseDecklistCards(decklistStr, commanderName = '') {
+            const lines = (decklistStr || '').split('\n');
+            const cards = [];
+            for (const raw of lines) {
+                const line = raw.trim();
+                if (!line || line.startsWith('//')) continue;
+                const m = line.match(/^(\d+)\s+(.+?)(?:\s+\([A-Z0-9]+\)\s*.*)?$/);
+                if (m) {
+                    const qty = parseInt(m[1], 10) || 1;
+                    let name = m[2].trim().replace(/\s+\([A-Z0-9]+\).*$/, '').replace(/\s+\*F\*$/, '').trim();
+                    const isBasic = BASIC_LAND_NAMES.has(name.toLowerCase());
+                    const isCommander = Boolean(commanderName && name.toLowerCase() === commanderName.toLowerCase());
+                    cards.push({
+                        name,
+                        quantity: qty,
+                        isBasic,
+                        isCommander,
+                        price: isBasic ? 0 : 0.75
+                    });
+                }
+            }
+            return cards;
+        }
 
-    // --- MODERN HORIZONS 3 (MH3) ---
-    {
-        id: 'precon-eldrazi-incursion',
-        name: "Eldrazi Incursion",
-        commander: "Ulalek, Fused Atrocity",
-        type: 'precon',
-        set: 'MH3',
-        colors: ['W', 'U', 'B', 'R', 'G'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/f/d/fdad1b0e-d3cc-4ce4-88e0-f1a7f427494c.jpg',
-        keyCards: [
-            { n: "Ulalek, Fused Atrocity", p: 5.50, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Worn Powerstone", p: 0.80, t: "Artifact" },
-            { n: "Thran Dynamo", p: 2.50, t: "Artifact" },
-            { n: "Hedron Archive", p: 0.35, t: "Artifact" },
-            { n: "Forsaken Monument", p: 8.50, t: "Artifact" },
-            { n: "Eldrazi Temple", p: 6.80, t: "Land" },
-            { n: "Eye of Ugin", p: 14.00, t: "Land" },
-            { n: "Urza's Tower", p: 1.50, t: "Land" },
-            { n: "Urza's Power Plant", p: 1.50, t: "Land" },
-            { n: "Urza's Mine", p: 1.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" },
-            { n: "Kozilek, the Great Distortion", p: 9.50, t: "Creature" },
-            { n: "Ulamog, the Ceaseless Hunger", p: 32.00, t: "Creature" },
-            { n: "All Is Dust", p: 4.80, t: "Sorcery" },
-            { n: "Conduit of Ruin", p: 3.50, t: "Creature" },
-            { n: "Oblivion Sower", p: 1.20, t: "Creature" },
-            { n: "Artisan of Kozilek", p: 0.60, t: "Creature" },
-            { n: "Endbringer", p: 0.75, t: "Creature" }
-        ]
-    },
-    {
-        id: 'precon-creative-energy',
-        name: "Creative Energy",
-        commander: "Satya, Aetherflux Genius",
-        type: 'precon',
-        set: 'MH3',
-        colors: ['U', 'R', 'W'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/3/b/3b964bbe-6917-48e0-ab59-441240c0f83d.jpg',
-        keyCards: [
-            { n: "Satya, Aetherflux Genius", p: 3.50, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Izzet Signet", p: 0.40, t: "Artifact" },
-            { n: "Boros Signet", p: 0.45, t: "Artifact" },
-            { n: "Azorius Signet", p: 0.40, t: "Artifact" },
-            { n: "Aetherworks Marvel", p: 3.20, t: "Artifact" },
-            { n: "Aethersphere Harvester", p: 0.75, t: "Artifact" },
-            { n: "Gonti's Aether Heart", p: 2.10, t: "Artifact" },
-            { n: "Whirler Virtuoso", p: 0.35, t: "Creature" },
-            { n: "Swords to Plowshares", p: 1.40, t: "Instant" },
-            { n: "Chaos Warp", p: 0.95, t: "Instant" },
-            { n: "Counterspell", p: 1.20, t: "Instant" },
-            { n: "Command Tower", p: 0.40, t: "Land" },
-            { n: "Steam Vents", p: 17.50, t: "Land" },
-            { n: "Sacred Foundry", p: 16.00, t: "Land" },
-            { n: "Hallowed Fountain", p: 12.50, t: "Land" }
-        ]
-    },
-    {
-        id: 'precon-graveyard-overdrive',
-        name: "Graveyard Overdrive",
-        commander: "Disa the Restless",
-        type: 'precon',
-        set: 'MH3',
-        colors: ['B', 'R', 'G'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/c/9/c976edeb-0fa1-4647-a16c-870d8a3c30c6.jpg',
-        keyCards: [
-            { n: "Disa the Restless", p: 2.80, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Golgari Signet", p: 0.45, t: "Artifact" },
-            { n: "Rakdos Signet", p: 0.45, t: "Artifact" },
-            { n: "Gruul Signet", p: 0.40, t: "Artifact" },
-            { n: "Tarmogoyf", p: 12.00, t: "Creature" },
-            { n: "Lhurgoyf", p: 0.90, t: "Creature" },
-            { n: "Living Death", p: 3.50, t: "Sorcery" },
-            { n: "Buried Alive", p: 5.50, t: "Sorcery" },
-            { n: "Faithless Looting", p: 0.50, t: "Sorcery" },
-            { n: "Beast Within", p: 1.20, t: "Instant" },
-            { n: "Terminate", p: 0.60, t: "Instant" },
-            { n: "Command Tower", p: 0.40, t: "Land" },
-            { n: "Blood Crypt", p: 15.00, t: "Land" },
-            { n: "Overgrown Tomb", p: 14.00, t: "Land" },
-            { n: "Stomping Ground", p: 12.00, t: "Land" }
-        ]
-    },
-    {
-        id: 'precon-tricky-terrain',
-        name: "Tricky Terrain",
-        commander: "Omo, Queen of Vesuva",
-        type: 'precon',
-        set: 'MH3',
-        colors: ['G', 'U'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/e/5/e5d1c814-4c22-4917-95ae-d7f491955015.jpg',
-        keyCards: [
-            { n: "Omo, Queen of Vesuva", p: 3.20, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Simic Signet", p: 0.45, t: "Artifact" },
-            { n: "Talisman of Curiosity", p: 0.90, t: "Artifact" },
-            { n: "Crop Rotation", p: 2.80, t: "Instant" },
-            { n: "Scapeshift", p: 14.00, t: "Sorcery" },
-            { n: "Vesuva", p: 8.50, t: "Land" },
-            { n: "Thespian's Stage", p: 1.80, t: "Land" },
-            { n: "Dark Depths", p: 9.50, t: "Land" },
-            { n: "Urza's Tower", p: 1.50, t: "Land" },
-            { n: "Cultivate", p: 0.35, t: "Sorcery" },
-            { n: "Kodama's Reach", p: 0.40, t: "Sorcery" },
-            { n: "Beast Within", p: 1.20, t: "Instant" },
-            { n: "Cyclonic Rift", p: 34.00, t: "Instant" },
-            { n: "Command Tower", p: 0.40, t: "Land" },
-            { n: "Breeding Pool", p: 14.50, t: "Land" }
-        ]
-    },
+        // Popular EDHREC archetypes with full 100-card Commander decklists
+        const EDHREC_META_DECKS = [
+            {
+                id: 'edhrec-krenko',
+                name: "Krenko Goblin Overrun",
+                commander: "Krenko, Mob Boss",
+                type: 'edhrec',
+                set: 'M13',
+                colors: ['R'],
+                imageUrl: 'https://api.scryfall.com/cards/named?exact=Krenko%2C%20Mob%20Boss&format=image&version=art_crop',
+                theme: "Goblin Swarm & Exponential Tokens",
+                strategy: "Multiply Goblin tokens exponentially with Krenko. Overwhelm opponents with haste anthems, burn on creature entry, and sacrificial artillery.",
+                cardCount: 100,
+                decklist: `// Commander\n1 Krenko, Mob Boss (M13) 138\n\n// Mainboard\n1 Goblin Chieftain (M12) 138\n1 Goblin Warchief (DOM) 130\n1 Goblin King (10E) 207\n1 Goblin Trashmaster (M19) 144\n1 Pashalik Mons (MH1) 138\n1 Goblin Recruiter (6ED) 186\n1 Goblin Matron (MH1) 129\n1 Goblin Ringleader (M20) 143\n1 Muxus, Goblin Grandee (JMP) 24\n1 Krenko, Tin Street Kingpin (WAR) 137\n1 Siege-Gang Commander (EMA) 147\n1 Rundvelt Hordemaster (DMU) 142\n1 Conspicuous Snoop (M21) 139\n1 Goblin Piledriver (ORI) 151\n1 Legion Loyalist (GTC) 97\n1 Goblin Bushwhacker (ZEN) 125\n1 Reckless Bushwhacker (OGW) 116\n1 Warren Instigator (ZEN) 154\n1 Battle Cry Goblin (AFR) 132\n1 Squee, the Immortal (DOM) 149\n1 Goro-Goro, Disciple of Ryusei (NEO) 145\n1 Hobgoblin Bandit Lord (AFR) 147\n1 Dark-Dweller Oracle (M19) 134\n1 Goblin Chirurgeon (FEM) 54\n1 Arms Dealer (M13) 120\n1 Brash Taunter (M21) 133\n1 Fanatical Firebrand (RIX) 101\n1 Torch Courier (GRN) 119\n1 Beetleback Chief (EMA) 120\n1 Skirk Prospector (DOM) 144\n1 Impact Tremors (DTK) 140\n1 Purphoros, God of the Forge (THS) 135\n1 Shared Animosity (MOR) 104\n1 Goblin Bombardment (MH2) 279\n1 Quest for the Goblin Lord (WWK) 86\n1 Mechanized Warfare (BRO) 139\n1 Chaos Warp (C14) 176\n1 Blasphemous Act (ISD) 150\n1 Jeska's Will (CMR) 187\n1 Deflecting Swat (C20) 50\n1 Bolt Bend (WAR) 115\n1 Brightstone Ritual (ONS) 191\n1 Battle Hymn (AVR) 128\n1 Massive Raid (GTC) 100\n1 You See a Pair of Goblins (AFR) 170\n1 Hordeling Outburst (KTK) 111\n1 Dragon Fodder (ALA) 93\n1 Krenko's Command (M13) 139\n1 Empty the Warrens (TSP) 152\n1 Sol Ring (C14) 268\n1 Arcane Signet (ELD) 331\n1 Ruby Medallion (TMP) 295\n1 Skullclamp (DST) 140\n1 Lightning Greaves (MRD) 199\n1 Swiftfoot Boots (M12) 219\n1 Thornbite Staff (MOR) 145\n1 Illusionist's Bracers (GTC) 231\n1 Herald's Horn (C17) 53\n1 Ashnod's Altar (EMA) 218\n1 Phyrexian Altar (INV) 306\n1 Mind Stone (10E) 335\n1 Thought Vessel (C15) 55\n1 Castle Embereth (ELD) 239\n1 Nykthos, Shrine to Nyx (THS) 223\n1 Forgotten Cave (ONS) 317\n1 Command Beacon (C15) 56\n1 War Room (CMR) 361\n1 Den of the Bugbear (AFR) 254\n1 Cavern of Souls (AVR) 226\n1 Hanweir Battlements (EMN) 204\n29 Mountain (BLB) 274`
+            },
+            {
+                id: 'edhrec-yuriko',
+                name: "Yuriko Ninjutsu Tempo",
+                commander: "Yuriko, the Tiger's Shadow",
+                type: 'edhrec',
+                set: 'C18',
+                colors: ['U', 'B'],
+                imageUrl: 'https://api.scryfall.com/cards/named?exact=Yuriko%2C%20the%20Tiger%27s%20Shadow&format=image&version=art_crop',
+                theme: "Commander Ninjutsu & Big-Mana Burn",
+                strategy: "Cheat Yuriko into play uncounterably via Commander Ninjutsu. Stack the top of your deck with colossal mana value spells to burn opponents simultaneously.",
+                cardCount: 100,
+                decklist: `// Commander\n1 Yuriko, the Tiger's Shadow (C18) 52\n\n// Mainboard\n1 Ingenious Infiltrator (MH1) 204\n1 Silver-Fur Master (NEO) 236\n1 Moon-Circuit Hacker (NEO) 67\n1 Ninja of the Deep Hours (BOK) 44\n1 Mist-Syndicate Naga (MH1) 58\n1 Prosperous Thief (NEO) 73\n1 Throat Slitter (BOK) 88\n1 Dokuchi Silencer (NEO) 95\n1 Mistblade Shinobi (BOK) 40\n1 Thousand-Faced Shadow (NEO) 86\n1 Nashi, Moon Sage's Scion (NEO) 114\n1 Changeling Outcast (MH1) 78\n1 Ornithopter (ATQ) 66\n1 Memnite (SOM) 174\n1 Faerie Seer (MH1) 51\n1 Slither Blade (AKH) 71\n1 Siren Stormtamer (XLN) 79\n1 Spectral Sailor (M20) 76\n1 Mothdust Changeling (MOR) 42\n1 Tetsuko Umezawa, Fugitive (DOM) 69\n1 Sakashima's Student (PC2) 24\n1 Kaito Shizuki (NEO) 226\n1 Kaito, Dancing Shadow (ONE) 204\n1 Brainstorm (ICE) 61\n1 Ponder (LRW) 79\n1 Preordain (M11) 70\n1 Lim-Dûl's Vault (ALL) 112\n1 Mystical Tutor (MIR) 80\n1 Vampiric Tutor (6ED) 165\n1 Demonic Tutor (3ED) 105\n1 Scroll Rack (TMP) 308\n1 Sensei's Divining Top (CHK) 268\n1 Cyclonic Rift (RTR) 35\n1 Counterspell (4ED) 65\n1 Fierce Guardianship (C20) 35\n1 Force of Will (ALL) 28\n1 Force of Negation (MH1) 52\n1 Swan Song (THS) 65\n1 Arcane Denial (ALL) 22\n1 Infernal Grasp (MID) 107\n1 Snuff Out (MMQ) 162\n1 Deadly Rollick (C20) 42\n1 Temporal Trespass (FRF) 55\n1 Dig Through Time (KTK) 36\n1 Treasure Cruise (KTK) 59\n1 Shadow of Mortality (SNC) 94\n1 Draco (PLS) 131\n1 Blinkmoth Infusion (5DN) 25\n1 Sol Ring (C18) 222\n1 Arcane Signet (ELD) 331\n1 Dimir Signet (RAV) 260\n1 Talisman of Dominance (MRD) 253\n1 Thought Vessel (C15) 55\n1 Lightning Greaves (MRD) 199\n1 Swiftfoot Boots (M12) 219\n1 Watery Grave (GTC) 249\n1 Drowned Catacomb (M13) 223\n1 Polluted Delta (KTK) 239\n1 Morphic Pool (BBD) 83\n1 Choked Estuary (SOI) 270\n1 Sunken Hollow (BFZ) 249\n1 Shipwreck Marsh (MID) 267\n1 Underground River (ICE) 359\n1 Clearwater Pathway (ZNR) 260\n1 Command Tower (C18) 235\n1 Exotic Orchard (CON) 142\n1 Reliquary Tower (M13) 227\n1 Bojuka Bog (WWK) 132\n15 Island (BLB) 271\n16 Swamp (BLB) 273`
+            },
+            {
+                id: 'edhrec-miirym',
+                name: "Miirym Dragon Multiplier",
+                commander: "Miirym, Sentinel Wyrm",
+                type: 'edhrec',
+                set: 'CLB',
+                colors: ['G', 'U', 'R'],
+                imageUrl: 'https://api.scryfall.com/cards/named?exact=Miirym%2C%20Sentinel%20Wyrm&format=image&version=art_crop',
+                theme: "Dragon Tribal & Token Duplication",
+                strategy: "Cast colossal Dragons that Miirym duplicates for free into non-legendary token clones. Trigger explosive enter-the-battlefield burn and overwhelm the skies.",
+                cardCount: 100,
+                decklist: `// Commander\n1 Miirym, Sentinel Wyrm (CLB) 284\n\n// Mainboard\n1 Utvara Hellkite (RTR) 110\n1 Goldspan Dragon (KHM) 139\n1 Old Gnawbone (AFR) 197\n1 Terror of the Peaks (M21) 164\n1 Scourge of Valkas (M14) 151\n1 Dragon Tempest (DTK) 136\n1 Lathliss, Dragon Queen (M19) 149\n1 Ganax, Astral Hunter (CLB) 176\n1 Thrakkus the Butcher (CLB) 295\n1 Atarka, World Render (FRF) 149\n1 Savage Ventmaw (DTK) 231\n1 Klauth, Unrivaled Ancient (AFC) 49\n1 Lozhan, Dragons' Legacy (CLB) 281\n1 Renari, Merchant of Marvels (CLB) 90\n1 Earthquake Dragon (CLB) 228\n1 Dragonlord's Servant (DTK) 138\n1 Dragonspeaker Shaman (SCG) 89\n1 Scaled Nurturer (CLB) 252\n1 Orb of Dragonkind (AFR) 157\n1 Dragon's Hoard (M19) 232\n1 Carnelian Orb of Dragonkind (CLB) 166\n1 Jade Orb of Dragonkind (CLB) 236\n1 Lapis Orb of Dragonkind (CLB) 82\n1 Sol Ring (CLB) 873\n1 Arcane Signet (CLB) 846\n1 Izzet Signet (GPT) 153\n1 Gruul Signet (GPT) 150\n1 Simic Signet (DIS) 166\n1 Talisman of Creativity (MH1) 231\n1 Talisman of Impulse (MRD) 254\n1 Talisman of Curiosity (MH1) 232\n1 Farseek (M13) 170\n1 Cultivate (M11) 168\n1 Kodama's Reach (CHK) 225\n1 Nature's Lore (ICE) 252\n1 Three Visits (PTK) 155\n1 Skyshroud Claim (NMS) 122\n1 Heroic Intervention (AER) 109\n1 Cyclonic Rift (RTR) 35\n1 Beast Within (NPH) 103\n1 Chaos Warp (C14) 176\n1 Counterspell (4ED) 65\n1 Temur Ascendancy (KTK) 207\n1 Garruk's Uprising (M21) 186\n1 Elemental Bond (ORI) 174\n1 Kindred Discovery (C17) 11\n1 Crucible of Fire (ALA) 99\n1 Blasphemous Act (ISD) 150\n1 Stomping Ground (GTC) 247\n1 Steam Vents (RTR) 247\n1 Breeding Pool (GTC) 240\n1 Ketria Triome (IKO) 250\n1 Command Tower (CLB) 351\n1 Haven of the Spirit Dragon (DTK) 249\n1 Crucible of the Spirit Dragon (FRF) 167\n1 Path of Ancestry (C17) 56\n1 Exotic Orchard (CON) 142\n1 Karplusan Forest (ICE) 354\n1 Shivan Reef (APC) 142\n1 Yavimaya Coast (APC) 143\n1 Spire Garden (BBD) 85\n1 Training Center (CMR) 358\n1 Rejuvenating Springs (CMR) 354\n1 Fabled Passage (ELD) 244\n13 Mountain (BLB) 274\n12 Forest (BLB) 275\n10 Island (BLB) 271`
+            }
+        ];
 
-    // --- LOST CAVERNS OF IXALAN (LCI) ---
-    {
-        id: 'precon-veloci-ramp-tor',
-        name: "Veloci-RAMP-tor",
-        commander: "Pantlaza, Sun-Favored",
-        type: 'precon',
-        set: 'LCI',
-        colors: ['R', 'G', 'W'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/2/5/25d04010-3204-4329-92c9-ab13ea6868f0.jpg',
-        keyCards: [
-            { n: "Pantlaza, Sun-Favored", p: 6.50, t: "Commander" },
-            { n: "Gishath, Sun's Avatar", p: 7.50, t: "Creature" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Cultivate", p: 0.35, t: "Sorcery" },
-            { n: "Kodama's Reach", p: 0.40, t: "Sorcery" },
-            { n: "Fyshath", p: 0.50, t: "Creature" },
-            { n: "Ripjaw Raptor", p: 2.10, t: "Creature" },
-            { n: "Regal Behemoth", p: 1.25, t: "Creature" },
-            { n: "Zacama, Primal Calamity", p: 18.00, t: "Creature" },
-            { n: "Apex Altisaur", p: 4.80, t: "Creature" },
-            { n: "Etali, Primal Storm", p: 2.20, t: "Creature" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Beast Within", p: 1.20, t: "Instant" },
-            { n: "Swords to Plowshares", p: 1.40, t: "Instant" },
-            { n: "Stomping Ground", p: 12.00, t: "Land" },
-            { n: "Temple Garden", p: 11.50, t: "Land" },
-            { n: "Sacred Foundry", p: 16.00, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
-    {
-        id: 'precon-blood-rites',
-        name: "Blood Rites",
-        commander: "Clavileño, First of the Blessed",
-        type: 'precon',
-        set: 'LCI',
-        colors: ['W', 'B'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/9/f/9f55b648-b1ec-407a-a0c7-7647755793d1.jpg',
-        keyCards: [
-            { n: "Clavileño, First of the Blessed", p: 3.50, t: "Commander" },
-            { n: "Elenda, the Dusk Rose", p: 5.80, t: "Creature" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Orzhov Signet", p: 0.40, t: "Artifact" },
-            { n: "Talisman of Hierarchy", p: 0.80, t: "Artifact" },
-            { n: "Vindicate", p: 1.20, t: "Sorcery" },
-            { n: "Swords to Plowshares", p: 1.40, t: "Instant" },
-            { n: "Demonic Tutor", p: 36.00, t: "Sorcery" },
-            { n: "Toxic Deluge", p: 7.50, t: "Sorcery" },
-            { n: "Skullclamp", p: 6.80, t: "Artifact" },
-            { n: "Cordial Vampire", p: 2.80, t: "Creature" },
-            { n: "Captivating Vampire", p: 7.50, t: "Creature" },
-            { n: "Godless Shrine", p: 13.50, t: "Land" },
-            { n: "Vault of Champions", p: 9.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
-    {
-        id: 'precon-explorers-of-the-deep',
-        name: "Explorers of the Deep",
-        commander: "Hakbal of the Surging Soul",
-        type: 'precon',
-        set: 'LCI',
-        colors: ['G', 'U'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/c/7/c7128509-f9c3-4d4a-91ff-9700d2ad9f44.jpg',
-        keyCards: [
-            { n: "Hakbal of the Surging Soul", p: 4.20, t: "Commander" },
-            { n: "Kiora, Sovereign of the Deep", p: 3.50, t: "Creature" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Simic Signet", p: 0.45, t: "Artifact" },
-            { n: "Master of the Pearl Trident", p: 2.10, t: "Creature" },
-            { n: "Lord of Atlantis", p: 6.50, t: "Creature" },
-            { n: "Merrow Reejerey", p: 0.90, t: "Creature" },
-            { n: "Cyclonic Rift", p: 34.00, t: "Instant" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Beast Within", p: 1.20, t: "Instant" },
-            { n: "Counterspell", p: 1.20, t: "Instant" },
-            { n: "Breeding Pool", p: 14.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
+        // Process EDHREC meta decks cards
+        EDHREC_META_DECKS.forEach(d => {
+            d.cards = parseDecklistCards(d.decklist, d.commander);
+        });
 
-    // --- OUTLAWS OF THUNDER JUNCTION (OTJ) ---
-    {
-        id: 'precon-quick-draw',
-        name: "Quick Draw",
-        commander: "Stella Lee, Wild Card",
-        type: 'precon',
-        set: 'OTJ',
-        colors: ['U', 'R'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/2/a/2a5f5195-23eb-4ce7-b088-75c02bf9eb5e.jpg',
-        keyCards: [
-            { n: "Stella Lee, Wild Card", p: 4.20, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Izzet Signet", p: 0.40, t: "Artifact" },
-            { n: "Talisman of Creativity", p: 1.10, t: "Artifact" },
-            { n: "Veyran, Voice of Duality", p: 6.80, t: "Creature" },
-            { n: "Archmage Emeritus", p: 3.50, t: "Creature" },
-            { n: "Storm-Kiln Artist", p: 1.90, t: "Creature" },
-            { n: "Cyclonic Rift", p: 34.00, t: "Instant" },
-            { n: "Counterspell", p: 1.20, t: "Instant" },
-            { n: "Chaos Warp", p: 0.95, t: "Instant" },
-            { n: "Grapeshot", p: 0.40, t: "Sorcery" },
-            { n: "Ponder", p: 1.80, t: "Sorcery" },
-            { n: "Preordain", p: 1.20, t: "Sorcery" },
-            { n: "Brainstorm", p: 1.50, t: "Instant" },
-            { n: "Steam Vents", p: 17.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
-    {
-        id: 'precon-desert-bloom',
-        name: "Desert Bloom",
-        commander: "Yuma, Proud Protector",
-        type: 'precon',
-        set: 'OTJ',
-        colors: ['R', 'G', 'W'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/5/8/580f5d52-520e-436f-8700-1c00f33dfc29.jpg',
-        keyCards: [
-            { n: "Yuma, Proud Protector", p: 3.40, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Cultivate", p: 0.35, t: "Sorcery" },
-            { n: "Kodama's Reach", p: 0.40, t: "Sorcery" },
-            { n: "Ramunap Excavator", p: 3.80, t: "Creature" },
-            { n: "Scapeshift", p: 14.00, t: "Sorcery" },
-            { n: "Life from the Loam", p: 8.50, t: "Sorcery" },
-            { n: "Avenger of Zendikar", p: 3.90, t: "Creature" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Swords to Plowshares", p: 1.40, t: "Instant" },
-            { n: "Stomping Ground", p: 12.00, t: "Land" },
-            { n: "Temple Garden", p: 11.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
+        let BUILD_DECKS_CATALOG = [...EDHREC_META_DECKS];
+        let buildDecksLoadedPromise = null;
 
-    // --- FALLOUT (PIP) ---
-    {
-        id: 'precon-mutant-menace',
-        name: "Mutant Menace",
-        commander: "The Wise Mothman",
-        type: 'precon',
-        set: 'PIP',
-        colors: ['B', 'G', 'U'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/1/d/1d3d7701-d36f-462b-8547-07432351fa6a.jpg',
-        keyCards: [
-            { n: "The Wise Mothman", p: 5.80, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Simic Signet", p: 0.45, t: "Artifact" },
-            { n: "Golgari Signet", p: 0.45, t: "Artifact" },
-            { n: "Dimir Signet", p: 0.40, t: "Artifact" },
-            { n: "Hardened Scales", p: 2.50, t: "Enchantment" },
-            { n: "Branching Evolution", p: 11.00, t: "Enchantment" },
-            { n: "Mesmeric Orb", p: 14.50, t: "Artifact" },
-            { n: "Demonic Tutor", p: 36.00, t: "Sorcery" },
-            { n: "Cyclonic Rift", p: 34.00, t: "Instant" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Overgrown Tomb", p: 14.00, t: "Land" },
-            { n: "Watery Grave", p: 15.00, t: "Land" },
-            { n: "Breeding Pool", p: 14.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
-    {
-        id: 'precon-scrappy-survivors',
-        name: "Scrappy Survivors",
-        commander: "Dogmeat, Ever Loyal",
-        type: 'precon',
-        set: 'PIP',
-        colors: ['R', 'G', 'W'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/8/6/86b45e3e-8460-4206-85e8-23097d97bd06.jpg',
-        keyCards: [
-            { n: "Dogmeat, Ever Loyal", p: 3.20, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Puresteel Paladin", p: 4.50, t: "Creature" },
-            { n: "Sram, Senior Edificer", p: 1.20, t: "Creature" },
-            { n: "Swiftfoot Boots", p: 1.10, t: "Artifact" },
-            { n: "Lightning Greaves", p: 6.50, t: "Artifact" },
-            { n: "Sword of Feast and Famine", p: 38.00, t: "Artifact" },
-            { n: "Swords to Plowshares", p: 1.40, t: "Instant" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Cultivate", p: 0.35, t: "Sorcery" },
-            { n: "Sacred Foundry", p: 16.00, t: "Land" },
-            { n: "Temple Garden", p: 11.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
+        async function loadBuildDecksCatalog() {
+            if (BUILD_DECKS_CATALOG.length > EDHREC_META_DECKS.length) {
+                return BUILD_DECKS_CATALOG;
+            }
+            if (buildDecksLoadedPromise) {
+                return buildDecksLoadedPromise;
+            }
 
-    // --- LORD OF THE RINGS (LTC) ---
-    {
-        id: 'precon-riders-of-rohan',
-        name: "Riders of Rohan",
-        commander: "Éowyn, Shieldmaiden",
-        type: 'precon',
-        set: 'LTC',
-        colors: ['U', 'R', 'W'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/0/9/09747656-1059-428f-9e49-b5cd3d0f000b.jpg',
-        keyCards: [
-            { n: "Éowyn, Shieldmaiden", p: 4.80, t: "Commander" },
-            { n: "Aragorn, King of Gondor", p: 6.20, t: "Creature" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Boros Signet", p: 0.45, t: "Artifact" },
-            { n: "Azorius Signet", p: 0.40, t: "Artifact" },
-            { n: "Izzet Signet", p: 0.40, t: "Artifact" },
-            { n: "Horn of Gondor", p: 14.00, t: "Artifact" },
-            { n: "Swords to Plowshares", p: 1.40, t: "Instant" },
-            { n: "Path to Exile", p: 1.20, t: "Instant" },
-            { n: "Teferi's Protection", p: 24.00, t: "Instant" },
-            { n: "Shared Animosity", p: 2.50, t: "Enchantment" },
-            { n: "Sacred Foundry", p: 16.00, t: "Land" },
-            { n: "Steam Vents", p: 17.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
-    {
-        id: 'precon-food-and-fellowship',
-        name: "Food and Fellowship",
-        commander: "Frodo, Adventurous Hobbit",
-        type: 'precon',
-        set: 'LTC',
-        colors: ['W', 'B', 'G'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/3/2/328df403-7428-4017-bdd1-946739e38282.jpg',
-        keyCards: [
-            { n: "Frodo, Adventurous Hobbit", p: 3.50, t: "Commander" },
-            { n: "Sam, Loyal Attendant", p: 4.50, t: "Creature" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Golgari Signet", p: 0.45, t: "Artifact" },
-            { n: "Orzhov Signet", p: 0.40, t: "Artifact" },
-            { n: "Selesnya Signet", p: 0.40, t: "Artifact" },
-            { n: "Academy Manufactor", p: 4.80, t: "Creature" },
-            { n: "Mirkwood Bats", p: 1.80, t: "Creature" },
-            { n: "Swords to Plowshares", p: 1.40, t: "Instant" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Demonic Tutor", p: 36.00, t: "Sorcery" },
-            { n: "Godless Shrine", p: 13.50, t: "Land" },
-            { n: "Overgrown Tomb", p: 14.00, t: "Land" },
-            { n: "Temple Garden", p: 11.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
+            buildDecksLoadedPromise = (async () => {
+                try {
+                    const res = await fetch('./commander-precons.json?v=6.7');
+                    if (res.ok) {
+                        const preconsData = await res.json();
+                        if (Array.isArray(preconsData) && preconsData.length > 0) {
+                            const precons = preconsData.map(p => {
+                                const id = `precon-${(p.code || 'cmd').toLowerCase()}-${(p.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                                const cards = parseDecklistCards(p.decklist, p.commander);
+                                const bannerUrl = p.scryfallId
+                                    ? `https://api.scryfall.com/cards/${p.scryfallId}?format=image&version=art_crop`
+                                    : `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(p.commander)}&format=image&version=art_crop`;
+                                return {
+                                    id,
+                                    name: p.name,
+                                    commander: p.commander,
+                                    type: 'precon',
+                                    set: p.code || 'CMD',
+                                    releaseDate: p.releaseDate || '',
+                                    colors: p.colors || [],
+                                    scryfallId: p.scryfallId || null,
+                                    imageUrl: bannerUrl,
+                                    theme: p.theme || 'Commander Precon',
+                                    strategy: p.strategy || '',
+                                    cardCount: p.cardCount || 100,
+                                    decklist: p.decklist,
+                                    cards
+                                };
+                            });
 
-    // --- WARHAMMER 40K (40K) ---
-    {
-        id: 'precon-necron-dynasties',
-        name: "Necron Dynasties",
-        commander: "Szarekh, the Silent King",
-        type: 'precon',
-        set: '40K',
-        colors: ['B'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/0/9/09b19c0d-6776-463e-8410-70bf9466671a.jpg',
-        keyCards: [
-            { n: "Szarekh, the Silent King", p: 4.50, t: "Commander" },
-            { n: "Anrakyr the Traveller", p: 4.80, t: "Creature" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Mind Stone", p: 0.45, t: "Artifact" },
-            { n: "Thran Dynamo", p: 2.50, t: "Artifact" },
-            { n: "Biotransference", p: 6.50, t: "Enchantment" },
-            { n: "Living Death", p: 3.50, t: "Sorcery" },
-            { n: "Demonic Tutor", p: 36.00, t: "Sorcery" },
-            { n: "Toxic Deluge", p: 7.50, t: "Sorcery" },
-            { n: "Cabal Coffers", p: 18.00, t: "Land" },
-            { n: "Urborg, Tomb of Yawgmoth", p: 34.00, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
+                            BUILD_DECKS_CATALOG = [...precons, ...EDHREC_META_DECKS];
+                            window.PRECON_DECKS_DATABASE = BUILD_DECKS_CATALOG;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to load commander-precons.json:', e);
+                }
+                return BUILD_DECKS_CATALOG;
+            })();
 
-    // --- TOP EDHREC META ARCHETYPES ---
-    {
-        id: 'edhrec-atraxa',
-        name: "Atraxa Superfriends / Proliferate",
-        commander: "Atraxa, Praetors' Voice",
-        type: 'edhrec',
-        set: '2XM',
-        colors: ['G', 'W', 'U', 'B'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/d/0/d0d33d52-3d28-4635-b985-51e126289259.jpg',
-        keyCards: [
-            { n: "Atraxa, Praetors' Voice", p: 16.50, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Command Tower", p: 0.40, t: "Land" },
-            { n: "Rhystic Study", p: 38.00, t: "Enchantment" },
-            { n: "Smothering Tithe", p: 19.50, t: "Enchantment" },
-            { n: "Cyclonic Rift", p: 34.00, t: "Instant" },
-            { n: "Demonic Tutor", p: 36.00, t: "Sorcery" },
-            { n: "Vampiric Tutor", p: 38.00, t: "Instant" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Teferi's Protection", p: 24.00, t: "Instant" },
-            { n: "Swords to Plowshares", p: 1.40, t: "Instant" },
-            { n: "Counterspell", p: 1.20, t: "Instant" },
-            { n: "Deepglow Skate", p: 1.60, t: "Creature" },
-            { n: "Evolution Sage", p: 0.85, t: "Creature" },
-            { n: "Inexorable Tide", p: 4.80, t: "Enchantment" },
-            { n: "Overgrown Tomb", p: 14.00, t: "Land" },
-            { n: "Watery Grave", p: 15.00, t: "Land" },
-            { n: "Breeding Pool", p: 14.50, t: "Land" },
-            { n: "Godless Shrine", p: 13.50, t: "Land" },
-            { n: "Temple Garden", p: 11.50, t: "Land" },
-            { n: "Hallowed Fountain", p: 12.50, t: "Land" }
-        ]
-    },
-    {
-        id: 'edhrec-ur-dragon',
-        name: "The Ur-Dragon Tyranny",
-        commander: "The Ur-Dragon",
-        type: 'edhrec',
-        set: 'C17',
-        colors: ['W', 'U', 'B', 'R', 'G'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/7/e/7e78b70b-0c67-4f14-8ad7-c9f8e3f59743.jpg',
-        keyCards: [
-            { n: "The Ur-Dragon", p: 28.00, t: "Commander" },
-            { n: "Miirym, Sentinel Wyrm", p: 4.80, t: "Creature" },
-            { n: "Scion of the Ur-Dragon", p: 2.20, t: "Creature" },
-            { n: "Utvara Hellkite", p: 7.50, t: "Creature" },
-            { n: "Goldspan Dragon", p: 11.00, t: "Creature" },
-            { n: "Old Gnawbone", p: 38.00, t: "Creature" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Dragon's Hoard", p: 2.40, t: "Artifact" },
-            { n: "Cultivate", p: 0.35, t: "Sorcery" },
-            { n: "Kodama's Reach", p: 0.40, t: "Sorcery" },
-            { n: "Farseek", p: 1.50, t: "Sorcery" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Cyclonic Rift", p: 34.00, t: "Instant" },
-            { n: "Command Tower", p: 0.40, t: "Land" },
-            { n: "Crucible of the Spirit Dragon", p: 0.90, t: "Land" },
-            { n: "Haven of the Spirit Dragon", p: 2.80, t: "Land" }
-        ]
-    },
-    {
-        id: 'edhrec-krenko',
-        name: "Krenko Goblin Overrun",
-        commander: "Krenko, Mob Boss",
-        type: 'edhrec',
-        set: 'M13',
-        colors: ['R'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/9/a/9a7fb304-4d36-4299-880c-03738d95fa57.jpg',
-        keyCards: [
-            { n: "Krenko, Mob Boss", p: 4.20, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Ruby Medallion", p: 4.50, t: "Artifact" },
-            { n: "Skullclamp", p: 6.80, t: "Artifact" },
-            { n: "Lightning Greaves", p: 6.50, t: "Artifact" },
-            { n: "Swiftfoot Boots", p: 1.10, t: "Artifact" },
-            { n: "Goblin Chieftain", p: 3.20, t: "Creature" },
-            { n: "Goblin Warchief", p: 1.20, t: "Creature" },
-            { n: "Goblin Matron", p: 0.45, t: "Creature" },
-            { n: "Goblin Recruiter", p: 6.50, t: "Creature" },
-            { n: "Pashalik Mons", p: 1.10, t: "Creature" },
-            { n: "Impact Tremors", p: 2.20, t: "Enchantment" },
-            { n: "Purphoros, God of the Forge", p: 14.50, t: "Creature" },
-            { n: "Shared Animosity", p: 2.50, t: "Enchantment" },
-            { n: "Chaos Warp", p: 0.95, t: "Instant" },
-            { n: "Blasphemous Act", p: 2.80, t: "Sorcery" },
-            { n: "Castle Embereth", p: 0.60, t: "Land" }
-        ]
-    },
-    {
-        id: 'edhrec-lathril',
-        name: "Lathril Elfball Swarm",
-        commander: "Lathril, Blade of the Elves",
-        type: 'edhrec',
-        set: 'KHC',
-        colors: ['B', 'G'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/5/4/547888c3-71a6-441c-b26a-930d525287f3.jpg',
-        keyCards: [
-            { n: "Lathril, Blade of the Elves", p: 3.50, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Golgari Signet", p: 0.45, t: "Artifact" },
-            { n: "Talisman of Resilience", p: 0.90, t: "Artifact" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Demonic Tutor", p: 36.00, t: "Sorcery" },
-            { n: "Toxic Deluge", p: 7.50, t: "Sorcery" },
-            { n: "Beast Within", p: 1.20, t: "Instant" },
-            { n: "Assassin's Trophy", p: 3.80, t: "Instant" },
-            { n: "Elvish Mystic", p: 0.40, t: "Creature" },
-            { n: "Llanowar Elves", p: 0.40, t: "Creature" },
-            { n: "Fyndhorn Elves", p: 0.75, t: "Creature" },
-            { n: "Priest of Titania", p: 6.50, t: "Creature" },
-            { n: "Elvish Archdruid", p: 1.60, t: "Creature" },
-            { n: "Marwyn, the Nurturer", p: 1.90, t: "Creature" },
-            { n: "Wirewood Lodge", p: 3.80, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" },
-            { n: "Overgrown Tomb", p: 14.00, t: "Land" }
-        ]
-    },
-    {
-        id: 'edhrec-yuriko',
-        name: "Yuriko Ninja Tempo",
-        commander: "Yuriko, the Tiger's Shadow",
-        type: 'edhrec',
-        set: 'C18',
-        colors: ['U', 'B'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/3/b/3bd81ae6-e628-447a-a36b-597e63ede295.jpg',
-        keyCards: [
-            { n: "Yuriko, the Tiger's Shadow", p: 4.50, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Dimir Signet", p: 0.40, t: "Artifact" },
-            { n: "Talisman of Dominance", p: 0.95, t: "Artifact" },
-            { n: "Demonic Tutor", p: 36.00, t: "Sorcery" },
-            { n: "Vampiric Tutor", p: 38.00, t: "Instant" },
-            { n: "Cyclonic Rift", p: 34.00, t: "Instant" },
-            { n: "Counterspell", p: 1.20, t: "Instant" },
-            { n: "Fierce Guardianship", p: 42.00, t: "Instant" },
-            { n: "Brainstorm", p: 1.50, t: "Instant" },
-            { n: "Ponder", p: 1.80, t: "Sorcery" },
-            { n: "Command Tower", p: 0.40, t: "Land" },
-            { n: "Watery Grave", p: 15.00, t: "Land" },
-            { n: "Ornithopter", p: 0.35, t: "Creature" },
-            { n: "Ingenious Infiltrator", p: 1.80, t: "Creature" }
-        ]
-    },
-    {
-        id: 'edhrec-miirym',
-        name: "Miirym Dragon Multiplier",
-        commander: "Miirym, Sentinel Wyrm",
-        type: 'edhrec',
-        set: 'CLB',
-        colors: ['G', 'U', 'R'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/a/9/a934c7ea-53ad-416e-a326-33eb8fe3697b.jpg',
-        keyCards: [
-            { n: "Miirym, Sentinel Wyrm", p: 4.80, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Gruul Signet", p: 0.40, t: "Artifact" },
-            { n: "Izzet Signet", p: 0.40, t: "Artifact" },
-            { n: "Simic Signet", p: 0.45, t: "Artifact" },
-            { n: "Cultivate", p: 0.35, t: "Sorcery" },
-            { n: "Kodama's Reach", p: 0.40, t: "Sorcery" },
-            { n: "Dragon's Hoard", p: 2.40, t: "Artifact" },
-            { n: "Panharmonicon", p: 5.50, t: "Artifact" },
-            { n: "Goldspan Dragon", p: 11.00, t: "Creature" },
-            { n: "Old Gnawbone", p: 38.00, t: "Creature" },
-            { n: "Terror of the Peaks", p: 22.00, t: "Creature" },
-            { n: "Heroic Intervention", p: 9.50, t: "Instant" },
-            { n: "Cyclonic Rift", p: 34.00, t: "Instant" },
-            { n: "Counterspell", p: 1.20, t: "Instant" },
-            { n: "Stomping Ground", p: 12.00, t: "Land" },
-            { n: "Steam Vents", p: 17.50, t: "Land" },
-            { n: "Breeding Pool", p: 14.50, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
-    {
-        id: 'edhrec-prosper',
-        name: "Prosper Treasure Exile",
-        commander: "Prosper, Tome-Bound",
-        type: 'edhrec',
-        set: 'AFC',
-        colors: ['B', 'R'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/d/7/d743336e-d5c7-4053-a23d-92ec7581f74e.jpg',
-        keyCards: [
-            { n: "Prosper, Tome-Bound", p: 5.20, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Rakdos Signet", p: 0.45, t: "Artifact" },
-            { n: "Talisman of Indulgence", p: 1.20, t: "Artifact" },
-            { n: "Marionette Master", p: 2.50, t: "Creature" },
-            { n: "Professional Face-Breaker", p: 6.80, t: "Creature" },
-            { n: "Jeska's Will", p: 18.00, t: "Sorcery" },
-            { n: "Chaos Warp", p: 0.95, t: "Instant" },
-            { n: "Terminate", p: 0.60, t: "Instant" },
-            { n: "Demonic Tutor", p: 36.00, t: "Sorcery" },
-            { n: "Toxic Deluge", p: 7.50, t: "Sorcery" },
-            { n: "Revel in Riches", p: 12.50, t: "Enchantment" },
-            { n: "Blood Crypt", p: 15.00, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
-    {
-        id: 'edhrec-wilhelt',
-        name: "Wilhelt Zombie Aristocrats",
-        commander: "Wilhelt, the Rotcleaver",
-        type: 'edhrec',
-        set: 'MIC',
-        colors: ['U', 'B'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/2/5/2501a911-d892-4574-ae21-a517874a29be.jpg',
-        keyCards: [
-            { n: "Wilhelt, the Rotcleaver", p: 4.80, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Dimir Signet", p: 0.40, t: "Artifact" },
-            { n: "Talisman of Dominance", p: 0.95, t: "Artifact" },
-            { n: "Rooftop Storm", p: 3.50, t: "Enchantment" },
-            { n: "Gravecrawler", p: 6.50, t: "Creature" },
-            { n: "Diregraf Captain", p: 0.60, t: "Creature" },
-            { n: "Undead Augur", p: 0.75, t: "Creature" },
-            { n: "Lord of the Accursed", p: 0.50, t: "Creature" },
-            { n: "Demonic Tutor", p: 36.00, t: "Sorcery" },
-            { n: "Toxic Deluge", p: 7.50, t: "Sorcery" },
-            { n: "Cyclonic Rift", p: 34.00, t: "Instant" },
-            { n: "Counterspell", p: 1.20, t: "Instant" },
-            { n: "Watery Grave", p: 15.00, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    },
-    {
-        id: 'edhrec-edgar-markov',
-        name: "Edgar Markov Aristocrats",
-        commander: "Edgar Markov",
-        type: 'edhrec',
-        set: 'C17',
-        colors: ['R', 'W', 'B'],
-        imageUrl: 'https://cards.scryfall.io/art_crop/front/8/d/8d94b8ec-ecda-43c8-a60e-1ba33e6a54a4.jpg',
-        keyCards: [
-            { n: "Edgar Markov", p: 95.00, t: "Commander" },
-            { n: "Sol Ring", p: 1.25, t: "Artifact" },
-            { n: "Arcane Signet", p: 0.85, t: "Artifact" },
-            { n: "Orzhov Signet", p: 0.40, t: "Artifact" },
-            { n: "Boros Signet", p: 0.45, t: "Artifact" },
-            { n: "Rakdos Signet", p: 0.45, t: "Artifact" },
-            { n: "Cordial Vampire", p: 2.80, t: "Creature" },
-            { n: "Captivating Vampire", p: 7.50, t: "Creature" },
-            { n: "Vampire Nighthawk", p: 0.40, t: "Creature" },
-            { n: "Swords to Plowshares", p: 1.40, t: "Instant" },
-            { n: "Demonic Tutor", p: 36.00, t: "Sorcery" },
-            { n: "Toxic Deluge", p: 7.50, t: "Sorcery" },
-            { n: "Skullclamp", p: 6.80, t: "Artifact" },
-            { n: "Godless Shrine", p: 13.50, t: "Land" },
-            { n: "Blood Crypt", p: 15.00, t: "Land" },
-            { n: "Sacred Foundry", p: 16.00, t: "Land" },
-            { n: "Command Tower", p: 0.40, t: "Land" }
-        ]
-    }
-];
+            return buildDecksLoadedPromise;
+        }
+
+        function findBuildDeck(deckId) {
+            return BUILD_DECKS_CATALOG.find(d => d.id === deckId);
+        }
+        window.PRECON_DECKS_DATABASE = BUILD_DECKS_CATALOG;
 
         function switchBuildSubTab(subTab) {
             currentBuildSubTab = subTab;
@@ -2707,21 +2077,28 @@
         }
 
         function addMissingCardsToWants(deckId) {
-            const deck = PRECON_DECKS_DATABASE.find(d => d.id === deckId);
+            const deck = findBuildDeck(deckId);
             if (!deck) return;
 
             let ownedCardsList = (cachedParsedCsv && cachedParsedCsv.length > 0) ? cachedParsedCsv : (currentCollectionData || []);
             const ownedCardNames = new Set();
             ownedCardsList.forEach(it => {
-                const n = (it.name || it.card?.name || it.card?.oracleCard?.name || '').toLowerCase().trim();
+                const rawName = it.name || it.card?.name || it.card?.oracleCard?.name || '';
+                const n = normalizeCardName(rawName);
                 if (n) ownedCardNames.add(n);
+                ownedCardNames.add(rawName.toLowerCase().trim());
             });
 
             let addedCount = 0;
-            deck.keyCards.forEach(c => {
-                const cName = typeof c === 'string' ? c : c.n;
-                const cPrice = typeof c === 'object' && c.p ? c.p : 0.75;
-                if (!ownedCardNames.has(cName.toLowerCase())) {
+            const cardList = deck.cards || deck.keyCards || [];
+            cardList.forEach(c => {
+                const cName = typeof c === 'string' ? c : (c.name || c.n);
+                const cNorm = normalizeCardName(cName);
+                const isBasic = c.isBasic || BASIC_LAND_NAMES.has(cNorm) || BASIC_LAND_NAMES.has(cName.toLowerCase());
+                if (isBasic) return; // Do not add basic lands to trade binder wants
+
+                if (!ownedCardNames.has(cNorm) && !ownedCardNames.has(cName.toLowerCase().trim())) {
+                    const cPrice = typeof c === 'object' && (c.price || c.p) ? (c.price || c.p) : 0.75;
                     addToTradeBinder({
                         name: cName,
                         setCode: deck.set || '',
@@ -2736,10 +2113,15 @@
             updateTradeBadge();
             showToast(`Added ${addedCount} missing cards from "${deck.name}" to your Trade Binder wishlist! 📋`);
         }
+        window.addMissingCardsToWants = addMissingCardsToWants;
+        window.addMissingCardsToWishlist = addMissingCardsToWants;
 
         async function renderBuildSection(forceRefresh = false) {
             const grid = document.getElementById('buildDeckGrid');
             if (!grid) return;
+
+            // Ensure catalog of 180+ decks is loaded
+            await loadBuildDecksCatalog();
 
             let collectionId = document.getElementById('collectionId')?.value.trim() || localStorage.getItem('archidekt_collectionId') || '';
             const collMatch = collectionId.match(/(?:archidekt\.com\/collections?\/)(\d+)/i);
@@ -2819,7 +2201,7 @@
                         <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">⚡</div>
                         <h3 style="margin: 0 0 0.5rem 0; font-size: 1.3rem;">Enter a Collection to See What You Can Build</h3>
                         <p style="color: var(--text-muted); font-size: 0.92rem; max-width: 520px; margin: 0 auto 1.5rem auto;">
-                            Enter your <strong>Archidekt Collection ID</strong> or upload a <strong>collection CSV</strong> in Step 1 above. We'll automatically cross-reference your collection against 50+ popular precons & EDHREC archetypes!
+                            Enter your <strong>Archidekt Collection ID</strong> or upload a <strong>collection CSV</strong> in Step 1 above. We'll automatically cross-reference your collection against 180+ Commander precons & EDHREC meta archetypes!
                         </p>
                         <button type="button" class="main-btn" onclick="document.getElementById('collectionId').focus()">Enter Collection ID</button>
                     </div>
@@ -2879,36 +2261,41 @@
             banner.style.gap = '0.5rem';
             banner.innerHTML = `
                 <span>⚡ Evaluated against <strong>${ownedCardNames.size.toLocaleString()} cards</strong> in your collection (${unusedOnly ? '<strong>Unused / Available only</strong>' : 'All owned cards'})</span>
-                <span style="color: var(--text-muted); font-size: 0.82rem;">Showing decks matching threshold: <strong>${currentBuildThreshold > 0 ? `${currentBuildThreshold}%+` : 'All (0-100%)'}</strong> (${PRECON_DECKS_DATABASE.length} decks in catalog)</span>
+                <span style="color: var(--text-muted); font-size: 0.82rem;">Showing decks matching threshold: <strong>${currentBuildThreshold > 0 ? `${currentBuildThreshold}%+` : 'All (0-100%)'}</strong> (${BUILD_DECKS_CATALOG.length} decks in catalog)</span>
             `;
             grid.appendChild(banner);
 
             const currSymbol = getMarketCurrency();
 
             // Compute statistics for each deck
-            const computedDecks = PRECON_DECKS_DATABASE.map(deck => {
-                const totalKeyCards = deck.keyCards.length;
+            const computedDecks = BUILD_DECKS_CATALOG.map(deck => {
+                const cardList = deck.cards || deck.keyCards || [];
+                const totalCards = 100;
                 let ownedCount = 0;
                 const missingCards = [];
                 let estMissingCostUsd = 0;
 
-                deck.keyCards.forEach(item => {
-                    const cName = typeof item === 'string' ? item : item.n;
-                    const cPrice = typeof item === 'object' && item.p ? item.p : 0.75;
-                    const cType = typeof item === 'object' && item.t ? item.t : 'Card';
+                cardList.forEach(item => {
+                    const cName = typeof item === 'string' ? item : (item.name || item.n);
+                    const qty = item.quantity || 1;
+                    const cPrice = typeof item === 'object' && (item.price || item.p) ? (item.price || item.p) : 0.75;
+                    const cType = typeof item === 'object' && (item.type || item.t) ? (item.type || item.t) : 'Card';
 
                     const cNorm = normalizeCardName(cName);
+                    const isBasic = item.isBasic || BASIC_LAND_NAMES.has(cNorm) || BASIC_LAND_NAMES.has(cName.toLowerCase());
                     const isOwned = ownedCardNames.has(cNorm) || ownedCardNames.has(cName.toLowerCase().trim());
 
-                    if (isOwned) {
-                        ownedCount++;
+                    if (isOwned || isBasic) {
+                        ownedCount += qty;
                     } else {
-                        missingCards.push({ name: cName, price: cPrice, type: cType });
-                        estMissingCostUsd += cPrice;
+                        missingCards.push({ name: cName, price: cPrice, quantity: qty, type: cType });
+                        estMissingCostUsd += (cPrice * qty);
                     }
                 });
 
-                const pct = totalKeyCards > 0 ? Math.round((ownedCount / totalKeyCards) * 100) : 0;
+                // Standard Commander deck size cap (100)
+                const finalOwnedCount = Math.min(totalCards, ownedCount);
+                const pct = Math.round((finalOwnedCount / totalCards) * 100);
                 const cmdrNorm = normalizeCardName(deck.commander);
                 const ownsCommander = ownedCardNames.has(cmdrNorm) || ownedCardNames.has(deck.commander.toLowerCase().trim());
 
@@ -2918,8 +2305,8 @@
 
                 return {
                     ...deck,
-                    totalKeyCards,
-                    ownedCount,
+                    totalCards,
+                    ownedCount: finalOwnedCount,
                     missingCards,
                     pctOwned: pct,
                     ownsCommander,
@@ -2949,6 +2336,7 @@
                     d.name.toLowerCase().includes(query) ||
                     d.commander.toLowerCase().includes(query) ||
                     (d.set && d.set.toLowerCase().includes(query)) ||
+                    (d.theme && d.theme.toLowerCase().includes(query)) ||
                     d.colors.join('').toLowerCase().includes(query)
                 );
             }
@@ -2969,9 +2357,15 @@
 
                     const colorPips = d.colors.map(c => `<span class="badge" style="font-size: 0.72rem; padding: 1px 5px; font-weight: 800;">${c}</span>`).join(' ') || '<span class="badge" style="font-size:0.7rem;">Colorless</span>';
                     const isDrawerOpen = expandedMissingDrawers.has(d.id);
+                    const safeName = (d.name || '').replace(/'/g, "\\'");
+                    const safeCmdr = (d.commander || '').replace(/'/g, "\\'");
+                    const bannerImg = d.imageUrl || (d.scryfallId ? `https://api.scryfall.com/cards/${d.scryfallId}?format=image&version=art_crop` : `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(d.commander)}&format=image&version=art_crop`);
+                    const fallbackImg = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(d.commander)}&format=image&version=art_crop`;
 
                     card.innerHTML = `
-                        <div class="build-deck-banner" style="background-image: url('${d.imageUrl}');">
+                        <div class="build-deck-banner">
+                            <img src="${bannerImg}" alt="${safeCmdr}" loading="lazy" class="build-deck-banner-img"
+                                 onerror="this.onerror=null; this.src='${fallbackImg}';">
                             <div class="build-deck-banner-overlay">
                                 <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
                                     <span class="badge" style="background: rgba(15, 23, 42, 0.85); color: #f8fafc; font-size: 0.72rem; border: 1px solid rgba(255, 255, 255, 0.2);">
@@ -2987,7 +2381,7 @@
                         <div style="padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; flex: 1;">
                             <div>
                                 <h4 style="margin: 0; font-size: 1.08rem; font-weight: 800;">${d.name}</h4>
-                                <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">Commander: <strong>${d.commander}</strong></div>
+                                <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">Commander: <strong>${d.commander}</strong>${d.theme ? ` • <span style="color: #94a3b8;">${d.theme}</span>` : ''}</div>
                             </div>
 
                             <!-- Progress Bar -->
@@ -2995,7 +2389,7 @@
                                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; margin-bottom: 0.35rem;">
                                     <span style="color: var(--text-muted); font-weight: 600;">Match Progress:</span>
                                     <span style="font-weight: 800; color: ${d.pctOwned >= 75 ? '#34d399' : (d.pctOwned >= 50 ? '#38bdf8' : (d.pctOwned >= 25 ? '#f59e0b' : '#94a3b8'))}; font-size: 0.95rem;">
-                                        ${d.pctOwned}% (${d.ownedCount}/${d.totalKeyCards} cards)
+                                        ${d.pctOwned}% (${d.ownedCount}/100 cards)
                                     </span>
                                 </div>
                                 <div class="stat-dist-track" style="height: 8px;">
@@ -3026,7 +2420,7 @@
                                         <div style="display: flex; flex-direction: column; gap: 0.3rem;">
                                             ${d.missingCards.map(c => `
                                                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,0.02);">
-                                                    <span class="hover-card-link" onmouseenter="bindHoverName(this, '${c.name.replace(/'/g, "\\'")}')" style="color: var(--text-color);">${c.name}</span>
+                                                    <span class="hover-card-link" onmouseenter="bindHoverName(this, '${c.name.replace(/'/g, "\\'")}')" style="color: var(--text-color);">${c.quantity && c.quantity > 1 ? `${c.quantity}x ` : ''}${c.name}</span>
                                                     <span style="color: var(--text-muted); font-size: 0.74rem;">${currSymbol}${(c.price * (currentMarket === 'cardmarket' ? 0.92 : 1.0)).toFixed(2)}</span>
                                                 </div>
                                             `).join('')}
@@ -3037,13 +2431,13 @@
 
                             <!-- Action Buttons -->
                             <div style="display: flex; gap: 0.45rem; margin-top: auto; padding-top: 0.5rem; flex-wrap: wrap;">
-                                <button type="button" class="secondary-btn" style="flex: 1; padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="addMissingCardsToWishlist('${d.id}')">
+                                <button type="button" class="secondary-btn" style="flex: 1; padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="addMissingCardsToWants('${d.id}')">
                                     📋 Add Missing to Binder
                                 </button>
-                                <button type="button" class="secondary-btn" style="padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="loadBuildDeckIntoComparator('${d.id}', '${d.name.replace(/'/g, "\\'")}')">
+                                <button type="button" class="secondary-btn" style="padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="loadBuildDeckIntoComparator('${d.id}', '${safeName}')">
                                     🔍 Compare
                                 </button>
-                                <button type="button" class="secondary-btn ai-btn" style="flex: 1; padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="loadBuildDeckIntoAiOptimizer('${d.id}', '${d.name.replace(/'/g, "\\'")}')">
+                                <button type="button" class="secondary-btn ai-btn" style="flex: 1; padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="loadBuildDeckIntoAiOptimizer('${d.id}', '${safeName}')">
                                     ✨ AI Optimizer
                                 </button>
                             </div>
@@ -3069,11 +2463,11 @@
                     <div style="font-size: 2rem; margin-bottom: 0.5rem;">💡</div>
                     <h4 style="margin: 0 0 0.5rem 0; font-size: 1.15rem; color: var(--text-color);">No decks currently meet your <strong>${currentBuildThreshold}%+</strong> threshold</h4>
                     <p style="font-size: 0.88rem; max-width: 520px; margin: 0 auto 1.25rem auto;">
-                        Here are your <strong>closest matching decks</strong> below sorted by completion %, or you can lower the threshold to explore all 50+ precons & archetypes!
+                        Here are your <strong>closest matching decks</strong> below sorted by completion %, or you can lower the threshold to explore all 180+ precons & archetypes!
                     </p>
                     <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
                         <button type="button" class="main-btn" onclick="setBuildThreshold(25)">Show 25%+ Matches</button>
-                        <button type="button" class="secondary-btn" onclick="setBuildThreshold(0)">Show All 50+ Decks (0-100%)</button>
+                        <button type="button" class="secondary-btn" onclick="setBuildThreshold(0)">Show All 180+ Decks (0-100%)</button>
                     </div>
                 `;
                 grid.appendChild(notice);
@@ -3335,26 +2729,34 @@
         }
 
         function openBuyMissingModalForBuild(deckId) {
-            const deck = PRECON_DECKS_DATABASE.find(d => d.id === deckId);
+            const deck = findBuildDeck(deckId);
             if (!deck) return;
 
             let ownedCardsList = (cachedParsedCsv && cachedParsedCsv.length > 0) ? cachedParsedCsv : (currentCollectionData || []);
             const ownedCardNames = new Set();
             ownedCardsList.forEach(it => {
-                const n = (it.name || it.card?.name || it.card?.oracleCard?.name || '').toLowerCase().trim();
+                const rawName = it.name || it.card?.name || it.card?.oracleCard?.name || '';
+                const n = normalizeCardName(rawName);
                 if (n) ownedCardNames.add(n);
+                ownedCardNames.add(rawName.toLowerCase().trim());
             });
 
             const missingLines = [];
-            deck.keyCards.forEach(item => {
-                const cName = typeof item === 'string' ? item : item.n;
-                if (!ownedCardNames.has(cName.toLowerCase())) {
-                    missingLines.push(`1 ${cName}`);
+            const cardList = deck.cards || deck.keyCards || [];
+            cardList.forEach(item => {
+                const cName = typeof item === 'string' ? item : (item.name || item.n);
+                const cNorm = normalizeCardName(cName);
+                const isBasic = item.isBasic || BASIC_LAND_NAMES.has(cNorm) || BASIC_LAND_NAMES.has(cName.toLowerCase());
+                if (isBasic) return; // Skip basic lands
+
+                if (!ownedCardNames.has(cNorm) && !ownedCardNames.has(cName.toLowerCase().trim())) {
+                    const qty = item.quantity || 1;
+                    missingLines.push(`${qty} ${cName}`);
                 }
             });
 
             if (missingLines.length === 0) {
-                showToast("You already own all core cards for this deck!");
+                showToast("You already own all cards for this deck! 🎉");
                 return;
             }
 
@@ -3365,19 +2767,21 @@
             const titleEl = document.getElementById('buyMissingModalTitle');
             const subEl = document.getElementById('buyMissingModalSubtitle');
             if (titleEl) titleEl.textContent = `Buy Missing Cards: ${deck.name}`;
-            if (subEl) subEl.textContent = `${missingLines.length} core cards required to complete this deck`;
+            if (subEl) subEl.textContent = `${missingLines.length} cards required to complete this deck`;
             if (modal) modal.style.display = 'flex';
             updateBuyMissingDisplay();
         }
 
         function loadBuildDeckIntoComparator(deckId, deckName) {
-            const deck = PRECON_DECKS_DATABASE.find(d => d.id === deckId);
+            const deck = findBuildDeck(deckId);
             if (!deck) return;
 
-            const text = deck.keyCards.map(c => {
-                const cName = typeof c === 'string' ? c : c.n;
-                return `1 ${cName}`;
-            }).join('\n');
+            let text = deck.decklist;
+            if (!text && deck.cards) {
+                text = deck.cards.map(c => `${c.quantity || 1} ${c.name}`).join('\n');
+            } else if (!text && deck.keyCards) {
+                text = deck.keyCards.map(c => `1 ${c.n || c.name || c}`).join('\n');
+            }
 
             customPastedDecks.length = 0;
             customPastedDecks.push({
@@ -3386,18 +2790,20 @@
             });
 
             switchTab('deck');
-            showToast(`Loaded "${deckName}" into Deck Comparator! Running comparison...`);
+            showToast(`Loaded "${deckName}" (100 cards) into Deck Comparator! Running comparison...`);
             runComparison();
         }
 
         function loadBuildDeckIntoAiOptimizer(deckId, deckName) {
-            const deck = PRECON_DECKS_DATABASE.find(d => d.id === deckId);
+            const deck = findBuildDeck(deckId);
             if (!deck) return;
 
-            const text = deck.keyCards.map(c => {
-                const cName = typeof c === 'string' ? c : c.n;
-                return `1 ${cName}`;
-            }).join('\n');
+            let text = deck.decklist;
+            if (!text && deck.cards) {
+                text = deck.cards.map(c => `${c.quantity || 1} ${c.name}`).join('\n');
+            } else if (!text && deck.keyCards) {
+                text = deck.keyCards.map(c => `1 ${c.n || c.name || c}`).join('\n');
+            }
             const parsed = parseDecklistText(text);
 
             openAiOptimizer({
@@ -3787,10 +3193,62 @@
                 land: { color: '#a78bfa', label: 'Lands' }
             };
 
-            const totalColorCards = Math.max(1, Object.values(colorDistribution || {}).reduce((sum, item) => sum + (item.copies || 0), 0));
-            for (const [key, item] of Object.entries(colorDistribution || {})) {
+            // If backend returned zero non-colorless cards, synthesize from available collection cards
+            let effectiveColorDist = colorDistribution || {};
+            const hasValidColorData = Object.entries(effectiveColorDist).some(([k, item]) => k !== 'colorless' && k !== 'land' && (item.copies || 0) > 0);
+            if (!hasValidColorData && ((data.collection && data.collection.length > 0) || (currentCollectionData && currentCollectionData.length > 0))) {
+                const pool = (data.collection && data.collection.length > 0) ? data.collection : currentCollectionData;
+                const computed = {
+                    W: { name: 'White', count: 0, copies: 0 },
+                    U: { name: 'Blue', count: 0, copies: 0 },
+                    B: { name: 'Black', count: 0, copies: 0 },
+                    R: { name: 'Red', count: 0, copies: 0 },
+                    G: { name: 'Green', count: 0, copies: 0 },
+                    multi: { name: 'Multicolor', count: 0, copies: 0 },
+                    colorless: { name: 'Colorless', count: 0, copies: 0 },
+                    land: { name: 'Lands', count: 0, copies: 0 }
+                };
+                pool.forEach(card => {
+                    const copies = Math.max(1, parseInt(card.quantity || card.owned || card.copies) || 1);
+                    const t = (card.typeLine || card.type_line || card.type || '').toLowerCase();
+                    let rawC = card.colors || card.colorIdentity || card.color_identity || [];
+                    if (typeof rawC === 'string') rawC = rawC.replace(/[{}]/g, '').split(/[,/ ]+/).filter(Boolean);
+                    const parsedColors = new Set();
+                    (Array.isArray(rawC) ? rawC : []).forEach(c => {
+                        const str = String(c).trim().toLowerCase();
+                        if (str === 'w' || str === 'white') parsedColors.add('W');
+                        else if (str === 'u' || str === 'blue') parsedColors.add('U');
+                        else if (str === 'b' || str === 'black') parsedColors.add('B');
+                        else if (str === 'r' || str === 'red') parsedColors.add('R');
+                        else if (str === 'g' || str === 'green') parsedColors.add('G');
+                    });
+                    if (t.includes('land')) {
+                        computed.land.count++;
+                        computed.land.copies += copies;
+                    } else if (parsedColors.size > 1) {
+                        computed.multi.count++;
+                        computed.multi.copies += copies;
+                    } else if (parsedColors.size === 1) {
+                        const colKey = Array.from(parsedColors)[0];
+                        if (computed[colKey]) {
+                            computed[colKey].count++;
+                            computed[colKey].copies += copies;
+                        } else {
+                            computed.colorless.count++;
+                            computed.colorless.copies += copies;
+                        }
+                    } else {
+                        computed.colorless.count++;
+                        computed.colorless.copies += copies;
+                    }
+                });
+                effectiveColorDist = computed;
+            }
+
+            const totalColorCards = Math.max(1, Object.values(effectiveColorDist).reduce((sum, item) => sum + (item.copies || 0), 0));
+            for (const [key, item] of Object.entries(effectiveColorDist)) {
                 const pct = ((item.copies / totalColorCards) * 100).toFixed(1);
-                const theme = colorTheme[key] || { color: 'var(--primary)', label: item.name };
+                const theme = colorTheme[key] || { color: 'var(--primary)', label: item.name || key };
                 const row = document.createElement('div');
                 row.className = 'stat-dist-row';
                 row.innerHTML = `
@@ -4331,6 +3789,12 @@
             let finishIdx = headers.findIndex(h => h === 'finish' || h === 'modifier' || h === 'foil' || h === 'printing');
             if (finishIdx === -1) finishIdx = headers.findIndex(h => h.includes('finish') || h.includes('modifier') || h.includes('foil'));
 
+            let colorIdx = headers.findIndex(h => h === 'color' || h === 'colors' || h === 'color identity' || h === 'coloridentity' || h === 'color_identity');
+            if (colorIdx === -1) colorIdx = headers.findIndex(h => h.includes('color'));
+
+            let typeIdx = headers.findIndex(h => h === 'type' || h === 'type line' || h === 'typeline' || h === 'type_line');
+            if (typeIdx === -1) typeIdx = headers.findIndex(h => h.includes('type'));
+
             const data = [];
             for (let i = 1; i < lines.length; i++) {
                 const values = parseCSVLine(lines[i]);
@@ -4362,6 +3826,9 @@
                     finishVal = 'Normal';
                 }
 
+                let rawColorsVal = colorIdx !== -1 ? (values[colorIdx]?.replace(/^"|"$/g, '').trim() || '') : '';
+                let rawTypeVal = typeIdx !== -1 ? (values[typeIdx]?.replace(/^"|"$/g, '').trim() || '') : '';
+
                 if (name) data.push({
                     name,
                     quantity: isNaN(qty) ? 1 : qty,
@@ -4373,7 +3840,10 @@
                     finish: finishVal,
                     modifier: finishVal,
                     isFoil,
-                    foil: isFoil
+                    foil: isFoil,
+                    colors: rawColorsVal,
+                    typeLine: rawTypeVal,
+                    type_line: rawTypeVal
                 });
             }
             return data;
@@ -4669,6 +4139,7 @@
             if (btnOwned) btnOwned.classList.toggle('active', filter === 'owned');
             renderDeckCardsList();
         }
+        window.setDeckCardsStatusFilter = setDeckCardsStatusFilter;
 
         function onDeckSearchInput(val) {
             const clearBtn = document.getElementById('deckSearchClearBtn');

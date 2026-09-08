@@ -1,12 +1,13 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { GoogleGenAI } = require("@google/genai");
 const admin = require("firebase-admin");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { parseCards, normalizeMoxfield, enrichCardsWithScryfall, parseDecklistText, parseDeckIdentifier } = require("./parsers.js");
 const { fetchEdhrecRanks } = require("./edhrec.js");
 const { fetchAllSets, compareCollectionToSet } = require("./sets.js");
-const { computeCollectionInsights } = require("./insights.js");
+const { computeCollectionInsights, normalizeColorCodes } = require("./insights.js");
 const { DEFAULT_HEADERS, fetchWithRetry, runWithConcurrency } = require("./http.js");
 
 // In-memory caching layers (per Cloud Function instance)
@@ -331,47 +332,100 @@ function findSplitMatchKey(cardToFind, cardMap) {
 }
 
 /**
- * Endpoint: Generates a short, clean sharing URL for trade binders and deck links.
+ * Generates an 8-character lowercase alphanumeric unique identifier (e.g. 3hg030hds).
+ */
+function generateShortCode(len = 8) {
+    const chars = "23456789abcdefghijkmnopqrstuvwxyz";
+    const bytes = crypto.randomBytes(len);
+    let str = "";
+    for (let i = 0; i < len; i++) {
+        str += chars.charAt(bytes[i] % chars.length);
+    }
+    return str;
+}
+
+/**
+ * Endpoint: Generates a short, clean first-party sharing URL for trade binders and deck links (e.g. edhchallenge.com/3hg030hds).
+ * Also resolves short codes on GET requests.
  */
 exports.shortenUrl = onRequest({ cors: true, timeoutSeconds: 15, memory: "256MiB" }, async (req, res) => {
     try {
+        // --- 1. RESOLVE / EXPAND SHORT LINK ---
+        let lookupCode = (req.query?.code || "").toString().trim();
+        if (!lookupCode && req.path) {
+            const cleanedPath = req.path.replace(/^\/(?:s\/)?/, '').split('/')[0].trim();
+            if (cleanedPath && cleanedPath !== 'shortenUrl') {
+                lookupCode = cleanedPath;
+            }
+        }
+
+        if (req.method === "GET" && lookupCode) {
+            let targetUrl = null;
+            try {
+                if (admin.apps && admin.apps.length) {
+                    const snap = await admin.database().ref(`short_links/${lookupCode}`).once('value');
+                    const val = snap.val();
+                    if (val && val.url) {
+                        targetUrl = val.url;
+                        admin.database().ref(`short_links/${lookupCode}/hits`).transaction(c => (c || 0) + 1).catch(() => {});
+                    }
+                }
+            } catch (dbErr) {
+                console.warn("[WARN] Could not lookup short link from RTDB:", dbErr.message);
+            }
+
+            if (!targetUrl) {
+                return res.status(404).json({ error: "Short link not found", code: lookupCode });
+            }
+
+            const wantsJson = req.query?.json === "true" || (req.headers.accept && req.headers.accept.includes("application/json"));
+            if (wantsJson) {
+                return res.json({ code: lookupCode, targetUrl, url: targetUrl });
+            }
+            return res.redirect(302, targetUrl);
+        }
+
+        // --- 2. CREATE / SHORTEN URL ---
         const targetUrl = (req.body?.url || req.query?.url || "").trim();
         if (!targetUrl) {
             return res.status(400).json({ error: "Missing 'url' parameter" });
         }
 
-        // 1. Try TinyURL API
-        try {
-            const tinyRes = await fetchWithRetry(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(targetUrl)}`, {
-                timeoutMs: 4000
-            }, 2);
-            if (tinyRes && tinyRes.ok) {
-                const shortUrl = (await tinyRes.text()).trim();
-                if (shortUrl && shortUrl.startsWith("http")) {
-                    return res.json({ shortUrl });
-                }
-            }
-        } catch (tinyErr) {
-            console.warn("[WARN] TinyURL service error:", tinyErr.message);
+        const host = req.headers['x-forwarded-host'] || req.headers.host || 'edhchallenge.com';
+        const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+        const primaryDomain = isLocal ? `http://${host}` : 'https://edhchallenge.com';
+
+        // Check if already a short link
+        if (targetUrl.startsWith(`${primaryDomain}/`) && targetUrl.length < 50 && !targetUrl.includes('?tab=')) {
+            return res.json({ shortUrl: targetUrl, targetUrl });
         }
 
-        // 2. Fallback: is.gd API
+        // Generate unique code and persist to Firebase Realtime Database
+        let code = generateShortCode(8);
         try {
-            const isgdRes = await fetchWithRetry(`https://is.gd/create.php?format=json&url=${encodeURIComponent(targetUrl)}`, {
-                timeoutMs: 4000
-            }, 1);
-            if (isgdRes && isgdRes.ok) {
-                const isgdData = await isgdRes.json();
-                if (isgdData && isgdData.shorturl) {
-                    return res.json({ shortUrl: isgdData.shorturl });
+            if (admin.apps && admin.apps.length) {
+                const existing = await admin.database().ref(`short_links/${code}`).once('value');
+                if (existing.exists()) {
+                    code = generateShortCode(9);
                 }
+                await admin.database().ref(`short_links/${code}`).set({
+                    url: targetUrl,
+                    createdAt: Date.now(),
+                    hits: 0
+                });
+                const shortUrl = `${primaryDomain}/${code}`;
+                return res.json({
+                    code,
+                    shortUrl,
+                    targetUrl
+                });
             }
-        } catch (isgdErr) {
-            console.warn("[WARN] is.gd service error:", isgdErr.message);
+        } catch (rtdbErr) {
+            console.error("[ERROR] Failed to save short link to RTDB:", rtdbErr.message);
         }
 
-        // 3. Fallback: Return original targetUrl
-        return res.json({ shortUrl: targetUrl });
+        // Fallback: Return original targetUrl if RTDB write failed
+        return res.json({ shortUrl: targetUrl, targetUrl });
     } catch (e) {
         console.error("shortenUrl endpoint error:", e);
         return res.status(500).json({ error: e.message });
@@ -515,7 +569,7 @@ exports.getCollectionInsights = onRequest({ cors: true, timeoutSeconds: 120, mem
                 setCode,
                 collector_number: colNum,
                 collectorNumber: colNum,
-                colors: oracleData.colors || oracleData.colorIdentity || cardInfo.colors || c.colors || [],
+                colors: normalizeColorCodes(oracleData.colors || oracleData.colorIdentity || oracleData.color_identity || cardInfo.colors || cardInfo.color_identity || c.colors || c.color_identity || []),
                 typeLine: oracleData.type_line || cardInfo.type_line || c.type_line || '',
                 isCommander: Boolean(oracleData.isCommander || cardInfo.isCommander || c.isCommander),
                 prices: cardInfo.prices || c.prices || null

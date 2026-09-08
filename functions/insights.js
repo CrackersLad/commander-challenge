@@ -25,6 +25,33 @@ const TOP_COMMANDER_STAPLES = [
 ];
 
 /**
+ * Normalizes color arrays or strings from diverse APIs/CSVs into standard MTG single-letter color codes: W, U, B, R, G.
+ */
+function normalizeColorCodes(rawColors) {
+    if (!rawColors) return [];
+    if (typeof rawColors === "string") {
+        rawColors = rawColors.replace(/[{}]/g, "").split(/[,/ ]+/).filter(Boolean);
+    }
+    if (!Array.isArray(rawColors)) return [];
+    const colorMap = {
+        w: "W", white: "W",
+        u: "U", blue: "U",
+        b: "B", black: "B",
+        r: "R", red: "R",
+        g: "G", green: "G"
+    };
+    const set = new Set();
+    for (const c of rawColors) {
+        if (!c) continue;
+        const key = String(c).trim().toLowerCase();
+        if (colorMap[key]) {
+            set.add(colorMap[key]);
+        }
+    }
+    return Array.from(set);
+}
+
+/**
  * Normalizes set codes.
  */
 function cleanSet(code) {
@@ -59,16 +86,20 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
     let totalCopies = 0;
     let inDecksCopies = 0;
 
-    // Check if items are CSV items that need basic Scryfall price enrichment
+    // Check if items are CSV items that need basic Scryfall price or color/type enrichment
     const needsBatchEnrichment = rawItems.some(item => {
         const cardInfo = item.card || item || {};
+        const oracleData = cardInfo.oracleCard || cardInfo;
         const p = cardInfo.prices || item.prices;
-        return !p || (typeof p.tcg === "undefined" && typeof p.usd === "undefined" && typeof p.ck === "undefined");
+        const rawColors = oracleData.colors || oracleData.colorIdentity || oracleData.color_identity || cardInfo.colors || cardInfo.color_identity || item.colors || item.color_identity;
+        const hasPrices = p && (typeof p.tcg !== "undefined" || typeof p.usd !== "undefined" || typeof p.ck !== "undefined");
+        const hasColors = Array.isArray(rawColors) ? rawColors.length > 0 : Boolean(rawColors);
+        return !hasPrices || !hasColors;
     });
 
     const enrichedPricesMap = new Map(); // cleanName -> { usd, eur, rarity, type_line, colors, image_url }
     if (needsBatchEnrichment) {
-        // Collect distinct card names (limit to first 300 to keep it fast)
+        // Collect distinct card names (limit to first 400 to keep it fast while covering collection)
         const uniqueNames = [];
         const seen = new Set();
         for (const it of rawItems) {
@@ -80,7 +111,7 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
         }
 
         const batchSize = 75;
-        const toFetch = uniqueNames.slice(0, 300);
+        const toFetch = uniqueNames.slice(0, 400);
         for (let i = 0; i < toFetch.length; i += batchSize) {
             const batch = toFetch.slice(i, i + batchSize);
             try {
@@ -220,8 +251,8 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
         }
 
         // Colors
-        let colors = oracleData.colors || oracleData.colorIdentity || cardInfo.colors || item.colors || enrichedPricesMap.get(cleanName)?.colors || [];
-        if (!Array.isArray(colors)) colors = [];
+        const rawColors = oracleData.colors || oracleData.colorIdentity || oracleData.color_identity || cardInfo.colors || cardInfo.color_identity || item.colors || item.color_identity || enrichedPricesMap.get(cleanName)?.colors || [];
+        const colors = normalizeColorCodes(rawColors);
 
         // Image URL for the specific print version
         let imageUrl = cardInfo.images?.normal || cardInfo.scryfall_image || item.image_url || "";
@@ -450,5 +481,6 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
 
 module.exports = {
     computeCollectionInsights,
+    normalizeColorCodes,
     TOP_COMMANDER_STAPLES
 };

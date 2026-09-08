@@ -56,6 +56,10 @@
         "function": "shortenUrl"
       },
       {
+        "source": "/s/**",
+        "function": "shortenUrl"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
