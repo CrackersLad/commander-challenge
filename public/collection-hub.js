@@ -147,7 +147,7 @@
             clearTimeout(syncPrefsTimeout);
             syncPrefsTimeout = setTimeout(async () => {
                 const collId = document.getElementById('collectionId')?.value.trim() || localStorage.getItem('archidekt_collectionId') || '';
-                const remoteIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:')).join(',');
+                const remoteIds = Array.from(activeDeckIds).filter(id => id && !String(id).startsWith('custom:')).join(',');
                 const payload = {
                     collectionId: collId,
                     deckIds: remoteIds,
@@ -206,7 +206,7 @@
                 return;
             }
             const collId = document.getElementById('collectionId')?.value.trim() || localStorage.getItem('archidekt_collectionId') || '';
-            const deckIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:')).join(',');
+            const deckIds = Array.from(activeDeckIds).filter(id => id && !String(id).startsWith('custom:')).join(',');
             const syncPayload = {
                 collectionId: collId,
                 deckIds: deckIds,
@@ -316,7 +316,7 @@
 
                         if (changedDecks || (cloudVal.deckIds && (!activeDeckIds || activeDeckIds.size === 0))) {
                             renderDeckChips();
-                            const remoteIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:'));
+                            const remoteIds = Array.from(activeDeckIds).filter(id => id && !String(id).startsWith('custom:'));
                             localStorage.setItem('archidekt_deckIds', remoteIds.join(','));
                             localStorage.setItem('archidekt_customDecks', JSON.stringify(customPastedDecks));
                         }
@@ -898,7 +898,7 @@
                 }
 
                 // Check if cached deck IDs and collection match active selection
-                const currentDeckIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:')).sort().join(',');
+                const currentDeckIds = Array.from(activeDeckIds).filter(id => id && !String(id).startsWith('custom:')).sort().join(',');
                 const cachedDeckIds = (cached.deckIds || '').split(/[,\s\n]+/).map(s => s.trim()).filter(Boolean).sort().join(',');
 
                 const collInput = document.getElementById('collectionId');
@@ -918,7 +918,7 @@
                 // Restore custom decks if any
                 if (Array.isArray(cached.customDecks) && cached.customDecks.length > 0) {
                     cached.customDecks.forEach(cd => {
-                        if (!customPastedDecks.some(d => d.id === cd.id)) {
+                        if (cd && cd.id && !customPastedDecks.some(d => d.id === cd.id)) {
                             customPastedDecks.push(cd);
                             activeDeckIds.add(cd.id);
                         }
@@ -2870,7 +2870,7 @@
             // If user has deck IDs in activeDeckIds but currentDecksData has not been compared yet, fetch decks on demand
             if (unusedOnly && allCompDecks.length === 0 && typeof activeDeckIds !== 'undefined' && activeDeckIds.size > 0) {
                 try {
-                    const deckIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:')).join(',');
+                    const deckIds = Array.from(activeDeckIds).filter(id => id && !String(id).startsWith('custom:')).join(',');
                     if (deckIds || (customPastedDecks && customPastedDecks.length > 0)) {
                         const resp = await fetch('/compareDecks', {
                             method: 'POST',
@@ -4613,26 +4613,39 @@
 
         function renderDeckChips() {
             const container = document.getElementById('deckChips');
+            if (!container) return;
             container.innerHTML = '';
+
+            // Clean up any falsy or invalid IDs from activeDeckIds
+            Array.from(activeDeckIds).forEach(id => {
+                if (!id || (typeof id !== 'string' && typeof id !== 'number')) {
+                    activeDeckIds.delete(id);
+                }
+            });
+
             activeDeckIds.forEach(id => {
+                if (!id) return;
+                const strId = String(id).trim();
+                if (!strId) return;
+
                 const chip = document.createElement('div');
                 chip.className = 'chip';
-                const [platform, rawId] = id.includes(':') ? id.split(':') : ['archidekt', id];
+                const [platform, rawId] = strId.includes(':') ? strId.split(':') : ['archidekt', strId];
                 const platformIcon = platform === 'moxfield' ? '🟣' : (platform === 'custom' ? '📝' : '🟠');
                 const defaultName = platform === 'moxfield' ? `Moxfield (${rawId})` : (platform === 'custom' ? 'Custom Deck' : `Deck #${rawId}`);
-                const displayName = deckNames[id] || defaultName;
+                const displayName = deckNames[strId] || deckNames[id] || defaultName;
 
                 chip.innerHTML = `
                     <span>${platformIcon}</span>
-                    <span class="chip-name" title="${displayName}">${displayName}</span>
-                    <button type="button" onclick="removeDeck('${id}')" title="Remove Deck">&times;</button>
+                    <span class="chip-name" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</span>
+                    <button type="button" onclick="removeDeck('${escapeHtml(strId.replace(/'/g, "\\'"))}')" title="Remove Deck">&times;</button>
                 `;
                 container.appendChild(chip);
             });
         }
 
         function saveDecksState() {
-            const remoteIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:'));
+            const remoteIds = Array.from(activeDeckIds).filter(id => id && !String(id).startsWith('custom:'));
             localStorage.setItem('archidekt_deckIds', remoteIds.join(','));
             localStorage.setItem('archidekt_customDecks', JSON.stringify(customPastedDecks));
             localStorage.setItem('archidekt_deckNames', JSON.stringify(deckNames));
@@ -4814,7 +4827,7 @@
             const deckInputEl = document.getElementById('deckInput');
             if (deckInputEl && deckInputEl.value.trim() !== '') addDeck();
 
-            const deckIds = Array.from(activeDeckIds).filter(id => !id.startsWith('custom:')).join(',');
+            const deckIds = Array.from(activeDeckIds).filter(id => id && !String(id).startsWith('custom:')).join(',');
             let collectionId = (document.getElementById('collectionId')?.value || '').trim() || localStorage.getItem('archidekt_collectionId') || '';
             // Sanitize Archidekt collection ID if full URL was pasted
             const collMatch = collectionId.match(/(?:archidekt\.com\/(?:[a-z0-9_-]+\/)?collections?\/)(\d+)/i) || collectionId.match(/(\d+)/);
