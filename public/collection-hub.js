@@ -1877,6 +1877,37 @@
         let currentBuildSubTab = 'new'; // 'new' | 'upgrades' | 'commanders'
         let currentBuildFilter = 'all'; // 'all' | 'precon' | 'edhrec' | 'owned_cmdrs'
         let currentBuildThreshold = 50; // 50 (default) | 75 | 0
+        const expandedMissingDrawers = new Set();
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+        window.escapeHtml = escapeHtml;
+
+        function showHoverPreview(e, cardName) {
+            if (typeof showScryfallHover === 'function') {
+                showScryfallHover(cardName, e);
+            }
+        }
+        function hideHoverPreview() {
+            if (typeof hideScryfallHover === 'function') {
+                hideScryfallHover();
+            }
+        }
+        window.showHoverPreview = showHoverPreview;
+        window.hideHoverPreview = hideHoverPreview;
+
+        function parseDecklistText(text) {
+            return parseDecklistCards(text);
+        }
+        window.parseDecklistText = parseDecklistText;
+
         const BASIC_LAND_NAMES = new Set([
             'plains', 'island', 'swamp', 'mountain', 'forest', 'wastes',
             'snow-covered plains', 'snow-covered island', 'snow-covered swamp',
@@ -1968,7 +1999,7 @@
 
             buildDecksLoadedPromise = (async () => {
                 try {
-                    const res = await fetch('./commander-precons.json?v=6.7');
+                    const res = await fetch('./commander-precons.json?v=6.8');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2352,99 +2383,106 @@
 
             function renderDeckCards(deckList) {
                 deckList.forEach(d => {
-                    const card = document.createElement('div');
-                    card.className = 'build-deck-card';
+                    try {
+                        const card = document.createElement('div');
+                        card.className = 'build-deck-card';
 
-                    const colorPips = d.colors.map(c => `<span class="badge" style="font-size: 0.72rem; padding: 1px 5px; font-weight: 800;">${c}</span>`).join(' ') || '<span class="badge" style="font-size:0.7rem;">Colorless</span>';
-                    const isDrawerOpen = expandedMissingDrawers.has(d.id);
-                    const safeName = (d.name || '').replace(/'/g, "\\'");
-                    const safeCmdr = (d.commander || '').replace(/'/g, "\\'");
-                    const bannerImg = d.imageUrl || (d.scryfallId ? `https://api.scryfall.com/cards/${d.scryfallId}?format=image&version=art_crop` : `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(d.commander)}&format=image&version=art_crop`);
-                    const fallbackImg = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(d.commander)}&format=image&version=art_crop`;
+                        const deckColors = Array.isArray(d.colors) ? d.colors : [];
+                        const colorPips = deckColors.map(c => `<span class="badge" style="font-size: 0.72rem; padding: 1px 5px; font-weight: 800;">${c}</span>`).join(' ') || '<span class="badge" style="font-size:0.7rem;">Colorless</span>';
+                        const isDrawerOpen = expandedMissingDrawers.has(d.id);
+                        const safeName = (d.name || '').replace(/'/g, "\\'");
+                        const safeCmdr = (d.commander || '').replace(/'/g, "\\'");
+                        const bannerImg = d.imageUrl || (d.scryfallId ? `https://api.scryfall.com/cards/${d.scryfallId}?format=image&version=art_crop` : `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(d.commander)}&format=image&version=art_crop`);
+                        const fallbackImg = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(d.commander)}&format=image&version=art_crop`;
+                        const missingList = Array.isArray(d.missingCards) ? d.missingCards : [];
+                        const costDisplay = (d.estMissingCostLocal || 0).toFixed(2);
 
-                    card.innerHTML = `
-                        <div class="build-deck-banner">
-                            <img src="${bannerImg}" alt="${safeCmdr}" loading="lazy" class="build-deck-banner-img"
-                                 onerror="this.onerror=null; this.src='${fallbackImg}';">
-                            <div class="build-deck-banner-overlay">
-                                <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
-                                    <span class="badge" style="background: rgba(15, 23, 42, 0.85); color: #f8fafc; font-size: 0.72rem; border: 1px solid rgba(255, 255, 255, 0.2);">
-                                        ${d.type === 'precon' ? `Precon (${d.set})` : 'EDHREC Meta'}
-                                    </span>
-                                    ${d.ownsCommander ? `<span class="badge" style="background: rgba(16, 185, 129, 0.9); color: #fff; font-size: 0.72rem; font-weight: 800;">👑 Own Commander</span>` : ''}
-                                </div>
-                                <div style="display: flex; gap: 0.25rem;">
-                                    ${colorPips}
-                                </div>
-                            </div>
-                        </div>
-                        <div style="padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; flex: 1;">
-                            <div>
-                                <h4 style="margin: 0; font-size: 1.08rem; font-weight: 800;">${d.name}</h4>
-                                <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">Commander: <strong>${d.commander}</strong>${d.theme ? ` • <span style="color: #94a3b8;">${d.theme}</span>` : ''}</div>
-                            </div>
-
-                            <!-- Progress Bar -->
-                            <div>
-                                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; margin-bottom: 0.35rem;">
-                                    <span style="color: var(--text-muted); font-weight: 600;">Match Progress:</span>
-                                    <span style="font-weight: 800; color: ${d.pctOwned >= 75 ? '#34d399' : (d.pctOwned >= 50 ? '#38bdf8' : (d.pctOwned >= 25 ? '#f59e0b' : '#94a3b8'))}; font-size: 0.95rem;">
-                                        ${d.pctOwned}% (${d.ownedCount}/100 cards)
-                                    </span>
-                                </div>
-                                <div class="stat-dist-track" style="height: 8px;">
-                                    <div class="stat-dist-fill" style="width: ${d.pctOwned}%; background: ${d.pctOwned >= 75 ? '#10b981' : (d.pctOwned >= 50 ? '#0284c7' : (d.pctOwned >= 25 ? '#f59e0b' : '#64748b'))};"></div>
-                                </div>
-
-                                <!-- Cost to Finish & Missing Cards Link -->
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; font-size: 0.82rem;">
-                                    <div>
-                                        <span style="color: var(--text-muted);">Est. Cost to Finish:</span>
-                                        <strong style="color: #34d399; margin-left: 3px;">${currSymbol}${d.estMissingCostLocal.toFixed(2)}</strong>
+                        card.innerHTML = `
+                            <div class="build-deck-banner">
+                                <img src="${bannerImg}" alt="${safeCmdr}" loading="lazy" class="build-deck-banner-img"
+                                     onerror="this.onerror=null; this.src='${fallbackImg}';">
+                                <div class="build-deck-banner-overlay">
+                                    <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
+                                        <span class="badge" style="background: rgba(15, 23, 42, 0.85); color: #f8fafc; font-size: 0.72rem; border: 1px solid rgba(255, 255, 255, 0.2);">
+                                            ${d.type === 'precon' ? `Precon (${d.set})` : 'EDHREC Meta'}
+                                        </span>
+                                        ${d.ownsCommander ? `<span class="badge" style="background: rgba(16, 185, 129, 0.9); color: #fff; font-size: 0.72rem; font-weight: 800;">👑 Own Commander</span>` : ''}
                                     </div>
-                                    <div>
-                                        ${d.missingCards.length > 0 ? `
-                                            <button type="button" class="secondary-btn" style="padding: 2px 8px; font-size: 0.75rem;" onclick="toggleMissingDrawer('${d.id}')">
-                                                ${isDrawerOpen ? '▲ Hide Missing' : `▼ Missing (${d.missingCards.length})`}
-                                            </button>
-                                        ` : '<span style="color:#34d399; font-weight:700;">🎉 100% Owned!</span>'}
+                                    <div style="display: flex; gap: 0.25rem;">
+                                        ${colorPips}
                                     </div>
                                 </div>
+                            </div>
+                            <div style="padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; flex: 1;">
+                                <div>
+                                    <h4 style="margin: 0; font-size: 1.08rem; font-weight: 800;">${d.name}</h4>
+                                    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">Commander: <strong>${d.commander}</strong>${d.theme ? ` • <span style="color: #94a3b8;">${d.theme}</span>` : ''}</div>
+                                </div>
 
-                                <!-- Collapsible Missing Cards Drawer -->
-                                ${isDrawerOpen && d.missingCards.length > 0 ? `
-                                    <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid var(--border-color); max-height: 220px; overflow-y: auto;">
-                                        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem; text-transform: uppercase;">
-                                            Missing Cards to Complete (${d.missingCards.length}):
+                                <!-- Progress Bar -->
+                                <div>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; margin-bottom: 0.35rem;">
+                                        <span style="color: var(--text-muted); font-weight: 600;">Match Progress:</span>
+                                        <span style="font-weight: 800; color: ${d.pctOwned >= 75 ? '#34d399' : (d.pctOwned >= 50 ? '#38bdf8' : (d.pctOwned >= 25 ? '#f59e0b' : '#94a3b8'))}; font-size: 0.95rem;">
+                                            ${d.pctOwned}% (${d.ownedCount}/100 cards)
+                                        </span>
+                                    </div>
+                                    <div class="stat-dist-track" style="height: 8px;">
+                                        <div class="stat-dist-fill" style="width: ${d.pctOwned}%; background: ${d.pctOwned >= 75 ? '#10b981' : (d.pctOwned >= 50 ? '#0284c7' : (d.pctOwned >= 25 ? '#f59e0b' : '#64748b'))};"></div>
+                                    </div>
+
+                                    <!-- Cost to Finish & Missing Cards Link -->
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; font-size: 0.82rem;">
+                                        <div>
+                                            <span style="color: var(--text-muted);">Est. Cost to Finish:</span>
+                                            <strong style="color: #34d399; margin-left: 3px;">${currSymbol}${costDisplay}</strong>
                                         </div>
-                                        <div style="display: flex; flex-direction: column; gap: 0.3rem;">
-                                            ${d.missingCards.map(c => `
-                                                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,0.02);">
-                                                    <span class="hover-card-link" onmouseenter="bindHoverName(this, '${c.name.replace(/'/g, "\\'")}')" style="color: var(--text-color);">${c.quantity && c.quantity > 1 ? `${c.quantity}x ` : ''}${c.name}</span>
-                                                    <span style="color: var(--text-muted); font-size: 0.74rem;">${currSymbol}${(c.price * (currentMarket === 'cardmarket' ? 0.92 : 1.0)).toFixed(2)}</span>
-                                                </div>
-                                            `).join('')}
+                                        <div>
+                                            ${missingList.length > 0 ? `
+                                                <button type="button" class="secondary-btn" style="padding: 2px 8px; font-size: 0.75rem;" onclick="toggleMissingDrawer('${d.id}')">
+                                                    ${isDrawerOpen ? '▲ Hide Missing' : `▼ Missing (${missingList.length})`}
+                                                </button>
+                                            ` : '<span style="color:#34d399; font-weight:700;">🎉 100% Owned!</span>'}
                                         </div>
                                     </div>
-                                ` : ''}
-                            </div>
 
-                            <!-- Action Buttons -->
-                            <div style="display: flex; gap: 0.45rem; margin-top: auto; padding-top: 0.5rem; flex-wrap: wrap;">
-                                <button type="button" class="secondary-btn" style="flex: 1; padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="addMissingCardsToWants('${d.id}')">
-                                    📋 Add Missing to Binder
-                                </button>
-                                <button type="button" class="secondary-btn" style="padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="loadBuildDeckIntoComparator('${d.id}', '${safeName}')">
-                                    🔍 Compare
-                                </button>
-                                <button type="button" class="secondary-btn ai-btn" style="flex: 1; padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="loadBuildDeckIntoAiOptimizer('${d.id}', '${safeName}')">
-                                    ✨ AI Optimizer
-                                </button>
-                            </div>
-                        </div>
-                    `;
+                                    <!-- Collapsible Missing Cards Drawer -->
+                                    ${isDrawerOpen && missingList.length > 0 ? `
+                                        <div style="margin-top: 0.75rem; padding: 0.75rem; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid var(--border-color); max-height: 220px; overflow-y: auto;">
+                                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem; text-transform: uppercase;">
+                                                Missing Cards to Complete (${missingList.length}):
+                                            </div>
+                                            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
+                                                ${missingList.map(c => `
+                                                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,0.02);">
+                                                        <span class="hover-card-link" onmouseenter="bindHoverName(this, '${(c.name || '').replace(/'/g, "\\'")}')" style="color: var(--text-color);">${c.quantity && c.quantity > 1 ? `${c.quantity}x ` : ''}${c.name}</span>
+                                                        <span style="color: var(--text-muted); font-size: 0.74rem;">${currSymbol}${((c.price || 0) * (currentMarket === 'cardmarket' ? 0.92 : 1.0)).toFixed(2)}</span>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
 
-                    grid.appendChild(card);
+                                <!-- Action Buttons -->
+                                <div style="display: flex; gap: 0.45rem; margin-top: auto; padding-top: 0.5rem; flex-wrap: wrap;">
+                                    <button type="button" class="secondary-btn" style="flex: 1; padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="addMissingCardsToWants('${d.id}')">
+                                        📋 Add Missing to Binder
+                                    </button>
+                                    <button type="button" class="secondary-btn" style="padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="loadBuildDeckIntoComparator('${d.id}', '${safeName}')">
+                                        🔍 Compare
+                                    </button>
+                                    <button type="button" class="secondary-btn ai-btn" style="flex: 1; padding: 0.45rem 0.65rem; font-size: 0.78rem;" onclick="loadBuildDeckIntoAiOptimizer('${d.id}', '${safeName}')">
+                                        ✨ AI Optimizer
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+
+                        grid.appendChild(card);
+                    } catch (cardErr) {
+                        console.warn('Error rendering deck card:', d.name, cardErr);
+                    }
                 });
             }
 
@@ -2552,7 +2590,8 @@
 
                     const isStaple = STAPLES_SET.has(cLower);
                     const finish = item.finish || item.card_finish || 'Normal';
-                    const price = item.priceUsd || (item.prices ? parseFloat(item.prices.usd) : 0) || 0;
+                    const price = item.priceUsd || item.unitPriceUsd || (item.prices ? parseFloat(item.prices.usd) : 0) || item.price || 0;
+                    const itemType = item.typeLine || item.type_line || item.card?.type_line || item.category || 'Card';
 
                     if (isStaple || price >= 5.0) {
                         candidateUpgrades.push({
@@ -2560,7 +2599,7 @@
                             finish,
                             price,
                             isStaple,
-                            type: item.type_line || 'Card',
+                            type: itemType,
                             reason: isStaple ? 'Elite Commander Staple in your collection' : 'High-Value Card sitting unused in your collection'
                         });
                     }
@@ -2647,20 +2686,27 @@
             const commanderMap = new Map();
             ownedCardsList.forEach(item => {
                 const name = (item.name || item.card?.name || item.card?.oracleCard?.name || '').trim();
-                const typeLine = (item.type_line || item.card?.type_line || item.card?.oracleCard?.type_line || '').toLowerCase();
-                const isCommander = typeLine.includes('legendary') && (typeLine.includes('creature') || typeLine.includes('planeswalker') || typeLine.includes('can be your commander'));
+                const typeLine = (item.typeLine || item.type_line || item.card?.type_line || item.card?.oracleCard?.type_line || (item.card?.oracleCard?.types ? [...(item.card?.oracleCard?.superTypes || []), ...(item.card?.oracleCard?.types || [])].join(' ') : '') || item.category || '').toLowerCase();
+                const isCommander = Boolean(item.isCommander) || (typeLine.includes('legendary') && (typeLine.includes('creature') || typeLine.includes('planeswalker') || typeLine.includes('can be your commander')));
 
                 if (isCommander && name) {
-                    if (!commanderMap.has(name.toLowerCase())) {
-                        commanderMap.set(name.toLowerCase(), {
+                    const rawColors = item.colors || item.card?.oracleCard?.colors || item.card?.colors || [];
+                    const normColors = Array.isArray(rawColors) ? rawColors.map(c => {
+                        const map = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G', w: 'W', u: 'U', b: 'B', r: 'R', g: 'G' };
+                        return map[String(c).toLowerCase()] || String(c).toUpperCase();
+                    }) : [];
+
+                    const cleanNameKey = name.toLowerCase();
+                    if (!commanderMap.has(cleanNameKey)) {
+                        commanderMap.set(cleanNameKey, {
                             name,
-                            colors: item.colors || item.card?.colors || [],
-                            type: item.type_line || item.card?.type_line || 'Legendary Creature',
-                            imageUrl: item.image_url || (item.card?.image_uris?.normal || ''),
-                            count: 1
+                            colors: normColors,
+                            type: item.typeLine || item.type_line || item.card?.type_line || 'Legendary Creature',
+                            imageUrl: item.image_url || item.imageUrl || (item.card?.image_uris?.normal || ''),
+                            count: Number(item.owned ?? item.quantity ?? item.count ?? 1)
                         });
                     } else {
-                        commanderMap.get(name.toLowerCase()).count++;
+                        commanderMap.get(cleanNameKey).count += Number(item.owned ?? item.quantity ?? item.count ?? 1);
                     }
                 }
             });
