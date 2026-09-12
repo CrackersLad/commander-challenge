@@ -2155,7 +2155,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=6.14');
+                    const res = await fetch('./commander-precons.json?v=6.15');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2191,7 +2191,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=6.14');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=6.15');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -6833,31 +6833,78 @@
                 : undefined;
 
             try {
-                let response = await fetch('/checkSetProgress', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        collectionId,
-                        collectionData: validCollectionData,
-                        setCode: selectedSet.code,
-                        matchMode,
-                        includeBasicLands,
-                        setScope
-                    })
-                });
+                const maxAttempts = 3;
+                let attempt = 0;
+                let data = null;
 
-                let data;
-                try {
-                    data = await response.json();
-                } catch (parseError) {
-                    if (response.status === 502 || response.status === 504) {
-                        throw new Error("Set scan timed out on the gateway. The collection and set are now cached in memory — please click 'Check Set Progress' again to complete immediately.");
+                while (attempt < maxAttempts) {
+                    attempt++;
+                    try {
+                        // Try direct Cloud Function endpoint if Firebase Hosting rewrite hit gateway timeout
+                        const endpoint = (attempt === 1)
+                            ? '/checkSetProgress'
+                            : 'https://us-central1-commander-challenge.cloudfunctions.net/checkSetProgress';
+
+                        if (attempt > 1) {
+                            btn.innerHTML = '<span class="spinner"></span> Loading set results...';
+                        }
+
+                        let response = await fetch(endpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                collectionId,
+                                collectionData: validCollectionData,
+                                setCode: selectedSet.code,
+                                matchMode,
+                                includeBasicLands,
+                                setScope
+                            })
+                        });
+
+                        if (!response.ok && (response.status === 502 || response.status === 504)) {
+                            if (attempt < maxAttempts) {
+                                console.warn(`[checkSetProgress] Gateway ${response.status} on attempt ${attempt}. Waiting 2.5s for background cache to finish, then retrying...`);
+                                btn.innerHTML = '<span class="spinner"></span> Finalizing scan cache...';
+                                await new Promise(r => setTimeout(r, 2500));
+                                continue;
+                            }
+                        }
+
+                        try {
+                            data = await response.json();
+                        } catch (parseError) {
+                            if ((response.status === 502 || response.status === 504) && attempt < maxAttempts) {
+                                console.warn(`[checkSetProgress] Parse error on gateway ${response.status}. Retrying in 2.5s...`);
+                                btn.innerHTML = '<span class="spinner"></span> Finalizing scan cache...';
+                                await new Promise(r => setTimeout(r, 2500));
+                                continue;
+                            }
+                            if (response.status === 502 || response.status === 504) {
+                                throw new Error("Set scan timed out on the gateway. The collection and set are now cached in memory — please click 'Check Set Progress' again to complete immediately.");
+                            }
+                            throw new Error(`Server returned status ${response.status} without valid JSON.`);
+                        }
+
+                        if (!response.ok || data.error) {
+                            if ((response.status === 502 || response.status === 504) && attempt < maxAttempts) {
+                                btn.innerHTML = '<span class="spinner"></span> Finalizing scan cache...';
+                                await new Promise(r => setTimeout(r, 2500));
+                                continue;
+                            }
+                            throw new Error(data.error || "Failed to compare set progress.");
+                        }
+
+                        // Successfully received valid data
+                        break;
+                    } catch (fetchErr) {
+                        if (attempt >= maxAttempts) {
+                            throw fetchErr;
+                        }
+                        console.warn(`[checkSetProgress] Attempt ${attempt} failed: ${fetchErr.message}. Retrying in 2.5s...`);
+                        btn.innerHTML = '<span class="spinner"></span> Finishing scan in background...';
+                        await new Promise(r => setTimeout(r, 2500));
                     }
-                    throw new Error(`Server returned status ${response.status} without valid JSON.`);
-                }
-
-                if (!response.ok || data.error) {
-                    throw new Error(data.error || "Failed to compare set progress.");
                 }
 
                 currentSetData = data;

@@ -6,7 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const { parseCards, normalizeMoxfield, enrichCardsWithScryfall, parseDecklistText, parseDeckIdentifier } = require("./parsers.js");
 const { fetchEdhrecRanks } = require("./edhrec.js");
-const { fetchAllSets, compareCollectionToSet } = require("./sets.js");
+const { fetchAllSets, fetchSetCards, compareCollectionToSet } = require("./sets.js");
 const { computeCollectionInsights, normalizeColorCodes } = require("./insights.js");
 const { DEFAULT_HEADERS, fetchWithRetry, runWithConcurrency } = require("./http.js");
 
@@ -147,8 +147,8 @@ async function fetchArchidektCollection(collectionId) {
                     }
                 });
 
-                // Fetch 2 pages in parallel with polite 220ms spacing between batches
-                const batchResults = await runWithConcurrency(taskFns, 2, 220);
+                // Fetch 3 pages in parallel with polite 150ms spacing between batches
+                const batchResults = await runWithConcurrency(taskFns, 3, 150);
                 for (const res of batchResults) {
                     if (res && Array.isArray(res.results)) {
                         res.results.forEach(c => allCardsMap.set(c.id || Math.random(), c));
@@ -474,14 +474,20 @@ exports.checkSetProgress = onRequest({ cors: true, timeoutSeconds: 120, memory: 
         const hasRichCollectionData = collectionData && Array.isArray(collectionData) && collectionData.length > 0 &&
             collectionData.some(c => c.setCode || c.set || c.edition || c.card?.edition);
 
-        if (hasRichCollectionData) {
-            rawCollectionItems = collectionData;
-        } else if (collectionId) {
-            // Fetch fresh collection from Archidekt to get full set, edition, collector number info
-            rawCollectionItems = await fetchArchidektCollection(collectionId);
-        } else if (collectionData && Array.isArray(collectionData)) {
-            rawCollectionItems = collectionData;
-        }
+        // Fetch collection cards and set cards in parallel to prevent gateway timeouts!
+        const collectionPromise = hasRichCollectionData
+            ? Promise.resolve(collectionData)
+            : (collectionId ? fetchArchidektCollection(collectionId) : Promise.resolve(collectionData || []));
+
+        const setCardsPromise = fetchSetCards(setCode);
+        const allSetsPromise = fetchAllSets().catch(() => []);
+
+        const [collectionItems, setCardsData, allSetsData] = await Promise.all([
+            collectionPromise,
+            setCardsPromise,
+            allSetsPromise
+        ]);
+        rawCollectionItems = collectionItems || [];
 
         const shouldIncludeBasicLands = Boolean(includeBasicLands === true || includeBasicLands === 'true');
 
@@ -490,7 +496,9 @@ exports.checkSetProgress = onRequest({ cors: true, timeoutSeconds: 120, memory: 
             setCode,
             matchMode,
             includeBasicLands: shouldIncludeBasicLands,
-            setScope
+            setScope,
+            prefetchedSetCards: setCardsData,
+            prefetchedAllSets: allSetsData
         });
 
         const mappedCachedCollection = (rawCollectionItems && rawCollectionItems.length > 0) ? rawCollectionItems.map(c => {

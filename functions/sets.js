@@ -599,10 +599,15 @@ async function compareCollectionToSet({
     setCode,
     matchMode = "exact", // "exact" (this set only) or "name" (any print)
     includeBasicLands = false,
-    setScope = "distinct" // "distinct" (1 per card name) or "all" (every collector number)
+    setScope = "distinct", // "distinct" (1 per card name) or "all" (every collector number)
+    prefetchedSetCards = null,
+    prefetchedAllSets = null
 }) {
-    const allSets = await fetchAllSets().catch(() => []);
-    const { setInfo, cards: rawSetCards } = await fetchSetCards(setCode);
+    const [allSets, setCardsData] = await Promise.all([
+        prefetchedAllSets ? Promise.resolve(prefetchedAllSets) : fetchAllSets().catch(() => []),
+        prefetchedSetCards ? Promise.resolve(prefetchedSetCards) : fetchSetCards(setCode)
+    ]);
+    const { setInfo, cards: rawSetCards } = setCardsData;
     const lookup = buildCollectionLookup(collectionItems, allSets);
 
     // Filter basic lands if requested
