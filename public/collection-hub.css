@@ -1,36 +1,36 @@
 
         .collection-hub-scope, .collection-hub-modal {
-            --bg-color: #0f172a;
-            --page-bg: #0b0f19;
-            --card-bg: #1e293b;
-            --card-hover: #24344d;
-            --border-color: #334155;
-            --border-subtle: #1e293b;
-            --text-color: #f8fafc;
+            --bg-color: rgba(14, 15, 23, 0.95);
+            --page-bg: transparent;
+            --card-bg: rgba(18, 20, 30, 0.85);
+            --card-hover: rgba(26, 29, 44, 0.95);
+            --border-color: rgba(56, 189, 248, 0.2);
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --text-color: #f1f5f9;
             --text-muted: #94a3b8;
             --text-dim: #64748b;
             --primary: #38bdf8;
             --primary-hover: #0ea5e9;
             --primary-bg: rgba(56, 189, 248, 0.12);
-            --primary-border: rgba(56, 189, 248, 0.3);
+            --primary-border: rgba(56, 189, 248, 0.35);
             --status-used: #10b981;
-            --status-used-bg: rgba(16, 185, 129, 0.12);
-            --status-used-border: rgba(16, 185, 129, 0.25);
+            --status-used-bg: rgba(16, 185, 129, 0.14);
+            --status-used-border: rgba(16, 185, 129, 0.3);
             --status-unused: #94a3b8;
             --status-missing: #f43f5e;
-            --status-missing-bg: rgba(244, 63, 94, 0.12);
-            --status-missing-border: rgba(244, 63, 94, 0.25);
+            --status-missing-bg: rgba(244, 63, 94, 0.14);
+            --status-missing-border: rgba(244, 63, 94, 0.3);
             --status-partial: #f59e0b;
-            --status-partial-bg: rgba(245, 158, 11, 0.12);
-            --status-partial-border: rgba(245, 158, 11, 0.25);
-            --item-hover: rgba(255, 255, 255, 0.03);
+            --status-partial-bg: rgba(245, 158, 11, 0.14);
+            --status-partial-border: rgba(245, 158, 11, 0.3);
+            --item-hover: rgba(255, 255, 255, 0.04);
             --rarity-mythic: #f97316;
             --rarity-rare: #eab308;
             --rarity-uncommon: #94a3b8;
             --rarity-common: #64748b;
-            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
-            --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.45);
+            --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.4);
+            --shadow-md: 0 8px 25px rgba(0, 0, 0, 0.55);
+            --shadow-lg: 0 16px 45px rgba(0, 0, 0, 0.75);
         }
 
         :root[data-theme="light"],
@@ -203,11 +203,14 @@
             display: flex;
             gap: 0.5rem;
             margin-bottom: 1.5rem;
-            background: var(--card-bg);
-            padding: 0.35rem;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            box-shadow: var(--shadow-sm);
+            background: rgba(14, 15, 23, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            padding: 0.4rem;
+            border-radius: 14px;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            overflow-x: auto;
         }
 
         .nav-tab {
@@ -215,48 +218,58 @@
             padding: 0.75rem 1rem;
             border: none;
             background: transparent;
-            color: var(--text-muted);
+            color: #94a3b8;
+            font-family: var(--font-body);
             font-weight: 700;
-            font-size: 0.95rem;
-            border-radius: 9px;
+            font-size: 0.92rem;
+            border-radius: 10px;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.25s ease;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 0.5rem;
+            white-space: nowrap;
         }
 
         .nav-tab:hover {
-            color: var(--text-color);
-            background: var(--card-hover);
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.06);
+            transform: translateY(-1px);
         }
 
         .nav-tab.active {
-            background: var(--primary);
-            color: #0f172a;
-            box-shadow: 0 2px 8px rgba(56, 189, 248, 0.3);
+            background: linear-gradient(135deg, #0284c7, #0ea5e9);
+            color: #ffffff !important;
+            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.35);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
         }
 
         /* Card Container */
         .collection-hub-scope .card,
         .collection-hub-modal .card,
         .card {
-            background-color: var(--card-bg) !important;
-            backdrop-filter: none !important;
-            -webkit-backdrop-filter: none !important;
+            background: rgba(18, 20, 30, 0.82) !important;
+            backdrop-filter: blur(16px) saturate(180%) !important;
+            -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
             padding: 1.5rem !important;
             border-radius: 14px !important;
             border: 1px solid var(--border-color) !important;
             margin-bottom: 1.5rem !important;
-            box-shadow: var(--shadow-md) !important;
-            transition: background-color 0.25s ease, border-color 0.25s ease !important;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+            transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease !important;
             width: 100% !important;
             max-width: 100% !important;
             min-width: 0 !important;
             flex: none !important;
             box-sizing: border-box !important;
             text-align: left !important;
+        }
+
+        .collection-hub-scope .card:hover,
+        .collection-hub-modal .card:hover {
+            border-color: rgba(56, 189, 248, 0.35) !important;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(56, 189, 248, 0.08) !important;
         }
 
         .form-group {

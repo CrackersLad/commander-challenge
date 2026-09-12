@@ -64,8 +64,8 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=6.15">
-    <link rel="stylesheet" href="collection-hub.css?v=6.15">
+    <link rel="stylesheet" href="styles.css?v=6.16">
+    <link rel="stylesheet" href="collection-hub.css?v=6.16">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -289,7 +289,7 @@
     <main id="view-landing" class="view-section active">
         <!-- Hero Title Section -->
         <div class="hero-container">
-            <div class="hero-badge">✦ Unified Magic: The Gathering Suite ✦</div>
+            <div class="hero-badge">✦ Unified MTG Command Center ✦</div>
             <h1 class="hero-title" style="letter-spacing: 1px;">WHAT DO YOU WANT TO DO?</h1>
             <p class="hero-subtitle">Select an activity below to jump straight into play with your friends, draft booster packs, or manage, upgrade, and trade from your physical collection.</p>
             
@@ -299,6 +299,27 @@
                 <input type="text" id="playerNameInput" placeholder="Enter Your Player Name" maxlength="15" class="hero-name-input">
                 <button class="identity-pill-btn" onclick="window.openAccountModal()">Identity & Stats</button>
             </div>
+
+            <!-- Sleek Quick-Jump Category Navigation Bar -->
+            <nav class="hub-nav-jump-bar" aria-label="Section Navigation">
+                <button type="button" class="hub-jump-btn active" onclick="window.scrollToSection('section-play')">
+                    <span>⚔️</span> Play & Draft
+                </button>
+                <button type="button" class="hub-jump-btn" onclick="window.scrollToSection('section-collection')">
+                    <span>📦</span> Collection & Decks
+                </button>
+                <button type="button" class="hub-jump-btn" onclick="window.scrollToSection('section-rolls')">
+                    <span>🎲</span> Quick Rolls
+                </button>
+            </nav>
+        </div>
+
+        <!-- Active Playgroups List (Surfaced right below hero for instant re-entry) -->
+        <div id="myPlaygroupsContainer" class="my-playgroups-container" style="display: none;">
+            <div class="section-divider">
+                <h3 class="section-title">🎮 Your Active Playgroups</h3>
+            </div>
+            <div id="myPlaygroupsList" class="playgroups-grid"></div>
         </div>
 
         <!-- ==================== CATEGORY 1: START PLAYING ==================== -->
@@ -306,7 +327,7 @@
             <div class="hub-category-header">
                 <div class="hub-category-icon">⚔️</div>
                 <div>
-                    <h2 class="hub-category-title">Start Playing</h2>
+                    <h2 class="hub-category-title">Play & Draft Arena</h2>
                     <p class="hub-category-subtitle">Multiplayer lobbies, draft battlegrounds, and interactive pack opening</p>
                 </div>
             </div>
@@ -314,7 +335,7 @@
             <div class="hub-tiles-grid">
                 <!-- Tile 1: Commander Challenge -->
                 <div class="action-card action-card-primary">
-                    <div class="action-card-badge">Full Challenge</div>
+                    <div class="action-card-badge">Live Playgroup</div>
                     <div class="action-card-icon">⚔️</div>
                     <h3 class="action-card-title">Commander Challenge</h3>
                     <p class="action-card-desc">Start or join a Commander Build Challenge with friends. Roll commanders, set budgets & brackets, and battle in the War Room.</p>
@@ -343,6 +364,33 @@
                     <h3 class="action-card-title">Booster Simulator</h3>
                     <p class="action-card-desc">Simulate cracking some packs or full 36-pack boxes for any MTG set. Features live market pricing, realistic foils, and EV profit/loss tracking!</p>
                     <button class="select-btn action-cta-btn" onclick="window.openBoosterSimulator(); event.stopPropagation();">Crack Some Packs</button>
+                </div>
+            </div>
+
+            <!-- Quick Roll Dual Cards (Consolidated with Play) -->
+            <div class="quick-rolls-container" id="section-rolls">
+                <!-- 1. Instant Commander Quick Roll -->
+                <div class="quick-roll-card" onclick="window.quickRollCommander()">
+                    <div class="quick-roll-content">
+                        <div class="quick-roll-dice">🎲</div>
+                        <div class="quick-roll-text">
+                            <h4>Instant Commander Quick Roll</h4>
+                            <p>Not sure what to build? Spin the Archives for a randomized commander suggestion with full EDHREC stats!</p>
+                        </div>
+                    </div>
+                    <button class="secondary-btn quick-roll-cta" id="quickRollBtn" onclick="window.quickRollCommander(); event.stopPropagation();">Roll Commander</button>
+                </div>
+
+                <!-- 2. Random Commander Precon Quick Roll -->
+                <div class="quick-roll-card precon-roll-card" onclick="window.quickRollPrecon()">
+                    <div class="quick-roll-content">
+                        <div class="quick-roll-dice">📦</div>
+                        <div class="quick-roll-text">
+                            <h4>Random Commander Precon</h4>
+                            <p>Roll an official MTG preconstructed Commander deck complete with face commander, colors, and full 100-card decklist!</p>
+                        </div>
+                    </div>
+                    <button class="secondary-btn quick-roll-cta precon-cta" id="quickRollPreconBtn" onclick="window.quickRollPrecon(); event.stopPropagation();">Roll Precon</button>
                 </div>
             </div>
         </div>
@@ -412,41 +460,6 @@
                     <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #4f46e5, #6366f1);" onclick="window.openCollectionTab('collection'); event.stopPropagation();">View Insights</button>
                 </div>
             </div>
-        </div>
-
-        <!-- Quick Roll Section: Instant Commander & Commander Precon -->
-        <div class="quick-rolls-container" style="margin-top: 20px;">
-            <!-- 1. Instant Commander Quick Roll -->
-            <div class="quick-roll-card" onclick="window.quickRollCommander()">
-                <div class="quick-roll-content">
-                    <div class="quick-roll-dice">🎲</div>
-                    <div class="quick-roll-text">
-                        <h4>Instant Commander Quick Roll</h4>
-                        <p>Not sure what to build? Spin the Archives for a completely randomized commander suggestion with full EDHREC stats!</p>
-                    </div>
-                </div>
-                <button class="secondary-btn quick-roll-cta" id="quickRollBtn" onclick="window.quickRollCommander(); event.stopPropagation();">Roll Commander</button>
-            </div>
-
-            <!-- 2. Random Commander Precon Quick Roll -->
-            <div class="quick-roll-card precon-roll-card" onclick="window.quickRollPrecon()">
-                <div class="quick-roll-content">
-                    <div class="quick-roll-dice">📦</div>
-                    <div class="quick-roll-text">
-                        <h4>Random Commander Precon</h4>
-                        <p>Roll an official MTG preconstructed Commander deck complete with face commander, colors, and full 100-card decklist!</p>
-                    </div>
-                </div>
-                <button class="secondary-btn quick-roll-cta precon-cta" id="quickRollPreconBtn" onclick="window.quickRollPrecon(); event.stopPropagation();">Roll Precon</button>
-            </div>
-        </div>
-
-        <!-- Active Playgroups List -->
-        <div id="myPlaygroupsContainer" class="my-playgroups-container" style="display: none;">
-            <div class="section-divider">
-                <h3 class="section-title">My Active Playgroups</h3>
-            </div>
-            <div id="myPlaygroupsList" class="playgroups-grid"></div>
         </div>
 
         <!-- Global Live Statistics Chip Bar -->
@@ -962,63 +975,34 @@
     <!-- ==================== VIEW 10: COLLECTION & DECKS HUB ==================== -->
     <main id="view-collection-hub" class="view-section collection-hub-scope">
         <div class="collection-view-wrapper">
-            <div class="view-top-breadcrumb">
+            <div class="view-top-breadcrumb collection-breadcrumb-bar">
                 <button class="breadcrumb-btn" onclick="window.goToMainMenu()">
                     <span>🏠</span> Return to Hub
                 </button>
                 <div class="breadcrumb-title">
                     ✦ MY COLLECTION & DECKS ✦
                 </div>
-            </div>
-            <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <div class="header-title-area">
-                <h1>Collection Hub</h1>
-                <div class="header-subtitle">Deck Comparator & Set Completion Tracker</div>
-            </div>
-            <div class="header-actions-area">
                 <div class="market-select-wrapper" title="Global Pricing Marketplace (affects all cards, binders, and sets)">
-                    <span style="font-size: 0.88rem;">🌐</span>
+                    <span style="font-size: 0.88rem;">🌐 Market:</span>
                     <select id="globalMarketSelect" class="market-select" onchange="changeGlobalMarket(this.value)">
                         <option value="tcg">TCGPlayer ($)</option>
                         <option value="cardmarket">Cardmarket (€)</option>
                         <option value="ck">Card Kingdom ($)</option>
                     </select>
                 </div>
-                <button id="themeToggle" class="theme-btn" aria-label="Toggle Theme">☀️</button>
-
-                <!-- User Account Actions -->
-                <button type="button" id="authLoginBtn" class="secondary-btn" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.85rem; font-size: 0.85rem; border-color: var(--primary-border); color: var(--primary);" onclick="window.openAccountModal()">
-                    <span>👤</span>
-                    <span>Sign In</span>
-                </button>
-
-                <div id="userMenuWrapper" style="position: relative; display: none;">
-                    <button type="button" id="userProfileBtn" class="secondary-btn" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.75rem; font-size: 0.85rem;" onclick="toggleUserDropdown(event)">
-                        <span id="userAvatar" style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: #0f172a; font-weight: 800; font-size: 0.75rem; overflow: hidden;">U</span>
-                        <span id="userDisplayName" style="max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">User</span>
-                        <span style="font-size: 0.7rem;">▼</span>
-                    </button>
-                    <div id="userDropdown" class="user-dropdown-menu" style="display: none;">
-                        <div class="user-dropdown-header">
-                            <div id="userDropdownName" style="font-weight: 700; color: var(--text-color); font-size: 0.9rem;"></div>
-                            <div id="userDropdownEmail" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem;"></div>
-                        </div>
-                        <div class="user-dropdown-divider"></div>
-                        <button type="button" class="user-dropdown-item" onclick="syncUserDataToCloud()">
-                            <span>☁️</span> Cloud Sync My Decks
-                        </button>
-                        <button type="button" class="user-dropdown-item" onclick="window.openAccountModal(); closeUserDropdown();">
-                            <span>🏆</span> My Profile & Identity
-                        </button>
-                        <button type="button" class="user-dropdown-item" onclick="window.handleGlobalSignOut()">
-                            <span>🚪</span> Sign Out
-                        </button>
+                <!-- Hidden DOM targets for backward compatibility with collection-hub.js -->
+                <button id="themeToggle" class="theme-btn" aria-label="Toggle Theme" style="display: none;"></button>
+                <button type="button" id="authLoginBtn" style="display: none;"></button>
+                <div id="userMenuWrapper" style="display: none;"></div>
+            </div>
+            <div class="container">
+                <!-- Header Title Area -->
+                <div class="header" style="margin-bottom: 1rem;">
+                    <div class="header-title-area">
+                        <h1>Collection & Decks Hub</h1>
+                        <div class="header-subtitle">Deck Comparator, Set Completion Tracker, Trade Binder & AI Upgrader</div>
                     </div>
                 </div>
-            </div>
-        </div>
 
         <!-- Navigation Tabs -->
         <div class="nav-tabs" role="tablist">
@@ -2304,13 +2288,13 @@
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
-        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v6.15</span>
+        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v6.16</span>
     </footer>
 
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script src="./collection-hub.js?v=6.15"></script>
-    <script type="module" src="./script.js?v=6.15"></script>
+    <script src="./collection-hub.js?v=6.16"></script>
+    <script type="module" src="./script.js?v=6.16"></script>
 </body>
 </html>

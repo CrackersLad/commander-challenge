@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'cmdr-draft-cache-v6.15';
+const CACHE_NAME = 'cmdr-draft-cache-v6.16';
 const urlsToCache = [
   '/',
   '/index.html',
