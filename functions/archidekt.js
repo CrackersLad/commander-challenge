@@ -7,7 +7,7 @@ const path = require("path");
 const { parseCards, normalizeMoxfield, enrichCardsWithScryfall, parseDecklistText, parseDeckIdentifier } = require("./parsers.js");
 const { fetchEdhrecRanks } = require("./edhrec.js");
 const { fetchAllSets, fetchSetCards, compareCollectionToSet } = require("./sets.js");
-const { computeCollectionInsights, normalizeColorCodes } = require("./insights.js");
+const { computeCollectionInsights, normalizeColorCodes, resolveCardColors } = require("./insights.js");
 const { DEFAULT_HEADERS, fetchWithRetry, runWithConcurrency } = require("./http.js");
 
 // In-memory caching layers (per Cloud Function instance)
@@ -576,9 +576,9 @@ exports.getCollectionInsights = onRequest({ cors: true, timeoutSeconds: 120, mem
                 set,
                 setCode,
                 collector_number: colNum,
-                collectorNumber: colNum,
-                colors: normalizeColorCodes(oracleData.colors || oracleData.colorIdentity || oracleData.color_identity || cardInfo.colors || cardInfo.color_identity || c.colors || c.color_identity || []),
-                typeLine: oracleData.type_line || cardInfo.type_line || c.type_line || '',
+                colors: resolveCardColors(c),
+                typeLine: oracleData.type_line || oracleData.typeLine || cardInfo.type_line || cardInfo.typeLine || c.type_line || c.typeLine || (oracleData.types ? [...(oracleData.superTypes || []), ...(oracleData.types || [])].join(' ') : '') || '',
+                manaCost: oracleData.manaCost || oracleData.mana_cost || cardInfo.manaCost || cardInfo.mana_cost || c.manaCost || c.mana_cost || '',
                 isCommander: Boolean(oracleData.isCommander || cardInfo.isCommander || c.isCommander),
                 prices: cardInfo.prices || c.prices || null
             };

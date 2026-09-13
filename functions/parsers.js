@@ -92,6 +92,8 @@ function categorizeCard(typeLine = '', existingCategories = []) {
     return 'Other';
 }
 
+const { resolveCardColors, normalizeColorCodes } = require("./colors.js");
+
 /**
  * Parses card data from various API formats into a standardized map.
  * @param {object} jsonData The raw JSON data from an API (Archidekt, Moxfield, etc.).
@@ -132,7 +134,7 @@ function parseCards(jsonData, options = {}) {
             const oracleDataSource = cardInfo.oracleCard || cardInfo;
 
             // Get type_line directly if available, otherwise construct it from its components.
-            let typeLine = (oracleDataSource.type_line || oracleDataSource.typeLine || '').toLowerCase();
+            let typeLine = (oracleDataSource.type_line || oracleDataSource.typeLine || item.typeLine || item.type_line || '').toLowerCase();
             if (!typeLine && oracleDataSource.types) {
                 const superTypes = oracleDataSource.superTypes || [];
                 const types = oracleDataSource.types || [];
@@ -161,7 +163,7 @@ function parseCards(jsonData, options = {}) {
             const category = categorizeCard(typeLine, rawCategories);
 
             if (!counts[cleanName]) {
-                const rawColors = oracleDataSource.color_identity || oracleDataSource.colorIdentity || oracleDataSource.colors || [];
+                const parsedColors = resolveCardColors(item);
                 const oracleText = (oracleDataSource.oracle_text || oracleDataSource.oracleText || oracleDataSource.text || '').toLowerCase();
                 const isLegendary = typeLine.includes('legendary');
                 const isCreature = typeLine.includes('creature');
@@ -204,7 +206,7 @@ function parseCards(jsonData, options = {}) {
                     finish: rawMod || (isFoil ? "Foil" : "Normal"),
                     isFoil,
                     foil: isFoil,
-                    colors: Array.isArray(rawColors) ? rawColors : [],
+                    colors: parsedColors,
                     isCommander: isCommander,
                     edhrecRank: oracleDataSource.edhrecRank || oracleDataSource.edhrec_rank || null,
                     typeLine: oracleDataSource.type_line || oracleDataSource.typeLine || typeLine,

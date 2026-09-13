@@ -2155,7 +2155,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=6.16');
+                    const res = await fetch('./commander-precons.json?v=6.17');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2191,7 +2191,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=6.16');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=6.17');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -3997,6 +3997,107 @@
             }
         }
 
+        function resolveCardColorsClient(item) {
+            if (!item) return [];
+            const cardInfo = item.card || item || {};
+            const oracleData = cardInfo.oracleCard || cardInfo;
+
+            const colorMap = {
+                w: 'W', white: 'W',
+                u: 'U', blue: 'U',
+                b: 'B', black: 'B',
+                r: 'R', red: 'R',
+                g: 'G', green: 'G'
+            };
+
+            function parseCandidate(cand) {
+                if (!cand) return [];
+                const result = new Set();
+                if (Array.isArray(cand)) {
+                    for (const c of cand) {
+                        if (!c) continue;
+                        const str = String(c).trim().toLowerCase();
+                        if (colorMap[str]) {
+                            result.add(colorMap[str]);
+                        } else if (/^[wubrg]+$/i.test(str)) {
+                            for (const ch of str.toUpperCase()) {
+                                if (['W','U','B','R','G'].includes(ch)) result.add(ch);
+                            }
+                        }
+                    }
+                } else if (typeof cand === 'string') {
+                    const clean = cand.replace(/[{}]/g, ' ').trim();
+                    const parts = clean.split(/[,/| \s]+/).filter(Boolean);
+                    for (const p of parts) {
+                        const low = p.trim().toLowerCase();
+                        if (colorMap[low]) {
+                            result.add(colorMap[low]);
+                        } else if (/^[wubrg]+$/i.test(low)) {
+                            for (const ch of low.toUpperCase()) {
+                                if (['W','U','B','R','G'].includes(ch)) result.add(ch);
+                            }
+                        }
+                    }
+                }
+                return Array.from(result);
+            }
+
+            const candidates = [
+                oracleData.colors,
+                cardInfo.colors,
+                item.colors,
+                oracleData.colorIdentity,
+                oracleData.color_identity,
+                cardInfo.colorIdentity,
+                cardInfo.color_identity,
+                item.colorIdentity,
+                item.color_identity
+            ];
+
+            for (const cand of candidates) {
+                const parsed = parseCandidate(cand);
+                if (parsed.length > 0) return parsed;
+            }
+
+            // Fallback: extract from mana cost for non-lands
+            const typeLine = (
+                oracleData.type_line ||
+                oracleData.typeLine ||
+                cardInfo.type_line ||
+                cardInfo.typeLine ||
+                item.type_line ||
+                item.typeLine ||
+                item.type ||
+                (oracleData.types ? [...(oracleData.superTypes || []), ...(oracleData.types || [])].join(' ') : '') ||
+                ''
+            ).toLowerCase();
+
+            if (!typeLine.includes('land')) {
+                const manaCost = (
+                    oracleData.manaCost ||
+                    oracleData.mana_cost ||
+                    cardInfo.manaCost ||
+                    cardInfo.mana_cost ||
+                    item.manaCost ||
+                    item.mana_cost ||
+                    ''
+                ).toString();
+                if (manaCost) {
+                    const matches = manaCost.match(/[WUBRG]/gi);
+                    if (matches) {
+                        const set = new Set();
+                        for (const m of matches) {
+                            const up = m.toUpperCase();
+                            if (['W','U','B','R','G'].includes(up)) set.add(up);
+                        }
+                        if (set.size > 0) return Array.from(set);
+                    }
+                }
+            }
+
+            return [];
+        }
+
         function renderCollectionInsights(data) {
             if (!data || !data.summary) return;
             const { summary, crownJewels, colorDistribution, typeDistribution, rarityDistribution, priceBrackets, staples } = data;
@@ -4135,10 +4236,14 @@
                 land: { color: '#a78bfa', label: 'Lands' }
             };
 
-            // If backend returned zero non-colorless cards, synthesize from available collection cards
+            // If backend returned zero mono-colored cards (or no cards) while a collection exists, synthesize from available collection cards
             let effectiveColorDist = colorDistribution || {};
-            const hasValidColorData = Object.entries(effectiveColorDist).some(([k, item]) => k !== 'colorless' && k !== 'land' && (item.copies || 0) > 0);
-            if (!hasValidColorData && ((data.collection && data.collection.length > 0) || (currentCollectionData && currentCollectionData.length > 0))) {
+            const monoCopies = ['W', 'U', 'B', 'R', 'G'].reduce((sum, c) => sum + (effectiveColorDist[c]?.copies || 0), 0);
+            const totalCopiesCount = Object.values(effectiveColorDist).reduce((sum, it) => sum + (it.copies || 0), 0);
+            const hasCollectionCards = (data.collection && data.collection.length > 0) || (currentCollectionData && currentCollectionData.length > 0);
+            const isInvalidDist = totalCopiesCount === 0 || (monoCopies === 0 && totalCopiesCount > 30);
+
+            if (isInvalidDist && hasCollectionCards) {
                 const pool = (data.collection && data.collection.length > 0) ? data.collection : currentCollectionData;
                 const computed = {
                     W: { name: 'White', count: 0, copies: 0 },
@@ -4153,32 +4258,16 @@
                 pool.forEach(card => {
                     const copies = Math.max(1, parseInt(card.quantity || card.owned || card.copies) || 1);
                     const t = (card.typeLine || card.type_line || card.type || '').toLowerCase();
-                    let rawC = card.colors || card.colorIdentity || card.color_identity || [];
-                    if (typeof rawC === 'string') rawC = rawC.replace(/[{}]/g, '').split(/[,/ ]+/).filter(Boolean);
-                    const parsedColors = new Set();
-                    (Array.isArray(rawC) ? rawC : []).forEach(c => {
-                        const str = String(c).trim().toLowerCase();
-                        if (str === 'w' || str === 'white') parsedColors.add('W');
-                        else if (str === 'u' || str === 'blue') parsedColors.add('U');
-                        else if (str === 'b' || str === 'black') parsedColors.add('B');
-                        else if (str === 'r' || str === 'red') parsedColors.add('R');
-                        else if (str === 'g' || str === 'green') parsedColors.add('G');
-                    });
+                    const parsedColors = resolveCardColorsClient(card);
                     if (t.includes('land')) {
                         computed.land.count++;
                         computed.land.copies += copies;
-                    } else if (parsedColors.size > 1) {
+                    } else if (parsedColors.length > 1) {
                         computed.multi.count++;
                         computed.multi.copies += copies;
-                    } else if (parsedColors.size === 1) {
-                        const colKey = Array.from(parsedColors)[0];
-                        if (computed[colKey]) {
-                            computed[colKey].count++;
-                            computed[colKey].copies += copies;
-                        } else {
-                            computed.colorless.count++;
-                            computed.colorless.copies += copies;
-                        }
+                    } else if (parsedColors.length === 1 && computed[parsedColors[0]]) {
+                        computed[parsedColors[0]].count++;
+                        computed[parsedColors[0]].copies += copies;
                     } else {
                         computed.colorless.count++;
                         computed.colorless.copies += copies;
@@ -4750,6 +4839,9 @@
             let typeIdx = headers.findIndex(h => h === 'type' || h === 'type line' || h === 'typeline' || h === 'type_line');
             if (typeIdx === -1) typeIdx = headers.findIndex(h => h.includes('type'));
 
+            let manaIdx = headers.findIndex(h => h === 'mana cost' || h === 'mana_cost' || h === 'manacost' || h === 'cost');
+            if (manaIdx === -1) manaIdx = headers.findIndex(h => h.includes('mana') && h.includes('cost'));
+
             let inDecksIdx = headers.findIndex(h => 
                 h === 'in decks' || h === 'in_decks' || h === 'indecks' || 
                 h === 'in deck' || h === 'in_deck' || h === 'indeck' || 
@@ -4801,6 +4893,7 @@
 
                 let rawColorsVal = colorIdx !== -1 ? (values[colorIdx]?.replace(/^"|"$/g, '').trim() || '') : '';
                 let rawTypeVal = typeIdx !== -1 ? (values[typeIdx]?.replace(/^"|"$/g, '').trim() || '') : '';
+                let rawManaVal = manaIdx !== -1 ? (values[manaIdx]?.replace(/^"|"$/g, '').trim() || '') : '';
 
                 if (name) data.push({
                     name,
@@ -4817,6 +4910,8 @@
                     isFoil,
                     foil: isFoil,
                     colors: rawColorsVal,
+                    manaCost: rawManaVal,
+                    mana_cost: rawManaVal,
                     typeLine: rawTypeVal,
                     type_line: rawTypeVal
                 });
@@ -6372,7 +6467,7 @@
 
                 // Color Filter
                 if (colorFilter !== 'all') {
-                    const cardColors = (card.colors || []).map(c => c.toUpperCase());
+                    const cardColors = resolveCardColorsClient(card);
                     if (colorFilter === 'colorless' && cardColors.length > 0) return false;
                     else if (colorFilter === 'multi' && cardColors.length < 2) return false;
                     else if (['W', 'U', 'B', 'R', 'G'].includes(colorFilter) && !cardColors.includes(colorFilter)) return false;

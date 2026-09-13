@@ -24,32 +24,7 @@ const TOP_COMMANDER_STAPLES = [
     "Fellwar Stone"
 ];
 
-/**
- * Normalizes color arrays or strings from diverse APIs/CSVs into standard MTG single-letter color codes: W, U, B, R, G.
- */
-function normalizeColorCodes(rawColors) {
-    if (!rawColors) return [];
-    if (typeof rawColors === "string") {
-        rawColors = rawColors.replace(/[{}]/g, "").split(/[,/ ]+/).filter(Boolean);
-    }
-    if (!Array.isArray(rawColors)) return [];
-    const colorMap = {
-        w: "W", white: "W",
-        u: "U", blue: "U",
-        b: "B", black: "B",
-        r: "R", red: "R",
-        g: "G", green: "G"
-    };
-    const set = new Set();
-    for (const c of rawColors) {
-        if (!c) continue;
-        const key = String(c).trim().toLowerCase();
-        if (colorMap[key]) {
-            set.add(colorMap[key]);
-        }
-    }
-    return Array.from(set);
-}
+const { normalizeColorCodes, resolveCardColors } = require("./colors.js");
 
 /**
  * Normalizes set codes.
@@ -91,15 +66,15 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
         const cardInfo = item.card || item || {};
         const oracleData = cardInfo.oracleCard || cardInfo;
         const p = cardInfo.prices || item.prices;
-        const rawColors = oracleData.colors || oracleData.colorIdentity || oracleData.color_identity || cardInfo.colors || cardInfo.color_identity || item.colors || item.color_identity;
+        const resolved = resolveCardColors(item);
         const hasPrices = p && (typeof p.tcg !== "undefined" || typeof p.usd !== "undefined" || typeof p.ck !== "undefined");
-        const hasColors = Array.isArray(rawColors) ? rawColors.length > 0 : Boolean(rawColors);
+        const hasColors = resolved.length > 0;
         return !hasPrices || !hasColors;
     });
 
     const enrichedPricesMap = new Map(); // cleanName -> { usd, eur, rarity, type_line, colors, image_url }
     if (needsBatchEnrichment) {
-        // Collect distinct card names (limit to first 400 to keep it fast while covering collection)
+        // Collect distinct card names (limit to first 1000 to keep it fast while covering collection)
         const uniqueNames = [];
         const seen = new Set();
         for (const it of rawItems) {
@@ -111,7 +86,7 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
         }
 
         const batchSize = 75;
-        const toFetch = uniqueNames.slice(0, 400);
+        const toFetch = uniqueNames.slice(0, 1000);
         for (let i = 0; i < toFetch.length; i += batchSize) {
             const batch = toFetch.slice(i, i + batchSize);
             try {
@@ -239,8 +214,12 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
         // Type line
         let typeLine = (
             oracleData.type_line ||
+            oracleData.typeLine ||
             cardInfo.type_line ||
+            cardInfo.typeLine ||
             item.type_line ||
+            item.typeLine ||
+            item.type ||
             enrichedPricesMap.get(cleanName)?.type_line ||
             ""
         ).toLowerCase();
@@ -251,8 +230,13 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
         }
 
         // Colors
-        const rawColors = oracleData.colors || oracleData.colorIdentity || oracleData.color_identity || cardInfo.colors || cardInfo.color_identity || item.colors || item.color_identity || enrichedPricesMap.get(cleanName)?.colors || [];
-        const colors = normalizeColorCodes(rawColors);
+        let colors = resolveCardColors(item);
+        if (colors.length === 0 && enrichedPricesMap.has(cleanName)) {
+            const enr = enrichedPricesMap.get(cleanName);
+            if (enr && Array.isArray(enr.colors) && enr.colors.length > 0) {
+                colors = normalizeColorCodes(enr.colors);
+            }
+        }
 
         // Image URL for the specific print version
         let imageUrl = cardInfo.images?.normal || cardInfo.scryfall_image || item.image_url || "";
@@ -294,6 +278,12 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
         const entry = cardMap.get(distinctKey);
         entry.quantity += quantity;
         entry.inDecks += inDecks;
+        if ((!entry.colors || entry.colors.length === 0) && colors.length > 0) {
+            entry.colors = colors;
+        }
+        if (!entry.typeLine && typeLine) {
+            entry.typeLine = typeLine;
+        }
     }
 
     const uniqueCards = new Set(Array.from(cardMap.values()).map(c => c.cleanName)).size;
@@ -382,15 +372,24 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
         }
 
         // Color
+        const cardCol = Array.isArray(card.colors) ? card.colors : [];
+        const normKey = {
+            w: "W", white: "W", W: "W",
+            u: "U", blue: "U", U: "U",
+            b: "B", black: "B", B: "B",
+            r: "R", red: "R", R: "R",
+            g: "G", green: "G", G: "G"
+        }[String(cardCol[0] || "").trim().toLowerCase()];
+
         if (t.includes("land")) {
             colorDist.land.count++;
             colorDist.land.copies += card.quantity;
-        } else if (card.colors.length > 1) {
+        } else if (cardCol.length > 1) {
             colorDist.multi.count++;
             colorDist.multi.copies += card.quantity;
-        } else if (card.colors.length === 1 && colorDist[card.colors[0]]) {
-            colorDist[card.colors[0]].count++;
-            colorDist[card.colors[0]].copies += card.quantity;
+        } else if (cardCol.length === 1 && normKey && colorDist[normKey]) {
+            colorDist[normKey].count++;
+            colorDist[normKey].copies += card.quantity;
         } else {
             colorDist.colorless.count++;
             colorDist.colorless.copies += card.quantity;
@@ -482,5 +481,6 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
 module.exports = {
     computeCollectionInsights,
     normalizeColorCodes,
+    resolveCardColors,
     TOP_COMMANDER_STAPLES
 };
