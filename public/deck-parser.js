@@ -1,4 +1,4 @@
-import { functions } from './firebase-setup.js?v=6.17';
+import { functions } from './firebase-setup.js?v=7.0';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 // Official Game Changers for Moxfield fallback (excluding casual staples like Sol Ring)
@@ -145,7 +145,7 @@ export function calculateBracket(deckData, site, mainboardCards = [], cardNames 
     return 2; // Core Casual (Lowest viable baseline)
 }
 
-async function fetchDeckFromAPI(deckUrl) {
+export async function fetchDeckFromAPI(deckUrl) {
     try {
         const getDeckPriceFn = httpsCallable(functions, 'getDeckPrice');
         const result = await getDeckPriceFn({ deckUrl });

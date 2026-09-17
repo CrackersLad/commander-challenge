@@ -5012,6 +5012,22 @@ select:focus {
     border-color: rgba(56, 189, 248, 0.4) !important;
 }
 
+/* Landing Action Card for AI Arena Playtester */
+.action-card-arena {
+    border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+.action-card-arena:hover {
+    border-color: #10b981 !important;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7), 0 0 25px rgba(16, 185, 129, 0.3) !important;
+}
+
+.arena-badge {
+    background: rgba(16, 185, 129, 0.2) !important;
+    color: #34d399 !important;
+    border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
 /* Draft Hub Grid: Host vs Join */
 .draft-hub-grid {
     display: grid;
