@@ -247,8 +247,7 @@
 
         /* Card Container */
         .collection-hub-scope .card,
-        .collection-hub-modal .card,
-        .card {
+        .collection-hub-modal .card {
             background: rgba(18, 20, 30, 0.82) !important;
             backdrop-filter: blur(16px) saturate(180%) !important;
             -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
@@ -2452,7 +2451,8 @@
                 flex-shrink: 0;
             }
 
-            .card {
+            .collection-hub-scope .card,
+            .collection-hub-modal .card {
                 padding: 0.85rem 0.65rem !important;
                 border-radius: 12px;
                 margin-bottom: 0.85rem !important;
