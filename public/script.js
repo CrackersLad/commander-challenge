@@ -396,7 +396,7 @@ window.setupAdvancedSettings = () => {
 
 export function playSound(soundId) {
     // Web Vibration Haptics for mobile browsers
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    if (typeof navigator !== 'undefined' && navigator.vibrate && navigator.userActivation?.hasBeenActive) {
         if (soundId === 'sfx-choose' || soundId === 'sfx-reveal') {
             try { navigator.vibrate(50); } catch(e) {}
         } else {
