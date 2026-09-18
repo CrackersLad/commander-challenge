@@ -308,28 +308,99 @@ function generateRoomCode() {
     return code;
 }
 
-// Get current player identity
+// Get current player identity (with multi-tab testing support and session consistency)
 function getPlayerIdentity() {
     const user = auth.currentUser;
     const cachedName = localStorage.getItem('playerName') || 'Challenger';
-    const id = user ? user.uid : (localStorage.getItem('guestPlayerId') || 'guest_' + Math.random().toString(36).substr(2, 9));
-    if (!user && !localStorage.getItem('guestPlayerId')) {
-        localStorage.setItem('guestPlayerId', id);
+
+    // Support tab-level guest ID for local 2-player testing in different tabs
+    let tabGuestId = null;
+    try {
+        tabGuestId = sessionStorage.getItem('draftTabPlayerId');
+    } catch (e) {}
+
+    let id = null;
+    if (user && user.uid) {
+        id = user.uid;
+    } else if (tabGuestId) {
+        id = tabGuestId;
+    } else {
+        const localGuestId = localStorage.getItem('guestPlayerId') || localStorage.getItem('playerId');
+        if (localGuestId) {
+            id = localGuestId;
+        } else {
+            id = 'guest_' + Math.random().toString(36).substr(2, 9);
+            try { localStorage.setItem('guestPlayerId', id); } catch (e) {}
+        }
     }
+
+    try {
+        if (!sessionStorage.getItem('draftTabPlayerId')) {
+            sessionStorage.setItem('draftTabPlayerId', id);
+        }
+    } catch (e) {}
+
     return {
         id,
         name: cachedName
     };
 }
 
+// Resilient player data lookup in a draft room snapshot
+function getDraftPlayerData(room, targetPlayer = null) {
+    if (!room || !room.players) return { id: null, name: 'Challenger', pool: [], ready: true };
+    const player = targetPlayer || getPlayerIdentity();
+    const pid = player.id;
+    const playersMap = room.players;
+
+    // 1. Direct key match
+    if (pid && playersMap[pid]) {
+        return { ...playersMap[pid], id: pid };
+    }
+
+    const list = Object.entries(playersMap);
+
+    // 2. Direct property match by id or uid
+    const idMatch = list.find(([k, p]) => (p.id && p.id === pid) || (p.uid && p.uid === pid));
+    if (idMatch) {
+        return { ...idMatch[1], id: idMatch[0] };
+    }
+
+    // 3. Name match
+    if (player.name && player.name !== 'Challenger') {
+        const nameMatch = list.find(([k, p]) => p.name === player.name);
+        if (nameMatch) {
+            return { ...nameMatch[1], id: nameMatch[0] };
+        }
+    }
+
+    // 4. Role match (if exactly 2 players or host flag)
+    const isHostUser = room.hostId === pid;
+    if (isHostUser) {
+        const hostEntry = list.find(([k, p]) => p.isHost || k === room.hostId);
+        if (hostEntry) return { ...hostEntry[1], id: hostEntry[0] };
+    } else if (list.length === 2) {
+        const nonHostEntry = list.find(([k, p]) => !p.isHost && k !== room.hostId);
+        if (nonHostEntry) return { ...nonHostEntry[1], id: nonHostEntry[0] };
+    }
+
+    return { id: pid, name: player.name || 'Challenger', pool: [], ready: true };
+}
+
 // Deterministically ordered draft players list
 function getDraftPlayersList(room) {
     if (!room || !room.players) return [];
     if (Array.isArray(room.playerOrder) && room.playerOrder.length > 0) {
-        const list = room.playerOrder.map(pid => room.players[pid]).filter(Boolean);
+        const list = room.playerOrder.map(pid => {
+            const p = room.players[pid];
+            return p ? { ...p, id: pid } : null;
+        }).filter(Boolean);
         if (list.length > 0) return list;
     }
-    return Object.values(room.players).sort((a, b) => {
+    return Object.entries(room.players).map(([key, val]) => ({
+        ...val,
+        id: val.id || key
+    })).sort((a, b) => {
         if (a.isHost !== b.isHost) return a.isHost ? -1 : 1;
         return (a.joinedAt || 0) - (b.joinedAt || 0) || (a.id || '').localeCompare(b.id || '');
     });
@@ -851,7 +922,6 @@ function sanitizeDraftCard(card) {
 // Start Draft Execution (Host Only)
 async function startBoosterDraftHost() {
     if (!currentDraftData || !currentDraftCode) return;
-    const room = currentDraftData;
     const btn = document.getElementById('startDraftBtn');
     if (btn) {
         btn.disabled = true;
@@ -859,34 +929,58 @@ async function startBoosterDraftHost() {
     }
 
     try {
+        // 1. Fetch authoritative room snapshot from Firebase to ensure all joined players are present
+        const initialSnap = await get(ref(db, getDraftDbPath(currentDraftCode)));
+        const room = initialSnap.exists() ? initialSnap.val() : currentDraftData;
+        const formatConfig = DRAFT_FORMATS[room.format] || DRAFT_FORMATS.commander_draft;
+        const currentPlayersList = getDraftPlayersList(room);
+
+        if (formatConfig.minPlayers && currentPlayersList.length < formatConfig.minPlayers) {
+            const minMsg = `${formatConfig.name} requires at least ${formatConfig.minPlayers} player(s). Currently joined: ${currentPlayersList.length}.`;
+            if (draftUtils?.showToast) draftUtils.showToast(minMsg, true, 4000);
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<span>⚡ START DRAFT ⚡</span>`;
+            }
+            return;
+        }
+
         if (draftUtils?.showToast) draftUtils.showToast("Fetching cards & rolling packs...", false, 2000);
 
         // Fetch set cards
         const setData = await fetchSetBoosterCards(room.setCode);
-        const playersList = Object.values(room.players || {});
-        const isCollector = room.packEdition === 'collector';
-        const packsPerPlayer = room.packsPerPlayer || 3;
+
+        // 2. Re-read latest room state right after async Scryfall fetch so anyone joining during card load is included
+        const finalSnap = await get(ref(db, getDraftDbPath(room.code)));
+        const activeRoom = finalSnap.exists() ? finalSnap.val() : room;
+        const playersList = getDraftPlayersList(activeRoom);
+        const isCollector = activeRoom.packEdition === 'collector';
+        const packsPerPlayer = activeRoom.packsPerPlayer || 3;
 
         // Specialized handling per format
-        if (room.format === 'sealed') {
-            // Sealed: Open all packs for each player immediately
-            const playerUpdates = {};
+        if (activeRoom.format === 'sealed') {
+            // Sealed: Open all packs for each player immediately into their pool
+            const updatedPlayers = { ...(activeRoom.players || {}) };
             playersList.forEach(p => {
                 let pool = [];
                 for (let i = 1; i <= packsPerPlayer; i++) {
                     const pack = isCollector ? generateCollectorBoosterPack(setData, i) : generateBoosterPack(setData, i);
                     pool.push(...pack.map(sanitizeDraftCard));
                 }
-                playerUpdates[`players/${p.id}/pool`] = pool;
+                const existingPlayer = updatedPlayers[p.id] || p;
+                updatedPlayers[p.id] = {
+                    ...existingPlayer,
+                    pool: pool
+                };
             });
 
-            await update(ref(db, getDraftDbPath(room.code)), {
+            await update(ref(db, getDraftDbPath(activeRoom.code)), {
                 status: 'complete',
                 startedAt: Date.now(),
-                ...playerUpdates
+                players: updatedPlayers
             });
 
-        } else if (room.format === 'grid_draft') {
+        } else if (activeRoom.format === 'grid_draft') {
             // Grid Draft: Prepare 18 packs dealt into 18 consecutive 3x3 grids
             let masterCards = [];
             for (let i = 1; i <= 18; i++) {
@@ -895,11 +989,11 @@ async function startBoosterDraftHost() {
             }
 
             const firstGrid = masterCards.splice(0, 9);
-            const orderedPlayers = getDraftPlayersList(room);
+            const orderedPlayers = getDraftPlayersList(activeRoom);
             const playerOrder = orderedPlayers.map(p => p.id);
             const firstPickerId = playerOrder[0] || null;
 
-            await update(ref(db, getDraftDbPath(room.code)), {
+            await update(ref(db, getDraftDbPath(activeRoom.code)), {
                 status: 'drafting',
                 startedAt: Date.now(),
                 playerOrder,
@@ -912,7 +1006,7 @@ async function startBoosterDraftHost() {
                 remainingCards: masterCards
             });
 
-        } else if (room.format === 'winston_draft' || room.format === 'winchester_draft') {
+        } else if (activeRoom.format === 'winston_draft' || activeRoom.format === 'winchester_draft') {
             // Winston / Winchester: 6 packs shuffled into central stack
             let masterStack = [];
             for (let i = 1; i <= 6; i++) {
@@ -926,16 +1020,16 @@ async function startBoosterDraftHost() {
                 [masterStack[i], masterStack[j]] = [masterStack[j], masterStack[i]];
             }
 
-            const orderedPlayers = getDraftPlayersList(room);
+            const orderedPlayers = getDraftPlayersList(activeRoom);
             const playerOrder = orderedPlayers.map(p => p.id);
             const firstPickerId = playerOrder[0] || null;
 
-            if (room.format === 'winston_draft') {
+            if (activeRoom.format === 'winston_draft') {
                 const pile1 = [masterStack.pop()];
                 const pile2 = [masterStack.pop()];
                 const pile3 = [masterStack.pop()];
 
-                await update(ref(db, getDraftDbPath(room.code)), {
+                await update(ref(db, getDraftDbPath(activeRoom.code)), {
                     status: 'drafting',
                     startedAt: Date.now(),
                     playerOrder,
@@ -954,7 +1048,7 @@ async function startBoosterDraftHost() {
                 const pile3 = [masterStack.pop()];
                 const pile4 = [masterStack.pop()];
 
-                await update(ref(db, getDraftDbPath(room.code)), {
+                await update(ref(db, getDraftDbPath(activeRoom.code)), {
                     status: 'drafting',
                     startedAt: Date.now(),
                     playerOrder,
@@ -968,7 +1062,7 @@ async function startBoosterDraftHost() {
                 });
             }
 
-        } else if (room.format === 'rochester_draft') {
+        } else if (activeRoom.format === 'rochester_draft') {
             // Rochester Draft: Generate all packs face-up on table (total = players * packsPerPlayer)
             const totalPacks = playersList.length * packsPerPlayer;
             const allPacks = [];
@@ -978,7 +1072,7 @@ async function startBoosterDraftHost() {
             }
 
             const firstPack = allPacks.shift() || [];
-            await update(ref(db, getDraftDbPath(room.code)), {
+            await update(ref(db, getDraftDbPath(activeRoom.code)), {
                 status: 'drafting',
                 startedAt: Date.now(),
                 packNumber: 1,
@@ -1001,19 +1095,23 @@ async function startBoosterDraftHost() {
             }
 
             // Set up initial round 1 state
-            const initialPlayerPacks = {};
+            const updatedPlayers = { ...(activeRoom.players || {}) };
             playersList.forEach(p => {
-                initialPlayerPacks[`players/${p.id}/currentPack`] = roundPacks['round_1'][p.id];
-                initialPlayerPacks[`players/${p.id}/hasPickedInRound`] = false;
+                const existing = updatedPlayers[p.id] || p;
+                updatedPlayers[p.id] = {
+                    ...existing,
+                    currentPack: roundPacks['round_1'][p.id] || [],
+                    hasPickedInRound: false
+                };
             });
 
-            await update(ref(db, getDraftDbPath(room.code)), {
+            await update(ref(db, getDraftDbPath(activeRoom.code)), {
                 status: 'drafting',
                 startedAt: Date.now(),
                 currentRound: 1,
                 totalRounds: packsPerPlayer,
                 roundPacks,
-                ...initialPlayerPacks
+                players: updatedPlayers
             });
         }
 
@@ -1032,7 +1130,7 @@ async function startBoosterDraftHost() {
 // Render Active Drafting Session View
 function renderDraftActiveSessionView(room, root) {
     const player = getPlayerIdentity();
-    const playerData = room.players?.[player.id] || {};
+    const playerData = getDraftPlayerData(room, player);
     const formatConfig = DRAFT_FORMATS[room.format] || DRAFT_FORMATS.commander_draft;
     myDraftedPool = (playerData.pool || []).map((c, idx) => {
         if (!c.uid) c.uid = `${c.id || 'card'}_${idx}_${c.name}`;
@@ -1117,7 +1215,7 @@ function renderDraftPickingArena(room, player, activePack, formatConfig) {
     const selectionsLeft = picksNeeded - activePickSelections.length;
 
     // Check if player already submitted pick and is waiting for pass
-    const playerData = room.players?.[player.id] || {};
+    const playerData = getDraftPlayerData(room, player);
     if (playerData.hasPickedInRound && activePack.length === 0) {
         return `
             <div class="draft-waiting-pass-card">
@@ -1192,11 +1290,11 @@ function renderGridDraftArena(room, player) {
     const playersList = getDraftPlayersList(room);
     const activePlayerIndex = room.activePlayerIndex || 0;
     const activePlayer = (room.activePlayerId && room.players?.[room.activePlayerId]) 
-        ? room.players[room.activePlayerId] 
+        ? { ...room.players[room.activePlayerId], id: room.activePlayerId }
         : (playersList[activePlayerIndex] || playersList[0]);
-    const isMyTurn = room.activePlayerId 
-        ? room.activePlayerId === player.id 
-        : activePlayer?.id === player.id;
+    const me = getDraftPlayerData(room, player);
+    const isMyTurn = (room.activePlayerId && (room.activePlayerId === player.id || room.activePlayerId === me.id))
+        || (activePlayer?.id === player.id || activePlayer?.id === me.id);
     const grid = normalizeGrid(room.activeGrid);
     const currentGridIndex = room.currentGridIndex || 1;
     const totalGrids = room.totalGrids || 18;
@@ -1290,12 +1388,13 @@ async function pickGridLine(type, index) {
     const playersList = getDraftPlayersList(room);
     const activePlayerIndex = room.activePlayerIndex || 0;
     const activePlayer = (room.activePlayerId && room.players?.[room.activePlayerId]) 
-        ? room.players[room.activePlayerId] 
+        ? { ...room.players[room.activePlayerId], id: room.activePlayerId }
         : (playersList[activePlayerIndex] || playersList[0]);
+    const me = getDraftPlayerData(room, player);
+    const effectivePlayerId = me.id || player.id;
 
-    const isMyTurn = room.activePlayerId 
-        ? (room.activePlayerId === player.id) 
-        : (activePlayer?.id === player.id);
+    const isMyTurn = (room.activePlayerId && (room.activePlayerId === player.id || room.activePlayerId === me.id))
+        || (activePlayer?.id === player.id || activePlayer?.id === me.id);
 
     if (!isMyTurn) return;
 
@@ -1317,11 +1416,11 @@ async function pickGridLine(type, index) {
 
     if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
 
-    const myPool = [...(room.players?.[player.id]?.pool || []), ...pickedCards];
+    const myPool = [...(me.pool || []), ...pickedCards];
     const turnInGrid = room.turnInGrid || 1;
 
     if (turnInGrid === 1) {
-        const myIndex = playersList.findIndex(p => p.id === player.id);
+        const myIndex = playersList.findIndex(p => p.id === effectivePlayerId || p.id === player.id);
         const nextIndex = myIndex >= 0 ? (1 - myIndex) : (1 - activePlayerIndex);
         const nextPlayer = playersList[nextIndex] || playersList[1];
         const nextPlayerId = nextPlayer?.id || (room.playerOrder ? room.playerOrder[nextIndex] : null);
@@ -1331,7 +1430,7 @@ async function pickGridLine(type, index) {
             turnInGrid: 2,
             activePlayerIndex: nextIndex,
             activePlayerId: nextPlayerId,
-            [`players/${player.id}/pool`]: myPool
+            [`players/${effectivePlayerId}/pool`]: myPool
         });
     } else {
         const currentGrid = room.currentGridIndex || 1;
@@ -1345,7 +1444,7 @@ async function pickGridLine(type, index) {
             await update(ref(db, getDraftDbPath(currentDraftCode)), {
                 status: 'complete',
                 completedAt: Date.now(),
-                [`players/${player.id}/pool`]: myPool
+                [`players/${effectivePlayerId}/pool`]: myPool
             });
         } else {
             const nextGrid = remaining.splice(0, 9);
@@ -1361,7 +1460,7 @@ async function pickGridLine(type, index) {
                 activePlayerId: nextFirstPickerId,
                 activeGrid: nextGrid,
                 remainingCards: remaining,
-                [`players/${player.id}/pool`]: myPool
+                [`players/${effectivePlayerId}/pool`]: myPool
             });
         }
     }
@@ -1372,11 +1471,11 @@ function renderWinstonDraftArena(room, player) {
     const playersList = getDraftPlayersList(room);
     const activePlayerIndex = room.activePlayerIndex || 0;
     const activePlayer = (room.activePlayerId && room.players?.[room.activePlayerId]) 
-        ? room.players[room.activePlayerId] 
+        ? { ...room.players[room.activePlayerId], id: room.activePlayerId }
         : (playersList[activePlayerIndex] || playersList[0]);
-    const isMyTurn = room.activePlayerId 
-        ? (room.activePlayerId === player.id) 
-        : (activePlayer?.id === player.id);
+    const me = getDraftPlayerData(room, player);
+    const isMyTurn = (room.activePlayerId && (room.activePlayerId === player.id || room.activePlayerId === me.id))
+        || (activePlayer?.id === player.id || activePlayer?.id === me.id);
     const currentPile = room.currentPileViewing || 1;
     const stack = room.drawStack || [];
     const p1 = room.pile1 || [];
@@ -1465,12 +1564,13 @@ async function takeWinstonPile() {
     const playersList = getDraftPlayersList(room);
     const activePlayerIndex = room.activePlayerIndex || 0;
     const activePlayer = (room.activePlayerId && room.players?.[room.activePlayerId]) 
-        ? room.players[room.activePlayerId] 
+        ? { ...room.players[room.activePlayerId], id: room.activePlayerId }
         : (playersList[activePlayerIndex] || playersList[0]);
+    const me = getDraftPlayerData(room, player);
+    const effectivePlayerId = me.id || player.id;
 
-    const isMyTurn = room.activePlayerId 
-        ? (room.activePlayerId === player.id) 
-        : (activePlayer?.id === player.id);
+    const isMyTurn = (room.activePlayerId && (room.activePlayerId === player.id || room.activePlayerId === me.id))
+        || (activePlayer?.id === player.id || activePlayer?.id === me.id);
 
     if (!isMyTurn) return;
 
@@ -1487,12 +1587,12 @@ async function takeWinstonPile() {
 
     piles[`pile${currentPile}`] = stack.length > 0 ? [stack.pop()] : [];
 
-    const myPool = [...(room.players?.[player.id]?.pool || []), ...takenCards];
+    const myPool = [...(me.pool || []), ...takenCards];
     const totalRemaining = piles.pile1.length + piles.pile2.length + piles.pile3.length + stack.length;
 
     if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
 
-    const myIndex = playersList.findIndex(p => p.id === player.id);
+    const myIndex = playersList.findIndex(p => p.id === effectivePlayerId || p.id === player.id);
     const nextIndex = myIndex >= 0 ? (1 - myIndex) : (1 - activePlayerIndex);
     const nextPlayer = playersList[nextIndex] || playersList[1];
     const nextPlayerId = nextPlayer?.id || (room.playerOrder ? room.playerOrder[nextIndex] : null);
@@ -1503,7 +1603,7 @@ async function takeWinstonPile() {
             completedAt: Date.now(),
             ...piles,
             drawStack: stack,
-            [`players/${player.id}/pool`]: myPool
+            [`players/${effectivePlayerId}/pool`]: myPool
         });
     } else {
         await update(ref(db, getDraftDbPath(currentDraftCode)), {
@@ -1512,7 +1612,7 @@ async function takeWinstonPile() {
             currentPileViewing: 1,
             activePlayerIndex: nextIndex,
             activePlayerId: nextPlayerId,
-            [`players/${player.id}/pool`]: myPool
+            [`players/${effectivePlayerId}/pool`]: myPool
         });
     }
 }
@@ -1524,12 +1624,13 @@ async function passWinstonPile() {
     const playersList = getDraftPlayersList(room);
     const activePlayerIndex = room.activePlayerIndex || 0;
     const activePlayer = (room.activePlayerId && room.players?.[room.activePlayerId]) 
-        ? room.players[room.activePlayerId] 
+        ? { ...room.players[room.activePlayerId], id: room.activePlayerId }
         : (playersList[activePlayerIndex] || playersList[0]);
+    const me = getDraftPlayerData(room, player);
+    const effectivePlayerId = me.id || player.id;
 
-    const isMyTurn = room.activePlayerId 
-        ? (room.activePlayerId === player.id) 
-        : (activePlayer?.id === player.id);
+    const isMyTurn = (room.activePlayerId && (room.activePlayerId === player.id || room.activePlayerId === me.id))
+        || (activePlayer?.id === player.id || activePlayer?.id === me.id);
 
     if (!isMyTurn) return;
 
@@ -1547,7 +1648,7 @@ async function passWinstonPile() {
 
     if (draftUtils?.playSound) draftUtils.playSound('sfx-click');
 
-    const myIndex = playersList.findIndex(p => p.id === player.id);
+    const myIndex = playersList.findIndex(p => p.id === effectivePlayerId || p.id === player.id);
     const nextIndex = myIndex >= 0 ? (1 - myIndex) : (1 - activePlayerIndex);
     const nextPlayer = playersList[nextIndex] || playersList[1];
     const nextPlayerId = nextPlayer?.id || (room.playerOrder ? room.playerOrder[nextIndex] : null);
@@ -1560,7 +1661,7 @@ async function passWinstonPile() {
         });
     } else {
         let drawnCard = stack.length > 0 ? [stack.pop()] : [];
-        const myPool = [...(room.players?.[player.id]?.pool || []), ...drawnCard];
+        const myPool = [...(me.pool || []), ...drawnCard];
         const totalRemaining = piles.pile1.length + piles.pile2.length + piles.pile3.length + stack.length;
 
         if (totalRemaining === 0) {
@@ -1569,7 +1670,7 @@ async function passWinstonPile() {
                 completedAt: Date.now(),
                 ...piles,
                 drawStack: stack,
-                [`players/${player.id}/pool`]: myPool
+                [`players/${effectivePlayerId}/pool`]: myPool
             });
         } else {
             await update(ref(db, getDraftDbPath(currentDraftCode)), {
@@ -1578,7 +1679,7 @@ async function passWinstonPile() {
                 currentPileViewing: 1,
                 activePlayerIndex: nextIndex,
                 activePlayerId: nextPlayerId,
-                [`players/${player.id}/pool`]: myPool
+                [`players/${effectivePlayerId}/pool`]: myPool
             });
         }
     }
@@ -1589,11 +1690,11 @@ function renderWinchesterDraftArena(room, player) {
     const playersList = getDraftPlayersList(room);
     const activePlayerIndex = room.activePlayerIndex || 0;
     const activePlayer = (room.activePlayerId && room.players?.[room.activePlayerId]) 
-        ? room.players[room.activePlayerId] 
+        ? { ...room.players[room.activePlayerId], id: room.activePlayerId }
         : (playersList[activePlayerIndex] || playersList[0]);
-    const isMyTurn = room.activePlayerId 
-        ? (room.activePlayerId === player.id) 
-        : (activePlayer?.id === player.id);
+    const me = getDraftPlayerData(room, player);
+    const isMyTurn = (room.activePlayerId && (room.activePlayerId === player.id || room.activePlayerId === me.id))
+        || (activePlayer?.id === player.id || activePlayer?.id === me.id);
     const stack = room.drawStack || [];
     const p1 = room.pile1 || [];
     const p2 = room.pile2 || [];
@@ -1665,12 +1766,13 @@ async function takeWinchesterPile(pileNumber) {
     const playersList = getDraftPlayersList(room);
     const activePlayerIndex = room.activePlayerIndex || 0;
     const activePlayer = (room.activePlayerId && room.players?.[room.activePlayerId]) 
-        ? room.players[room.activePlayerId] 
+        ? { ...room.players[room.activePlayerId], id: room.activePlayerId }
         : (playersList[activePlayerIndex] || playersList[0]);
+    const me = getDraftPlayerData(room, player);
+    const effectivePlayerId = me.id || player.id;
 
-    const isMyTurn = room.activePlayerId 
-        ? (room.activePlayerId === player.id) 
-        : (activePlayer?.id === player.id);
+    const isMyTurn = (room.activePlayerId && (room.activePlayerId === player.id || room.activePlayerId === me.id))
+        || (activePlayer?.id === player.id || activePlayer?.id === me.id);
 
     if (!isMyTurn) return;
 
@@ -1695,10 +1797,10 @@ async function takeWinchesterPile(pileNumber) {
 
     if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
 
-    const myPool = [...(room.players?.[player.id]?.pool || []), ...takenCards];
+    const myPool = [...(me.pool || []), ...takenCards];
     const totalRemaining = piles.pile1.length + piles.pile2.length + piles.pile3.length + piles.pile4.length + stack.length;
 
-    const myIndex = playersList.findIndex(p => p.id === player.id);
+    const myIndex = playersList.findIndex(p => p.id === effectivePlayerId || p.id === player.id);
     const nextIndex = myIndex >= 0 ? (1 - myIndex) : (1 - activePlayerIndex);
     const nextPlayer = playersList[nextIndex] || playersList[1];
     const nextPlayerId = nextPlayer?.id || (room.playerOrder ? room.playerOrder[nextIndex] : null);
@@ -1709,7 +1811,7 @@ async function takeWinchesterPile(pileNumber) {
             completedAt: Date.now(),
             ...piles,
             drawStack: stack,
-            [`players/${player.id}/pool`]: myPool
+            [`players/${effectivePlayerId}/pool`]: myPool
         });
     } else {
         await update(ref(db, getDraftDbPath(currentDraftCode)), {
@@ -1717,7 +1819,7 @@ async function takeWinchesterPile(pileNumber) {
             drawStack: stack,
             activePlayerIndex: nextIndex,
             activePlayerId: nextPlayerId,
-            [`players/${player.id}/pool`]: myPool
+            [`players/${effectivePlayerId}/pool`]: myPool
         });
     }
 }
@@ -1751,7 +1853,9 @@ function toggleDraftCardSelection(cardIndex) {
 async function confirmActiveDraftPick() {
     if (!currentDraftData || !currentDraftCode) return;
     const player = getPlayerIdentity();
-    const playerData = currentDraftData.players?.[player.id] || {};
+    const me = getDraftPlayerData(currentDraftData, player);
+    const effectivePlayerId = me.id || player.id;
+    const playerData = currentDraftData.players?.[effectivePlayerId] || me;
     const activePack = playerData.currentPack || [];
     const formatConfig = DRAFT_FORMATS[currentDraftData.format] || DRAFT_FORMATS.commander_draft;
     const maxPicks = formatConfig.picksPerTurn || 1;
@@ -1767,7 +1871,7 @@ async function confirmActiveDraftPick() {
     if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
 
     // Update player's picked status and pool
-    await update(ref(db, `${getDraftDbPath(currentDraftCode)}/players/${player.id}`), {
+    await update(ref(db, `${getDraftDbPath(currentDraftCode)}/players/${effectivePlayerId}`), {
         pool: updatedPool,
         hasPickedInRound: true,
         remainingPassedPack: remainingPack
@@ -2547,7 +2651,7 @@ function leaveDraftRoom() {
 // Render Draft Complete & Final Deckbuilding View
 function renderDraftDeckbuildingView(room, root) {
     const player = getPlayerIdentity();
-    const playerData = room.players?.[player.id] || {};
+    const playerData = getDraftPlayerData(room, player);
     const formatConfig = DRAFT_FORMATS[room.format] || DRAFT_FORMATS.commander_draft;
     myDraftedPool = (playerData.pool || []).map((c, idx) => {
         if (!c.uid) c.uid = `${c.id || 'card'}_${idx}_${c.name}`;
@@ -2600,7 +2704,8 @@ function renderRochesterDraftArena(room, player) {
     let relativePicker = cycle < n ? cycle : (2 * n - 1 - cycle);
     const activePlayerIndex = (packOpenedBy + relativePicker) % n;
     const activePlayer = playersList[activePlayerIndex];
-    const isMyTurn = activePlayer?.id === player.id;
+    const me = getDraftPlayerData(room, player);
+    const isMyTurn = (activePlayer?.id === player.id) || (activePlayer?.id === me.id);
 
     return `
         <div class="draft-arena-card rochester-draft-arena">
@@ -2669,8 +2774,10 @@ async function pickRochesterCard(cardIdx) {
     let relativePicker = cycle < n ? cycle : (2 * n - 1 - cycle);
     const activePlayerIndex = (packOpenedBy + relativePicker) % n;
     const activePlayer = playersList[activePlayerIndex];
+    const me = getDraftPlayerData(room, player);
+    const effectivePlayerId = me.id || player.id;
 
-    if (activePlayer?.id !== player.id) return;
+    if (activePlayer?.id !== player.id && activePlayer?.id !== me.id) return;
 
     const pack = [...(room.activeRochesterPack || [])];
     const pickedCard = pack[cardIdx];
@@ -2680,7 +2787,7 @@ async function pickRochesterCard(cardIdx) {
 
     if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
 
-    const myPool = [...(room.players?.[player.id]?.pool || []), pickedCard];
+    const myPool = [...(me.pool || []), pickedCard];
 
     if (pack.length === 0) {
         // Current pack completely drafted
@@ -2691,7 +2798,7 @@ async function pickRochesterCard(cardIdx) {
                 status: 'complete',
                 completedAt: Date.now(),
                 activeRochesterPack: [],
-                [`players/${player.id}/pool`]: myPool
+                [`players/${effectivePlayerId}/pool`]: myPool
             });
         } else {
             // Open next pack on table
@@ -2705,7 +2812,7 @@ async function pickRochesterCard(cardIdx) {
                 snakePickIndex: 0,
                 activeRochesterPack: nextPack,
                 rochesterPacks: remainingPacks,
-                [`players/${player.id}/pool`]: myPool
+                [`players/${effectivePlayerId}/pool`]: myPool
             });
         }
     } else {

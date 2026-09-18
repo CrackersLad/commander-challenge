@@ -12,7 +12,7 @@ import { initProfileModule } from './profile.js?v=7.5';
 import { initCardInspector, openCardInspector } from './card-inspector.js?v=7.5';
 import { initWarRoom, openWarRoom } from './war-room.js?v=7.5';
 import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=7.5';
-import { initBoosterDraftModule } from './booster-draft.js?v=7.5';
+import { initBoosterDraftModule } from './booster-draft.js?v=7.6';
 import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=7.5';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
