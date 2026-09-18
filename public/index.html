@@ -64,8 +64,8 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=7.3">
-    <link rel="stylesheet" href="collection-hub.css?v=7.3">
+    <link rel="stylesheet" href="styles.css?v=7.4">
+    <link rel="stylesheet" href="collection-hub.css?v=7.4">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -239,6 +239,176 @@
             </div>
             <button class="btn-cancel" onclick="document.getElementById('rulesModal').classList.remove('show'); setTimeout(()=>document.getElementById('rulesModal').style.display='none', 300);" style="margin-top:20px; width:100%;">Close</button>
         </div>
+    </div>
+
+    <!-- Lobby Match Simulation Modal (Headless Forge AI Engine) -->
+    <div id="lobbySimModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 680px; width: 95%; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 16px;">
+                <h2 style="color: var(--gold); margin: 0; display: flex; align-items: center; gap: 8px; font-size: 1.3rem;">
+                    <span>⚡</span> AI Match Simulator
+                    <span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 6px; background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4); font-weight: 700;">Headless Forge Rules Engine</span>
+                </h2>
+                <button class="btn-cancel" onclick="window.closeLobbySimulationModal()" style="padding: 4px 10px; font-size: 0.85rem;">✕</button>
+            </div>
+            
+            <p style="color: #bbb; font-size: 0.88rem; margin-bottom: 16px; line-height: 1.4;">
+                Simulate full Commander matches between all decks currently submitted in this lobby. Official MTG AI resolves turns, combat, commander damage, and life totals in real time.
+            </p>
+
+            <!-- Decks in Lobby List -->
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                <div style="font-size: 0.85rem; font-weight: 700; color: #fff; margin-bottom: 8px; display: flex; justify-content: space-between;">
+                    <span>Decks in Lobby:</span>
+                    <span id="lobbySimDeckCount" style="color: #10b981;">0 ready</span>
+                </div>
+                <div id="lobbySimDeckList" style="display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow-y: auto;"></div>
+            </div>
+
+            <!-- Simulation Controls -->
+            <div id="lobbySimControls">
+                <div style="margin-bottom: 18px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <label style="color: #ccc; font-size: 0.9rem; font-weight: 600;">Number of Simulations:</label>
+                        <span id="simCountLabel" style="font-size: 0.95rem; font-weight: 800; color: var(--gold); background: rgba(212,175,55,0.15); padding: 2px 10px; border-radius: 12px; border: 1px solid rgba(212,175,55,0.3);">5 Games</span>
+                    </div>
+                    <input type="range" id="simCountSlider" min="1" max="10" value="5" step="1" style="width: 100%; accent-color: var(--gold); cursor: pointer;" oninput="document.getElementById('simCountLabel').textContent = this.value + ' Game' + (this.value == 1 ? '' : 's')">
+                    <div style="display: flex; justify-content: space-between; color: #666; font-size: 0.75rem; margin-top: 2px;">
+                        <span>1 Match (Fast)</span>
+                        <span>5 Matches (Balanced)</span>
+                        <span>10 Matches (Deep Sample)</span>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button class="btn-cancel" onclick="window.closeLobbySimulationModal()" style="padding: 10px 20px;">Cancel</button>
+                    <button id="runLobbySimBtn" class="btn-confirm" onclick="window.runLobbySimulation()" style="padding: 10px 24px; background: linear-gradient(135deg, #10b981, #059669); border-color: rgba(16,185,129,0.5);">⚡ Run Simulations</button>
+                </div>
+            </div>
+
+            <!-- Simulation In-Progress Status & Loading Bars -->
+            <div id="lobbySimProgressSection" style="display: none; margin-top: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span id="lobbySimStatusHeader" style="font-weight: 700; color: #34d399; font-size: 0.95rem;">⚡ Initializing match simulation...</span>
+                    <span id="lobbySimPercent" style="font-weight: 800; color: var(--gold); font-size: 0.9rem;">0%</span>
+                </div>
+                
+                <!-- Main Progress Bar -->
+                <div style="background: rgba(255,255,255,0.1); border-radius: 8px; height: 10px; width: 100%; overflow: hidden; margin-bottom: 16px;">
+                    <div id="lobbySimProgressBar" style="background: linear-gradient(90deg, #10b981, var(--gold)); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                </div>
+
+                <!-- Simulation Games Progress List -->
+                <div style="font-size: 0.85rem; font-weight: 700; color: #aaa; margin-bottom: 8px;">Simulation Outcomes:</div>
+                <div id="lobbySimGamesList" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; padding-right: 4px;"></div>
+            </div>
+
+            <!-- Final Summary Card -->
+            <div id="lobbySimSummarySection" style="display: none; margin-top: 16px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.3); border-radius: 10px; padding: 16px; text-align: center;">
+                <div style="font-size: 1.8rem; margin-bottom: 4px;">🏆</div>
+                <div style="font-family: 'Cinzel', serif; font-size: 1.25rem; font-weight: 800; color: var(--gold); margin-bottom: 4px;" id="simSummaryWinnerTitle">Best Projected Win Chance</div>
+                <div style="font-size: 0.92rem; color: #ccc; margin-bottom: 16px;" id="simSummaryWinnerSubtitle"></div>
+
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.88rem; text-align: left;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.15); color: var(--gold);">
+                            <th style="padding: 6px;">Deck</th>
+                            <th style="padding: 6px; text-align: center;">Wins</th>
+                            <th style="padding: 6px; text-align: right;">Win Probability</th>
+                        </tr>
+                    </thead>
+                    <tbody id="simSummaryTableBody"></tbody>
+                </table>
+
+                <div style="display: flex; gap: 12px; justify-content: center;">
+                    <button class="secondary-btn" onclick="window.resetLobbySimUI()" style="padding: 8px 18px;">Simulate Again</button>
+                    <button class="btn-cancel" onclick="window.closeLobbySimulationModal()" style="padding: 8px 18px;">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Playtester Launch Modal -->
+    <div id="playtesterLaunchModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 620px; width: 95%; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 16px;">
+                <h2 style="color: var(--gold); margin: 0; display: flex; align-items: center; gap: 8px; font-size: 1.3rem;">
+                    <span>⚔️</span> Solo Playtester & AI Arena
+                </h2>
+                <button class="btn-cancel" onclick="window.closePlaytesterLaunchModal()" style="padding: 4px 10px; font-size: 0.85rem;">✕</button>
+            </div>
+
+            <p style="color: #bbb; font-size: 0.88rem; margin-bottom: 14px; line-height: 1.4;">
+                Launch a private 60 FPS cloud game table with the official MTG rules engine. Choose your deck and select your AI opponent.
+            </p>
+
+            <!-- Deck Source Tabs -->
+            <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+                <button id="tabLaunchUrl" class="action-chip active-tab-chip" onclick="window.switchLaunchTab('url')" style="flex: 1; text-align: center;">🔗 URL Import</button>
+                <button id="tabLaunchArmory" class="action-chip" onclick="window.switchLaunchTab('armory')" style="flex: 1; text-align: center;">🛡️ Armory Deck</button>
+                <button id="tabLaunchText" class="action-chip" onclick="window.switchLaunchTab('text')" style="flex: 1; text-align: center;">📝 Text List</button>
+            </div>
+
+            <!-- Tab 1: URL Import -->
+            <div id="launchTabContentUrl" style="margin-bottom: 14px;">
+                <label style="display: block; color: #ccc; font-size: 0.85rem; margin-bottom: 4px; font-weight: 600;">Deck URL (Moxfield, Archidekt, MTGGoldfish, Scryfall):</label>
+                <input type="text" id="launchDeckUrl" placeholder="e.g. https://moxfield.com/decks/... or https://archidekt.com/decks/..." style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); color: #fff;">
+            </div>
+
+            <!-- Tab 2: Armory Deck Picker -->
+            <div id="launchTabContentArmory" style="display: none; margin-bottom: 14px;">
+                <label style="display: block; color: #ccc; font-size: 0.85rem; margin-bottom: 4px; font-weight: 600;">Select from Your Saved Armory Decks:</label>
+                <select id="launchArmorySelect" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; background: #111; border: 1px solid rgba(255,255,255,0.15); color: #fff;">
+                    <option value="">-- Choose an Armory Deck --</option>
+                </select>
+            </div>
+
+            <!-- Tab 3: Text List -->
+            <div id="launchTabContentText" style="display: none; margin-bottom: 14px;">
+                <label style="display: block; color: #ccc; font-size: 0.85rem; margin-bottom: 4px; font-weight: 600;">Paste Deck Cards (or Forge .dck format):</label>
+                <textarea id="launchDeckText" placeholder="1 Lathril, Blade of the Elves *CMDR*&#10;1 Sol Ring&#10;1 Arcane Signet&#10;..." style="width: 100%; height: 100px; box-sizing: border-box; padding: 10px; border-radius: 6px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-family: monospace; font-size: 0.82rem;"></textarea>
+            </div>
+
+            <!-- Opponent Selection -->
+            <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+                <label style="display: block; color: var(--gold); font-size: 0.88rem; font-weight: 700; margin-bottom: 6px;">🎯 Choose AI Opponent Archetype:</label>
+                <select id="launchOpponentArchetype" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; background: #181c26; border: 1px solid rgba(255,255,255,0.2); color: #fff;">
+                    <option value="aggro">🔥 Goblin Aggro (Krenko, Mob Boss)</option>
+                    <option value="tokens">🌲 Elf Swarm & Tokens (Lathril, Blade of the Elves)</option>
+                    <option value="control">⚡ Spellslinger Control (Niv-Mizzet, Parun)</option>
+                    <option value="ramp">🌊 Sea Monster Ramp (Aesi, Tyrant of Gyre Strait)</option>
+                </select>
+            </div>
+
+            <!-- Destination Choice -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #ccc; font-size: 0.85rem;">
+                    <input type="checkbox" id="launchInDrawer" checked style="accent-color: #10b981;">
+                    <span>Open in Fullscreen Embedded App Window (stay on site)</span>
+                </label>
+            </div>
+
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button class="btn-cancel" onclick="window.closePlaytesterLaunchModal()" style="padding: 10px 20px;">Cancel</button>
+                <button class="btn-confirm" onclick="window.executePlaytesterLaunch()" style="padding: 10px 26px; background: linear-gradient(135deg, #10b981, #059669); border-color: rgba(16,185,129,0.5);">⚔️ Launch Table</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Playtester In-App Embedded Drawer Modal -->
+    <div id="playtesterEmbedModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10000; background: #000; flex-direction: column;">
+        <div style="height: 44px; background: #111722; border-bottom: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: space-between; padding: 0 16px;">
+            <div style="display: flex; align-items: center; gap: 10px; font-weight: 700; color: #fff; font-family: 'Outfit', sans-serif;">
+                <span>⚔️ MTG AI Arena</span>
+                <span id="embedSessionBadge" style="font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4);">Session Active</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button id="embedScaleBtn" class="btn-secondary-action" onclick="window.toggleEmbedScale()" style="color: #34d399; font-size: 0.8rem; padding: 5px 12px; border-radius: 6px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); cursor: pointer;">🔍 Scale: Fit</button>
+                <button class="btn-secondary-action" onclick="window.openEmbedInNewTab()" style="font-size: 0.8rem; padding: 5px 12px; border-radius: 6px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #fff; cursor: pointer;">↗ Open in New Tab</button>
+                <button class="btn-danger" onclick="window.closeEmbeddedPlaytester()" style="font-size: 0.8rem; padding: 5px 14px; border-radius: 6px; background: #ef4444; color: #fff; border: none; font-weight: 700; cursor: pointer;">✕ Leave Table</button>
+            </div>
+        </div>
+        <iframe id="playtesterEmbedFrame" src="about:blank" style="width: 100%; height: calc(100vh - 44px); border: none; background: #000;"></iframe>
     </div>
 
     <!-- Player Identity Modal -->
@@ -716,6 +886,7 @@
                 <!-- Segmented Action Navigation Chips -->
                 <div class="dashboard-action-ribbon">
                     <button class="action-chip war-room-chip" onclick="window.triggerWarRoomModal()" style="background: rgba(212, 175, 55, 0.15); border-color: var(--gold); color: var(--gold);">📊 War Room</button>
+                    <button class="action-chip sim-chip" id="lobbySimBtn" onclick="window.openLobbySimulationModal()" style="background: rgba(16, 185, 129, 0.15); border-color: #10b981; color: #10b981;">⚡ Simulate Matches</button>
                     <button class="action-chip" onclick="window.copyMatchSummary()">📋 Match Summary</button>
                     <button class="action-chip analytics-chip" onclick="window.openLeaderboard()">🏆 Leaderboard</button>
                     <button id="burnLogBtn" class="action-chip burn-chip" onclick="window.openBurnLog()" style="display:none;">🔥 Burn Log</button>
@@ -2300,13 +2471,13 @@
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
-        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v7.3</span>
+        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v7.4</span>
     </footer>
 
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script src="./collection-hub.js?v=7.3"></script>
-    <script type="module" src="./script.js?v=7.3"></script>
+    <script src="./collection-hub.js?v=7.4"></script>
+    <script type="module" src="./script.js?v=7.4"></script>
 </body>
 </html>

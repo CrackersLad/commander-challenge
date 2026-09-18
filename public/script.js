@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=7.3';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=7.3';
-import { getArchives } from './data-service.js?v=7.3';
-import { initDeckActionsModule } from './deck-actions.js?v=7.3';
-import { initRoomActionsModule } from './room-actions.js?v=7.3';
-import { initPlayerViewModule } from './player-view.js?v=7.3';
-import { initAdminModule } from './admin.js?v=7.3';
-import { initCalendarModule } from './calendar.js?v=7.3';
-import { initAuthModule } from './auth.js?v=7.3';
-import { initHubModule } from './hub.js?v=7.3';
-import { initProfileModule } from './profile.js?v=7.3';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=7.3';
-import { initWarRoom, openWarRoom } from './war-room.js?v=7.3';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=7.3';
-import { initBoosterDraftModule } from './booster-draft.js?v=7.3';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=7.3';
+import { db, auth, functions } from './firebase-setup.js?v=7.4';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=7.4';
+import { getArchives } from './data-service.js?v=7.4';
+import { initDeckActionsModule } from './deck-actions.js?v=7.4';
+import { initRoomActionsModule } from './room-actions.js?v=7.4';
+import { initPlayerViewModule } from './player-view.js?v=7.4';
+import { initAdminModule } from './admin.js?v=7.4';
+import { initCalendarModule } from './calendar.js?v=7.4';
+import { initAuthModule } from './auth.js?v=7.4';
+import { initHubModule } from './hub.js?v=7.4';
+import { initProfileModule } from './profile.js?v=7.4';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=7.4';
+import { initWarRoom, openWarRoom } from './war-room.js?v=7.4';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=7.4';
+import { initBoosterDraftModule } from './booster-draft.js?v=7.4';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=7.4';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -451,12 +451,125 @@ window.isMobileDevice = () => {
     return window.innerWidth <= 900 || ('ontouchstart' in window && window.innerWidth <= 1024) || /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 };
 
-window.openPlaytester = (deckName = '', deckContent = '', autoStart = false) => {
+window._activeLaunchTab = 'url';
+window._embedScaleMode = 'fit';
+
+window.switchLaunchTab = (tab) => {
+    window._activeLaunchTab = tab;
+    const tabs = ['url', 'armory', 'text'];
+    tabs.forEach(t => {
+        const cap = t.charAt(0).toUpperCase() + t.slice(1);
+        const btn = document.getElementById('tabLaunch' + cap);
+        const content = document.getElementById('launchTabContent' + cap);
+        if (btn) {
+            if (t === tab) btn.classList.add('active-tab-chip');
+            else btn.classList.remove('active-tab-chip');
+        }
+        if (content) {
+            content.style.display = (t === tab) ? 'block' : 'none';
+        }
+    });
+};
+
+window.openPlaytesterLaunchModal = () => {
     if (window.isMobileDevice()) {
-        utils.showToast("⚔️ The AI Battle Arena requires a desktop/laptop screen with keyboard & mouse and is not supported on mobile devices.", true, 4500);
+        showToast("⚔️ The AI Battle Arena requires a desktop/laptop screen and is not supported on mobile devices.", true, 4500);
+        return;
+    }
+
+    // Populate Armory select with decks from current room or user
+    const armorySelect = document.getElementById('launchArmorySelect');
+    if (armorySelect) {
+        armorySelect.innerHTML = '<option value="">-- Choose an Armory Deck --</option>';
+        const players = window.latestRoomData?.players || {};
+        let addedCount = 0;
+        Object.entries(players).forEach(([pId, pData]) => {
+            if (pData.deck || pData.selected) {
+                const opt = document.createElement('option');
+                const pName = pData.name || 'Player';
+                const dName = pData.selected || 'Deck';
+                opt.value = JSON.stringify({
+                    name: `${pName}'s ${dName}`,
+                    deck: pData.deck || (pData.selected ? `1 ${pData.selected} *CMDR*` : '')
+                });
+                opt.textContent = `🛡️ ${pName} — ${dName} ${pData.deckPrice ? `($${pData.deckPrice})` : ''}`;
+                armorySelect.appendChild(opt);
+                addedCount++;
+            }
+        });
+        if (addedCount === 0) {
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = "";
+            emptyOpt.textContent = "(No drafted decks in current lobby yet)";
+            emptyOpt.disabled = true;
+            armorySelect.appendChild(emptyOpt);
+        }
+    }
+
+    const modal = document.getElementById('playtesterLaunchModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('show'), 10);
+    }
+};
+
+window.closePlaytesterLaunchModal = () => {
+    const modal = document.getElementById('playtesterLaunchModal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.style.display = 'none', 250);
+    }
+};
+
+window.launchPlaytesterSession = ({ deckName = '', deckContent = '', opponentArchetype = 'tokens', autoStart = true, inDrawer = false } = {}) => {
+    if (window.isMobileDevice()) {
+        showToast("⚔️ The AI Battle Arena requires a desktop screen and is not supported on mobile devices.", true, 4500);
         return;
     }
     const arenaUrl = 'http://132.145.31.195:8080';
+
+    if (inDrawer) {
+        const embedModal = document.getElementById('playtesterEmbedModal');
+        const embedFrame = document.getElementById('playtesterEmbedFrame');
+        const sessionBadge = document.getElementById('embedSessionBadge');
+
+        if (!deckContent && !deckName) {
+            if (embedFrame) embedFrame.src = arenaUrl;
+        } else {
+            if (embedFrame) embedFrame.name = 'playtesterEmbedTargetFrame';
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `${arenaUrl}/import`;
+            form.target = 'playtesterEmbedTargetFrame';
+
+            const addField = (n, v) => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = n;
+                input.value = v;
+                form.appendChild(input);
+            };
+            if (deckName) addField('deckName', deckName);
+            if (deckContent) addField('deckContent', deckContent);
+            if (opponentArchetype) addField('opponentArchetype', opponentArchetype);
+            if (autoStart) addField('autoStart', '1');
+
+            document.body.appendChild(form);
+            form.submit();
+            setTimeout(() => form.remove(), 1000);
+        }
+
+        if (sessionBadge) {
+            sessionBadge.textContent = deckName ? `Table: ${deckName.substring(0, 24)}` : 'AI Arena: Active Table';
+        }
+        if (embedModal) {
+            embedModal.style.display = 'flex';
+        }
+        showToast("⚔️ Connected to AI Battle Arena", false, 2500, true);
+        return;
+    }
+
+    // Direct new tab launch
     if (!deckContent && !deckName) {
         window.open(arenaUrl, '_blank');
         return;
@@ -467,29 +580,128 @@ window.openPlaytester = (deckName = '', deckContent = '', autoStart = false) => 
     form.action = `${arenaUrl}/import`;
     form.target = '_blank';
 
-    const nameField = document.createElement('input');
-    nameField.type = 'hidden';
-    nameField.name = 'deckName';
-    nameField.value = deckName;
-    form.appendChild(nameField);
+    const addField = (n, v) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = n;
+        input.value = v;
+        form.appendChild(input);
+    };
 
-    const contentField = document.createElement('input');
-    contentField.type = 'hidden';
-    contentField.name = 'deckContent';
-    contentField.value = deckContent;
-    form.appendChild(contentField);
-
-    if (autoStart) {
-        const autoField = document.createElement('input');
-        autoField.type = 'hidden';
-        autoField.name = 'autoStart';
-        autoField.value = '1';
-        form.appendChild(autoField);
-    }
+    if (deckName) addField('deckName', deckName);
+    if (deckContent) addField('deckContent', deckContent);
+    if (opponentArchetype) addField('opponentArchetype', opponentArchetype);
+    if (autoStart) addField('autoStart', '1');
 
     document.body.appendChild(form);
     form.submit();
     setTimeout(() => form.remove(), 1000);
+};
+
+window.executePlaytesterLaunch = async () => {
+    const tab = window._activeLaunchTab || 'url';
+    const opponent = document.getElementById('launchOpponentArchetype')?.value || 'tokens';
+    const inDrawer = !!document.getElementById('launchInDrawer')?.checked;
+
+    let deckName = 'Solo Playtester Deck';
+    let deckContent = '';
+
+    if (tab === 'url') {
+        const urlInput = document.getElementById('launchDeckUrl');
+        const url = (urlInput?.value || '').trim();
+        if (!url) {
+            showToast("Please enter a deck URL from Moxfield, Archidekt, etc.", true);
+            return;
+        }
+        deckName = 'Web Deck';
+        deckContent = url;
+    } else if (tab === 'armory') {
+        const select = document.getElementById('launchArmorySelect');
+        const val = select?.value;
+        if (!val) {
+            showToast("Please select an Armory deck.", true);
+            return;
+        }
+        try {
+            const parsed = JSON.parse(val);
+            deckName = parsed.name || 'Armory Deck';
+            deckContent = parsed.deck || '';
+        } catch (e) {
+            deckContent = val;
+        }
+    } else if (tab === 'text') {
+        const textInput = document.getElementById('launchDeckText');
+        const text = (textInput?.value || '').trim();
+        if (!text) {
+            showToast("Please paste your decklist or card names.", true);
+            return;
+        }
+        deckName = 'Custom Decklist';
+        deckContent = text;
+    }
+
+    window.closePlaytesterLaunchModal();
+    window.launchPlaytesterSession({
+        deckName,
+        deckContent,
+        opponentArchetype: opponent,
+        autoStart: true,
+        inDrawer
+    });
+};
+
+window.openPlaytester = (deckName = '', deckContent = '', autoStart = false, opponentArchetype = 'tokens') => {
+    if (window.isMobileDevice()) {
+        showToast("⚔️ The AI Battle Arena requires a desktop/laptop screen with keyboard & mouse and is not supported on mobile devices.", true, 4500);
+        return;
+    }
+    // If opened directly without specific deck, open launch modal
+    if (!deckContent && !deckName) {
+        window.openPlaytesterLaunchModal();
+        return;
+    }
+    // Direct launch from Armory / room button
+    window.launchPlaytesterSession({
+        deckName,
+        deckContent,
+        opponentArchetype: opponentArchetype || 'tokens',
+        autoStart,
+        inDrawer: false
+    });
+};
+
+window.closeEmbeddedPlaytester = () => {
+    if (confirm("Leave this AI Arena playtest table? Your session will remain active for 5 minutes before auto-closing.")) {
+        const frame = document.getElementById('playtesterEmbedFrame');
+        if (frame) frame.src = 'about:blank';
+        const modal = document.getElementById('playtesterEmbedModal');
+        if (modal) modal.style.display = 'none';
+    }
+};
+
+window.toggleEmbedScale = () => {
+    const frame = document.getElementById('playtesterEmbedFrame');
+    const btn = document.getElementById('embedScaleBtn');
+    if (!frame) return;
+
+    if (window._embedScaleMode === 'fit') {
+        window._embedScaleMode = 'zoom';
+        frame.style.transform = 'scale(1.1)';
+        frame.style.transformOrigin = 'top center';
+        if (btn) btn.textContent = '🔍 Scale: 110%';
+    } else {
+        window._embedScaleMode = 'fit';
+        frame.style.transform = 'none';
+        if (btn) btn.textContent = '🔍 Scale: Fit';
+    }
+};
+
+window.openEmbedInNewTab = () => {
+    window.open('http://132.145.31.195:8080', '_blank');
+    const frame = document.getElementById('playtesterEmbedFrame');
+    if (frame) frame.src = 'about:blank';
+    const modal = document.getElementById('playtesterEmbedModal');
+    if (modal) modal.style.display = 'none';
 };
 
 window.addEventListener('popstate', (event) => {
@@ -1536,6 +1748,8 @@ function initDashboard() {
             });
         }
 
+        window.latestRoomData = data;
+
         // Manage Host "Schedule" Button
         const actionsDiv = document.querySelector('.dashboard-actions');
         let battleBtn = document.getElementById('scheduleBattleBtn');
@@ -1911,7 +2125,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=7.3').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=7.4').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

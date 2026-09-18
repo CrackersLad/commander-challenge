@@ -1,6 +1,7 @@
-import { db, functions } from './firebase-setup.js?v=7.3';
+import { db, functions } from './firebase-setup.js?v=7.4';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
+import { fetchDeckFromAPI } from './deck-parser.js?v=7.4';
 
 export function initRoomActionsModule(utils, state) {
     const { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, clearSession } = utils;
@@ -243,5 +244,281 @@ export function initRoomActionsModule(utils, state) {
         });
         html += `</ul>`;
         contentDiv.innerHTML = html;
+    };
+
+    // ==========================================
+    // Headless Forge Match Simulation for Lobbies
+    // ==========================================
+    window.openLobbySimulationModal = async () => {
+        playSound('sfx-click');
+        const modal = document.getElementById('lobbySimModal');
+        const listDiv = document.getElementById('lobbySimDeckList');
+        const countSpan = document.getElementById('lobbySimDeckCount');
+        const runBtn = document.getElementById('runLobbySimBtn');
+        if (!modal) return;
+
+        window.resetLobbySimUI();
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('show'), 10);
+
+        listDiv.innerHTML = '<div style="color:#aaa; font-size:0.85rem; padding:6px;"><span class="mana-spinner"></span> Scanning lobby decks...</div>';
+
+        try {
+            const snap = await get(ref(db, `rooms/${state.currentRoom}`));
+            const roomData = snap.val() || {};
+            const players = roomData.players || {};
+
+            const readyDecks = [];
+            Object.entries(players).forEach(([pid, p]) => {
+                const cmdr = (p.selected || '').trim();
+                const deck = (p.deck || '').trim();
+                const isReady = !!(cmdr || deck);
+                readyDecks.push({
+                    id: pid,
+                    name: p.name || 'Player',
+                    commander: cmdr,
+                    deckUrl: deck,
+                    isReady
+                });
+            });
+
+            const validCount = readyDecks.filter(d => d.isReady).length;
+            countSpan.textContent = `${validCount} / ${readyDecks.length} ready`;
+            countSpan.style.color = validCount >= 2 ? '#10b981' : '#f87171';
+
+            if (readyDecks.length === 0) {
+                listDiv.innerHTML = '<div style="color:#888; font-size:0.85rem; padding:4px;">No players in lobby yet.</div>';
+                runBtn.disabled = true;
+                return;
+            }
+
+            let html = '';
+            readyDecks.forEach(d => {
+                const badge = d.isReady ? '<span style="color:#10b981; font-weight:700;">[✅ Ready]</span>' : '<span style="color:#888;">[⏳ Drafting]</span>';
+                const desc = d.commander ? sanitizeHTML(d.commander) : (d.deckUrl ? 'Custom Deck URL' : 'Awaiting commander...');
+                html += `
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.04); padding:6px 10px; border-radius:6px; font-size:0.85rem;">
+                        <span style="color:#fff;"><strong>${sanitizeHTML(d.name)}</strong>: <span style="color:var(--gold);">${desc}</span></span>
+                        <span>${badge}</span>
+                    </div>
+                `;
+            });
+            listDiv.innerHTML = html;
+
+            if (validCount < 2) {
+                runBtn.disabled = true;
+                runBtn.style.opacity = '0.5';
+                runBtn.title = 'At least 2 players must have selected a commander or submitted a deck.';
+            } else {
+                runBtn.disabled = false;
+                runBtn.style.opacity = '1';
+                runBtn.title = 'Run simulation';
+            }
+        } catch (e) {
+            console.error('Error opening lobby simulation modal:', e);
+            listDiv.innerHTML = '<div style="color:#ef4444; font-size:0.85rem;">Failed to read lobby decks.</div>';
+        }
+    };
+
+    window.closeLobbySimulationModal = () => {
+        const modal = document.getElementById('lobbySimModal');
+        if (modal) {
+            modal.classList.remove('show');
+            setTimeout(() => modal.style.display = 'none', 300);
+        }
+    };
+
+    window.resetLobbySimUI = () => {
+        const controls = document.getElementById('lobbySimControls');
+        const progSec = document.getElementById('lobbySimProgressSection');
+        const sumSec = document.getElementById('lobbySimSummarySection');
+        if (controls) controls.style.display = 'block';
+        if (progSec) progSec.style.display = 'none';
+        if (sumSec) sumSec.style.display = 'none';
+    };
+
+    window.runLobbySimulation = async () => {
+        playSound('sfx-choose');
+        const numGames = parseInt(document.getElementById('simCountSlider')?.value || '5', 10);
+        const controls = document.getElementById('lobbySimControls');
+        const progSec = document.getElementById('lobbySimProgressSection');
+        const sumSec = document.getElementById('lobbySimSummarySection');
+        const statusHeader = document.getElementById('lobbySimStatusHeader');
+        const progressBar = document.getElementById('lobbySimProgressBar');
+        const percentSpan = document.getElementById('lobbySimPercent');
+        const gamesList = document.getElementById('lobbySimGamesList');
+
+        controls.style.display = 'none';
+        progSec.style.display = 'block';
+        sumSec.style.display = 'none';
+
+        statusHeader.textContent = '🔍 Fetching & preparing lobby decks...';
+        progressBar.style.width = '5%';
+        percentSpan.textContent = '5%';
+
+        // Pre-populate empty pending game cards
+        let pendingHtml = '';
+        for (let i = 1; i <= numGames; i++) {
+            pendingHtml += `
+                <div id="sim-card-${i}" class="sim-game-card running">
+                    <div style="font-weight:600; color:#eee;">Match #${i}</div>
+                    <div id="sim-card-status-${i}" style="color:var(--gold); font-size:0.82rem;"><span class="mana-spinner"></span> Simulating turns...</div>
+                </div>
+            `;
+        }
+        gamesList.innerHTML = pendingHtml;
+
+        try {
+            const snap = await get(ref(db, `rooms/${state.currentRoom}`));
+            const roomData = snap.val() || {};
+            const players = roomData.players || {};
+
+            const payloadDecks = [];
+
+            for (const [pid, p] of Object.entries(players)) {
+                const cmdr = (p.selected || '').trim();
+                const deckUrl = (p.deck || '').trim();
+                if (!cmdr && !deckUrl) continue;
+
+                const displayName = `${p.name || 'Player'}'s ${cmdr || 'Deck'}`;
+                let deckContent = '';
+
+                if (deckUrl.toLowerCase().includes('moxfield.com')) {
+                    try {
+                        const moxData = await fetchDeckFromAPI(deckUrl);
+                        if (moxData && (moxData.mainboard || moxData.commanders)) {
+                            const cmdrs = moxData.commanders ? Object.values(moxData.commanders) : [];
+                            const mains = moxData.mainboard ? Object.values(moxData.mainboard) : [];
+                            const companions = moxData.companions ? Object.values(moxData.companions) : [];
+                            const cmdrLines = cmdrs.map(c => `${c.quantity || 1} ${c.card?.name || ''} *CMDR*`);
+                            const mainLines = [...mains, ...companions].map(c => `${c.quantity || 1} ${c.card?.name || ''}`);
+                            deckContent = [...cmdrLines, ...mainLines].join('\n');
+                        }
+                    } catch (err) {
+                        console.warn('Moxfield deck fetch warning, using fallback:', err);
+                    }
+                } else if (deckUrl.length > 20 && deckUrl.includes('\n')) {
+                    deckContent = deckUrl;
+                }
+
+                if (!deckContent) {
+                    if (cmdr) {
+                        // Playable baseline if full list isn't parsed
+                        deckContent = `1 ${cmdr} *CMDR*\n1 Sol Ring\n1 Arcane Signet\n1 Command Tower\n96 Forest`;
+                    } else if (deckUrl) {
+                        deckContent = deckUrl;
+                    }
+                }
+
+                payloadDecks.push({
+                    name: displayName,
+                    commander: cmdr,
+                    deckContent
+                });
+            }
+
+            if (payloadDecks.length < 2) {
+                showToast('At least 2 players must have selected a commander or submitted a deck.', true);
+                window.resetLobbySimUI();
+                return;
+            }
+
+            statusHeader.textContent = `⚡ Starting simulation of ${numGames} games with Forge Rules Engine...`;
+            progressBar.style.width = '10%';
+            percentSpan.textContent = '10%';
+
+            // Stream simulation execution via SSE from cloud backend
+            const simUrl = 'http://132.145.31.195:8080/api/simulate/stream';
+            const resp = await fetch(simUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    format: 'Commander',
+                    games: numGames,
+                    decks: payloadDecks
+                })
+            });
+
+            if (!resp.ok) {
+                throw new Error(`Server returned ${resp.status}`);
+            }
+
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const parts = buffer.split('\n\n');
+                buffer = parts.pop();
+
+                for (const part of parts) {
+                    const trimmed = part.trim();
+                    if (trimmed.startsWith('data:')) {
+                        try {
+                            const eventData = JSON.parse(trimmed.replace(/^data:\s*/, ''));
+                            
+                            if (eventData.type === 'init') {
+                                statusHeader.textContent = `⚔️ Simulating match 1 of ${eventData.games}...`;
+                            } else if (eventData.type === 'game_result') {
+                                const cardEl = document.getElementById(`sim-card-${eventData.game}`);
+                                if (cardEl) {
+                                    cardEl.className = 'sim-game-card finished';
+                                    cardEl.innerHTML = `
+                                        <div style="display:flex; align-items:center; gap:8px;">
+                                            <span style="color:#10b981; font-weight:700;">✅ Match #${eventData.game}</span>
+                                            <strong style="color:#fff;">${sanitizeHTML(eventData.winner)}</strong>
+                                        </div>
+                                        <div style="color:#34d399; font-weight:700; font-size:0.85rem;">
+                                            Won on Turn ${eventData.turns} (${(eventData.durationMs / 1000).toFixed(1)}s)
+                                        </div>
+                                    `;
+                                }
+
+                                const pct = Math.round((eventData.game / eventData.total) * 100);
+                                progressBar.style.width = `${pct}%`;
+                                percentSpan.textContent = `${pct}%`;
+                                statusHeader.textContent = `Completed match ${eventData.game} of ${eventData.total}...`;
+                            } else if (eventData.type === 'finished') {
+                                // Final Summary Screen
+                                playSound('sfx-choose');
+                                progSec.style.display = 'none';
+                                sumSec.style.display = 'block';
+
+                                const summary = eventData.summary;
+                                document.getElementById('simSummaryWinnerTitle').textContent = `🏆 ${summary.bestDeck}`;
+                                document.getElementById('simSummaryWinnerSubtitle').textContent = `Highest Win Probability: ${summary.bestWinRate}% across ${summary.totalGames} simulated matches`;
+
+                                const tbody = document.getElementById('simSummaryTableBody');
+                                let tableRows = '';
+                                (summary.results || []).forEach(r => {
+                                    const isBest = r.name === summary.bestDeck;
+                                    const rowStyle = isBest ? 'background:rgba(212,175,55,0.15); font-weight:700;' : '';
+                                    tableRows += `
+                                        <tr style="border-bottom:1px solid rgba(255,255,255,0.06); ${rowStyle}">
+                                            <td style="padding:8px; color:#fff;">${isBest ? '👑 ' : ''}${sanitizeHTML(r.name)}</td>
+                                            <td style="padding:8px; text-align:center; color:#10b981; font-weight:700;">${r.wins}</td>
+                                            <td style="padding:8px; text-align:right; color:var(--gold); font-weight:800;">${r.winRate}%</td>
+                                        </tr>
+                                    `;
+                                });
+                                tbody.innerHTML = tableRows;
+
+                                showToast(`🏆 Simulation complete! ${summary.bestDeck} has the highest projected win chance (${summary.bestWinRate}%).`, false, 4000, true);
+                            }
+                        } catch (parseErr) {
+                            console.error('SSE JSON parse error:', parseErr);
+                        }
+                    }
+                }
+            }
+
+        } catch (simErr) {
+            console.error('Simulation error:', simErr);
+            showToast('Simulation failed: ' + simErr.message, true, 4000);
+            window.resetLobbySimUI();
+        }
     };
 }
