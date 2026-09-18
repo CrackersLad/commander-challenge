@@ -1,7 +1,7 @@
-import { db, functions } from './firebase-setup.js?v=7.5';
+import { db, functions } from './firebase-setup.js?v=7.6';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
-import { fetchDeckFromAPI } from './deck-parser.js?v=7.5';
+import { fetchDeckFromAPI } from './deck-parser.js?v=7.6';
 
 export function initRoomActionsModule(utils, state) {
     const { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, clearSession } = utils;
