@@ -64,8 +64,8 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=7.2">
-    <link rel="stylesheet" href="collection-hub.css?v=7.2">
+    <link rel="stylesheet" href="styles.css?v=7.3">
+    <link rel="stylesheet" href="collection-hub.css?v=7.3">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -102,7 +102,7 @@
                     <div class="nav-popup-item" onclick="window.openBoosterSimulator(); window.closeAllNavMenus();">
                         <span>📦</span> Booster Simulator
                     </div>
-                    <div class="nav-popup-item" onclick="window.openPlaytester(); window.closeAllNavMenus();">
+                    <div class="nav-popup-item desktop-only-playtester" onclick="window.openPlaytester(); window.closeAllNavMenus();">
                         <span>⚔️</span> Solo Playtester (AI Bot)
                     </div>
                 </div>
@@ -369,8 +369,8 @@
                     <button class="select-btn action-cta-btn" onclick="window.openBoosterSimulator(); event.stopPropagation();">Crack Some Packs</button>
                 </div>
 
-                <!-- Tile 4: Solo Playtester (AI Bot) -->
-                <div class="action-card action-card-arena" onclick="window.openPlaytester()">
+                <!-- Tile 4: Solo Playtester (AI Bot) [Desktop Only] -->
+                <div class="action-card action-card-arena desktop-only-playtester" onclick="window.openPlaytester()">
                     <div class="action-card-badge arena-badge">60 FPS Cloud Arena</div>
                     <div class="action-card-icon">⚔️</div>
                     <h3 class="action-card-title">Solo Playtester (AI Bot)</h3>
@@ -2300,13 +2300,13 @@
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
-        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v7.2</span>
+        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v7.3</span>
     </footer>
 
     <!-- PWA Install Button -->
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
-    <script src="./collection-hub.js?v=7.2"></script>
-    <script type="module" src="./script.js?v=7.2"></script>
+    <script src="./collection-hub.js?v=7.3"></script>
+    <script type="module" src="./script.js?v=7.3"></script>
 </body>
 </html>

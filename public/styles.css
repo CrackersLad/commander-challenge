@@ -5029,6 +5029,15 @@ select:focus {
     border-color: rgba(16, 185, 129, 0.4) !important;
 }
 
+/* Hide Solo Playtester on mobile / tablet touch devices */
+@media (max-width: 900px), (pointer: coarse) and (max-width: 1024px) {
+    .desktop-only-playtester,
+    .action-card-arena,
+    .playtester-nav-item {
+        display: none !important;
+    }
+}
+
 /* Draft Hub Grid: Host vs Join */
 .draft-hub-grid {
     display: grid;

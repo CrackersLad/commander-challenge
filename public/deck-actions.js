@@ -1,5 +1,5 @@
-import { db } from './firebase-setup.js?v=7.2';
-import { fetchDeckPriceLocal, fetchDeckFromAPI } from './deck-parser.js?v=7.2';
+import { db } from './firebase-setup.js?v=7.3';
+import { fetchDeckPriceLocal, fetchDeckFromAPI } from './deck-parser.js?v=7.3';
 import { ref, get, update } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initDeckActionsModule(utils, state) {
@@ -130,6 +130,9 @@ export function initDeckActionsModule(utils, state) {
 
     window.testMyDeckInPlaytester = async () => {
         playSound('sfx-click');
+        if (window.isMobileDevice && window.isMobileDevice()) {
+            return showToast("⚔️ The AI Battle Arena requires a desktop/laptop screen and is not supported on mobile devices.", true, 4000);
+        }
         const snap = await get(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`));
         const myData = snap.val();
         if (!myData) return showToast("Could not find your player profile.", true);
@@ -184,6 +187,9 @@ export function initDeckActionsModule(utils, state) {
 
     window.testPlayerDeckInPlaytester = async (targetPlayerId) => {
         playSound('sfx-click');
+        if (window.isMobileDevice && window.isMobileDevice()) {
+            return showToast("⚔️ The AI Battle Arena requires a desktop/laptop screen and is not supported on mobile devices.", true, 4000);
+        }
         const snap = await get(ref(db, `rooms/${state.currentRoom}/players/${targetPlayerId}`));
         const pData = snap.val();
         if (!pData) return showToast("Could not find player deck data.", true);

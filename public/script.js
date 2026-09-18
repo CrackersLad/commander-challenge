@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=7.2';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=7.2';
-import { getArchives } from './data-service.js?v=7.2';
-import { initDeckActionsModule } from './deck-actions.js?v=7.2';
-import { initRoomActionsModule } from './room-actions.js?v=7.2';
-import { initPlayerViewModule } from './player-view.js?v=7.2';
-import { initAdminModule } from './admin.js?v=7.2';
-import { initCalendarModule } from './calendar.js?v=7.2';
-import { initAuthModule } from './auth.js?v=7.2';
-import { initHubModule } from './hub.js?v=7.2';
-import { initProfileModule } from './profile.js?v=7.2';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=7.2';
-import { initWarRoom, openWarRoom } from './war-room.js?v=7.2';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=7.2';
-import { initBoosterDraftModule } from './booster-draft.js?v=7.2';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=7.2';
+import { db, auth, functions } from './firebase-setup.js?v=7.3';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=7.3';
+import { getArchives } from './data-service.js?v=7.3';
+import { initDeckActionsModule } from './deck-actions.js?v=7.3';
+import { initRoomActionsModule } from './room-actions.js?v=7.3';
+import { initPlayerViewModule } from './player-view.js?v=7.3';
+import { initAdminModule } from './admin.js?v=7.3';
+import { initCalendarModule } from './calendar.js?v=7.3';
+import { initAuthModule } from './auth.js?v=7.3';
+import { initHubModule } from './hub.js?v=7.3';
+import { initProfileModule } from './profile.js?v=7.3';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=7.3';
+import { initWarRoom, openWarRoom } from './war-room.js?v=7.3';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=7.3';
+import { initBoosterDraftModule } from './booster-draft.js?v=7.3';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=7.3';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -447,9 +447,15 @@ function switchView(viewId, pushState = true) {
         window.history.pushState({ viewId }, '', `#${viewId}`);
     }
 }
-window.switchView = switchView;
+window.isMobileDevice = () => {
+    return window.innerWidth <= 900 || ('ontouchstart' in window && window.innerWidth <= 1024) || /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
 
 window.openPlaytester = (deckName = '', deckContent = '', autoStart = false) => {
+    if (window.isMobileDevice()) {
+        utils.showToast("⚔️ The AI Battle Arena requires a desktop/laptop screen with keyboard & mouse and is not supported on mobile devices.", true, 4500);
+        return;
+    }
     const arenaUrl = 'http://132.145.31.195:8080';
     if (!deckContent && !deckName) {
         window.open(arenaUrl, '_blank');
@@ -1767,8 +1773,8 @@ function initDashboard() {
                 } else {
                     armoryInfoHtml += `<div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-top:8px;">`;
                     armoryInfoHtml += `<a href="${sanitizeHTML(pData.deck)}" target="_blank" style="font-size: 0.85rem; color:#d4af37;" onclick="playSound('sfx-click')">View Deck ↗</a>`;
-                    armoryInfoHtml += `<span style="color:#555;">•</span>`;
-                    armoryInfoHtml += `<a href="javascript:void(0)" onclick="window.testPlayerDeckInPlaytester('${id}')" style="font-size: 0.85rem; color:#34d399; font-weight:600; text-decoration:none;" title="Launch this deck in the AI Arena">⚔️ Test Deck ↗</a>`;
+                    armoryInfoHtml += `<span class="desktop-only-playtester" style="color:#555;">•</span>`;
+                    armoryInfoHtml += `<a href="javascript:void(0)" class="desktop-only-playtester" onclick="window.testPlayerDeckInPlaytester('${id}')" style="font-size: 0.85rem; color:#34d399; font-weight:600; text-decoration:none;" title="Launch this deck in the AI Arena">⚔️ Test Deck ↗</a>`;
                     armoryInfoHtml += `</div>`;
                 }
             }
@@ -1777,13 +1783,13 @@ function initDashboard() {
                 armoryInfoHtml += `<div style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">`;
                 armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.9rem;" onclick="window.openPlayerView()">Update Link</button>`;
                 if (pData.deck) {
-                    armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.88rem; background: linear-gradient(135deg, #10b981, #059669); border-color: rgba(16,185,129,0.5); font-weight: 700; box-shadow: 0 4px 15px rgba(16,185,129,0.25);" onclick="window.testMyDeckInPlaytester()">⚔️ Test Deck in AI Arena</button>`;
+                    armoryInfoHtml += `<button class="select-btn desktop-only-playtester" style="width: 100%; font-size: 0.88rem; background: linear-gradient(135deg, #10b981, #059669); border-color: rgba(16,185,129,0.5); font-weight: 700; box-shadow: 0 4px 15px rgba(16,185,129,0.25);" onclick="window.testMyDeckInPlaytester()">⚔️ Test Deck in AI Arena</button>`;
                     armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.9rem; background-color: #4a4a5e; border-color: #696982;" onclick="window.refreshMyDeckPrice()">Refresh Price</button>`;
                     armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.9rem; background-color: #6a4a4a; border-color: #826969;" onclick="window.lockMyDeckPrice()">Lock In Price</button>`;
                     armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.85rem; background: linear-gradient(135deg, #0284c7, #0ea5e9); border-color: rgba(56,189,248,0.4);" onclick="window.compareMyDeckWithCollection()">🔄 Compare to My Collection</button>`;
                     armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.85rem; background: linear-gradient(135deg, #8b5cf6, #a855f7); border-color: rgba(168,85,247,0.4);" onclick="window.upgradeMyDeckWithCollection()">🧠 AI Upgrades from Collection</button>`;
                 } else {
-                    armoryInfoHtml += `<button class="select-btn" style="width: 100%; font-size: 0.85rem; background: rgba(16,185,129,0.15); border: 1px dashed #10b981; color: #34d399;" onclick="window.testMyDeckInPlaytester()">⚔️ Test ${sanitizeHTML(safeSelected)} vs Bot</button>`;
+                    armoryInfoHtml += `<button class="select-btn desktop-only-playtester" style="width: 100%; font-size: 0.85rem; background: rgba(16,185,129,0.15); border: 1px dashed #10b981; color: #34d399;" onclick="window.testMyDeckInPlaytester()">⚔️ Test ${sanitizeHTML(safeSelected)} vs Bot</button>`;
                 }
                 armoryInfoHtml += `</div>`;
             }
@@ -1905,7 +1911,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=7.2').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=7.3').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
