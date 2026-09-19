@@ -1409,6 +1409,7 @@ exports.simulateStream = onRequest({ cors: true, timeoutSeconds: 300, memory: "2
     res.set('Content-Type', 'text/event-stream');
     res.set('Cache-Control', 'no-cache');
     res.set('Connection', 'keep-alive');
+    res.set('X-Accel-Buffering', 'no');
     if (res.flushHeaders) res.flushHeaders();
 
     const postData = JSON.stringify(req.body || {});

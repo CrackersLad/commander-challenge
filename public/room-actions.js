@@ -1,7 +1,7 @@
-import { db, functions } from './firebase-setup.js?v=7.11';
+import { db, functions } from './firebase-setup.js?v=7.12';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
-import { fetchDeckFromAPI } from './deck-parser.js?v=7.11';
+import { fetchDeckFromAPI } from './deck-parser.js?v=7.12';
 
 export function initRoomActionsModule(utils, state) {
     const { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, clearSession } = utils;
@@ -496,25 +496,50 @@ export function initRoomActionsModule(utils, state) {
 
             // Stream simulation execution via SSE:
             // Route directly to the HTTPS Cloud Function in production to avoid the Firebase Hosting 60-second rewrite gateway timeout
-            const simUrl = window.location.protocol === 'https:'
+            const primaryUrl = window.location.protocol === 'https:'
                 ? 'https://us-central1-commander-challenge.cloudfunctions.net/simulateStream'
                 : 'http://132.145.31.195:8080/api/simulate/stream';
+            const fallbackUrl = window.location.protocol === 'https:' ? '/api/simulate/stream' : null;
 
-            const resp = await fetch(simUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    format: 'Commander',
-                    games: numGames,
-                    decks: payloadDecks
-                })
+            const postBody = JSON.stringify({
+                format: 'Commander',
+                games: numGames,
+                decks: payloadDecks
             });
 
-            if (!resp.ok) {
-                let errDetail = `HTTP ${resp.status}`;
+            let resp;
+            try {
+                resp = await fetch(primaryUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: postBody
+                });
+                if (!resp.ok && fallbackUrl && resp.status >= 500) {
+                    console.warn(`Primary simulation endpoint returned ${resp.status}, trying fallback ${fallbackUrl}...`);
+                    resp = await fetch(fallbackUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: postBody
+                    });
+                }
+            } catch (networkErr) {
+                if (fallbackUrl) {
+                    console.warn('Primary simulation fetch threw network error, trying fallback:', networkErr);
+                    resp = await fetch(fallbackUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: postBody
+                    });
+                } else {
+                    throw networkErr;
+                }
+            }
+
+            if (!resp || !resp.ok) {
+                let errDetail = `HTTP ${resp ? resp.status : 'offline'}`;
                 try {
                     const txt = await resp.text();
-                    if (txt && txt.length < 150) errDetail += ` (${txt})`;
+                    if (txt && txt.length < 150 && !txt.includes('<!DOCTYPE')) errDetail += ` (${txt})`;
                 } catch (_) {}
                 throw new Error(errDetail);
             }
