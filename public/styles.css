@@ -2191,41 +2191,55 @@ select:focus {
 .toast {
     visibility: hidden;
     min-width: 280px;
-    max-width: 90vw;
+    max-width: min(90vw, 480px);
+    width: max-content;
+    height: auto !important;
+    bottom: auto !important;
     background-color: rgba(18, 18, 26, 0.98);
     color: #fff;
     text-align: center;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-md, 12px);
     padding: 14px 24px;
     position: fixed;
-    z-index: 10000;
+    z-index: 100000;
     left: 50%;
-    top: calc(var(--sat) + 15px);
+    top: calc(var(--sat, 0px) + 15px);
     transform: translateX(-50%);
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.95);
     font-family: var(--font-display);
     font-weight: 700;
+    font-size: 0.95rem;
+    line-height: 1.45;
     opacity: 0;
     transition: opacity 0.3s ease, top 0.3s ease;
     border: 1px solid var(--gold);
+    pointer-events: none;
+    box-sizing: border-box;
+    word-break: break-word;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
 .toast.show {
     visibility: visible;
     opacity: 1;
-    top: calc(var(--sat) + 28px);
+    top: calc(var(--sat, 0px) + 28px);
+    bottom: auto !important;
+    height: auto !important;
 }
 
 .toast.error {
-    background-color: rgba(50, 15, 20, 0.96);
-    border-color: var(--danger);
-    color: #ff9999;
+    background-color: rgba(60, 15, 22, 0.97) !important;
+    border-color: #ff5555 !important;
+    color: #ffcccc !important;
+    box-shadow: 0 8px 32px rgba(255, 68, 68, 0.35), 0 4px 16px rgba(0, 0, 0, 0.8) !important;
 }
 
 .toast.success {
-    background-color: rgba(15, 45, 25, 0.96);
-    border-color: var(--success);
-    color: var(--success);
+    background-color: rgba(15, 45, 25, 0.97) !important;
+    border-color: #10b981 !important;
+    color: #bbf7d0 !important;
+    box-shadow: 0 8px 32px rgba(16, 185, 129, 0.35), 0 4px 16px rgba(0, 0, 0, 0.8) !important;
 }
 
 .modal-overlay {

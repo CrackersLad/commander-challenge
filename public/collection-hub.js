@@ -6685,7 +6685,7 @@
             if (!toast) {
                 toast = document.createElement('div');
                 toast.id = 'toastMsg';
-                toast.className = 'toast';
+                toast.className = 'collection-toast';
                 document.body.appendChild(toast);
             }
             toast.textContent = msg;

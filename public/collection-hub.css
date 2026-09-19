@@ -1256,8 +1256,8 @@
             color: var(--primary);
         }
 
-        /* Toast */
-        .toast {
+        /* Collection Hub Toast (Namespaced to prevent collision with global app toast) */
+        .collection-toast {
             position: fixed;
             bottom: 24px;
             left: 50%;
@@ -1274,9 +1274,11 @@
             transition: all 0.25s ease;
             z-index: 5000;
             pointer-events: none;
+            height: auto;
+            max-width: 90vw;
         }
 
-        .toast.show {
+        .collection-toast.show {
             opacity: 1;
             transform: translateX(-50%) translateY(0);
         }
