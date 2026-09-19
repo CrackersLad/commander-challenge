@@ -1,7 +1,7 @@
-import { db, functions } from './firebase-setup.js?v=7.9';
+import { db, functions } from './firebase-setup.js?v=7.10';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
-import { fetchDeckFromAPI } from './deck-parser.js?v=7.9';
+import { fetchDeckFromAPI } from './deck-parser.js?v=7.10';
 
 export function initRoomActionsModule(utils, state) {
     const { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, clearSession } = utils;
@@ -426,8 +426,16 @@ export function initRoomActionsModule(utils, state) {
                             const cmdrs = moxData.commanders ? Object.values(moxData.commanders) : [];
                             const mains = moxData.mainboard ? Object.values(moxData.mainboard) : [];
                             const companions = moxData.companions ? Object.values(moxData.companions) : [];
-                            const cmdrLines = cmdrs.map(c => `${c.quantity || 1} ${c.card?.name || ''} *CMDR*`);
-                            const mainLines = [...mains, ...companions].map(c => `${c.quantity || 1} ${c.card?.name || ''}`);
+                            const cmdrLines = cmdrs.map(c => {
+                                let cName = c.card?.name || '';
+                                if (cName.includes(' // ')) cName = cName.split(' // ')[0].trim();
+                                return `${c.quantity || 1} ${cName} *CMDR*`;
+                            });
+                            const mainLines = [...mains, ...companions].map(c => {
+                                let cName = c.card?.name || '';
+                                if (cName.includes(' // ')) cName = cName.split(' // ')[0].trim();
+                                return `${c.quantity || 1} ${cName}`;
+                            });
                             deckContent = [...cmdrLines, ...mainLines].join('\n');
                         }
                     } catch (err) {
@@ -440,8 +448,9 @@ export function initRoomActionsModule(utils, state) {
                             const cmdrLines = [];
                             const mainLines = [];
                             archData.cards.forEach(item => {
-                                const cardName = item.card?.oracleCard?.name || item.card?.name;
+                                let cardName = item.card?.oracleCard?.name || item.card?.name;
                                 if (!cardName) return;
+                                if (cardName.includes(' // ')) cardName = cardName.split(' // ')[0].trim();
                                 const qty = item.quantity || 1;
                                 const isCmdr = item.categories?.some(cat => ['commander', 'commanders'].includes(cat.toLowerCase()));
                                 if (isCmdr) {
@@ -521,6 +530,12 @@ export function initRoomActionsModule(utils, state) {
                             
                             if (eventData.type === 'init') {
                                 statusHeader.textContent = `⚔️ Simulating match 1 of ${eventData.games}...`;
+                            } else if (eventData.type === 'turn_update') {
+                                const cardStatusEl = document.getElementById(`sim-card-status-${eventData.game}`);
+                                if (cardStatusEl) {
+                                    cardStatusEl.innerHTML = `<span class="mana-spinner"></span> Simulating Turn ${eventData.turn}...`;
+                                }
+                                statusHeader.textContent = `⚔️ Simulating match ${eventData.game} of ${eventData.total} (Turn ${eventData.turn})...`;
                             } else if (eventData.type === 'game_result') {
                                 const cardEl = document.getElementById(`sim-card-${eventData.game}`);
                                 if (cardEl) {
@@ -566,6 +581,9 @@ export function initRoomActionsModule(utils, state) {
                                 tbody.innerHTML = tableRows;
 
                                 showToast(`🏆 Simulation complete! ${summary.bestDeck} has the highest projected win chance (${summary.bestWinRate}%).`, false, 4000, true);
+                            } else if (eventData.type === 'error') {
+                                showToast(`Simulation issue: ${eventData.message}`, true, 5000);
+                                window.resetLobbySimUI();
                             }
                         } catch (parseErr) {
                             console.error('SSE JSON parse error:', parseErr);

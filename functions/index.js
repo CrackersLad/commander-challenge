@@ -1422,7 +1422,7 @@ exports.simulateStream = onRequest({ cors: true, timeoutSeconds: 300, memory: "2
             'Content-Type': 'application/json',
             'Content-Length': Buffer.byteLength(postData)
         },
-        timeout: 180000
+        timeout: 280000
     }, (proxyRes) => {
         proxyRes.on('data', (chunk) => {
             res.write(chunk);
