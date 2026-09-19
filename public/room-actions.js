@@ -249,6 +249,17 @@ export function initRoomActionsModule(utils, state) {
     // ==========================================
     // Headless Forge Match Simulation for Lobbies
     // ==========================================
+    function isDeckReadyForBattle(p, settings = {}) {
+        if (!p || !p.deck) return false;
+        const maxBudget = settings.deckBudget !== undefined ? parseFloat(settings.deckBudget) : 50;
+        const maxBracket = settings.maxBracket !== undefined ? parseFloat(settings.maxBracket) : 0;
+        const isLegal = p.isLegal === true;
+        const checkPrice = p.lockedDeckPrice !== undefined ? p.lockedDeckPrice : (p.deckPrice || 0);
+        const isUnderBudget = maxBudget === 0 || checkPrice <= maxBudget;
+        const isUnderBracket = maxBracket === 0 || !p.deckBracket || p.deckBracket <= maxBracket;
+        return isLegal && isUnderBudget && isUnderBracket;
+    }
+
     window.openLobbySimulationModal = async () => {
         playSound('sfx-click');
         const modal = document.getElementById('lobbySimModal');
@@ -267,52 +278,71 @@ export function initRoomActionsModule(utils, state) {
             const snap = await get(ref(db, `rooms/${state.currentRoom}`));
             const roomData = snap.val() || {};
             const players = roomData.players || {};
+            const settings = roomData.settings || {};
 
-            const readyDecks = [];
+            const playerEntries = [];
             Object.entries(players).forEach(([pid, p]) => {
                 const cmdr = (p.selected || '').trim();
                 const deck = (p.deck || '').trim();
-                const isReady = !!(cmdr || deck);
-                readyDecks.push({
+                const isReady = isDeckReadyForBattle(p, settings);
+                playerEntries.push({
                     id: pid,
                     name: p.name || 'Player',
                     commander: cmdr,
                     deckUrl: deck,
-                    isReady
+                    isReady,
+                    playerData: p
                 });
             });
 
-            const validCount = readyDecks.filter(d => d.isReady).length;
-            countSpan.textContent = `${validCount} / ${readyDecks.length} ready`;
+            const validCount = playerEntries.filter(d => d.isReady).length;
+            countSpan.textContent = `${validCount} / ${playerEntries.length} Ready for Battle`;
             countSpan.style.color = validCount >= 2 ? '#10b981' : '#f87171';
 
-            if (readyDecks.length === 0) {
+            if (playerEntries.length === 0) {
                 listDiv.innerHTML = '<div style="color:#888; font-size:0.85rem; padding:4px;">No players in lobby yet.</div>';
                 runBtn.disabled = true;
                 return;
             }
 
             let html = '';
-            readyDecks.forEach(d => {
-                const badge = d.isReady ? '<span style="color:#10b981; font-weight:700;">[✅ Ready]</span>' : '<span style="color:#888;">[⏳ Drafting]</span>';
+            playerEntries.forEach(d => {
+                let badge = '';
+                let statusReason = '';
+                if (d.isReady) {
+                    badge = '<span style="color:#10b981; font-weight:700; background:rgba(16,185,129,0.15); padding:2px 8px; border-radius:4px; border:1px solid #10b981;">⚔️ Ready for Battle</span>';
+                } else if (!d.deckUrl) {
+                    statusReason = 'Brewing in progress';
+                    badge = '<span style="color:#f59e0b; font-size:0.8rem; background:rgba(245,158,11,0.12); padding:2px 7px; border-radius:4px;">⏳ Brewing (No Deck)</span>';
+                } else if (d.playerData.isLegal !== true) {
+                    statusReason = 'Deck not legal';
+                    badge = '<span style="color:#ef4444; font-size:0.8rem; background:rgba(239,68,68,0.12); padding:2px 7px; border-radius:4px;">⚠️ Deck Not Legal</span>';
+                } else {
+                    statusReason = 'Over budget or bracket';
+                    badge = '<span style="color:#ef4444; font-size:0.8rem; background:rgba(239,68,68,0.12); padding:2px 7px; border-radius:4px;">💰 Over Budget</span>';
+                }
+
                 const desc = d.commander ? sanitizeHTML(d.commander) : (d.deckUrl ? 'Custom Deck URL' : 'Awaiting commander...');
+                const note = (!d.isReady && statusReason) ? ` <span style="font-size:0.75rem; color:#888;">— ${statusReason}</span>` : '';
+
                 html += `
-                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.04); padding:6px 10px; border-radius:6px; font-size:0.85rem;">
-                        <span style="color:#fff;"><strong>${sanitizeHTML(d.name)}</strong>: <span style="color:var(--gold);">${desc}</span></span>
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:${d.isReady ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.02)'}; padding:7px 10px; border-radius:6px; font-size:0.85rem; border:1px solid ${d.isReady ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.05)'};">
+                        <span style="color:#fff;"><strong>${sanitizeHTML(d.name)}</strong>: <span style="color:var(--gold);">${desc}</span>${note}</span>
                         <span>${badge}</span>
                     </div>
                 `;
             });
+            html += `<div style="font-size:0.75rem; color:#888; text-align:center; margin-top:6px;">Only decks marked <strong style="color:var(--gold);">Ready for Battle</strong> will participate in the simulated matches.</div>`;
             listDiv.innerHTML = html;
 
             if (validCount < 2) {
                 runBtn.disabled = true;
                 runBtn.style.opacity = '0.5';
-                runBtn.title = 'At least 2 players must have selected a commander or submitted a deck.';
+                runBtn.title = 'At least 2 players must have decks marked Ready for Battle (legal & under budget) to simulate.';
             } else {
                 runBtn.disabled = false;
                 runBtn.style.opacity = '1';
-                runBtn.title = 'Run simulation';
+                runBtn.title = `Simulate between the ${validCount} Ready for Battle decks`;
             }
         } catch (e) {
             console.error('Error opening lobby simulation modal:', e);
@@ -352,7 +382,7 @@ export function initRoomActionsModule(utils, state) {
         progSec.style.display = 'block';
         sumSec.style.display = 'none';
 
-        statusHeader.textContent = '🔍 Fetching & preparing lobby decks...';
+        statusHeader.textContent = '🔍 Fetching & preparing Ready for Battle decks...';
         progressBar.style.width = '5%';
         percentSpan.textContent = '5%';
 
@@ -372,10 +402,16 @@ export function initRoomActionsModule(utils, state) {
             const snap = await get(ref(db, `rooms/${state.currentRoom}`));
             const roomData = snap.val() || {};
             const players = roomData.players || {};
+            const settings = roomData.settings || {};
 
             const payloadDecks = [];
 
             for (const [pid, p] of Object.entries(players)) {
+                // STRICT CHECK: Only include decks that are Ready for Battle
+                if (!isDeckReadyForBattle(p, settings)) {
+                    continue;
+                }
+
                 const cmdr = (p.selected || '').trim();
                 const deckUrl = (p.deck || '').trim();
                 if (!cmdr && !deckUrl) continue;
@@ -396,6 +432,28 @@ export function initRoomActionsModule(utils, state) {
                         }
                     } catch (err) {
                         console.warn('Moxfield deck fetch warning, using fallback:', err);
+                    }
+                } else if (deckUrl.toLowerCase().includes('archidekt.com')) {
+                    try {
+                        const archData = await fetchDeckFromAPI(deckUrl);
+                        if (archData && Array.isArray(archData.cards)) {
+                            const cmdrLines = [];
+                            const mainLines = [];
+                            archData.cards.forEach(item => {
+                                const cardName = item.card?.oracleCard?.name || item.card?.name;
+                                if (!cardName) return;
+                                const qty = item.quantity || 1;
+                                const isCmdr = item.categories?.some(cat => ['commander', 'commanders'].includes(cat.toLowerCase()));
+                                if (isCmdr) {
+                                    cmdrLines.push(`${qty} ${cardName} *CMDR*`);
+                                } else {
+                                    mainLines.push(`${qty} ${cardName}`);
+                                }
+                            });
+                            deckContent = [...cmdrLines, ...mainLines].join('\n');
+                        }
+                    } catch (err) {
+                        console.warn('Archidekt deck fetch warning, using fallback:', err);
                     }
                 } else if (deckUrl.length > 20 && deckUrl.includes('\n')) {
                     deckContent = deckUrl;
@@ -418,12 +476,12 @@ export function initRoomActionsModule(utils, state) {
             }
 
             if (payloadDecks.length < 2) {
-                showToast('At least 2 players must have selected a commander or submitted a deck.', true);
+                showToast('At least 2 players must have decks Ready for Battle to simulate.', true);
                 window.resetLobbySimUI();
                 return;
             }
 
-            statusHeader.textContent = `⚡ Starting simulation of ${numGames} games with Forge Rules Engine...`;
+            statusHeader.textContent = `⚡ Starting simulation of ${numGames} games with ${payloadDecks.length} Ready for Battle decks...`;
             progressBar.style.width = '10%';
             percentSpan.textContent = '10%';
 
