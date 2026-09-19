@@ -1,5 +1,6 @@
+const http = require("http");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onValueUpdated, onValueCreated, onValueDeleted, onValueWritten } = require("firebase-functions/v2/database");
 const admin = require("firebase-admin");
 const { DEFAULT_HEADERS, fetchWithRetry } = require("./http.js");
@@ -1393,4 +1394,59 @@ exports.compareDecks = archidekt.compareDecks;
 exports.getDeckName = archidekt.getDeckName;
 exports.suggestImprovements = archidekt.suggestImprovements;
 exports.searchCommanderDecks = archidekt.searchCommanderDecks;
+
+// ==================== HEADLESS FORGE MATCH SIMULATION PROXY ====================
+exports.simulateStream = onRequest({ cors: true, timeoutSeconds: 300, memory: "256MiB" }, (req, res) => {
+    if (req.method === 'OPTIONS') {
+        res.set('Access-Control-Allow-Origin', '*');
+        res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        res.set('Access-Control-Allow-Headers', 'Content-Type');
+        res.status(204).send('');
+        return;
+    }
+
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Content-Type', 'text/event-stream');
+    res.set('Cache-Control', 'no-cache');
+    res.set('Connection', 'keep-alive');
+    if (res.flushHeaders) res.flushHeaders();
+
+    const postData = JSON.stringify(req.body || {});
+
+    const proxyReq = http.request({
+        hostname: '132.145.31.195',
+        port: 8080,
+        path: '/api/simulate/stream',
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(postData)
+        },
+        timeout: 180000
+    }, (proxyRes) => {
+        proxyRes.on('data', (chunk) => {
+            res.write(chunk);
+            if (res.flush) res.flush();
+        });
+        proxyRes.on('end', () => {
+            res.end();
+        });
+    });
+
+    proxyReq.on('error', (err) => {
+        console.error('Error proxying to Forge simulation engine:', err);
+        res.write(`data: ${JSON.stringify({ type: 'error', message: 'Simulation engine connection error: ' + err.message })}\n\n`);
+        res.end();
+    });
+
+    proxyReq.on('timeout', () => {
+        proxyReq.destroy();
+        res.write(`data: ${JSON.stringify({ type: 'error', message: 'Simulation request timed out.' })}\n\n`);
+        res.end();
+    });
+
+    proxyReq.write(postData);
+    proxyReq.end();
+});
+
 

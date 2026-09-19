@@ -107,7 +107,8 @@ self.addEventListener('fetch', event => {
         url.pathname.startsWith('/suggestImprovements') ||
         url.pathname.startsWith('/shortenUrl') ||
         url.pathname.startsWith('/getSets') ||
-        url.pathname.startsWith('/checkSetCollection')) {
+        url.pathname.startsWith('/checkSetCollection') ||
+        url.pathname.startsWith('/api/')) {
         return;
     }
 

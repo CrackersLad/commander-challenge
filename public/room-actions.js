@@ -485,8 +485,9 @@ export function initRoomActionsModule(utils, state) {
             progressBar.style.width = '10%';
             percentSpan.textContent = '10%';
 
-            // Stream simulation execution via SSE from cloud backend
-            const simUrl = 'http://132.145.31.195:8080/api/simulate/stream';
+            // Stream simulation execution via SSE:
+            // Use same-origin HTTPS /api/simulate/stream in production to prevent Mixed Content blocks
+            const simUrl = window.location.protocol === 'https:' ? '/api/simulate/stream' : 'http://132.145.31.195:8080/api/simulate/stream';
             const resp = await fetch(simUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

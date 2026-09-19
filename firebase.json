@@ -28,6 +28,10 @@
     ],
     "rewrites": [
       {
+        "source": "/api/simulate/stream",
+        "function": "simulateStream"
+      },
+      {
         "source": "/compareDecks",
         "function": "compareDecks"
       },
