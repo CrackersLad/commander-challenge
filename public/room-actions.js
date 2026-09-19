@@ -1,7 +1,7 @@
-import { db, functions } from './firebase-setup.js?v=7.10';
+import { db, functions } from './firebase-setup.js?v=7.11';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
-import { fetchDeckFromAPI } from './deck-parser.js?v=7.10';
+import { fetchDeckFromAPI } from './deck-parser.js?v=7.11';
 
 export function initRoomActionsModule(utils, state) {
     const { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, clearSession } = utils;
@@ -495,8 +495,11 @@ export function initRoomActionsModule(utils, state) {
             percentSpan.textContent = '10%';
 
             // Stream simulation execution via SSE:
-            // Use same-origin HTTPS /api/simulate/stream in production to prevent Mixed Content blocks
-            const simUrl = window.location.protocol === 'https:' ? '/api/simulate/stream' : 'http://132.145.31.195:8080/api/simulate/stream';
+            // Route directly to the HTTPS Cloud Function in production to avoid the Firebase Hosting 60-second rewrite gateway timeout
+            const simUrl = window.location.protocol === 'https:'
+                ? 'https://us-central1-commander-challenge.cloudfunctions.net/simulateStream'
+                : 'http://132.145.31.195:8080/api/simulate/stream';
+
             const resp = await fetch(simUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -508,7 +511,12 @@ export function initRoomActionsModule(utils, state) {
             });
 
             if (!resp.ok) {
-                throw new Error(`Server returned ${resp.status}`);
+                let errDetail = `HTTP ${resp.status}`;
+                try {
+                    const txt = await resp.text();
+                    if (txt && txt.length < 150) errDetail += ` (${txt})`;
+                } catch (_) {}
+                throw new Error(errDetail);
             }
 
             const reader = resp.body.getReader();
