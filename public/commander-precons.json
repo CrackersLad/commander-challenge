@@ -1,5 +1,24 @@
 [
   {
+    "name": "Hatsune Miku",
+    "code": "SLD",
+    "releaseDate": "2026-08-10",
+    "commander": "Trostani, Selesnya's Voice",
+    "scryfallId": "6ab6e6c9-fe20-40d3-997e-fe3480081f03",
+    "image": "https://cards.scryfall.io/normal/front/6/a/6ab6e6c9-fe20-40d3-997e-fe3480081f03.jpg",
+    "colors": [
+      "G",
+      "W"
+    ],
+    "manaCost": "{G}{G}{W}{W}",
+    "type": "Legendary Creature — Dryad",
+    "theme": "Go-Wide Tokens & +1/+1 Buffs",
+    "strategy": "Fill your board with creature tokens, stack anthem buffs and +1/+1 counters, and overrun your opponents in a grand charge.",
+    "source": "https://magic.wizards.com/en/news/announcements/secret-lair-commander-deck-hatsune-miku-decklist",
+    "cardCount": 100,
+    "decklist": "// Commander\n1 Trostani, Selesnya's Voice (SLD) 2429 *F*\n\n// Mainboard\n1 Archangel of Thune (SLD) 2430 *F*\n1 Halo Fountain (SLD) 2431 *F*\n1 Grand Crescendo (SLD) 2432 *F*\n1 Shalai, Voice of Plenty (SLD) 2433 *F*\n1 Song of the Worldsoul (SLD) 2434 *F*\n1 Soul Warden (SLD) 2435 *F*\n1 Break Down (SLD) 2436 *F*\n1 Cultivate (SLD) 2437 *F*\n1 Finale of Devastation (SLD) 2438 *F*\n1 Vorinclex, Voice of Hunger (SLD) 2439 *F*\n1 Bountiful Promenade (SLD) 2440 *F*\n1 Angel of Indemnity (PLST) OTC-9\n1 Angelic Chorus (PLST) BBD-87\n1 Boon Reflection (PLST) 2XM-10\n1 Crested Sunmare (PLST) HOU-6\n1 Dazzling Theater // Prop Room (PLST) DSK-3\n1 Elenda's Hierophant (PLST) LCC-71\n1 Excavation Technique (PLST) C21-16\n1 Hour of Reckoning (PLST) MOC-190\n1 Nykthos Paragon (PLST) MH2-22\n1 Resplendent Angel (PLST) LCI-32\n1 Silverquill Lecturer (PLST) M3C-96\n1 Soul of Eternity (PLST) CMR-50\n1 Speaker of the Heavens (PLST) M21-38\n1 Storm Herd (PLST) KHC-33\n1 Voice of the Blessed (PLST) INR-50\n1 Ancient Cornucopia (PLST) BIG-16\n1 Arasta of the Endless Web (PLST) BLC-205\n1 Blossoming Bogbeast (PLST) C21-59\n1 Bramble Sovereign (PLST) BBD-65\n1 Fanatic of Rhonas (PLST) MH3-152\n1 Gruff Triplets (PLST) WOE-172\n1 Healing Technique (PLST) C21-63\n1 Pest Infestation (PLST) C21-65\n1 Shamanic Revelation (PLST) BLC-237\n1 Camaraderie (PLST) GRN-157\n1 Conclave Evangelist (PLST) CLU-27\n1 Ghalta and Mavren (PLST) MOM-225\n1 Growing Ranks (SLD) 2444\n1 Lathiel, the Bounteous Dawn (PLST) CMR-285\n1 Mirari's Wake (PLST) MH2-291\n1 Rhys the Redeemed (PLST) 2XM-213\n1 Voice of Resurgence (PLST) 2XM-227\n1 Aetherflux Reservoir (PLST) KLD-192\n1 Phyrexian Processor (SLD) 2445\n1 Canopy Vista (PLST) LCC-321\n1 Gavony Township (PLST) MOC-406\n1 Grove of the Guardian (PLST) GK1-124\n1 Lazotep Quarry (PLST) M3C-131\n1 Overgrown Farmland (PLST) MID-265\n1 Restless Prairie (PLST) LCI-281\n1 Sungrass Prairie (PLST) BLC-334\n1 Sunpetal Grove (PLST) BLC-335\n1 Temple of Plenty (PLST) BLC-343\n1 Invincible Hymn (PLST) ALA-14\n1 Ajani's Pridemate (PLST) FDN-135\n1 Cleric Class (PLST) AFR-6\n1 Congregate (PLST) DMR-4\n1 Path to Exile (PLST) BLC-147\n1 Rootborn Defenses (PLST) RVR-26\n1 Suture Priest (PLST) MOC-210\n1 Swords to Plowshares (PLST) DSC-106\n1 Avacyn's Pilgrim (PLST) MIC-132\n1 Explore (PLST) BLC-216\n1 Farseek (PLST) LCC-242\n1 Llanowar Elves (PLST) GNT-46\n1 Nature's Lore (PLST) CMM-904\n1 Prosperous Innkeeper (PLST) BLC-121\n1 Song of Freyalise (PLST) DOM-179\n1 Sundering Growth (PLST) C19-203\n1 Idol of Oblivion (PLST) M3C-297\n1 Selesnya Signet (PLST) RVR-267\n1 Skullclamp (PLST) MOC-379\n1 Sol Ring (PLST) BLC-129\n1 Springleaf Drum (PLST) LRW-261\n1 Blossoming Sands (PLST) NEO-265\n1 Brokers Hideout (PLST) SNC-248\n1 Command Tower (PLST) DSC-96\n1 Graypelt Refuge (PLST) C19-249\n1 Krosan Verge (PLST) MOC-412\n1 Radiant Fountain (PLST) M21-248\n1 Rogue's Passage (PLST) C19-270\n1 Sapseep Forest (PLST) C21-313\n1 Selesnya Sanctuary (PLST) CMM-1031\n1 Seraph Sanctuary (PLST) DDQ-33\n7 Plains (SLD) 2441 *F*\n7 Forest (SLD) 2442 *F*"
+  },
+  {
     "name": "Avengers Assemble",
     "code": "MSC",
     "releaseDate": "2026-06-26",
