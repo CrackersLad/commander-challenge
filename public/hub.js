@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=7.14';
+import { db, auth } from './firebase-setup.js?v=7.15';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -34,6 +34,11 @@ export function initHubModule(utils, state, coreUi) {
     }, { passive: true });
 
     window.scrollToSection = (sectionId) => {
+        const landing = document.getElementById('view-landing');
+        if (landing && !landing.classList.contains('active')) {
+            if (typeof switchView === 'function') switchView('view-landing');
+            else if (typeof window.switchView === 'function') window.switchView('view-landing');
+        }
         const el = document.getElementById(sectionId);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
@@ -154,7 +159,7 @@ export function initHubModule(utils, state, coreUi) {
     async function loadPreconData() {
         if (localPrecons && localPrecons.length > 0) return localPrecons;
         try {
-            const res = await fetch('./commander-precons.json?v=7.14');
+            const res = await fetch('./commander-precons.json?v=7.15');
             if (res.ok) {
                 localPrecons = await res.json();
                 return localPrecons;

@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=7.14';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=7.14';
-import { getArchives } from './data-service.js?v=7.14';
-import { initDeckActionsModule } from './deck-actions.js?v=7.14';
-import { initRoomActionsModule } from './room-actions.js?v=7.14';
-import { initPlayerViewModule } from './player-view.js?v=7.14';
-import { initAdminModule } from './admin.js?v=7.14';
-import { initCalendarModule } from './calendar.js?v=7.14';
-import { initAuthModule } from './auth.js?v=7.14';
-import { initHubModule } from './hub.js?v=7.14';
-import { initProfileModule } from './profile.js?v=7.14';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=7.14';
-import { initWarRoom, openWarRoom } from './war-room.js?v=7.14';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=7.14';
-import { initBoosterDraftModule } from './booster-draft.js?v=7.14';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=7.14';
+import { db, auth, functions } from './firebase-setup.js?v=7.15';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=7.15';
+import { getArchives } from './data-service.js?v=7.15';
+import { initDeckActionsModule } from './deck-actions.js?v=7.15';
+import { initRoomActionsModule } from './room-actions.js?v=7.15';
+import { initPlayerViewModule } from './player-view.js?v=7.15';
+import { initAdminModule } from './admin.js?v=7.15';
+import { initCalendarModule } from './calendar.js?v=7.15';
+import { initAuthModule } from './auth.js?v=7.15';
+import { initHubModule } from './hub.js?v=7.15';
+import { initProfileModule } from './profile.js?v=7.15';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=7.15';
+import { initWarRoom, openWarRoom } from './war-room.js?v=7.15';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=7.15';
+import { initBoosterDraftModule } from './booster-draft.js?v=7.15';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=7.15';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -447,6 +447,7 @@ function switchView(viewId, pushState = true) {
         window.history.pushState({ viewId }, '', `#${viewId}`);
     }
 }
+window.switchView = switchView;
 window.isMobileDevice = () => {
     return window.innerWidth <= 900 || ('ontouchstart' in window && window.innerWidth <= 1024) || /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 };
@@ -704,21 +705,39 @@ window.openEmbedInNewTab = () => {
     if (modal) modal.style.display = 'none';
 };
 
+function handleRouteFromUrl(push = false) {
+    const hash = window.location.hash || '';
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (hash.startsWith('#draft-') || hash === '#view-booster-draft' || hash === '#booster-draft') {
+        switchView('view-booster-draft', push);
+    } else if (hash === '#view-booster-simulator' || hash === '#booster-simulator') {
+        switchView('view-booster-simulator', push);
+    } else if (hash === '#view-collection-hub' || hash.startsWith('#collection') || hash.startsWith('#deck') || hash.startsWith('#trade-') || tab) {
+        switchView('view-collection-hub', push);
+        if (tab && typeof window.switchTab === 'function') {
+            window.switchTab(tab);
+        } else if (hash.startsWith('#deck') && typeof window.switchTab === 'function') {
+            window.switchTab('deck');
+        } else if (hash.startsWith('#collection') && typeof window.switchTab === 'function') {
+            window.switchTab('collection');
+        }
+    } else if (hash === '#view-landing' || (!hash && !params.get('room'))) {
+        switchView('view-landing', push);
+    }
+}
+window.handleRouteFromUrl = handleRouteFromUrl;
+
 window.addEventListener('popstate', (event) => {
     if (event.state && event.state.viewId) {
         switchView(event.state.viewId, false);
     } else {
-        const hash = window.location.hash || '';
-        if (hash.startsWith('#draft-') || hash === '#view-booster-draft' || hash === '#booster-draft') {
-            switchView('view-booster-draft', false);
-        } else if (hash === '#view-booster-simulator' || hash === '#booster-simulator') {
-            switchView('view-booster-simulator', false);
-        } else if (hash === '#view-collection-hub' || hash.startsWith('#collection') || hash.startsWith('#trade-')) {
-            switchView('view-collection-hub', false);
-        } else {
-            switchView('view-landing', false);
-        }
+        handleRouteFromUrl(false);
     }
+});
+
+window.addEventListener('hashchange', () => {
+    handleRouteFromUrl(false);
 });
 
 window.openAccountModal = () => {
@@ -2125,7 +2144,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=7.14').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=7.15').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
@@ -2137,6 +2156,9 @@ initWarRoom(db, state, utils);
 window.boosterUtils = utils;
 initBoosterSimulatorModule(utils, state);
 initBoosterDraftModule(utils, state);
+
+// Resolve initial route from URL (hash, collection tab, draft, or simulator)
+handleRouteFromUrl(false);
 
 // Setup booster simulator interactive listeners
 const boosterOpenBtn = document.getElementById('boosterOpenBtn');

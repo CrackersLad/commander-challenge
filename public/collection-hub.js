@@ -2155,7 +2155,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=7.14');
+                    const res = await fetch('./commander-precons.json?v=7.15');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2191,7 +2191,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=7.14');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=7.15');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -7567,9 +7567,13 @@
             switchTab(urlTab);
 
             // If a specific collection tab, hash, or trade link is requested, activate collection hub view
-            if (isTradeLink || params.get('tab') || window.location.hash.startsWith('#view-collection')) {
+            if (isTradeLink || params.get('tab') || window.location.hash.startsWith('#view-collection') || window.location.hash.startsWith('#collection') || window.location.hash.startsWith('#deck')) {
                 if (typeof window.switchView === 'function') {
                     window.switchView('view-collection-hub', false);
+                } else {
+                    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+                    const el = document.getElementById('view-collection-hub');
+                    if (el) el.classList.add('active');
                 }
             }
 
@@ -7592,9 +7596,17 @@
         window.openCollectionTab = function(tab, options = {}) {
             if (typeof window.switchView === 'function') {
                 window.switchView('view-collection-hub');
+            } else {
+                document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+                const el = document.getElementById('view-collection-hub');
+                if (el) el.classList.add('active');
+                window.scrollTo(0, 0);
+                document.body.scrollTop = 0;
             }
             if (typeof switchTab === 'function') {
                 switchTab(tab);
+            } else if (typeof window.switchTab === 'function') {
+                window.switchTab(tab);
             }
             if (options.openUpgrader) {
                 setTimeout(() => {
