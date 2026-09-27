@@ -1,5 +1,116 @@
 [
   {
+    "name": "Calling All Angels",
+    "code": "FDC",
+    "releaseDate": "2026-10-02",
+    "commander": "Giada, Font of Hope",
+    "scryfallId": "4ebc7622-08a1-4f43-92dd-8675d395e8f6",
+    "image": "https://cards.scryfall.io/normal/front/4/e/4ebc7622-08a1-4f43-92dd-8675d395e8f6.jpg",
+    "colors": [
+      "W"
+    ],
+    "manaCost": "{1}{W}",
+    "type": "Legendary Creature — Angel",
+    "theme": "Commander Synergy & Strategy",
+    "strategy": "Pilot Giada, Font of Hope with focused deck synergies, leveraging color advantages to build an overwhelming board state.",
+    "source": "https://magic.wizards.com/en/news/announcements/foundations-commander-decklists",
+    "cardCount": 100,
+    "decklist": "// Commander\n1 Giada, Font of Hope (FDC) 4 *F*\n\n// Mainboard\n1 Always Watching (FDC) 10\n1 Angel of the Ruins (FDC) 12\n1 Angelic Destiny (FDC) 14\n1 Angelic Field Marshal (FDC) 15\n1 Angelic Sleuth (FDC) 16\n1 Archangel of Tithes (FDC) 17\n1 Austere Command (FDC) 18\n1 Bishop of Wings (FDC) 19\n1 Cleansing Nova (FDC) 20\n1 Court of Grace (FDC) 21\n1 Day of Judgment (FDC) 23\n1 Emeria Shepherd (FDC) 27\n1 Exemplar of Light (FDC) 28\n1 Fateful Absence (FDC) 30\n1 Firemane Commando (FDC) 31\n1 Grasp of Fate (FDC) 32\n1 Herald of Eternal Dawn (FDC) 33\n1 Herald of War (FDC) 34\n1 Linvala, the Preserver (FDC) 37\n1 Lyra Dawnbringer (FDC) 38\n1 Merchant of Truth (FDC) 39\n1 Metropolis Reformer (FDC) 40\n1 Norn's Choirmaster (FDC) 41\n1 Reya Dawnbringer (FDC) 42\n1 Righteous Valkyrie (FDC) 43\n1 Search the Premises (FDC) 44\n1 Sephara, Sky's Blade (FDC) 47\n1 Seraph of the Sword (FDC) 48\n1 Serra Avenger (FDC) 49\n1 Speaker of the Heavens (FDC) 50\n1 Sunblast Angel (FDC) 52\n1 Wojek Investigator (FDC) 57\n1 Endless Atlas (FDC) 256\n1 Metallic Mimic (FDC) 269\n1 Tome of Legends (FDC) 293\n1 Vanquisher's Banner (FDC) 294\n1 Bonders' Enclave (FDC) 297\n1 War Room (FDC) 317\n1 Angel of Finality (FDC) 11\n1 Angel of Vitality (FDC) 13\n1 Cut a Deal (FDC) 22\n1 Dazzling Angel (FDC) 24\n1 Defy Death (FDC) 25\n1 Destroy Evil (FDC) 26\n1 Exorcise (FDC) 29\n1 Inspiring Overseer (FDC) 35\n1 Invoke the Divine (FDC) 36\n1 Secret Rendezvous (FDC) 45\n1 Segovian Angel (FDC) 46\n1 Starnheim Aspirant (FDC) 51\n1 Swords to Plowshares (FDC) 53\n1 Thraben Watcher (FDC) 54\n1 Valorous Stance (FDC) 55\n1 Vanguard Seraph (FDC) 56\n1 Youthful Valkyrie (FDC) 58\n1 Arcane Signet (FDC) 245\n1 Commander's Sphere (FDC) 250\n1 Heraldic Banner (FDC) 263\n1 Marble Diamond (FDC) 267\n1 Mind Stone (FDC) 271\n1 Patchwork Banner (FDC) 279\n1 Sol Ring (FDC) 286\n1 Swiftfoot Boots (FDC) 291\n1 Radiant Fountain (FDC) 308\n1 Secluded Steppe (FDC) 312\n1 Seraph Sanctuary (FDC) 313\n1 Temple of the False God (FDC) 315\n32 Plains (FDN) 272"
+  },
+  {
+    "name": "Keen Engineering",
+    "code": "FDC",
+    "releaseDate": "2026-10-02",
+    "commander": "Sai, Master Thopterist",
+    "scryfallId": "5650587a-27a5-4d68-97e2-5745627bd094",
+    "image": "https://cards.scryfall.io/normal/front/5/6/5650587a-27a5-4d68-97e2-5745627bd094.jpg",
+    "colors": [
+      "U"
+    ],
+    "manaCost": "{2}{U}",
+    "type": "Legendary Creature — Human Artificer",
+    "theme": "Commander Synergy & Strategy",
+    "strategy": "Pilot Sai, Master Thopterist with focused deck synergies, leveraging color advantages to build an overwhelming board state.",
+    "source": "https://magic.wizards.com/en/news/announcements/foundations-commander-decklists",
+    "cardCount": 100,
+    "decklist": "// Commander\n1 Sai, Master Thopterist (FDC) 5 *F*\n\n// Mainboard\n1 All Is Dust (FDC) 9\n1 Broodstar (FDC) 60\n1 Kappa Cannoneer (FDC) 64\n1 Master of Etherium (FDC) 66\n1 Master Transmuter (FDC) 67\n1 Misleading Signpost (FDC) 69\n1 Pull from Tomorrow (FDC) 73\n1 Research Thief (FDC) 74\n1 Shimmer Dragon (FDC) 75\n1 Thopter Fabricator (FDC) 78\n1 Thopter Spy Network (FDC) 79\n1 Thought Monitor (FDC) 80\n1 Vedalken Archmage (FDC) 82\n1 Adaptive Omnitool (FDC) 243\n1 Cultivator's Caravan (FDC) 251\n1 Darksteel Juggernaut (FDC) 252\n1 Duplicant (FDC) 255\n1 Forsaken Monument (FDC) 258\n1 Graaz, Unstoppable Juggernaut (FDC) 260\n1 Mazemind Tome (FDC) 268\n1 Mind's Eye (FDC) 272\n1 Myr Battlesphere (FDC) 273\n1 Nettlecyst (FDC) 275\n1 Nevinyrral's Disk (FDC) 276\n1 Psychosis Crawler (FDC) 280\n1 Scrawling Crawler (FDC) 282\n1 Skysovereign, Consul Flagship (FDC) 285\n1 Steel Hellkite (FDC) 289\n1 Steel Overseer (FDC) 290\n1 War Room (FDC) 317\n1 Aetherize (FDC) 59\n1 Counterspell (FDC) 61\n1 Etherium Sculptor (FDC) 62\n1 Fall from Favor (FDC) 63\n1 Launch Mishap (FDC) 65\n1 Memory Guardian (FDC) 68\n1 Negate (FDC) 70\n1 Padeem, Consul of Innovation (FDC) 71\n1 Propaganda (FDC) 72\n1 Tamiyo's Logbook (FDC) 76\n1 Thirst for Knowledge (FDC) 77\n1 Thoughtcast (FDC) 81\n1 Whirler Rogue (FDC) 83\n1 Aether Spellbomb (FDC) 244\n1 Arcane Signet (FDC) 245\n1 Chief of the Foundry (FDC) 249\n1 Foundry Inspector (FDC) 259\n1 Hedron Archive (FDC) 262\n1 Ichor Wellspring (FDC) 265\n1 Meteor Golem (FDC) 270\n1 Mind Stone (FDC) 271\n1 Myr Retriever (FDC) 274\n1 Ornithopter of Paradise (FDC) 277\n1 Palladium Myr (FDC) 278\n1 Shimmer Myr (FDC) 283\n1 Silver Myr (FDC) 284\n1 Sol Ring (FDC) 286\n1 Soul-Guide Lantern (FDC) 287\n1 Spire Golem (FDC) 288\n1 Thought Vessel (FDC) 292\n1 Buried Ruin (FDC) 298\n1 Darksteel Citadel (FDC) 300\n1 Foundry of the Consuls (FDC) 302\n1 Lonely Sandbar (FDC) 305\n1 Remote Isle (FDC) 309\n34 Island (FDN) 274"
+  },
+  {
+    "name": "Multiverse Reforged",
+    "code": "FRC",
+    "releaseDate": "2026-10-02",
+    "commander": "Jace, Multiverse Architect",
+    "scryfallId": "55cd03d9-2535-4cf3-a8b2-1418e1190f4a",
+    "image": "https://cards.scryfall.io/normal/front/5/5/55cd03d9-2535-4cf3-a8b2-1418e1190f4a.jpg",
+    "colors": [
+      "B",
+      "R",
+      "U",
+      "W"
+    ],
+    "manaCost": "{1}{W}{U}{B}{R}",
+    "type": "Legendary Planeswalker — Jace",
+    "theme": "Artifact Synergy & Construct Ramp",
+    "strategy": "Assemble complex mechanical engines and an armada of powerful constructs to out-value and out-muscle the table.",
+    "source": "https://magic.wizards.com/en/news/announcements/reality-fracture-multiverse-reforged-commander-decklist",
+    "cardCount": 100,
+    "decklist": "// Commander\n1 Jace, Multiverse Architect (FRC) 1 *F*\n\n// Mainboard\n1 Nissa, Leyline Tamer (FRC) 2 *F*\n1 Omnath, Locus of the Void (FRC) 3\n1 Dack Fayden, Helping Hand (FRC) 4\n1 Ob Nixilis, the Ascended (FRC) 5\n1 Teferi's Reproach (FRC) 6\n1 Avacyn, Angel of Horror (FRC) 7\n1 Jhoira, Weatherlight Corsair (FRC) 8\n1 Venser, Fervent Forger (FRC) 9\n1 Niv-Mizzet, Ghost Counsel (FRC) 10\n1 Tamiyo, Upriser Crowned (FRC) 11\n1 The Ur-Sphinx (FRC) 12\n1 Darksteel Angel (FRC) 13\n1 Ginger, Queen of Sweets (FRC) 14\n1 Memnarch, the Warden (FRC) 15\n1 Turbulent Crater (FRC) 16\n1 Turbulent Shore (FRC) 17\n1 Turbulent Wetlands (FRC) 18\n1 Akroma, Angel of Fury (FRC) 19\n1 Reflecting Pool (FRC) 23\n1 Elspeth, Sun's Champion (FRC) 24\n1 Flawless Maneuver (FRC) 25\n1 Grand Crescendo (FRC) 26\n1 Martial Coup (FRC) 28\n1 Overlord of the Mistmoors (FRC) 29\n1 Secure the Wastes (FRC) 31\n1 Serra's Emissary (FRC) 32\n1 Skrelv's Hive (FRC) 33\n1 Staff of the Storyteller (FRC) 34\n1 Sunfall (FRC) 36\n1 White Sun's Twilight (FRC) 38\n1 Mass Polymorph (FRC) 42\n1 Occult Epiphany (FRC) 43\n1 Shark Typhoon (FRC) 44\n1 Synthetic Destiny (FRC) 45\n1 Archfiend of Despair (FRC) 46\n1 Archon of Cruelty (FRC) 47\n1 Dreadhorde Invasion (FRC) 48\n1 Cursed Mirror (FRC) 49\n1 Whirlwind of Thought (FRC) 51\n1 Windcrag Siege (FRC) 52\n1 Chromatic Lantern (FRC) 54\n1 Currency Converter (FRC) 55\n1 Proteus Staff (FRC) 59\n1 Battlefield Forge (FRC) 65\n1 Caves of Koilos (FRC) 66\n1 Clifftop Retreat (FRC) 67\n1 Drowned Catacomb (FRC) 69\n1 Exotic Orchard (FRC) 70\n1 Fabled Passage (FRC) 71\n1 Fetid Heath (FRC) 72\n1 Glacial Fortress (FRC) 73\n1 Isolated Chapel (FRC) 74\n1 Kher Keep (FRC) 75\n1 Mystic Gate (FRC) 76\n1 Prairie Stream (FRC) 79\n1 Radiant Summit (FRC) 80\n1 Restless Anchorage (FRC) 81\n1 Restless Spire (FRC) 82\n1 Shivan Reef (FRC) 83\n1 Sulfur Falls (FRC) 84\n1 Sulfurous Springs (FRC) 85\n1 Sunken Ruins (FRC) 86\n1 Underground River (FRC) 87\n1 Plan for All Outcomes (FRA) 35\n1 Fatehold Charm (FRA) 132\n1 Arcane Signet (FRC) 20\n1 Sol Ring (FRC) 21\n1 Command Tower (FRC) 22\n1 Lingering Souls (FRC) 27\n1 Path to Exile (FRC) 30\n1 Stroke of Midnight (FRC) 35\n1 Swords to Plowshares (FRC) 37\n1 Brainstorm (FRC) 39\n1 Brainsurge (FRC) 40\n1 Fact or Fiction (FRC) 41\n1 Despark (FRC) 50\n1 Azorius Signet (FRC) 53\n1 Dimir Signet (FRC) 56\n1 Fellwar Stone (FRC) 57\n1 Izzet Signet (FRC) 58\n1 Rakdos Signet (FRC) 60\n1 Talisman of Creativity (FRC) 61\n1 Talisman of Dominance (FRC) 62\n1 Talisman of Indulgence (FRC) 63\n1 Talisman of Progress (FRC) 64\n1 Contaminated Landscape (FRC) 68\n1 Path of Ancestry (FRC) 77\n1 Perilous Landscape (FRC) 78\n1 Plains (FRA) 281\n1 Plains (FRA) 282\n1 Plains (FRA) 382\n1 Plains (FRA) 383\n1 Island (FRA) 283\n1 Island (FRA) 284\n1 Island (FRA) 385\n1 Swamp (FRA) 285\n1 Swamp (FRA) 286\n1 Mountain (FRA) 287\n1 Mountain (FRA) 288"
+  },
+  {
+    "name": "Reign of Dragons",
+    "code": "FDC",
+    "releaseDate": "2026-10-02",
+    "commander": "Lathliss, Dragon Queen",
+    "scryfallId": "8a17ec4e-b508-41af-803b-32acd863e598",
+    "image": "https://cards.scryfall.io/normal/front/8/a/8a17ec4e-b508-41af-803b-32acd863e598.jpg",
+    "colors": [
+      "R"
+    ],
+    "manaCost": "{4}{R}{R}",
+    "type": "Legendary Creature — Dragon",
+    "theme": "Dragon Tribal & High-Flying Burn",
+    "strategy": "Ramp into massive flying Dragons that dominate the skies and rain destructive breath weapon fire upon your enemies.",
+    "source": "https://magic.wizards.com/en/news/announcements/foundations-commander-decklists",
+    "cardCount": 100,
+    "decklist": "// Commander\n1 Lathliss, Dragon Queen (FDC) 7 *F*\n\n// Mainboard\n1 Atsushi, the Blazing Sky (FDC) 138\n1 Blasphemous Act (FDC) 140\n1 Chain Reaction (FDC) 144\n1 Chandra's Ignition (FDC) 145\n1 Chaos Warp (FDC) 146\n1 Count on Luck (FDC) 147\n1 Crucible of Fire (FDC) 148\n1 Cursed Mirror (FDC) 149\n1 Dragon Tempest (FDC) 150\n1 Dragonhawk, Fate's Tempest (FDC) 151\n1 Dragonmaster Outcast (FDC) 153\n1 Drakuseth, Maw of Flames (FDC) 155\n1 The Elder Dragon War (FDC) 156\n1 Goddric, Cloaked Reveler (FDC) 158\n1 Goldlust Triad (FDC) 159\n1 Hellkite Charger (FDC) 160\n1 Hit the Mother Lode (FDC) 161\n1 Leyline Tyrant (FDC) 162\n1 Magmaquake (FDC) 164\n1 Minion of the Mighty (FDC) 166\n1 Nogi, Draco-Zealot (FDC) 167\n1 Orb of Dragonkind (FDC) 168\n1 Outpost Siege (FDC) 169\n1 Parapet Thrasher (FDC) 170\n1 Sarkhan, Dragon Ascendant (FDC) 172\n1 Scourge of the Throne (FDC) 173\n1 Scourge of Valkas (FDC) 174\n1 Shivan Devastator (FDC) 175\n1 Spit Flame (FDC) 177\n1 Taurean Mauler (FDC) 178\n1 Terror of Mount Velus (FDC) 179\n1 Thunderbreak Regent (FDC) 181\n1 Thundermane Dragon (FDC) 182\n1 Tyrant's Familiar (FDC) 183\n1 Utvara Hellkite (FDC) 185\n1 Warstorm Surge (FDC) 186\n1 Basilisk Collar (FDC) 246\n1 Dragon's Hoard (FDC) 253\n1 Bonders' Enclave (FDC) 297\n1 Haven of the Spirit Dragon (FDC) 304\n1 Spinerock Knoll (FDC) 314\n1 War Room (FDC) 317\n1 Abrade (FDC) 136\n1 Anger (FDC) 137\n1 Bitter Reunion (FDC) 139\n1 Breaching Dragonstorm (FDC) 141\n1 Breath Weapon (FDC) 142\n1 Carnelian Orb of Dragonkind (FDC) 143\n1 Dragonlord's Servant (FDC) 152\n1 Dragonspeaker Shaman (FDC) 154\n1 Firespitter Whelp (FDC) 157\n1 Lightning Bolt (FDC) 163\n1 Mana Geyser (FDC) 165\n1 Rapacious Dragon (FDC) 171\n1 Skyline Despot (FDC) 176\n1 Thrill of Possibility (FDC) 180\n1 Unexpected Windfall (FDC) 184\n1 Arcane Signet (FDC) 245\n1 Commander's Sphere (FDC) 250\n1 Dragonstorm Globe (FDC) 254\n1 Fire Diamond (FDC) 257\n1 Hazoret's Monument (FDC) 261\n1 Herald's Horn (FDC) 264\n1 Sol Ring (FDC) 286\n1 Swiftfoot Boots (FDC) 291\n1 Forgotten Cave (FDC) 301\n1 Temple of the False God (FDC) 315\n32 Mountain (FDN) 278"
+  },
+  {
+    "name": "Tramplesaurus Rex",
+    "code": "FDC",
+    "releaseDate": "2026-10-02",
+    "commander": "Ghalta, Primal Hunger",
+    "scryfallId": "5d9951d1-3228-4d69-8e63-6e6f0a893a86",
+    "image": "https://cards.scryfall.io/normal/front/5/d/5d9951d1-3228-4d69-8e63-6e6f0a893a86.jpg",
+    "colors": [
+      "G"
+    ],
+    "manaCost": "{10}{G}{G}",
+    "type": "Legendary Creature — Elder Dinosaur",
+    "theme": "Commander Synergy & Strategy",
+    "strategy": "Pilot Ghalta, Primal Hunger with focused deck synergies, leveraging color advantages to build an overwhelming board state.",
+    "source": "https://magic.wizards.com/en/news/announcements/foundations-commander-decklists",
+    "cardCount": 100,
+    "decklist": "// Commander\n1 Ghalta, Primal Hunger (FDC) 8 *F*\n\n// Mainboard\n1 Arachnogenesis (FDC) 187\n1 Arasta of the Endless Web (FDC) 188\n1 Beast Whisperer (FDC) 189\n1 Birds of Paradise (FDC) 191\n1 Carnage Tyrant (FDC) 193\n1 Curious Altisaur (FDC) 198\n1 Dungrove Elder (FDC) 199\n1 Elder Gargaroth (FDC) 200\n1 Ezuri's Predation (FDC) 203\n1 Gigantosaurus (FDC) 207\n1 Hulking Raptor (FDC) 210\n1 Loot, Exuberant Explorer (FDC) 215\n1 Managorger Hydra (FDC) 216\n1 Overwhelming Stampede (FDC) 218\n1 Pugnacious Hammerskull (FDC) 220\n1 Regal Imperiosaur (FDC) 222\n1 Rhonas the Indomitable (FDC) 223\n1 Ripjaw Raptor (FDC) 224\n1 Rishkar's Expertise (FDC) 226\n1 Scavenging Ooze (FDC) 227\n1 Scrapshooter (FDC) 228\n1 Shamanic Revelation (FDC) 229\n1 Steel Leaf Champion (FDC) 230\n1 Surrak and Goreclaw (FDC) 231\n1 Surrak, the Hunt Caller (FDC) 232\n1 Tangleweave Armor (FDC) 234\n1 Thickest in the Thicket (FDC) 236\n1 Unnatural Growth (FDC) 238\n1 Verdant Sun's Avatar (FDC) 239\n1 Whiptongue Hydra (FDC) 240\n1 Yeva, Nature's Herald (FDC) 242\n1 Bonders' Enclave (FDC) 297\n1 Mosswort Bridge (FDC) 307\n1 Scavenger Grounds (FDC) 311\n1 War Room (FDC) 317\n1 Witch's Clinic (FDC) 318\n1 Beast Within (FDC) 190\n1 Bite Down (FDC) 192\n1 Challenger Troll (FDC) 194\n1 Clifftop Lookout (FDC) 195\n1 Collective Resistance (FDC) 196\n1 Colossal Majesty (FDC) 197\n1 Elemental Bond (FDC) 201\n1 Elvish Mystic (FDC) 202\n1 Fyndhorn Elves (FDC) 204\n1 Garruk's Packleader (FDC) 205\n1 Garruk's Uprising (FDC) 206\n1 Goreclaw, Terror of Qal Sisma (FDC) 208\n1 Harmonize (FDC) 209\n1 Ilysian Caryatid (FDC) 211\n1 Kenrith's Transformation (FDC) 212\n1 Llanowar Elves (FDC) 213\n1 Llanowar Tribe (FDC) 214\n1 Monstrous Onslaught (FDC) 217\n1 Paradise Druid (FDC) 219\n1 Ram Through (FDC) 221\n1 Rishkar, Peema Renegade (FDC) 225\n1 Tamiyo's Safekeeping (FDC) 233\n1 Terrian, World Tyrant (FDC) 235\n1 Thrashing Brontodon (FDC) 237\n1 Whisperer of the Wilds (FDC) 241\n1 Commander's Sphere (FDC) 250\n1 Rhonas's Monument (FDC) 281\n1 Sol Ring (FDC) 286\n1 Swiftfoot Boots (FDC) 291\n1 Rogue's Passage (FDC) 310\n1 Tranquil Thicket (FDC) 316\n32 Forest (FDN) 280"
+  },
+  {
+    "name": "Wretched Ranks",
+    "code": "FDC",
+    "releaseDate": "2026-10-02",
+    "commander": "Ghoulcaller Gisa",
+    "scryfallId": "909e62fa-4585-495e-812b-5df56af24610",
+    "image": "https://cards.scryfall.io/normal/front/9/0/909e62fa-4585-495e-812b-5df56af24610.jpg",
+    "colors": [
+      "B"
+    ],
+    "manaCost": "{3}{B}{B}",
+    "type": "Legendary Creature — Human Wizard",
+    "theme": "Commander Synergy & Strategy",
+    "strategy": "Pilot Ghoulcaller Gisa with focused deck synergies, leveraging color advantages to build an overwhelming board state.",
+    "source": "https://magic.wizards.com/en/news/announcements/foundations-commander-decklists",
+    "cardCount": 100,
+    "decklist": "// Commander\n1 Ghoulcaller Gisa (FDC) 6 *F*\n\n// Mainboard\n1 Army of the Damned (FDC) 85\n1 Ayara, First of Locthwain (FDC) 86\n1 Bad Moon (FDC) 87\n1 Cemetery Reaper (FDC) 89\n1 Champion of the Perished (FDC) 91\n1 Cryptbreaker (FDC) 94\n1 Death Baron (FDC) 95\n1 Diregraf Colossus (FDC) 96\n1 Endless Ranks of the Dead (FDC) 97\n1 God-Eternal Bontu (FDC) 101\n1 Grave Titan (FDC) 102\n1 Graveborn Muse (FDC) 103\n1 Gravecrawler (FDC) 104\n1 Headless Rider (FDC) 106\n1 Josu Vess, Lich Knight (FDC) 107\n1 Kalitas, Traitor of Ghet (FDC) 108\n1 Liliana's Mastery (FDC) 109\n1 Liliana's Reaver (FDC) 110\n1 Lord of the Undead (FDC) 112\n1 Midnight Reaper (FDC) 114\n1 Mutilate (FDC) 117\n1 Necrotic Hex (FDC) 118\n1 Open the Graves (FDC) 121\n1 Oversold Cemetery (FDC) 122\n1 Phyrexian Arena (FDC) 123\n1 Razorlash Transmogrant (FDC) 124\n1 Zul Ashur, Lich Lord (FDC) 135\n1 Castle Locthwain (FDC) 299\n1 Geier Reach Sanitarium (FDC) 303\n1 Ambition's Cost (FDC) 84\n1 Carrion Feeder (FDC) 88\n1 Cemetery Recruitment (FDC) 90\n1 Consumed by Greed (FDC) 92\n1 Consuming Corruption (FDC) 93\n1 Eternal Taskmaster (FDC) 98\n1 Fleshbag Marauder (FDC) 99\n1 Go for the Throat (FDC) 100\n1 Gray Merchant of Asphodel (FDC) 105\n1 Lord of the Accursed (FDC) 111\n1 Marchesa's Decree (FDC) 113\n1 Mire Triton (FDC) 115\n1 Moan of the Unhallowed (FDC) 116\n1 Night's Whisper (FDC) 119\n1 Noxious Ghoul (FDC) 120\n1 Sign in Blood (FDC) 125\n1 Soulless One (FDC) 126\n1 Syphon Flesh (FDC) 127\n1 Tendrils of Corruption (FDC) 128\n1 Undead Augur (FDC) 129\n1 Undead Butler (FDC) 130\n1 Undead Warchief (FDC) 131\n1 Vengeful Dead (FDC) 132\n1 Wight of Precinct Six (FDC) 133\n1 Withering Torment (FDC) 134\n1 Arcane Signet (FDC) 245\n1 Bontu's Monument (FDC) 247\n1 Charcoal Diamond (FDC) 248\n1 Commander's Sphere (FDC) 250\n1 Infernal Idol (FDC) 266\n1 Mind Stone (FDC) 271\n1 Patchwork Banner (FDC) 279\n1 Sol Ring (FDC) 286\n1 Barren Moor (FDC) 295\n1 Bojuka Bog (FDC) 296\n1 Memorial to Folly (FDC) 306\n1 Witch's Cottage (FDC) 319\n33 Swamp (FDN) 276"
+  },
+  {
     "name": "Hatsune Miku",
     "code": "SLD",
     "releaseDate": "2026-08-10",
