@@ -1111,7 +1111,8 @@ function resolveInputSetCode(val) {
     
     // Check if code directly
     const trimmed = val.trim().toLowerCase();
-    const sets = window.scryfallSets || [];
+    if (!trimmed) return 'dsk';
+    const sets = window.boosterSets || window.scryfallSets || [];
     const found = sets.find(s => s.code.toLowerCase() === trimmed || s.name.toLowerCase() === trimmed);
     if (found) return found.code.toLowerCase();
 

@@ -6,6 +6,10 @@
     "version:major": "node functions/build.js major",
     "deploy": "node deploy.js",
     "deploy:major": "node deploy.js --major",
-    "sync-precons": "node scripts/sync-precons.js"
+    "sync-precons": "node scripts/sync-precons.js",
+    "test:journey": "node test_user_journeys.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.12.0"
   }
 }

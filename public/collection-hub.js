@@ -2155,7 +2155,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=7.15');
+                    const res = await fetch('./commander-precons.json?v=7.16');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2191,7 +2191,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=7.15');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=7.16');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -6697,6 +6697,10 @@
 
         async function loadSetsList() {
             try {
+                if (window.scryfallSets && window.scryfallSets.length > 0) {
+                    allMagicSets = window.scryfallSets;
+                    return;
+                }
                 const cached = sessionStorage.getItem('scryfall_sets');
                 if (cached) {
                     allMagicSets = JSON.parse(cached);
@@ -6704,10 +6708,17 @@
                 }
 
                 let res;
-                try {
-                    res = await fetch('/getSets');
-                } catch (e) {
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                     res = await fetch('https://api.scryfall.com/sets');
+                } else {
+                    try {
+                        res = await fetch('/getSets');
+                    } catch (e) {
+                        res = null;
+                    }
+                    if (!res || !res.ok) {
+                        res = await fetch('https://api.scryfall.com/sets');
+                    }
                 }
 
                 if (res.ok) {
