@@ -8,17 +8,20 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=7.16';
+import { db, auth } from './firebase-setup.js?v=7.17';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
     fetchSetBoosterCards, 
     generateBoosterPack, 
     generateCollectorBoosterPack, 
+    generateDraftBoosterPack,
+    generatePlayBoosterPack,
+    getSetBoosterEra,
     getCardPrice,
     formatCurrency,
     getSetBasicLands 
-} from './booster-simulator.js?v=7.16';
+} from './booster-simulator.js?v=7.17';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -508,7 +511,7 @@ function renderDraftHubUI() {
                         <div class="booster-segmented-switch">
                             <label class="segmented-option">
                                 <input type="radio" name="draftBoosterEdition" id="draftEditionPlay" value="play" checked>
-                                <span class="segmented-pill">Play / Draft Booster</span>
+                                <span class="segmented-pill" id="draftStandardPillLabel">Play / Draft Booster</span>
                             </label>
                             <label class="segmented-option">
                                 <input type="radio" name="draftBoosterEdition" id="draftEditionCollector" value="collector">
@@ -597,6 +600,21 @@ function renderDraftHubUI() {
         }
     };
 
+    window.updateDraftEditionPillLabel = (rawOrCode = null) => {
+        const input = document.getElementById('draftSetInput');
+        const pill = document.getElementById('draftStandardPillLabel');
+        if (!pill) return;
+        const raw = rawOrCode || input?.value || 'dsk';
+        const match = raw.match(/\(([A-Za-z0-9]+)\)$/);
+        const code = match ? match[1].toLowerCase() : raw.trim().toLowerCase().substring(0, 5);
+        const era = getSetBoosterEra(code);
+        if (era === 'play_era') {
+            pill.textContent = '🎮 Play Booster (14 Cards)';
+        } else {
+            pill.textContent = '⚔️ Draft Booster (15 Cards)';
+        }
+    };
+
     window.selectDraftQuickSet = (code, btn) => {
         document.querySelectorAll('#draftQuickSets .quick-set-chip').forEach(c => c.classList.remove('active'));
         if (btn) btn.classList.add('active');
@@ -607,7 +625,15 @@ function renderDraftHubUI() {
         if (input) {
             input.value = s ? `${s.name} (${s.code.toUpperCase()})` : code.toUpperCase();
         }
+        window.updateDraftEditionPillLabel(code);
     };
+
+    const draftInputEl = document.getElementById('draftSetInput');
+    if (draftInputEl && !draftInputEl.dataset.listenerBound) {
+        draftInputEl.dataset.listenerBound = 'true';
+        draftInputEl.addEventListener('input', () => window.updateDraftEditionPillLabel());
+    }
+    window.updateDraftEditionPillLabel();
 }
 
 // Create Draft Room (Host)
@@ -640,6 +666,9 @@ async function createDraftRoomFromUI() {
         name: setCode.toUpperCase()
     };
 
+    const era = getSetBoosterEra(setObj);
+    const resolvedPackEdition = isCollector ? 'collector' : (era === 'play_era' ? 'play' : 'draft');
+
     const player = getPlayerIdentity();
     const roomCode = generateRoomCode();
 
@@ -648,7 +677,7 @@ async function createDraftRoomFromUI() {
         format: formatId,
         setCode: setObj.code.toLowerCase(),
         setName: setObj.name,
-        packEdition: isCollector ? 'collector' : 'play',
+        packEdition: resolvedPackEdition,
         packsPerPlayer: packsCount,
         timerSeconds: timerSecs,
         status: 'lobby',
@@ -816,7 +845,7 @@ function renderDraftLobbyView(room, root) {
                 </div>
                 <p class="draft-room-meta">
                     Set: <strong>${room.setName} (${room.setCode.toUpperCase()})</strong> • 
-                    Booster: <strong>${room.packEdition === 'collector' ? '✨ Collector' : 'Play Booster'}</strong> • 
+                    Booster: <strong>${room.packEdition === 'collector' ? '✨ Collector Booster' : (room.packEdition === 'draft' ? '⚔️ Draft Booster' : '🎮 Play Booster')}</strong> • 
                     Packs/Player: <strong>${room.packsPerPlayer}</strong>
                 </p>
             </div>
@@ -955,7 +984,17 @@ async function startBoosterDraftHost() {
         const activeRoom = finalSnap.exists() ? finalSnap.val() : room;
         const playersList = getDraftPlayersList(activeRoom);
         const isCollector = activeRoom.packEdition === 'collector';
+        const era = getSetBoosterEra(activeRoom.setCode || room.setCode);
+        const isPlayBooster = activeRoom.packEdition === 'play' || era === 'play_era';
         const packsPerPlayer = activeRoom.packsPerPlayer || 3;
+
+        // Contextual generator for draft functionality:
+        // Strictly uses authentic 15-card Draft Boosters whenever Draft boosters existed!
+        const generateDraftPackInstance = (packNum) => {
+            if (isCollector) return generateCollectorBoosterPack(setData, packNum);
+            if (isPlayBooster) return generatePlayBoosterPack(setData, packNum);
+            return generateDraftBoosterPack(setData, packNum);
+        };
 
         // Specialized handling per format
         if (activeRoom.format === 'sealed') {
@@ -964,7 +1003,7 @@ async function startBoosterDraftHost() {
             playersList.forEach(p => {
                 let pool = [];
                 for (let i = 1; i <= packsPerPlayer; i++) {
-                    const pack = isCollector ? generateCollectorBoosterPack(setData, i) : generateBoosterPack(setData, i);
+                    const pack = generateDraftPackInstance(i);
                     pool.push(...pack.map(sanitizeDraftCard));
                 }
                 const existingPlayer = updatedPlayers[p.id] || p;
@@ -984,7 +1023,7 @@ async function startBoosterDraftHost() {
             // Grid Draft: Prepare 18 packs dealt into 18 consecutive 3x3 grids
             let masterCards = [];
             for (let i = 1; i <= 18; i++) {
-                const pack = isCollector ? generateCollectorBoosterPack(setData, i) : generateBoosterPack(setData, i);
+                const pack = generateDraftPackInstance(i);
                 masterCards.push(...pack.slice(0, 9).map(sanitizeDraftCard));
             }
 
@@ -1010,7 +1049,7 @@ async function startBoosterDraftHost() {
             // Winston / Winchester: 6 packs shuffled into central stack
             let masterStack = [];
             for (let i = 1; i <= 6; i++) {
-                const pack = isCollector ? generateCollectorBoosterPack(setData, i) : generateBoosterPack(setData, i);
+                const pack = generateDraftPackInstance(i);
                 masterStack.push(...pack.map(sanitizeDraftCard));
             }
 
@@ -1067,7 +1106,7 @@ async function startBoosterDraftHost() {
             const totalPacks = playersList.length * packsPerPlayer;
             const allPacks = [];
             for (let i = 1; i <= totalPacks; i++) {
-                const pack = isCollector ? generateCollectorBoosterPack(setData, i) : generateBoosterPack(setData, i);
+                const pack = generateDraftPackInstance(i);
                 allPacks.push(pack.map(sanitizeDraftCard));
             }
 
@@ -1089,7 +1128,7 @@ async function startBoosterDraftHost() {
             for (let r = 1; r <= packsPerPlayer; r++) {
                 roundPacks[`round_${r}`] = {};
                 playersList.forEach(p => {
-                    const pack = isCollector ? generateCollectorBoosterPack(setData, r) : generateBoosterPack(setData, r);
+                    const pack = generateDraftPackInstance(r);
                     roundPacks[`round_${r}`][p.id] = pack.map(sanitizeDraftCard);
                 });
             }

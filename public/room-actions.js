@@ -1,7 +1,7 @@
-import { db, functions } from './firebase-setup.js?v=7.16';
+import { db, functions } from './firebase-setup.js?v=7.17';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
-import { fetchDeckFromAPI } from './deck-parser.js?v=7.16';
+import { fetchDeckFromAPI } from './deck-parser.js?v=7.17';
 
 export function initRoomActionsModule(utils, state) {
     const { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, clearSession } = utils;
@@ -498,7 +498,7 @@ export function initRoomActionsModule(utils, state) {
             // Route directly to the HTTPS Cloud Function in production to avoid the Firebase Hosting 60-second rewrite gateway timeout
             const primaryUrl = window.location.protocol === 'https:'
                 ? 'https://us-central1-commander-challenge.cloudfunctions.net/simulateStream'
-                : 'http://132.145.31.195:8080/api/simulate/stream';
+                : 'http://132.145.25.49:8080/api/simulate/stream';
             const fallbackUrl = window.location.protocol === 'https:' ? '/api/simulate/stream' : null;
 
             const postBody = JSON.stringify({

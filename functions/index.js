@@ -1415,8 +1415,8 @@ exports.simulateStream = onRequest({ cors: true, timeoutSeconds: 300, memory: "2
     const postData = JSON.stringify(req.body || {});
 
     const proxyReq = http.request({
-        hostname: '132.145.31.195',
-        port: 8080,
+        hostname: process.env.FORGE_SIM_HOST || '132.145.25.49',
+        port: parseInt(process.env.FORGE_SIM_PORT || '8080', 10),
         path: '/api/simulate/stream',
         method: 'POST',
         headers: {

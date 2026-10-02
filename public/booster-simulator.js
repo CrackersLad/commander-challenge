@@ -20,11 +20,97 @@ export function initBoosterSimulatorModule(utils, state) {
     }
 }
 
+// Magic: The Gathering Booster Era Classifier:
+// 1. 'draft_era': Sets released prior to Zendikar Rising (before 2020-09-25).
+//    Only Draft Boosters existed (15 cards, 36 packs/box).
+// 2. 'set_era': Sets from Zendikar Rising (2020-09-25) through The Lost Caverns of Ixalan (up to 2024-02-08).
+//    Both Draft Boosters AND Set Boosters existed!
+//    User preference: Use Draft Boosters for Draft, and Set Boosters for Booster Simulator.
+// 3. 'play_era': Sets from Murders at Karlov Manor onwards (2024-02-09+).
+//    Draft and Set boosters merged into Play Boosters (14 cards, 36 packs/box).
+
+export const KNOWN_SET_BOOSTER_SETS = new Set([
+    'znr', 'khm', 'stx', 'mh2', 'afr', 'mid', 'vow', 'neo', 'snc', 
+    'clb', 'dmu', 'bro', 'one', 'mom', 'mat', 'ltr', 'cmm', 'woe', 'lci'
+]);
+
+export function getSetBoosterEra(setObjOrCode) {
+    let code = '';
+    let releasedAt = '';
+
+    if (typeof setObjOrCode === 'string') {
+        code = setObjOrCode.toLowerCase().trim();
+        const sets = (typeof window !== 'undefined' && Array.isArray(window.scryfallSets)) ? window.scryfallSets : [];
+        const found = sets.find(s => s.code.toLowerCase() === code);
+        if (found) releasedAt = found.released_at || '';
+    } else if (setObjOrCode && typeof setObjOrCode === 'object') {
+        code = (setObjOrCode.code || '').toLowerCase().trim();
+        releasedAt = setObjOrCode.released_at || '';
+    }
+
+    if (KNOWN_SET_BOOSTER_SETS.has(code)) {
+        return 'set_era';
+    }
+
+    if (releasedAt) {
+        if (releasedAt < '2020-09-25') return 'draft_era';
+        if (releasedAt < '2024-02-09') return 'set_era';
+        return 'play_era';
+    }
+
+    // Modern Play Booster sets default fallback
+    const modernPlaySets = new Set(['mkm', 'otj', 'big', 'mh3', 'acr', 'blb', 'dsk', 'fdn', 'dft', 'tdm']);
+    if (modernPlaySets.has(code)) return 'play_era';
+
+    return 'draft_era';
+}
+
+// Curated pool of iconic cards from "The List" for Set Boosters
+export const THE_LIST_CARDS = [
+    { name: "Sensei's Divining Top", rarity: 'rare', mana_cost: '{1}', type_line: 'Artifact', prices: { usd: '28.50', eur: '24.00', tix: '2.50' }, image: 'https://cards.scryfall.io/normal/front/9/0/90113886-11da-4a9b-a551-70f872bdb870.jpg' },
+    { name: "Vampiric Tutor", rarity: 'mythic', mana_cost: '{B}', type_line: 'Instant', prices: { usd: '42.00', eur: '36.50', tix: '4.80' }, image: 'https://cards.scryfall.io/normal/front/1/8/18bd5048-b3bb-47df-bc70-9bba302e6396.jpg' },
+    { name: "Cavern of Souls", rarity: 'mythic', mana_cost: '', type_line: 'Land', prices: { usd: '38.00', eur: '32.00', tix: '3.20' }, image: 'https://cards.scryfall.io/normal/front/4/d/4da529f0-c8d8-4bdd-8707-499e282ecb02.jpg' },
+    { name: "Kozilek, Butcher of Truth", rarity: 'mythic', mana_cost: '{10}', type_line: 'Legendary Creature — Eldrazi', prices: { usd: '55.00', eur: '48.00', tix: '6.00' }, image: 'https://cards.scryfall.io/normal/front/d/2/d27cf7b7-7982-46bd-a559-7789c0e74bae.jpg' },
+    { name: "Dark Depths", rarity: 'mythic', mana_cost: '', type_line: 'Legendary Snow Land', prices: { usd: '12.50', eur: '10.50', tix: '1.20' }, image: 'https://cards.scryfall.io/normal/front/0/0/00cb170d-4522-4c86-879e-c881c6d3000a.jpg' },
+    { name: "Snapcaster Mage", rarity: 'mythic', mana_cost: '{1}{U}', type_line: 'Creature — Human Wizard', prices: { usd: '18.00', eur: '15.00', tix: '1.80' }, image: 'https://cards.scryfall.io/normal/front/7/e/7e41765e-43fe-461d-baeb-ee30d13d2d93.jpg' },
+    { name: "Craterhoof Behemoth", rarity: 'mythic', mana_cost: '{5}{G}{G}{G}', type_line: 'Creature — Beast', prices: { usd: '34.00', eur: '29.00', tix: '3.50' }, image: 'https://cards.scryfall.io/normal/front/4/4/44874ce8-a534-4722-a7c8-afbc03771283.jpg' },
+    { name: "Smothering Tithe", rarity: 'rare', mana_cost: '{3}{W}', type_line: 'Enchantment', prices: { usd: '22.00', eur: '19.50', tix: '2.40' }, image: 'https://cards.scryfall.io/normal/front/f/2/f25a4bbe-2af0-4d4a-95d4-d52c5937743a.jpg' },
+    { name: "Rhystic Study", rarity: 'rare', mana_cost: '{2}{U}', type_line: 'Enchantment', prices: { usd: '44.00', eur: '38.00', tix: '5.10' }, image: 'https://cards.scryfall.io/normal/front/d/6/d6914dba-0d27-4055-ac34-b3ebf5802221.jpg' },
+    { name: "Phyrexian Altar", rarity: 'rare', mana_cost: '{3}', type_line: 'Artifact', prices: { usd: '26.00', eur: '22.00', tix: '2.80' }, image: 'https://cards.scryfall.io/normal/front/3/c/3c7680f8-e377-4822-96cb-32c632736292.jpg' },
+    { name: "Dockside Extortionist", rarity: 'rare', mana_cost: '{1}{R}', type_line: 'Creature — Goblin Pirate', prices: { usd: '85.00', eur: '72.00', tix: '9.00' }, image: 'https://cards.scryfall.io/normal/front/5/7/571bc9eb-8d13-4008-86b5-2e348a326d58.jpg' },
+    { name: "Doubling Season", rarity: 'mythic', mana_cost: '{4}{G}', type_line: 'Enchantment', prices: { usd: '46.00', eur: '39.00', tix: '4.50' }, image: 'https://cards.scryfall.io/normal/front/8/6/8676d164-c76e-402b-a649-6ded3f549b6e.jpg' },
+    { name: "Anointed Procession", rarity: 'rare', mana_cost: '{3}{W}', type_line: 'Enchantment', prices: { usd: '52.00', eur: '44.00', tix: '5.20' }, image: 'https://cards.scryfall.io/normal/front/9/a/9a52c265-6920-4929-ba0a-70da08df01f1.jpg' },
+    { name: "Bolas's Citadel", rarity: 'rare', mana_cost: '{3}{B}{B}{B}', type_line: 'Legendary Artifact', prices: { usd: '8.50', eur: '7.00', tix: '0.90' }, image: 'https://cards.scryfall.io/normal/front/d/2/d2124603-d20e-40eb-97f0-a66323397ac2.jpg' },
+    { name: "Demonic Tutor", rarity: 'rare', mana_cost: '{1}{B}', type_line: 'Sorcery', prices: { usd: '40.00', eur: '35.00', tix: '4.00' }, image: 'https://cards.scryfall.io/normal/front/3/b/3bdbc231-5316-4abd-9d8d-d87cff2c9847.jpg' },
+    { name: "Esper Sentinel", rarity: 'rare', mana_cost: '{W}', type_line: 'Artifact Creature — Human Soldier', prices: { usd: '36.00', eur: '30.00', tix: '3.60' }, image: 'https://cards.scryfall.io/normal/front/f/3/f3537373-de0b-42dd-beaf-5fb8c0d16567.jpg' },
+    { name: "Ancient Tomb", rarity: 'rare', mana_cost: '', type_line: 'Land', prices: { usd: '78.00', eur: '65.00', tix: '8.00' }, image: 'https://cards.scryfall.io/normal/front/b/d/bd3d4b4b-cf31-4f89-8140-9650edb03c7b.jpg' },
+    { name: "Cyclonic Rift", rarity: 'rare', mana_cost: '{1}{U}', type_line: 'Instant', prices: { usd: '35.00', eur: '31.00', tix: '3.80' }, image: 'https://cards.scryfall.io/normal/front/f/5/f58d7c49-04fa-4d1d-8c11-9a706ec28fb4.jpg' },
+    { name: "Lightning Greaves", rarity: 'uncommon', mana_cost: '{2}', type_line: 'Artifact — Equipment', prices: { usd: '7.50', eur: '6.20', tix: '0.80' }, image: 'https://cards.scryfall.io/normal/front/8/d/8d43c228-5cf1-43ed-9459-994f71a4f07e.jpg' }
+];
+
+function pickListCard(setData) {
+    if (THE_LIST_CARDS.length === 0) return null;
+    const card = THE_LIST_CARDS[Math.floor(Math.random() * THE_LIST_CARDS.length)];
+    return {
+        id: `list_${card.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+        name: card.name,
+        mana_cost: card.mana_cost,
+        type_line: card.type_line,
+        rarity: card.rarity,
+        set: 'plist',
+        image_uris: { normal: card.image, large: card.image },
+        prices: card.prices,
+        isListCard: true
+    };
+}
+
 // Preset benchmark market prices for MTG sets
 function getEstimatedMarketPrices(setObj, isBox, market = 'usd', packEdition = 'play') {
     const code = (setObj?.code || '').toLowerCase();
     const type = setObj?.set_type || 'expansion';
     const isCollector = packEdition === 'collector';
+    const isSet = packEdition === 'set';
+    const isDraft = packEdition === 'draft';
     
     // Check if modern horizons or masters
     const isHorizons = code.startsWith('mh') || code === 'ltr' || code === 'inr';
@@ -43,7 +129,32 @@ function getEstimatedMarketPrices(setObj, isBox, market = 'usd', packEdition = '
             defaultPackUsd = 24.99;
             defaultBoxUsd = 269.99;
         }
+    } else if (isSet) {
+        // Set Booster Boxes historically contain 30 packs
+        packsPerBox = 30;
+        if (isMasters || isHorizons) {
+            defaultPackUsd = 11.99;
+            defaultBoxUsd = 269.99;
+        } else {
+            defaultPackUsd = 4.99;
+            defaultBoxUsd = 129.99;
+        }
+    } else if (isDraft) {
+        // Draft Booster Boxes contain 36 packs
+        packsPerBox = 36;
+        if (isMasters) {
+            defaultPackUsd = 10.99;
+            defaultBoxUsd = 249.99;
+            packsPerBox = 24;
+        } else if (isHorizons) {
+            defaultPackUsd = 7.99;
+            defaultBoxUsd = 239.99;
+        } else {
+            defaultPackUsd = 4.25;
+            defaultBoxUsd = 124.99;
+        }
     } else {
+        // Play Boosters (36 packs)
         if (isMasters) {
             defaultPackUsd = 11.99;
             defaultBoxUsd = 279.99;
@@ -354,8 +465,214 @@ function pickCollatedCard(pool, usedNamesInPack, boxHistory = null, allowBoxRero
     return chosen;
 }
 
-// Generate realistic booster pack
-export function generateBoosterPack(setData, packNumber = 1, boxHistory = null) {
+// Generate authentic Draft Booster pack (Classic 15 cards for limited drafting)
+// 10 Commons, 3 Uncommons, 1 Rare/Mythic, 1 Basic Land, ~25% chance of foil replacing 1 common
+export function generateDraftBoosterPack(setData, packNumber = 1, boxHistory = null) {
+    const packCards = [];
+    const usedNamesInPack = new Set();
+    const hasDoubleRare = ['2x2', '2xm'].includes(setData.code);
+
+    // 1. Rare / Mythic Rare Slot (approx 1 in 7.4 packs is Mythic: ~13.5%)
+    const isMythic = Math.random() < 0.135;
+    const rarePool = isMythic ? setData.mythics : setData.rares;
+    let rareCard = pickCollatedCard(rarePool, usedNamesInPack, boxHistory, true);
+
+    // Showcase/alternate frame upgrade chance
+    if (Math.random() < 0.15 && setData.showcases?.length > 0 && rareCard) {
+        const matchingShowcase = setData.showcases.find(s => s.name === rareCard.name);
+        if (matchingShowcase) rareCard = matchingShowcase;
+    }
+    const rarePackCard = rareCard ? createPackCard(rareCard, false, packNumber, rareCard.rarity === 'mythic' ? 'Mythic Rare' : 'Rare') : null;
+
+    // Double Masters has a 2nd guaranteed Rare/Mythic
+    let rarePackCard2 = null;
+    if (hasDoubleRare) {
+        const isMythic2 = Math.random() < 0.135;
+        const rareCard2 = pickCollatedCard(isMythic2 ? setData.mythics : setData.rares, usedNamesInPack, boxHistory, true);
+        if (rareCard2) rarePackCard2 = createPackCard(rareCard2, false, packNumber, 'Bonus Rare');
+    }
+
+    // 2. 3 Uncommons (unique in pack)
+    const uncommons = [];
+    for (let i = 0; i < 3; i++) {
+        const u = pickCollatedCard(setData.uncommons, usedNamesInPack, boxHistory, false);
+        if (u) uncommons.push(createPackCard(u, false, packNumber, 'Uncommon'));
+    }
+
+    // 3. Foil replacement: in ~25% of authentic draft boosters, a foil card of any rarity replaces a common
+    const hasFoil = Math.random() < 0.25;
+    let foilCard = null;
+    if (hasFoil) {
+        const fRoll = Math.random();
+        let foilPool = setData.commons;
+        if (fRoll < 0.70) foilPool = setData.commons;
+        else if (fRoll < 0.90) foilPool = setData.uncommons;
+        else if (fRoll < 0.98) foilPool = setData.rares;
+        else foilPool = setData.mythics;
+
+        const f = pickCollatedCard(foilPool, usedNamesInPack, boxHistory, true);
+        if (f) foilCard = createPackCard(f, true, packNumber, 'Traditional Foil');
+    }
+
+    // 4. Commons: 10 commons (or 9 if foil replaced one)
+    const numCommons = foilCard ? 9 : 10;
+    const commons = [];
+    for (let i = 0; i < numCommons; i++) {
+        const c = pickCollatedCard(setData.commons, usedNamesInPack, boxHistory, false);
+        if (c) commons.push(createPackCard(c, false, packNumber, 'Common'));
+    }
+
+    // 5. Basic Land slot (15% foil chance)
+    let landPackCard = null;
+    if (setData.basics && setData.basics.length > 0) {
+        const landCard = setData.basics[Math.floor(Math.random() * setData.basics.length)];
+        const landFoil = Math.random() < 0.15;
+        landPackCard = createPackCard(landCard, landFoil, packNumber, landFoil ? 'Foil Land' : 'Basic Land');
+    }
+
+    // Combine in authentic MTG physical collation order:
+    packCards.push(...commons);
+    packCards.push(...uncommons);
+    if (rarePackCard) packCards.push(rarePackCard);
+    if (rarePackCard2) packCards.push(rarePackCard2);
+    if (foilCard) packCards.push(foilCard);
+    if (landPackCard) packCards.push(landPackCard);
+
+    return packCards;
+}
+
+// Generate authentic Set Booster pack (Designed for maximum opening excitement: 1-4 Rares/Mythics, Art Card & The List chance)
+export function generateSetBoosterPack(setData, packNumber = 1, boxHistory = null) {
+    const packCards = [];
+    const usedNamesInPack = new Set();
+
+    // 1. Art Card (Slot 1) - 5% chance of gold-stamped artist signature
+    const artPool = (setData.rares?.length > 0) ? [...setData.mythics, ...setData.rares] : setData.commons;
+    if (artPool.length > 0) {
+        const artSource = artPool[Math.floor(Math.random() * artPool.length)];
+        const isSignature = Math.random() < 0.05;
+        const artCardObj = {
+            id: `art_${artSource.id}`,
+            name: `${artSource.name} (Art Card)`,
+            rarity: 'special',
+            type_line: 'Art Card',
+            border_color: 'borderless',
+            image_uris: artSource.image_uris || (artSource.card_faces ? artSource.card_faces[0].image_uris : null),
+            prices: { usd: isSignature ? '5.00' : '1.50', eur: isSignature ? '4.50' : '1.20', tix: '0.01' },
+            isArtCard: true,
+            isSignatureArt: isSignature
+        };
+        packCards.push(createPackCard(artCardObj, isSignature, packNumber, isSignature ? 'Signature Gold Foil Art Card' : 'Art Card'));
+    }
+
+    // 2. Basic Land slot (Slot 2) - 20% foil chance, often full art
+    if (setData.basics && setData.basics.length > 0) {
+        const landCard = setData.basics[Math.floor(Math.random() * setData.basics.length)];
+        const landFoil = Math.random() < 0.20;
+        packCards.push(createPackCard(landCard, landFoil, packNumber, landFoil ? 'Foil Land' : 'Basic Land'));
+    }
+
+    // 3. Connected Commons & Uncommons (Slots 3-8: 6 cards total)
+    for (let i = 0; i < 4; i++) {
+        const c = pickCollatedCard(setData.commons, usedNamesInPack, boxHistory, false);
+        if (c) packCards.push(createPackCard(c, false, packNumber, 'Common'));
+    }
+    for (let i = 0; i < 2; i++) {
+        const u = pickCollatedCard(setData.uncommons, usedNamesInPack, boxHistory, false);
+        if (u) packCards.push(createPackCard(u, false, packNumber, 'Uncommon'));
+    }
+
+    // 4. "Head-Turner" Showcase / Alt Frame Card (Slot 9)
+    const showcaseCommonUnc = setData.showcases?.filter(c => c.rarity === 'common' || c.rarity === 'uncommon') || [];
+    let headTurner = null;
+    if (showcaseCommonUnc.length > 0 && Math.random() < 0.70) {
+        headTurner = pickCollatedCard(showcaseCommonUnc, usedNamesInPack, boxHistory, false);
+    }
+    if (!headTurner) {
+        headTurner = pickCollatedCard(setData.uncommons, usedNamesInPack, boxHistory, false);
+    }
+    if (headTurner) {
+        packCards.push(createPackCard(headTurner, false, packNumber, 'Showcase Head-Turner'));
+    }
+
+    // 5. Wildcard Slots 1 & 2 (Slots 10 & 11) - 2 Wildcards of ANY rarity!
+    for (let w = 1; w <= 2; w++) {
+        const wRoll = Math.random();
+        let wPool = setData.commons;
+        let wTag = `Wildcard ${w}`;
+
+        if (setData.commanderRareMythics?.length > 0 && wRoll < 0.10) {
+            wPool = setData.commanderRareMythics;
+            wTag = 'Commander Hit';
+        } else if (wRoll < 0.48) {
+            wPool = setData.commons;
+            wTag = 'Wildcard Common';
+        } else if (wRoll < 0.80) {
+            wPool = setData.uncommons;
+            wTag = 'Wildcard Uncommon';
+        } else if (wRoll < 0.96) {
+            wPool = setData.rares;
+            wTag = 'Wildcard Rare Hit';
+        } else {
+            wPool = setData.mythics;
+            wTag = 'Wildcard Mythic Hit';
+        }
+
+        const wCard = pickCollatedCard(wPool, usedNamesInPack, boxHistory, true);
+        if (wCard) {
+            const isWFoil = Math.random() < 0.25;
+            packCards.push(createPackCard(wCard, isWFoil, packNumber, isWFoil ? `Foil ${wTag}` : wTag));
+        }
+    }
+
+    // 6. Main Guaranteed Rare / Mythic Slot (Slot 12) - ~14.3% Mythic
+    const isMythic = Math.random() < 0.143;
+    const rarePool = isMythic ? setData.mythics : setData.rares;
+    let mainRare = pickCollatedCard(rarePool, usedNamesInPack, boxHistory, true);
+    if (Math.random() < 0.20 && setData.showcases?.length > 0 && mainRare) {
+        const match = setData.showcases.find(s => s.name === mainRare.name);
+        if (match) mainRare = match;
+    }
+    if (mainRare) {
+        packCards.push(createPackCard(mainRare, false, packNumber, mainRare.rarity === 'mythic' ? 'Set Mythic Hit' : 'Set Rare Hit'));
+    }
+
+    // 7. Guaranteed Traditional Foil of Any Rarity (Slot 13)
+    const foilRoll = Math.random();
+    let foilPool = setData.commons;
+    let foilTag = 'Traditional Foil Common';
+    if (foilRoll < 0.60) {
+        foilPool = setData.commons;
+        foilTag = 'Traditional Foil Common';
+    } else if (foilRoll < 0.85) {
+        foilPool = setData.uncommons;
+        foilTag = 'Traditional Foil Uncommon';
+    } else if (foilRoll < 0.97) {
+        foilPool = setData.rares;
+        foilTag = 'Foil Rare Hit';
+    } else {
+        foilPool = setData.mythics;
+        foilTag = 'Foil Mythic Hit';
+    }
+    const foilCard = pickCollatedCard(foilPool, usedNamesInPack, boxHistory, true);
+    if (foilCard) {
+        packCards.push(createPackCard(foilCard, true, packNumber, foilTag));
+    }
+
+    // 8. The List or Token Slot (Slot 14) - 25% chance of a card from "The List"!
+    const isTheList = Math.random() < 0.25;
+    if (isTheList) {
+        const listCard = pickListCard(setData);
+        if (listCard) {
+            packCards.push(createPackCard(listCard, false, packNumber, 'The List (Planeswalker Stamp)'));
+        }
+    }
+
+    return packCards;
+}
+
+// Generate authentic Play Booster pack (Modern unified formula MKM onwards: 14 cards)
+export function generatePlayBoosterPack(setData, packNumber = 1, boxHistory = null) {
     const packCards = [];
     const usedNamesInPack = new Set();
     const isMasters = setData.code.startsWith('mh') || ['2x2', '2xm', 'cmm', 'uma', 'ema'].includes(setData.code);
@@ -453,6 +770,40 @@ export function generateBoosterPack(setData, packNumber = 1, boxHistory = null) 
     }
 
     return packCards;
+}
+
+// Context-aware Booster Pack Generator Router
+// Automatically routes to Draft, Set, Play, or Collector boosters based on set era and context
+export function generateBoosterPack(setData, packNumber = 1, boxHistory = null, context = 'simulator', forcedEdition = null) {
+    if (forcedEdition === 'collector') {
+        return generateCollectorBoosterPack(setData, packNumber, boxHistory);
+    }
+    if (forcedEdition === 'set') {
+        return generateSetBoosterPack(setData, packNumber, boxHistory);
+    }
+    if (forcedEdition === 'draft') {
+        return generateDraftBoosterPack(setData, packNumber, boxHistory);
+    }
+    if (forcedEdition === 'play') {
+        return generatePlayBoosterPack(setData, packNumber, boxHistory);
+    }
+
+    const era = getSetBoosterEra(setData.code);
+    if (context === 'draft') {
+        // If Draft boosters existed (Draft era or Set era), strictly use Draft Boosters!
+        return (era === 'play_era') 
+            ? generatePlayBoosterPack(setData, packNumber, boxHistory)
+            : generateDraftBoosterPack(setData, packNumber, boxHistory);
+    }
+
+    // Booster Simulator context: Use Set Boosters whenever they existed, Draft Boosters for pre-ZNR, Play Boosters for modern
+    if (era === 'set_era') {
+        return generateSetBoosterPack(setData, packNumber, boxHistory);
+    } else if (era === 'draft_era') {
+        return generateDraftBoosterPack(setData, packNumber, boxHistory);
+    } else {
+        return generatePlayBoosterPack(setData, packNumber, boxHistory);
+    }
 }
 
 // Generate authentic Collector Booster pack (15 cards, high foil & showcase density)
@@ -781,17 +1132,42 @@ export function calculateSetEV(setData, market = 'usd', packEdition = 'play', is
         const colBonus = (0.75 * avgUncFoil) + (0.25 * avgRareFoil);
 
         packEV = colFoilBulk + colLand + colFoilRare + colShowcase + colExtRare + colWildcards + colBonus;
-    } else {
-        // Play / Draft Booster EV (14 cards)
-        // 1 Rare/Mythic slot (approx 1:7 mythic ratio)
+    } else if (packEdition === 'set') {
+        // Set Booster EV (1-4 Rares/Mythics, 2 wildcards, guaranteed foil, Art card, and The List chance)
         const rareSlotEV = (0.857 * avgRare) + (0.143 * avgMythic);
-        // Wildcard slot (can be any rarity, rare/mythic approx 25%)
+        // 2 Wildcards (approx 16% rare, 4% mythic, 32% unc, 48% common)
+        const singleWildcardEV = (0.48 * avgCommon) + (0.32 * avgUnc) + (0.16 * avgRare) + (0.04 * avgMythic);
+        const wildcardsEV = 2 * singleWildcardEV;
+        // 1 Guaranteed Foil
+        const foilSlotEV = (0.60 * avgCommonFoil) + (0.25 * avgUncFoil) + (0.12 * avgRareFoil) + (0.03 * avgMythicFoil);
+        // Showcase Head-Turner
+        const headTurnerEV = (0.60 * (avgStdShowcaseFoil > 0 ? avgStdShowcaseFoil * 0.5 : avgUnc)) + (0.40 * avgUnc);
+        // 6 Connected Commons & Uncommons
+        const bulkEV = (4 * avgCommon) + (2 * avgUnc);
+        // Art card & land
+        const artLandEV = 0.15;
+        // 25% chance of The List card (~$2.20 avg)
+        const listEV = 0.25 * 2.20;
+
+        packEV = rareSlotEV + wildcardsEV + foilSlotEV + headTurnerEV + bulkEV + artLandEV + listEV;
+    } else if (packEdition === 'draft') {
+        // Draft Booster EV (15 cards: 1 rare/mythic, 3 uncommons, 10 commons or 9 commons + foil, 1 land)
+        const rareSlotEV = (0.865 * avgRare) + (0.135 * avgMythic);
+        const uncSlotEV = 3 * avgUnc;
+        const commonSlotEV = 9.75 * avgCommon;
+        // ~25% foil replacing common
+        const foilSlotEV = 0.25 * ((0.70 * avgCommonFoil) + (0.20 * avgUncFoil) + (0.08 * avgRareFoil) + (0.02 * avgMythicFoil));
+        const landEV = 0.03;
+
+        packEV = rareSlotEV + uncSlotEV + commonSlotEV + foilSlotEV + landEV;
+    } else {
+        // Play Booster EV (14 cards)
+        const rareSlotEV = (0.857 * avgRare) + (0.143 * avgMythic);
         const wildcardEV = (0.40 * avgCommon) + (0.35 * avgUnc) + (0.20 * avgRare) + (0.05 * avgMythic);
-        // Dedicated foil slot (1 per pack on average in Play Boosters)
         const foilSlotEV = (0.65 * avgCommonFoil) + (0.25 * avgUncFoil) + (0.085 * avgRareFoil) + (0.015 * avgMythicFoil);
         const uncSlotEV = 3 * avgUnc;
         const commonSlotEV = 6.95 * avgCommon;
-        const landEV = 0.05; // basic land slot
+        const landEV = 0.05;
 
         packEV = rareSlotEV + wildcardEV + foilSlotEV + uncSlotEV + commonSlotEV + landEV;
     }
@@ -1013,7 +1389,7 @@ export function playFoilTearSound() {
     }
 }
 
-function updateOpenButtonText() {
+function updateOpenButtonText(pricing = null, resolvedEdition = 'play') {
     const openBtn = document.getElementById('boosterOpenBtn');
     if (!openBtn) return;
     const isBox = document.getElementById('boosterModeBox')?.checked ?? false;
@@ -1021,8 +1397,15 @@ function updateOpenButtonText() {
     
     if (isCollector) {
         openBtn.innerHTML = isBox ? '<span>⚡ CRACK COLLECTOR BOX (12) ⚡</span>' : '<span>⚡ OPEN COLLECTOR PACK ⚡</span>';
+    } else if (resolvedEdition === 'set') {
+        const count = pricing?.packsPerBox || 30;
+        openBtn.innerHTML = isBox ? `<span>⚡ CRACK SET BOOSTER BOX (${count}) ⚡</span>` : '<span>⚡ OPEN SET BOOSTER ⚡</span>';
+    } else if (resolvedEdition === 'draft') {
+        const count = pricing?.packsPerBox || 36;
+        openBtn.innerHTML = isBox ? `<span>⚡ CRACK DRAFT BOX (${count}) ⚡</span>` : '<span>⚡ OPEN DRAFT PACK ⚡</span>';
     } else {
-        openBtn.innerHTML = isBox ? '<span>⚡ CRACK BOOSTER BOX ⚡</span>' : '<span>⚡ OPEN SINGLE PACK ⚡</span>';
+        const count = pricing?.packsPerBox || 36;
+        openBtn.innerHTML = isBox ? `<span>⚡ CRACK PLAY BOOSTER BOX (${count}) ⚡</span>` : '<span>⚡ OPEN PLAY BOOSTER ⚡</span>';
     }
 }
 
@@ -1031,7 +1414,6 @@ export function updateMarketAndCostDisplay() {
     const marketSelect = document.getElementById('boosterMarketSelect');
     const isBox = document.getElementById('boosterModeBox')?.checked ?? false;
     const isCollector = document.getElementById('boosterEditionCollector')?.checked ?? false;
-    const packEdition = isCollector ? 'collector' : 'play';
     const costInput = document.getElementById('boosterCostInput');
     const costCurrencyLabel = document.getElementById('boosterCostCurrency');
 
@@ -1041,15 +1423,35 @@ export function updateMarketAndCostDisplay() {
     const setCode = resolveInputSetCode(setInput?.value || 'dsk');
     const sets = window.scryfallSets || [];
     const setObj = sets.find(s => s.code.toLowerCase() === setCode) || { code: setCode };
-    const pricing = getEstimatedMarketPrices(setObj, isBox, market, packEdition);
+    
+    // Resolve authentic booster edition for simulator:
+    // If Set Boosters existed for this set, use Set Boosters!
+    // If pre-ZNR, use Draft Boosters. If MKM+, use Play Boosters.
+    const era = getSetBoosterEra(setObj);
+    const resolvedEdition = isCollector 
+        ? 'collector' 
+        : (era === 'set_era' ? 'set' : (era === 'draft_era' ? 'draft' : 'play'));
+
+    const pricing = getEstimatedMarketPrices(setObj, isBox, market, resolvedEdition);
 
     if (costCurrencyLabel) {
         costCurrencyLabel.textContent = getCurrencySymbol(market);
     }
 
-    // Only update cost if user hasn't typed a custom value or just changed market/box/edition
     costInput.value = pricing.currentCost.toFixed(2);
     costInput.dataset.defaultCost = pricing.currentCost.toFixed(2);
+
+    // Update standard edition pill text dynamically
+    const standardPill = document.getElementById('boosterStandardPillLabel');
+    if (standardPill) {
+        if (era === 'set_era') {
+            standardPill.textContent = '📦 Set Booster';
+        } else if (era === 'draft_era') {
+            standardPill.textContent = '⚔️ Draft Booster';
+        } else {
+            standardPill.textContent = '🎮 Play Booster';
+        }
+    }
 
     // Update box quantity pill label
     const boxPillLabel = document.getElementById('boosterBoxPillLabel');
@@ -1064,10 +1466,18 @@ export function updateMarketAndCostDisplay() {
             itemTypeLabel.textContent = isBox 
                 ? `Collector Booster Box (12 Packs, ~60 Rares/Foils)` 
                 : 'Collector Booster (15 Cards, 4-6 Rares/Foils)';
+        } else if (resolvedEdition === 'set') {
+            itemTypeLabel.textContent = isBox 
+                ? `Set Booster Box (${pricing.packsPerBox} Packs, 1-4 Rares/Pack)` 
+                : 'Set Booster (12 Cards + Art & The List Chance)';
+        } else if (resolvedEdition === 'draft') {
+            itemTypeLabel.textContent = isBox 
+                ? `Draft Booster Box (${pricing.packsPerBox} Packs)` 
+                : 'Draft Booster (Classic 15 Cards)';
         } else {
             itemTypeLabel.textContent = isBox 
-                ? `Booster Box (${pricing.packsPerBox} Packs)` 
-                : 'Play / Draft Booster (14 Cards)';
+                ? `Play Booster Box (${pricing.packsPerBox} Packs)` 
+                : 'Play Booster (14 Cards)';
         }
     }
 
@@ -1075,7 +1485,8 @@ export function updateMarketAndCostDisplay() {
     const marketLinkEl = document.getElementById('boosterMarketLookupLink');
     const marketTextEl = document.getElementById('boosterMarketLookupText');
     if (marketLinkEl && marketTextEl) {
-        const productTerm = `${setObj.name || setCode.toUpperCase()} ${isCollector ? 'Collector ' : ''}${isBox ? 'Booster Box' : 'Booster Pack'}`;
+        const editionName = isCollector ? 'Collector ' : (resolvedEdition === 'set' ? 'Set ' : (resolvedEdition === 'draft' ? 'Draft ' : 'Play '));
+        const productTerm = `${setObj.name || setCode.toUpperCase()} ${editionName}${isBox ? 'Booster Box' : 'Booster Pack'}`;
         if (market === 'usd') {
             marketLinkEl.href = `https://www.tcgplayer.com/search/magic/product?q=${encodeURIComponent(productTerm)}&view=grid`;
             marketTextEl.textContent = `Check TCGplayer Sealed Prices ↗`;
@@ -1089,7 +1500,7 @@ export function updateMarketAndCostDisplay() {
     }
 
     // Update open button
-    updateOpenButtonText();
+    updateOpenButtonText(pricing, resolvedEdition);
 
     // Update Set icon/badge if available
     const setBadge = document.getElementById('boosterSelectedSetBadge');
@@ -1101,7 +1512,7 @@ export function updateMarketAndCostDisplay() {
     }
 
     // Trigger Dynamic Expected Value (EV) calculation
-    updateEvDisplay(setCode, market, packEdition, isBox, pricing.currentCost, pricing.packsPerBox);
+    updateEvDisplay(setCode, market, resolvedEdition, isBox, pricing.currentCost, pricing.packsPerBox);
 }
 
 function resolveInputSetCode(val) {
@@ -1128,7 +1539,6 @@ export async function crackBoosterProduct(utils) {
     const marketSelect = document.getElementById('boosterMarketSelect');
     const isBox = document.getElementById('boosterModeBox')?.checked ?? false;
     const isCollector = document.getElementById('boosterEditionCollector')?.checked ?? false;
-    const packEdition = isCollector ? 'collector' : 'play';
     const costInput = document.getElementById('boosterCostInput');
     const openBtn = document.getElementById('boosterOpenBtn');
 
@@ -1141,41 +1551,51 @@ export async function crackBoosterProduct(utils) {
     openBtn.innerHTML = `<span>⏳ Preparing Packs...</span>`;
 
     try {
-        // Fetch cards while keeping page focused on controls
         const setData = await fetchSetBoosterCards(setCode);
         const sets = window.scryfallSets || [];
         const setObj = sets.find(s => s.code.toLowerCase() === setCode) || { code: setCode, name: setCode.toUpperCase() };
-        const pricing = getEstimatedMarketPrices(setObj, isBox, market, packEdition);
+
+        const era = getSetBoosterEra(setObj);
+        const resolvedEdition = isCollector 
+            ? 'collector' 
+            : (era === 'set_era' ? 'set' : (era === 'draft_era' ? 'draft' : 'play'));
+
+        const pricing = getEstimatedMarketPrices(setObj, isBox, market, resolvedEdition);
         const numPacks = isBox ? pricing.packsPerBox : 1;
 
-        // Perform smooth, paced opening animation
-        await playBoosterOpenAnimation(setObj, isBox, numPacks, utils, packEdition);
+        // Perform smooth opening animation with accurate edition name
+        await playBoosterOpenAnimation(setObj, isBox, numPacks, utils, resolvedEdition);
 
-        // Generate packs with sheet-level collation tracking across the box
+        // Generate packs using appropriate generator
         let allCards = [];
         const boxHistory = isBox ? new Map() : null;
         for (let i = 1; i <= numPacks; i++) {
-            const packCards = isCollector 
-                ? generateCollectorBoosterPack(setData, i, boxHistory) 
-                : generateBoosterPack(setData, i, boxHistory);
+            let packCards;
+            if (isCollector) {
+                packCards = generateCollectorBoosterPack(setData, i, boxHistory);
+            } else if (resolvedEdition === 'set') {
+                packCards = generateSetBoosterPack(setData, i, boxHistory);
+            } else if (resolvedEdition === 'draft') {
+                packCards = generateDraftBoosterPack(setData, i, boxHistory);
+            } else {
+                packCards = generatePlayBoosterPack(setData, i, boxHistory);
+            }
             allCards.push(...packCards);
         }
 
-        // Assign explicit unique index and uid to every pulled card instance
         allCards.forEach((c, idx) => {
             c.simIndex = idx;
             c.uid = `sim_card_${idx}_${c.id}_${c.isFoil ? 'foil' : 'reg'}`;
         });
 
-        // Calculate expected EV for this configuration
-        const evData = calculateSetEV(setData, market, packEdition, isBox, numPacks);
+        const evData = calculateSetEV(setData, market, resolvedEdition, isBox, numPacks);
 
         currentSimulation = {
             setObj,
             setData,
             isBox,
             isCollector,
-            packEdition,
+            packEdition: resolvedEdition,
             numPacks,
             market,
             cost: userCost > 0 ? userCost : pricing.currentCost,
@@ -1184,7 +1604,6 @@ export async function crackBoosterProduct(utils) {
             timestamp: Date.now()
         };
 
-        // Reveal results smoothly after animation ends
         const stage = document.getElementById('boosterResultsStage');
         if (stage) {
             stage.style.display = 'block';
@@ -1199,7 +1618,7 @@ export async function crackBoosterProduct(utils) {
     } finally {
         if (openBtn) {
             openBtn.disabled = false;
-            updateOpenButtonText();
+            updateMarketAndCostDisplay();
         }
     }
 }
@@ -1216,7 +1635,11 @@ function playBoosterOpenAnimation(setObj, isBox, numPacks, utils, packEdition = 
         const isCollector = packEdition === 'collector';
         const typeLabel = isCollector 
             ? (isBox ? `CRACKING ${numPacks} COLLECTOR PACKS` : 'CRACKING COLLECTOR BOOSTER')
-            : (isBox ? `CRACKING ${numPacks} BOOSTER PACKS` : 'CRACKING PLAY BOOSTER');
+            : (packEdition === 'set'
+                ? (isBox ? `CRACKING ${numPacks} SET BOOSTER PACKS` : 'CRACKING SET BOOSTER')
+                : (packEdition === 'draft'
+                    ? (isBox ? `CRACKING ${numPacks} DRAFT BOOSTER PACKS` : 'CRACKING DRAFT BOOSTER')
+                    : (isBox ? `CRACKING ${numPacks} PLAY BOOSTER PACKS` : 'CRACKING PLAY BOOSTER')));
 
         overlay.style.opacity = '0';
         overlay.style.display = 'flex';
@@ -1359,7 +1782,7 @@ function renderSidebarAnalytics(sim, container) {
             <div class="sidebar-header">
                 <div class="sidebar-title">📊 Pulls Analytics</div>
                 <div class="sidebar-subtitle">${sim.setObj.name || sim.setObj.code.toUpperCase()}</div>
-                <div class="sidebar-product-tag">${sim.isCollector ? '✨ Collector ' : 'Play '}${sim.isBox ? `Box (${sim.numPacks} Packs)` : 'Pack'}</div>
+                <div class="sidebar-product-tag">${sim.isCollector ? '✨ Collector ' : (sim.packEdition === 'set' ? '📦 Set ' : (sim.packEdition === 'draft' ? '⚔️ Draft ' : '🎮 Play '))}${sim.isBox ? `Box (${sim.numPacks} Packs)` : 'Pack'}</div>
             </div>
 
             <!-- Financial Profit / Loss Summary Card -->
