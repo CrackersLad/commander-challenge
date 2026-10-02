@@ -1623,6 +1623,8 @@ select:focus {
 }
 
 .dashboard-header-card {
+    position: relative;
+    z-index: 200;
     background: rgba(18, 18, 26, 0.85);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -1641,6 +1643,8 @@ select:focus {
 
 /* Dashboard Action Ribbon */
 .dashboard-action-ribbon {
+    position: relative;
+    z-index: 210;
     display: flex;
     gap: 10px;
     justify-content: center;
@@ -1683,6 +1687,8 @@ select:focus {
 
 /* Responsive Dashboard Challenger Cards */
 .dashboard {
+    position: relative;
+    z-index: 10;
     display: flex;
     gap: 24px;
     flex-wrap: wrap;
@@ -1707,6 +1713,7 @@ select:focus {
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
     transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
     position: relative;
+    z-index: 11;
     text-align: center;
     box-sizing: border-box !important;
 }
@@ -1872,6 +1879,15 @@ select:focus {
 .dropdown {
     position: relative;
     display: inline-block;
+    z-index: 220;
+}
+
+.dropdown.show {
+    z-index: 1000;
+}
+
+.dashboard-header-card:has(.dropdown.show) {
+    z-index: 1000;
 }
 
 .dropdown-content {
@@ -1881,10 +1897,10 @@ select:focus {
     top: calc(100% + 8px);
     background: rgba(15, 15, 22, 0.98);
     min-width: 200px;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.9);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.9), 0 0 20px rgba(0, 0, 0, 0.8);
     border-radius: var(--radius-md);
     border: 1px solid var(--gold);
-    z-index: 100;
+    z-index: 9999 !important;
     overflow: hidden;
 }
 
@@ -1901,6 +1917,8 @@ select:focus {
     text-align: left;
     transition: all 0.2s ease;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    pointer-events: auto;
 }
 
 .dropdown-content a:last-child {
@@ -1925,6 +1943,7 @@ select:focus {
 .dropdown.show .dropdown-content {
     display: block;
     animation: viewFadeIn 0.2s ease;
+    pointer-events: auto;
 }
 
 /* ==========================================================================
