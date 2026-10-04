@@ -584,6 +584,8 @@ export function initRoomActionsModule(utils, state) {
                                     winnerCommander: winnerCmdr,
                                     turns: eventData.turns,
                                     durationMs: eventData.durationMs,
+                                    log: eventData.log || '',
+                                    turnEvents: eventData.turnEvents || [],
                                     aiSummary: null
                                 };
                                 window._currentSimSession.games.push(matchRecord);
@@ -603,6 +605,9 @@ export function initRoomActionsModule(utils, state) {
                                                 </div>
                                             </div>
                                             <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                                <button type="button" class="secondary-btn" onclick="window.viewTurnLog(${eventData.game})" style="font-size:0.75rem; padding:3px 8px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(52,211,153,0.4); color:#34d399;" title="View cards played, targets, and combat">
+                                                    <span>📜</span> View Log
+                                                </button>
                                                 <button type="button" class="secondary-btn" onclick="window.downloadMatchLog(${eventData.game})" style="font-size:0.75rem; padding:3px 8px; display:inline-flex; align-items:center; gap:4px;">
                                                     <span>📥</span> Log (.txt)
                                                 </button>
@@ -611,6 +616,7 @@ export function initRoomActionsModule(utils, state) {
                                                 </button>
                                             </div>
                                         </div>
+                                        <div id="sim-log-box-${eventData.game}" style="display:none; width:100%;"></div>
                                         <div id="sim-ai-box-${eventData.game}" style="display:none; width:100%;"></div>
                                     `;
                                 }
@@ -696,6 +702,9 @@ export function initRoomActionsModule(utils, state) {
                                                         </div>
                                                     </div>
                                                     <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                                        <button type="button" class="secondary-btn" onclick="window.viewTurnLog(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(52,211,153,0.4); color:#34d399;" title="View cards played, targets, and combat">
+                                                            <span>📜</span> View Log
+                                                        </button>
                                                         <button type="button" class="secondary-btn" onclick="window.downloadMatchLog(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px;">
                                                             <span>📥</span> Log (.txt)
                                                         </button>
@@ -704,6 +713,7 @@ export function initRoomActionsModule(utils, state) {
                                                         </button>
                                                     </div>
                                                 </div>
+                                                <div id="sim-summary-log-box-${g.game}" style="display:none; width:100%;"></div>
                                                 <div id="sim-ai-box-${g.game}" style="display:none; width:100%;"></div>
                                             </div>
                                         `;
@@ -744,6 +754,286 @@ export function initRoomActionsModule(utils, state) {
         }, 150);
     }
 
+    window.viewTurnLog = (gameNum) => {
+        const match = (window._currentSimSession?.games || []).find(g => g.game === gameNum);
+        if (!match) {
+            showToast('Match record not found.', true);
+            return;
+        }
+
+        // Locate container in summary list or active match card
+        const box = document.getElementById(`sim-summary-log-box-${gameNum}`) || document.getElementById(`sim-log-box-${gameNum}`);
+        if (!box) return;
+
+        if (box.style.display !== 'none' && box.dataset.activeGame == String(gameNum)) {
+            box.style.display = 'none';
+            return;
+        }
+
+        box.style.display = 'block';
+        box.dataset.activeGame = String(gameNum);
+
+        const turnEvents = match.turnEvents || [];
+        const fullLog = match.log || '';
+
+        let totalPlays = 0;
+        let spellCount = 0;
+        let combatCount = 0;
+        turnEvents.forEach(t => {
+            (t.events || []).forEach(e => {
+                totalPlays++;
+                if (['cast', 'activated', 'triggered'].includes(e.type)) spellCount++;
+                if (['attack', 'block', 'damage', 'life'].includes(e.type)) combatCount++;
+            });
+        });
+
+        const boxId = `log-view-${gameNum}-${Math.random().toString(36).substring(2, 6)}`;
+
+        box.innerHTML = `
+            <div style="background: rgba(15, 23, 42, 0.96); border: 1px solid rgba(52, 211, 153, 0.4); border-radius: 10px; padding: 14px; text-align: left; margin-top: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+                <!-- Header -->
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                    <div>
+                        <div style="font-weight: 800; color: #34d399; font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
+                            <span>📜</span> Match #${match.game} Action & Targeting Log
+                        </div>
+                        <div style="font-size: 0.78rem; color: #aaa; margin-top: 2px;">
+                            Winner: <strong style="color:#fff;">${sanitizeHTML(match.winner)}</strong> • Decided on Turn ${match.turns} (${(match.durationMs / 1000).toFixed(1)}s)
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <button type="button" class="secondary-btn" id="${boxId}-copy-btn" style="font-size: 0.72rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                            <span>📋</span> Copy
+                        </button>
+                        <button type="button" class="secondary-btn" onclick="window.downloadMatchLog(${match.game})" style="font-size: 0.72rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                            <span>📥</span> .txt
+                        </button>
+                        <button type="button" class="btn-cancel" id="${boxId}-close-btn" style="font-size: 0.75rem; padding: 3px 8px;">
+                            ✕
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filter Controls & Search -->
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 5px; flex-wrap: wrap;" id="${boxId}-filters">
+                        <button type="button" class="action-chip sim-filter-btn" data-filter="all" style="font-size: 0.72rem; padding: 3px 9px; background: rgba(52,211,153,0.2); border-color: #34d399; color: #34d399; border-radius: 12px; cursor: pointer;">
+                            All Plays (${totalPlays})
+                        </button>
+                        <button type="button" class="action-chip sim-filter-btn" data-filter="spells" style="font-size: 0.72rem; padding: 3px 9px; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); color: #ddd; border-radius: 12px; cursor: pointer;">
+                            🎴 Spells & Targets (${spellCount})
+                        </button>
+                        <button type="button" class="action-chip sim-filter-btn" data-filter="combat" style="font-size: 0.72rem; padding: 3px 9px; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); color: #ddd; border-radius: 12px; cursor: pointer;">
+                            ⚔️ Combat & Life (${combatCount})
+                        </button>
+                        <button type="button" class="action-chip sim-filter-btn" data-filter="raw" style="font-size: 0.72rem; padding: 3px 9px; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); color: #ddd; border-radius: 12px; cursor: pointer;">
+                            📄 Raw Log
+                        </button>
+                    </div>
+                    <div style="position: relative; flex: 1; min-width: 140px; max-width: 240px;">
+                        <input type="text" id="${boxId}-search" placeholder="Search card / target..." style="width: 100%; font-size: 0.75rem; padding: 4px 8px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: #fff;" />
+                    </div>
+                </div>
+
+                <!-- Turns Action List Container -->
+                <div id="${boxId}-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 350px; overflow-y: auto; padding-right: 4px;">
+                    <!-- Dynamically populated -->
+                </div>
+
+                <!-- Raw Monospace View (hidden by default) -->
+                <div id="${boxId}-raw" style="display: none; max-height: 350px; overflow-y: auto; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); font-family: monospace; font-size: 0.75rem; color: #a7f3d0; white-space: pre-wrap; line-height: 1.4;">
+                    ${sanitizeHTML(fullLog || 'No raw log recorded.')}
+                </div>
+            </div>
+        `;
+
+        const copyBtn = document.getElementById(`${boxId}-copy-btn`);
+        if (copyBtn) {
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(fullLog || 'No log');
+                showToast('📋 Copied full match log to clipboard!');
+            };
+        }
+
+        const closeBtn = document.getElementById(`${boxId}-close-btn`);
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                box.style.display = 'none';
+            };
+        }
+
+        let activeFilter = 'all';
+        let searchQuery = '';
+
+        function renderEvents() {
+            const listEl = document.getElementById(`${boxId}-list`);
+            const rawEl = document.getElementById(`${boxId}-raw`);
+            if (!listEl || !rawEl) return;
+
+            if (activeFilter === 'raw') {
+                listEl.style.display = 'none';
+                rawEl.style.display = 'block';
+                return;
+            }
+
+            listEl.style.display = 'flex';
+            rawEl.style.display = 'none';
+
+            if (!turnEvents || turnEvents.length === 0) {
+                if (fullLog) {
+                    listEl.style.display = 'none';
+                    rawEl.style.display = 'block';
+                } else {
+                    listEl.innerHTML = `
+                        <div style="font-size:0.82rem; color:#aaa; padding:12px; text-align:center;">
+                            No detailed log events available for this match.
+                        </div>
+                    `;
+                }
+                return;
+            }
+
+            const query = searchQuery.trim().toLowerCase();
+            let turnsHtml = '';
+            let matchedCount = 0;
+
+            turnEvents.forEach(t => {
+                if (t.turn === 0 && (!t.events || t.events.length === 0)) return;
+
+                let filteredEvents = (t.events || []).filter(e => {
+                    if (activeFilter === 'spells') {
+                        if (!['cast', 'activated', 'triggered'].includes(e.type)) return false;
+                    } else if (activeFilter === 'combat') {
+                        if (!['attack', 'block', 'noblock', 'damage', 'life', 'outcome'].includes(e.type)) return false;
+                    }
+
+                    if (query) {
+                        const matchText = (e.text || '').toLowerCase();
+                        const matchCard = (e.card || '').toLowerCase();
+                        const matchTargets = (e.targets || []).join(' ').toLowerCase();
+                        const matchPlayer = (e.player || '').toLowerCase();
+                        return matchText.includes(query) || matchCard.includes(query) || matchTargets.includes(query) || matchPlayer.includes(query);
+                    }
+                    return true;
+                });
+
+                if (filteredEvents.length === 0) return;
+                matchedCount += filteredEvents.length;
+
+                turnsHtml += `
+                    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 6px; padding: 8px 10px;">
+                        <div style="font-weight: 700; font-size: 0.82rem; color: var(--gold); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+                            <span>Turn ${t.turn}${t.player ? ` <span style="color:#aaa; font-weight:normal;">(${sanitizeHTML(t.player)})</span>` : ''}</span>
+                            <span style="font-size:0.7rem; color:#777;">${filteredEvents.length} action${filteredEvents.length === 1 ? '' : 's'}</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; line-height: 1.4;">
+                `;
+
+                filteredEvents.forEach(ev => {
+                    let badge = '';
+                    let content = '';
+
+                    if (ev.type === 'land') {
+                        badge = `<span style="background:rgba(34,197,94,0.15); color:#86efac; border:1px solid rgba(34,197,94,0.3); padding:1px 5px; border-radius:4px; font-size:0.72rem;">🏞️ Land</span>`;
+                        content = `<strong style="color:#eee;">${sanitizeHTML(ev.player)}</strong> played <span style="color:#86efac; font-weight:600;">${sanitizeHTML(ev.card)}</span>`;
+                    } else if (ev.type === 'cast') {
+                        badge = `<span style="background:rgba(212,175,55,0.15); color:var(--gold); border:1px solid rgba(212,175,55,0.3); padding:1px 5px; border-radius:4px; font-size:0.72rem;">🎴 Cast</span>`;
+                        content = `<strong style="color:#eee;">${sanitizeHTML(ev.player)}</strong> cast <strong style="color:var(--gold);">${sanitizeHTML(ev.card)}</strong>`;
+                        if (ev.targets && ev.targets.length > 0) {
+                            content += ` <span style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#fca5a5; padding:1px 6px; border-radius:4px; font-size:0.72rem; font-weight:600;">🎯 Target: ${sanitizeHTML(ev.targets.join(', '))}</span>`;
+                        }
+                    } else if (ev.type === 'activated') {
+                        badge = `<span style="background:rgba(59,130,246,0.15); color:#93c5fd; border:1px solid rgba(59,130,246,0.3); padding:1px 5px; border-radius:4px; font-size:0.72rem;">⚡ Ability</span>`;
+                        content = `<strong style="color:#eee;">${sanitizeHTML(ev.player)}</strong> activated <strong style="color:#93c5fd;">${sanitizeHTML(ev.card)}</strong>`;
+                        if (ev.targets && ev.targets.length > 0) {
+                            content += ` <span style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#fca5a5; padding:1px 6px; border-radius:4px; font-size:0.72rem; font-weight:600;">🎯 Target: ${sanitizeHTML(ev.targets.join(', '))}</span>`;
+                        }
+                    } else if (ev.type === 'triggered') {
+                        badge = `<span style="background:rgba(168,85,247,0.15); color:#d8b4fe; border:1px solid rgba(168,85,247,0.3); padding:1px 5px; border-radius:4px; font-size:0.72rem;">🔔 Trigger</span>`;
+                        content = `<strong style="color:#eee;">${sanitizeHTML(ev.player)}</strong> triggered <strong style="color:#d8b4fe;">${sanitizeHTML(ev.card)}</strong>`;
+                        if (ev.targets && ev.targets.length > 0) {
+                            content += ` <span style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.5); color:#fca5a5; padding:1px 6px; border-radius:4px; font-size:0.72rem; font-weight:600;">🎯 Target: ${sanitizeHTML(ev.targets.join(', '))}</span>`;
+                        }
+                    } else if (ev.type === 'attack') {
+                        badge = `<span style="background:rgba(245,158,11,0.15); color:#fcd34d; border:1px solid rgba(245,158,11,0.3); padding:1px 5px; border-radius:4px; font-size:0.72rem;">⚔️ Combat</span>`;
+                        content = `<strong style="color:#eee;">${sanitizeHTML(ev.player)}</strong> attacked <strong style="color:#fcd34d;">${sanitizeHTML(ev.target)}</strong> with ${sanitizeHTML((ev.attackers || []).join(', '))}`;
+                    } else if (ev.type === 'block') {
+                        badge = `<span style="background:rgba(14,165,233,0.15); color:#7dd3fc; border:1px solid rgba(14,165,233,0.3); padding:1px 5px; border-radius:4px; font-size:0.72rem;">🛡️ Block</span>`;
+                        content = `<strong style="color:#eee;">${sanitizeHTML(ev.player)}</strong> blocked ${sanitizeHTML(ev.blocked)} with ${sanitizeHTML((ev.blockers || []).join(', '))}`;
+                    } else if (ev.type === 'noblock') {
+                        badge = `<span style="background:rgba(239,68,68,0.15); color:#fca5a5; border:1px solid rgba(239,68,68,0.3); padding:1px 5px; border-radius:4px; font-size:0.72rem;">💥 Unblocked</span>`;
+                        content = `<strong style="color:#eee;">${sanitizeHTML(ev.player)}</strong> did not block ${sanitizeHTML(ev.unblocked)}`;
+                    } else if (ev.type === 'damage') {
+                        badge = `<span style="background:rgba(225,29,72,0.15); color:#fda4af; border:1px solid rgba(225,29,72,0.3); padding:1px 5px; border-radius:4px; font-size:0.72rem;">🩸 Damage</span>`;
+                        content = `<strong style="color:#eee;">${sanitizeHTML(ev.source)}</strong> dealt <span style="color:#fda4af; font-weight:700;">${ev.amount} ${ev.isCombat ? 'combat ' : ''}damage</span> to <strong style="color:#fff;">${sanitizeHTML(ev.target)}</strong>`;
+                    } else if (ev.type === 'life') {
+                        badge = `<span style="background:rgba(16,185,129,0.15); color:#6ee7b7; border:1px solid rgba(16,185,129,0.3); padding:1px 5px; border-radius:4px; font-size:0.72rem;">❤️ Life</span>`;
+                        const diff = ev.to - ev.from;
+                        const diffStr = diff > 0 ? `(+${diff})` : `(${diff})`;
+                        content = `<strong style="color:#eee;">${sanitizeHTML(ev.player)}</strong>: ${ev.from} ➔ <strong style="color:#6ee7b7;">${ev.to}</strong> <span style="font-size:0.75rem; color:${diff < 0 ? '#f87171' : '#34d399'};">${diffStr}</span>`;
+                    } else if (ev.type === 'zone') {
+                        badge = `<span style="background:rgba(100,116,139,0.15); color:#cbd5e1; border:1px solid rgba(100,116,139,0.3); padding:1px 5px; border-radius:4px; font-size:0.72rem;">⚰️ Zone</span>`;
+                        content = `<strong style="color:#eee;">${sanitizeHTML(ev.card)}</strong>: ${sanitizeHTML(ev.fromZone)} ➔ ${sanitizeHTML(ev.toZone)}`;
+                    } else if (ev.type === 'outcome') {
+                        badge = `<span style="background:rgba(212,175,55,0.2); color:var(--gold); border:1px solid var(--gold); padding:1px 5px; border-radius:4px; font-size:0.72rem;">🏁 Result</span>`;
+                        content = `<strong style="color:var(--gold);">${sanitizeHTML(ev.text)}</strong>`;
+                    } else {
+                        badge = `<span>•</span>`;
+                        content = sanitizeHTML(ev.text || '');
+                    }
+
+                    turnsHtml += `
+                        <div style="display:flex; align-items:flex-start; gap:8px;">
+                            <div style="flex-shrink:0;">${badge}</div>
+                            <div style="flex:1; color:#ccc;">${content}</div>
+                        </div>
+                    `;
+                });
+
+                turnsHtml += `
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (matchedCount === 0) {
+                listEl.innerHTML = `
+                    <div style="font-size:0.82rem; color:#aaa; padding:16px; text-align:center;">
+                        No actions match current filter "${activeFilter}" ${query ? `and search "${query}"` : ''}.
+                    </div>
+                `;
+            } else {
+                listEl.innerHTML = turnsHtml;
+            }
+        }
+
+        const filterBtns = box.querySelectorAll('.sim-filter-btn');
+        filterBtns.forEach(btn => {
+            btn.onclick = () => {
+                filterBtns.forEach(b => {
+                    b.style.background = 'rgba(255,255,255,0.06)';
+                    b.style.borderColor = 'rgba(255,255,255,0.15)';
+                    b.style.color = '#ddd';
+                });
+                btn.style.background = 'rgba(52,211,153,0.2)';
+                btn.style.borderColor = '#34d399';
+                btn.style.color = '#34d399';
+                activeFilter = btn.dataset.filter;
+                renderEvents();
+            };
+        });
+
+        const searchInput = document.getElementById(`${boxId}-search`);
+        if (searchInput) {
+            searchInput.oninput = (e) => {
+                searchQuery = e.target.value;
+                renderEvents();
+            };
+        }
+
+        renderEvents();
+    };
+
     window.downloadMatchLog = (gameNum) => {
         const match = (window._currentSimSession?.games || []).find(g => g.game === gameNum);
         if (!match) {
@@ -773,15 +1063,22 @@ export function initRoomActionsModule(utils, state) {
         content += `Deciding Turn: Turn ${match.turns}\n`;
         content += `Duration: ${(match.durationMs / 1000).toFixed(1)} seconds\n\n`;
 
-        content += `ESTIMATED TURN-BY-TURN MILESTONES:\n`;
-        for (let t = 1; t <= match.turns; t++) {
-            if (t === 1) content += `Turn 1: Opening hands drawn. Land drops & early mana setup.\n`;
-            else if (t === 2) content += `Turn 2: Mana ramp artifacts deployed & creature dorks cast.\n`;
-            else if (t === 3) content += `Turn 3: Commander casting window & board presence established.\n`;
-            else if (t === match.turns) content += `Turn ${t}: DECISIVE TURN. ${match.winner} achieves lethal board state / eliminates opposing players.\n`;
-            else content += `Turn ${t}: Combat trades, card advantage engines & threat removal.\n`;
+        if (match.log) {
+            content += `ACTUAL MATCH ACTIONS & SPELLS PLAYED (HEADLESS FORGE LOG):\n`;
+            content += `=========================================================\n`;
+            content += match.log;
+            content += `\n\n`;
+        } else {
+            content += `ESTIMATED TURN-BY-TURN MILESTONES:\n`;
+            for (let t = 1; t <= match.turns; t++) {
+                if (t === 1) content += `Turn 1: Opening hands drawn. Land drops & early mana setup.\n`;
+                else if (t === 2) content += `Turn 2: Mana ramp artifacts deployed & creature dorks cast.\n`;
+                else if (t === 3) content += `Turn 3: Commander casting window & board presence established.\n`;
+                else if (t === match.turns) content += `Turn ${t}: DECISIVE TURN. ${match.winner} achieves lethal board state / eliminates opposing players.\n`;
+                else content += `Turn ${t}: Combat trades, card advantage engines & threat removal.\n`;
+            }
+            content += `\n`;
         }
-        content += `\n`;
 
         if (match.aiSummary) {
             content += `AI TACTICAL ANALYSIS:\n`;
@@ -845,6 +1142,9 @@ export function initRoomActionsModule(utils, state) {
             content += `Winner: ${g.winner}\n`;
             content += `Commander: ${g.winnerCommander || 'Commander'}\n`;
             content += `Ended on: Turn ${g.turns} (${(g.durationMs / 1000).toFixed(1)}s)\n`;
+            if (g.log) {
+                content += `Turn-by-Turn Card Plays & Action Log:\n${g.log}\n`;
+            }
             if (g.aiSummary) {
                 content += `Tactical Breakdown:\n${g.aiSummary}\n`;
             }
@@ -897,7 +1197,8 @@ export function initRoomActionsModule(utils, state) {
                 turns: match.turns,
                 durationMs: match.durationMs,
                 decks: window._currentSimSession?.decks || [],
-                apiKey: clientApiKey
+                apiKey: clientApiKey,
+                matchLog: match.log || ''
             });
 
             let resp;

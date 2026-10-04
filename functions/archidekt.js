@@ -1714,7 +1714,7 @@ exports.summarizeMatch = onRequest({ cors: true, timeoutSeconds: 60, memory: "25
 
     try {
         const body = req.body || {};
-        const { game = 1, winner = "Winner", winnerCommander = "", turns = 7, durationMs = 5000, decks = [], apiKey: clientApiKey } = body;
+        const { game = 1, winner = "Winner", winnerCommander = "", turns = 7, durationMs = 5000, decks = [], apiKey: clientApiKey, matchLog = "" } = body;
 
         const opponents = decks.filter(d => (d.name || d) !== winner);
         const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
@@ -1725,6 +1725,7 @@ exports.summarizeMatch = onRequest({ cors: true, timeoutSeconds: 60, memory: "25
         if (apiKey) {
             try {
                 const ai = new GoogleGenAI({ apiKey });
+                const logSection = matchLog ? `\nActual Match Plays & Targets Log:\n${matchLog.slice(0, 2000)}\n` : '';
                 const prompt = `You are a high-energy Magic: The Gathering Commander tournament commentator and judge.
 Analyze the following simulated 4-player Commander game outcome played on the official Forge MTG rules engine:
 
@@ -1734,10 +1735,10 @@ Match Details:
 - Concluding Turn: Turn ${turns}
 - Match Duration: ${(durationMs / 1000).toFixed(1)} seconds
 - Pod Opponents: ${opponents.map(o => `${o.name || 'Opponent'} (Commander: ${o.commander || 'Commander'})`).join(', ')}
-
-Please provide a thrilling, authentic MTG tactical breakdown:
-1. "The Winning Engine": How ${winner} took control of the game pace, utilizing its commander and color strengths to reach a winning board state.
-2. "The Decisive Turn": What happened during the climactic turn (around Turn ${Math.max(1, Math.round(turns * 0.75))}-${turns}) that sealed the victory (e.g. explosive mana ramp, unblockable combat alpha strike, combo assembly, or overwhelming card advantage).
+${logSection}
+Please provide a thrilling, authentic MTG tactical breakdown referencing actual cards cast, targets, and combat swings from the log:
+1. "The Winning Engine": How ${winner} took control of the game pace, utilizing key spells and commander synergies to establish a winning board state.
+2. "The Decisive Turn": What specific cards, targets, or combat swings during the climactic turn(s) sealed the victory.
 3. "Matchup Takeaway": Why this strategy prevailed over the opposing commanders at the table.
 
 Format your response in concise, punchy markdown with 3 bulleted sections. Keep it under 220 words.`;
