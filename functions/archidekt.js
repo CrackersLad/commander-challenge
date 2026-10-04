@@ -3,6 +3,7 @@ const { GoogleGenAI } = require("@google/genai");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { parseCards, normalizeMoxfield, enrichCardsWithScryfall, parseDecklistText, parseDeckIdentifier } = require("./parsers.js");
 const { fetchEdhrecRanks } = require("./edhrec.js");
@@ -23,57 +24,74 @@ const COLLECTION_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 /**
  * Fast & rate-limit safe collection fetcher with multi-round retry to guarantee 100% complete card retrieval.
  */
-async function fetchArchidektCollection(collectionId) {
+async function fetchArchidektCollection(collectionId, options = {}, onProgress = null) {
     const cleanId = String(collectionId).trim();
+    const forceFresh = Boolean(options.forceFresh || options.refresh);
     let staleFallbackCards = null;
 
-    // 1. In-memory cache check
-    const cached = collectionCache.get(cleanId);
-    if (cached && Array.isArray(cached.cards) && cached.cards.length > 0) {
-        if (Date.now() - cached.timestamp < COLLECTION_CACHE_TTL) {
-            console.log(`[CACHE] Returning in-memory cached collection for ID ${cleanId} (${cached.cards.length} cards)`);
-            return cached.cards;
+    const tmpFilePath = path.join(os.tmpdir(), `archidekt_coll_${cleanId}.json`);
+
+    if (!forceFresh) {
+        // 1. In-memory cache check
+        const cached = collectionCache.get(cleanId);
+        if (cached && Array.isArray(cached.cards) && cached.cards.length > 0) {
+            if (Date.now() - cached.timestamp < COLLECTION_CACHE_TTL) {
+                console.log(`[CACHE] Returning in-memory cached collection for ID ${cleanId} (${cached.cards.length} cards)`);
+                if (typeof onProgress === 'function') {
+                    onProgress({ phase: 'cached', message: `Loaded ${cached.cards.length} cards from cache`, pct: 100, count: cached.cards.length, fetched: cached.cards.length, totalPages: 1, page: 1, estRemainingMs: 0 });
+                }
+                return cached.cards;
+            }
+            staleFallbackCards = cached.cards;
         }
-        staleFallbackCards = cached.cards;
+
+        // 2. /tmp disk cache check (persists across warm Cloud Run instances)
+        try {
+            if (fs.existsSync(tmpFilePath)) {
+                const stat = fs.statSync(tmpFilePath);
+                const data = JSON.parse(fs.readFileSync(tmpFilePath, "utf8"));
+                if (Array.isArray(data) && data.length > 0) {
+                    if (Date.now() - stat.mtimeMs < COLLECTION_CACHE_TTL) {
+                        collectionCache.set(cleanId, { timestamp: Date.now(), cards: data });
+                        console.log(`[DISK CACHE] Returning cached collection for ID ${cleanId} (${data.length} cards) from /tmp`);
+                        if (typeof onProgress === 'function') {
+                            onProgress({ phase: 'cached', message: `Loaded ${data.length} cards from cache`, pct: 100, count: data.length, fetched: data.length, totalPages: 1, page: 1, estRemainingMs: 0 });
+                        }
+                        return data;
+                    }
+                    if (!staleFallbackCards) staleFallbackCards = data;
+                }
+            }
+        } catch (e) {
+            console.warn("[WARN] Could not read /tmp cache:", e.message);
+        }
+
+        // 3. Firebase Realtime Database check (persists across cold starts and container recycles)
+        try {
+            if (admin.apps && admin.apps.length) {
+                const dbRef = admin.database().ref(`cached_collections/${cleanId}`);
+                const dbSnap = await dbRef.once('value');
+                const dbVal = dbSnap.val();
+                if (dbVal && Array.isArray(dbVal.cards) && dbVal.cards.length > 0) {
+                    const age = Date.now() - (dbVal.timestamp || 0);
+                    if (age < 60 * 60 * 1000) { // 1 hour
+                        console.log(`[RTDB CACHE] Returning cloud-cached collection for ID ${cleanId} (${dbVal.cards.length} cards)`);
+                        collectionCache.set(cleanId, { timestamp: Date.now(), cards: dbVal.cards });
+                        if (typeof onProgress === 'function') {
+                            onProgress({ phase: 'cached', message: `Loaded ${dbVal.cards.length} cards from cloud cache`, pct: 100, count: dbVal.cards.length, fetched: dbVal.cards.length, totalPages: 1, page: 1, estRemainingMs: 0 });
+                        }
+                        return dbVal.cards;
+                    }
+                    if (!staleFallbackCards) staleFallbackCards = dbVal.cards;
+                }
+            }
+        } catch (e) {
+            console.warn("[WARN] Could not read RTDB cache:", e.message);
+        }
     }
 
-    // 2. /tmp disk cache check (persists across warm Cloud Run instances)
-    const tmpFilePath = path.join("/tmp", `archidekt_coll_${cleanId}.json`);
-    try {
-        if (fs.existsSync(tmpFilePath)) {
-            const stat = fs.statSync(tmpFilePath);
-            const data = JSON.parse(fs.readFileSync(tmpFilePath, "utf8"));
-            if (Array.isArray(data) && data.length > 0) {
-                if (Date.now() - stat.mtimeMs < COLLECTION_CACHE_TTL) {
-                    collectionCache.set(cleanId, { timestamp: Date.now(), cards: data });
-                    console.log(`[DISK CACHE] Returning cached collection for ID ${cleanId} (${data.length} cards) from /tmp`);
-                    return data;
-                }
-                if (!staleFallbackCards) staleFallbackCards = data;
-            }
-        }
-    } catch (e) {
-        console.warn("[WARN] Could not read /tmp cache:", e.message);
-    }
-
-    // 3. Firebase Realtime Database check (persists across cold starts and container recycles)
-    try {
-        if (admin.apps && admin.apps.length) {
-            const dbRef = admin.database().ref(`cached_collections/${cleanId}`);
-            const dbSnap = await dbRef.once('value');
-            const dbVal = dbSnap.val();
-            if (dbVal && Array.isArray(dbVal.cards) && dbVal.cards.length > 0) {
-                const age = Date.now() - (dbVal.timestamp || 0);
-                if (age < 12 * 60 * 60 * 1000) { // 12 hours
-                    console.log(`[RTDB CACHE] Returning cloud-cached collection for ID ${cleanId} (${dbVal.cards.length} cards)`);
-                    collectionCache.set(cleanId, { timestamp: Date.now(), cards: dbVal.cards });
-                    return dbVal.cards;
-                }
-                if (!staleFallbackCards) staleFallbackCards = dbVal.cards;
-            }
-        }
-    } catch (e) {
-        console.warn("[WARN] Could not read RTDB cache:", e.message);
+    if (typeof onProgress === 'function') {
+        onProgress({ phase: 'connecting', message: `Connecting to Archidekt for collection #${cleanId}...`, pct: 5, estRemainingMs: 15000 });
     }
 
     const firstPageUrl = `https://archidekt.com/api/collection/${cleanId}/?page=1`;
@@ -114,14 +132,29 @@ async function fetchArchidektCollection(collectionId) {
     } else if (firstData.results) {
         (firstData.results || []).forEach(c => allCardsMap.set(c.id || Math.random(), c));
         const count = firstData.count || firstData.results.length;
-        const totalPages = Math.min(100, Math.ceil(count / 25));
+        // Cap at 1000 pages (25,000 cards) instead of 100 so all collection items are retrieved
+        const totalPages = Math.min(1000, Math.ceil(count / 25));
+        const estTotalRemainingMs = Math.max(1500, Math.round(totalPages * 180));
+
+        if (typeof onProgress === 'function') {
+            onProgress({
+                phase: 'manifest',
+                message: `Found ${count} collection records (${totalPages} pages). Downloading in paced batches...`,
+                count,
+                totalPages,
+                page: 1,
+                fetched: firstData.results.length,
+                pct: Math.min(12, Math.round((1 / totalPages) * 75)),
+                estRemainingMs: estTotalRemainingMs
+            });
+        }
 
         if (totalPages > 1) {
             const pendingPages = [];
             for (let p = 2; p <= totalPages; p++) pendingPages.push(p);
 
             let round = 1;
-            while (pendingPages.length > 0 && round <= 3) {
+            while (pendingPages.length > 0 && round <= 4) {
                 console.log(`[COLLECTION] Round ${round}: Fetching ${pendingPages.length} pages in concurrent batches for ID ${cleanId}...`);
                 const failedInRound = [];
                 const taskFns = pendingPages.map(p => async () => {
@@ -147,8 +180,28 @@ async function fetchArchidektCollection(collectionId) {
                     }
                 });
 
-                // Fetch 3 pages in parallel with polite 150ms spacing between batches
-                const batchResults = await runWithConcurrency(taskFns, 3, 150);
+                // Fetch 2 pages in parallel with polite 200ms spacing between batches to prevent 429
+                let completedInBatch = 0;
+                const batchResults = await runWithConcurrency(taskFns, 2, 200, (doneCount, totalCount) => {
+                    completedInBatch = doneCount;
+                    if (typeof onProgress === 'function') {
+                        const remainingPagesInRound = totalCount - doneCount;
+                        const pagesFinishedTotal = (totalPages - pendingPages.length) + doneCount;
+                        const pct = Math.min(80, Math.round((pagesFinishedTotal / totalPages) * 75) + 8);
+                        const estMs = Math.max(1000, Math.round((remainingPagesInRound / 2) * 400 + 2000));
+                        onProgress({
+                            phase: 'fetching',
+                            message: `Fetching collection: page ${pagesFinishedTotal} of ${totalPages} (${allCardsMap.size} records)...`,
+                            count,
+                            totalPages,
+                            page: pagesFinishedTotal,
+                            fetched: allCardsMap.size,
+                            pct,
+                            estRemainingMs: estMs
+                        });
+                    }
+                });
+
                 for (const res of batchResults) {
                     if (res && Array.isArray(res.results)) {
                         res.results.forEach(c => allCardsMap.set(c.id || Math.random(), c));
@@ -160,9 +213,21 @@ async function fetchArchidektCollection(collectionId) {
                 pendingPages.length = 0;
                 pendingPages.push(...failedInRound);
 
-                if (pendingPages.length > 0 && round < 3) {
-                    console.log(`[COLLECTION] ${pendingPages.length} pages pending after round ${round}. Pausing 2.5s before retry...`);
-                    await new Promise(r => setTimeout(r, 2500));
+                if (pendingPages.length > 0 && round < 4) {
+                    console.log(`[COLLECTION] ${pendingPages.length} pages pending after round ${round}. Pausing 4s before retry...`);
+                    if (typeof onProgress === 'function') {
+                        onProgress({
+                            phase: 'retry_wait',
+                            message: `Pacing request rate limit window (${pendingPages.length} pages to finalize)...`,
+                            count,
+                            totalPages,
+                            page: totalPages - pendingPages.length,
+                            fetched: allCardsMap.size,
+                            pct: Math.min(82, Math.round(((totalPages - pendingPages.length) / totalPages) * 75) + 8),
+                            estRemainingMs: 5000
+                        });
+                    }
+                    await new Promise(r => setTimeout(r, 4000));
                 }
                 round++;
             }
@@ -172,7 +237,8 @@ async function fetchArchidektCollection(collectionId) {
     const allCards = Array.from(allCardsMap.values());
     const expectedCount = firstData.count || allCards.length;
 
-    if (allCards.length >= expectedCount || allCards.length > 0) {
+    // Only cache if we got all expected items (or at least 98% in rare corner cases of deleted cards)
+    if (allCards.length >= expectedCount || allCards.length >= Math.floor(expectedCount * 0.98)) {
         collectionCache.set(cleanId, {
             timestamp: Date.now(),
             cards: allCards
@@ -191,7 +257,9 @@ async function fetchArchidektCollection(collectionId) {
                 }).catch(e => console.warn("[WARN] Could not write RTDB cache:", e.message));
             }
         } catch (e) {}
-        console.log(`[COLLECTION] Cached collection (${allCards.length} cards) for ID ${cleanId}`);
+        console.log(`[COLLECTION] Cached full collection (${allCards.length}/${expectedCount} cards) for ID ${cleanId}`);
+    } else {
+        console.warn(`[COLLECTION] Fetched partial collection (${allCards.length}/${expectedCount}). Skipping cache write.`);
     }
 
     if (allCards.length < expectedCount && staleFallbackCards && staleFallbackCards.length > allCards.length) {
@@ -456,7 +524,8 @@ exports.checkSetProgress = onRequest({ cors: true, timeoutSeconds: 120, memory: 
         setCode,
         matchMode = "exact",
         includeBasicLands = false,
-        setScope = "distinct"
+        setScope = "distinct",
+        forceFresh = false
     } = req.body || {};
 
     if (!setCode) {
@@ -469,15 +538,16 @@ exports.checkSetProgress = onRequest({ cors: true, timeoutSeconds: 120, memory: 
 
     try {
         let rawCollectionItems = [];
+        const isForceFresh = Boolean(forceFresh === true || forceFresh === 'true');
 
-        // Check if collectionData has valid cards with set info
-        const hasRichCollectionData = collectionData && Array.isArray(collectionData) && collectionData.length > 0 &&
+        // Check if collectionData has valid cards with set info (ignore client cache when forceFresh requested)
+        const hasRichCollectionData = !isForceFresh && collectionData && Array.isArray(collectionData) && collectionData.length > 0 &&
             collectionData.some(c => c.setCode || c.set || c.edition || c.card?.edition);
 
         // Fetch collection cards and set cards in parallel to prevent gateway timeouts!
         const collectionPromise = hasRichCollectionData
             ? Promise.resolve(collectionData)
-            : (collectionId ? fetchArchidektCollection(collectionId) : Promise.resolve(collectionData || []));
+            : (collectionId ? fetchArchidektCollection(collectionId, { forceFresh: isForceFresh }) : Promise.resolve(collectionData || []));
 
         const setCardsPromise = fetchSetCards(setCode);
         const allSetsPromise = fetchAllSets().catch(() => []);
@@ -526,7 +596,8 @@ exports.checkSetProgress = onRequest({ cors: true, timeoutSeconds: 120, memory: 
 
         res.status(200).json({
             ...result,
-            cachedCollectionData: mappedCachedCollection
+            cachedCollectionData: mappedCachedCollection,
+            freshSync: isForceFresh
         });
     } catch (error) {
         console.error("[ERROR] checkSetProgress error:", error);
@@ -537,11 +608,118 @@ exports.checkSetProgress = onRequest({ cors: true, timeoutSeconds: 120, memory: 
 /**
  * Endpoint: Computes deep collection analytics and insights (values, crown jewels, colors, staples).
  */
-exports.getCollectionInsights = onRequest({ cors: true, timeoutSeconds: 120, memory: "512MiB" }, async (req, res) => {
+exports.getCollectionInsights = onRequest({ cors: true, timeoutSeconds: 300, memory: "512MiB" }, async (req, res) => {
     const {
         collectionId,
-        collectionData
+        collectionData,
+        forceFresh
     } = req.body || {};
+
+    const isStream = req.query?.stream === 'true' || 
+                     req.body?.stream === true || 
+                     Boolean(req.headers['accept'] && req.headers['accept'].includes('text/event-stream'));
+
+    if (isStream) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        if (res.flushHeaders) res.flushHeaders();
+
+        const sendEvent = (event, data) => {
+            res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+            if (res.flush) res.flush();
+        };
+
+        if (!collectionId && !collectionData) {
+            sendEvent('error', { error: "Missing collection source. Please provide a collectionId or collectionData." });
+            res.end();
+            return;
+        }
+
+        try {
+            sendEvent('progress', {
+                phase: 'init',
+                message: `Initializing collection sync for #${collectionId}...`,
+                pct: 5,
+                page: 0,
+                totalPages: 1,
+                fetched: 0,
+                count: 0,
+                estRemainingMs: 15000
+            });
+
+            let rawCollectionItems = [];
+            if (collectionData && Array.isArray(collectionData)) {
+                rawCollectionItems = collectionData;
+            } else if (collectionId) {
+                rawCollectionItems = await fetchArchidektCollection(collectionId, { forceFresh }, (prog) => {
+                    sendEvent('progress', prog);
+                });
+            }
+
+            sendEvent('progress', {
+                phase: 'pricing',
+                message: `Enriching live Cardmarket & TCGPlayer valuations for ${rawCollectionItems.length} records...`,
+                pct: 88,
+                page: 1,
+                totalPages: 1,
+                fetched: rawCollectionItems.length,
+                count: rawCollectionItems.length,
+                estRemainingMs: 1500
+            });
+
+            const insights = await computeCollectionInsights(rawCollectionItems);
+
+            const mappedCollection = rawCollectionItems.map(c => {
+                const cardInfo = c.card || c || {};
+                const oracleData = cardInfo.oracleCard || cardInfo;
+                const name = oracleData.name || cardInfo.name || c.name || '';
+                const owned = Math.max(1, parseInt(c.quantity || c.count || c.owned) || 1);
+                const inDecks = Math.max(0, parseInt(c.inDecks || c.in_decks || cardInfo.inDecks || 0) || 0);
+                const set = (cardInfo.edition?.editioncode || cardInfo.edition?.code || c.set || c.setCode || '').toLowerCase();
+                const setCode = set.toUpperCase();
+                const colNum = (cardInfo.collectorNumber || cardInfo.collector_number || c.collectorNumber || c.collector_number || c.number || '').toString().trim();
+                return {
+                    id: c.id || Math.random(),
+                    name,
+                    owned,
+                    quantity: owned,
+                    inDecks,
+                    available: Math.max(0, owned - inDecks),
+                    set,
+                    setCode,
+                    collector_number: colNum,
+                    colors: resolveCardColors(c),
+                    typeLine: oracleData.type_line || oracleData.typeLine || cardInfo.type_line || cardInfo.typeLine || c.type_line || c.typeLine || (oracleData.types ? [...(oracleData.superTypes || []), ...(oracleData.types || [])].join(' ') : '') || '',
+                    manaCost: oracleData.manaCost || oracleData.mana_cost || cardInfo.manaCost || cardInfo.mana_cost || c.manaCost || c.mana_cost || '',
+                    isCommander: Boolean(oracleData.isCommander || cardInfo.isCommander || c.isCommander),
+                    prices: cardInfo.prices || c.prices || null
+                };
+            });
+
+            sendEvent('progress', {
+                phase: 'complete',
+                message: `Complete! Evaluated ${rawCollectionItems.length} records.`,
+                pct: 100,
+                estRemainingMs: 0
+            });
+
+            sendEvent('result', {
+                ...insights,
+                collection: mappedCollection,
+                cachedCollectionData: mappedCollection
+            });
+
+            res.end();
+            return;
+        } catch (error) {
+            console.error("[ERROR] getCollectionInsights stream error:", error);
+            sendEvent('error', { error: error.message });
+            res.end();
+            return;
+        }
+    }
 
     if (!collectionId && !collectionData) {
         return res.status(400).json({ error: "Missing collection source. Please provide a collectionId or collectionData." });
@@ -552,7 +730,7 @@ exports.getCollectionInsights = onRequest({ cors: true, timeoutSeconds: 120, mem
         if (collectionData && Array.isArray(collectionData)) {
             rawCollectionItems = collectionData;
         } else if (collectionId) {
-            rawCollectionItems = await fetchArchidektCollection(collectionId);
+            rawCollectionItems = await fetchArchidektCollection(collectionId, { forceFresh });
         }
 
         const insights = await computeCollectionInsights(rawCollectionItems);
@@ -607,7 +785,8 @@ exports.compareDecks = onRequest({ cors: true, timeoutSeconds: 300, memory: "512
         includeSideboards,
         includeBasicLands,
         collectionData,
-        sortCommanders
+        sortCommanders,
+        forceFresh
     } = req.body || {};
 
     if ((!collectionId && !collectionData) || (!deckIds && !customDecks)) {
@@ -625,7 +804,7 @@ exports.compareDecks = onRequest({ cors: true, timeoutSeconds: 300, memory: "512
             const enrichedCollectionData = await enrichCardsWithScryfall(collectionData);
             collection = parseCards({ cards: enrichedCollectionData }, { includeBasicLands: shouldIncludeBasicLands });
         } else if (collectionId) {
-            const allCollectionCards = await fetchArchidektCollection(collectionId);
+            const allCollectionCards = await fetchArchidektCollection(collectionId, { forceFresh });
             collection = parseCards({ cards: allCollectionCards }, { includeBasicLands: shouldIncludeBasicLands });
         }
 
@@ -1524,3 +1703,87 @@ function generateBuiltInImprovements(deck, collection, deckColors, candidates, d
         suggestions
     };
 }
+
+exports.fetchArchidektCollection = fetchArchidektCollection;
+
+// ==================== AI HEADLESS MATCH SUMMARY ASSISTANT ====================
+exports.summarizeMatch = onRequest({ cors: true, timeoutSeconds: 60, memory: "256MiB" }, async (req, res) => {
+    if (req.method === "OPTIONS") {
+        return res.status(204).send("");
+    }
+
+    try {
+        const body = req.body || {};
+        const { game = 1, winner = "Winner", winnerCommander = "", turns = 7, durationMs = 5000, decks = [], apiKey: clientApiKey } = body;
+
+        const opponents = decks.filter(d => (d.name || d) !== winner);
+        const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
+
+        let summaryText = "";
+        let engine = "algorithmic";
+
+        if (apiKey) {
+            try {
+                const ai = new GoogleGenAI({ apiKey });
+                const prompt = `You are a high-energy Magic: The Gathering Commander tournament commentator and judge.
+Analyze the following simulated 4-player Commander game outcome played on the official Forge MTG rules engine:
+
+Match Details:
+- Game Number: Match #${game}
+- Winner: ${winner} (Commander: ${winnerCommander || 'Commander'})
+- Concluding Turn: Turn ${turns}
+- Match Duration: ${(durationMs / 1000).toFixed(1)} seconds
+- Pod Opponents: ${opponents.map(o => `${o.name || 'Opponent'} (Commander: ${o.commander || 'Commander'})`).join(', ')}
+
+Please provide a thrilling, authentic MTG tactical breakdown:
+1. "The Winning Engine": How ${winner} took control of the game pace, utilizing its commander and color strengths to reach a winning board state.
+2. "The Decisive Turn": What happened during the climactic turn (around Turn ${Math.max(1, Math.round(turns * 0.75))}-${turns}) that sealed the victory (e.g. explosive mana ramp, unblockable combat alpha strike, combo assembly, or overwhelming card advantage).
+3. "Matchup Takeaway": Why this strategy prevailed over the opposing commanders at the table.
+
+Format your response in concise, punchy markdown with 3 bulleted sections. Keep it under 220 words.`;
+
+                const response = await ai.models.generateContent({
+                    model: "gemini-2.5-flash",
+                    contents: prompt,
+                    config: {
+                        temperature: 0.3
+                    }
+                });
+
+                if (response && response.text) {
+                    summaryText = response.text.trim();
+                    engine = "gemini";
+                }
+            } catch (aiErr) {
+                console.warn("[summarizeMatch] Gemini call failed, using built-in tactical engine:", aiErr.message);
+            }
+        }
+
+        if (!summaryText) {
+            // High quality deterministic MTG tactical commentary engine
+            const speedRating = turns <= 5 ? "Blistering Fast-Paced Aggro / Combo" : (turns <= 9 ? "Midrange Engine & Board Synergy" : "Late-Game Battlecruiser Attrition");
+            const climacticTurn = Math.max(1, turns - 1);
+            const cmdrStr = winnerCommander ? `helmed by **${winnerCommander}**` : `running a finely-tuned curve`;
+
+            summaryText = `### ⚔️ Match #${game} Tactical Breakdown: ${winner} Victory\n\n` +
+                `* **The Winning Engine (${speedRating}):**\n` +
+                `  ${winner}, ${cmdrStr}, established early mana stability and tempo advantage. By curving out efficiently against the pod, the deck avoided early threat removal and built a lethal board presence.\n\n` +
+                `* **The Decisive Turn (Turn ${climacticTurn} ➔ Turn ${turns}):**\n` +
+                `  Entering Turn ${climacticTurn}, ${winner} capitalized on an tapped-out or vulnerable table. By executing key synergy triggers, they broke the defensive lines of ${opponents.map(o => o.name || 'their opponents').slice(0, 2).join(' and ')}, delivering a decisive game-winning swing on Turn ${turns}.\n\n` +
+                `* **Matchup Takeaway:**\n` +
+                `  Against opposing threats (${opponents.map(o => o.commander || o.name || 'Opponent').join(', ')}), ${winner}'s resilience and threat density proved insurmountable in this simulated matchup.`;
+        }
+
+        return res.json({
+            success: true,
+            game,
+            winner,
+            turns,
+            engine,
+            summary: summaryText
+        });
+    } catch (err) {
+        console.error("summarizeMatch error:", err);
+        return res.status(500).json({ error: err.message || "Failed to generate match summary." });
+    }
+});

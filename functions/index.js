@@ -1394,6 +1394,7 @@ exports.compareDecks = archidekt.compareDecks;
 exports.getDeckName = archidekt.getDeckName;
 exports.suggestImprovements = archidekt.suggestImprovements;
 exports.searchCommanderDecks = archidekt.searchCommanderDecks;
+exports.summarizeMatch = archidekt.summarizeMatch;
 
 // ==================== HEADLESS FORGE MATCH SIMULATION PROXY ====================
 exports.simulateStream = onRequest({ cors: true, timeoutSeconds: 300, memory: "256MiB" }, (req, res) => {

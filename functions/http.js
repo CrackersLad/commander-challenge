@@ -89,12 +89,17 @@ async function fetchWithRetry(url, options = {}, maxRetries = 2) {
  * @param {number} [delayBetweenTasksMs=350] Delay in milliseconds before launching the next task batch.
  * @returns {Promise<Array<T>>}
  */
-async function runWithConcurrency(taskFns, concurrency = 1, delayBetweenTasksMs = 350) {
+async function runWithConcurrency(taskFns, concurrency = 1, delayBetweenTasksMs = 350, onProgress = null) {
     const results = [];
     for (let i = 0; i < taskFns.length; i += concurrency) {
         const chunk = taskFns.slice(i, i + concurrency);
         const chunkResults = await Promise.all(chunk.map(fn => fn()));
         results.push(...chunkResults);
+        if (typeof onProgress === 'function') {
+            try {
+                onProgress(results.length, taskFns.length);
+            } catch (e) {}
+        }
         if (i + concurrency < taskFns.length && delayBetweenTasksMs > 0) {
             await new Promise(resolve => setTimeout(resolve, delayBetweenTasksMs));
         }

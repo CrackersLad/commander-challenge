@@ -1,7 +1,7 @@
-import { db, functions } from './firebase-setup.js?v=7.20';
+import { db, functions } from './firebase-setup.js?v=8.0';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
-import { fetchDeckFromAPI } from './deck-parser.js?v=7.20';
+import { fetchDeckFromAPI } from './deck-parser.js?v=8.0';
 
 export function initRoomActionsModule(utils, state) {
     const { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, clearSession } = utils;
@@ -548,6 +548,13 @@ export function initRoomActionsModule(utils, state) {
             const decoder = new TextDecoder('utf-8');
             let buffer = '';
 
+            window._currentSimSession = {
+                decks: payloadDecks,
+                games: [],
+                summary: null,
+                startTime: Date.now()
+            };
+
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
@@ -570,17 +577,41 @@ export function initRoomActionsModule(utils, state) {
                                 }
                                 statusHeader.textContent = `⚔️ Simulating match ${eventData.game} of ${eventData.total} (Turn ${eventData.turn})...`;
                             } else if (eventData.type === 'game_result') {
+                                const winnerCmdr = (payloadDecks.find(d => d.name === eventData.winner || eventData.winner.includes(d.name))?.commander) || '';
+                                const matchRecord = {
+                                    game: eventData.game,
+                                    winner: eventData.winner,
+                                    winnerCommander: winnerCmdr,
+                                    turns: eventData.turns,
+                                    durationMs: eventData.durationMs,
+                                    aiSummary: null
+                                };
+                                window._currentSimSession.games.push(matchRecord);
+
                                 const cardEl = document.getElementById(`sim-card-${eventData.game}`);
                                 if (cardEl) {
                                     cardEl.className = 'sim-game-card finished';
                                     cardEl.innerHTML = `
-                                        <div style="display:flex; align-items:center; gap:8px;">
-                                            <span style="color:#10b981; font-weight:700;">✅ Match #${eventData.game}</span>
-                                            <strong style="color:#fff;">${sanitizeHTML(eventData.winner)}</strong>
+                                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                                            <div>
+                                                <div style="display:flex; align-items:center; gap:8px;">
+                                                    <span style="color:#10b981; font-weight:700;">✅ Match #${eventData.game}</span>
+                                                    <strong style="color:#fff;">${sanitizeHTML(eventData.winner)}</strong>
+                                                </div>
+                                                <div style="color:#34d399; font-weight:700; font-size:0.82rem; margin-top:2px;">
+                                                    Won on Turn ${eventData.turns} (${(eventData.durationMs / 1000).toFixed(1)}s)${winnerCmdr ? ` • <span style="color:#aaa;">Cmdr: ${sanitizeHTML(winnerCmdr)}</span>` : ''}
+                                                </div>
+                                            </div>
+                                            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                                <button type="button" class="secondary-btn" onclick="window.downloadMatchLog(${eventData.game})" style="font-size:0.75rem; padding:3px 8px; display:inline-flex; align-items:center; gap:4px;">
+                                                    <span>📥</span> Log (.txt)
+                                                </button>
+                                                <button type="button" id="sim-ai-btn-${eventData.game}" class="secondary-btn" onclick="window.requestAiMatchSummary(${eventData.game})" style="font-size:0.75rem; padding:3px 8px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
+                                                    <span>🤖</span> AI Summary
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div style="color:#34d399; font-weight:700; font-size:0.85rem;">
-                                            Won on Turn ${eventData.turns} (${(eventData.durationMs / 1000).toFixed(1)}s)
-                                        </div>
+                                        <div id="sim-ai-box-${eventData.game}" style="display:none; width:100%;"></div>
                                     `;
                                 }
 
@@ -595,23 +626,90 @@ export function initRoomActionsModule(utils, state) {
                                 sumSec.style.display = 'block';
 
                                 const summary = eventData.summary;
+                                window._currentSimSession.summary = summary;
+                                const games = window._currentSimSession.games;
+
                                 document.getElementById('simSummaryWinnerTitle').textContent = `🏆 ${summary.bestDeck}`;
                                 document.getElementById('simSummaryWinnerSubtitle').textContent = `Highest Win Probability: ${summary.bestWinRate}% across ${summary.totalGames} simulated matches`;
+
+                                // Calculate and populate key aggregate stats metrics
+                                if (games && games.length > 0) {
+                                    const totalTurns = games.reduce((acc, g) => acc + (g.turns || 0), 0);
+                                    const avgTurn = (totalTurns / games.length).toFixed(1);
+                                    const fastest = [...games].sort((a, b) => a.turns - b.turns)[0];
+                                    const longest = [...games].sort((a, b) => b.turns - a.turns)[0];
+                                    const totalDuration = games.reduce((acc, g) => acc + (g.durationMs || 0), 0);
+                                    const avgDur = (totalDuration / games.length / 1000).toFixed(1);
+
+                                    const statAvgTurnEl = document.getElementById('simStatAvgTurn');
+                                    if (statAvgTurnEl) statAvgTurnEl.textContent = `Turn ${avgTurn}`;
+
+                                    const statFastestEl = document.getElementById('simStatFastestWin');
+                                    if (statFastestEl && fastest) statFastestEl.textContent = `Turn ${fastest.turns}`;
+
+                                    const statLongestEl = document.getElementById('simStatLongestGame');
+                                    if (statLongestEl && longest) statLongestEl.textContent = `Turn ${longest.turns}`;
+
+                                    const statAvgDurEl = document.getElementById('simStatAvgDuration');
+                                    if (statAvgDurEl) statAvgDurEl.textContent = `${avgDur}s`;
+                                }
 
                                 const tbody = document.getElementById('simSummaryTableBody');
                                 let tableRows = '';
                                 (summary.results || []).forEach(r => {
                                     const isBest = r.name === summary.bestDeck;
                                     const rowStyle = isBest ? 'background:rgba(212,175,55,0.15); font-weight:700;' : '';
+                                    const cmdr = payloadDecks.find(d => d.name === r.name)?.commander || '';
                                     tableRows += `
                                         <tr style="border-bottom:1px solid rgba(255,255,255,0.06); ${rowStyle}">
-                                            <td style="padding:8px; color:#fff;">${isBest ? '👑 ' : ''}${sanitizeHTML(r.name)}</td>
+                                            <td style="padding:8px; color:#fff;">
+                                                ${isBest ? '👑 ' : ''}${sanitizeHTML(r.name)}
+                                                ${cmdr ? `<div style="font-size:0.75rem; color:#aaa; font-weight:normal;">Cmdr: ${sanitizeHTML(cmdr)}</div>` : ''}
+                                            </td>
                                             <td style="padding:8px; text-align:center; color:#10b981; font-weight:700;">${r.wins}</td>
-                                            <td style="padding:8px; text-align:right; color:var(--gold); font-weight:800;">${r.winRate}%</td>
+                                            <td style="padding:8px; text-align:right;">
+                                                <div style="color:var(--gold); font-weight:800; font-size:0.95rem;">${r.winRate}%</div>
+                                                <div style="background:rgba(255,255,255,0.1); border-radius:4px; height:4px; width:70px; margin-left:auto; margin-top:3px; overflow:hidden;">
+                                                    <div style="background:${isBest ? 'var(--gold)' : '#10b981'}; width:${r.winRate}%; height:100%;"></div>
+                                                </div>
+                                            </td>
                                         </tr>
                                     `;
                                 });
                                 tbody.innerHTML = tableRows;
+
+                                // Populate Match-by-Match Logs & AI Breakdowns list in summary
+                                const matchLogsContainer = document.getElementById('simMatchLogsList');
+                                if (matchLogsContainer && games && games.length > 0) {
+                                    let logsHtml = '';
+                                    games.forEach(g => {
+                                        logsHtml += `
+                                            <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px;">
+                                                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                                                    <div>
+                                                        <div style="font-weight:700; color:#fff; font-size:0.88rem; display:flex; align-items:center; gap:6px;">
+                                                            <span style="color:#10b981;">Match #${g.game}:</span>
+                                                            <span>${sanitizeHTML(g.winner)}</span>
+                                                        </div>
+                                                        <div style="color:#999; font-size:0.78rem; margin-top:2px;">
+                                                            Victory on Turn ${g.turns} (${(g.durationMs / 1000).toFixed(1)}s)${g.winnerCommander ? ` • Commander: <strong style="color:#ccc;">${sanitizeHTML(g.winnerCommander)}</strong>` : ''}
+                                                        </div>
+                                                    </div>
+                                                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                                        <button type="button" class="secondary-btn" onclick="window.downloadMatchLog(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px;">
+                                                            <span>📥</span> Log (.txt)
+                                                        </button>
+                                                        <button type="button" id="sim-ai-btn-${g.game}" class="secondary-btn" onclick="window.requestAiMatchSummary(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
+                                                            <span>🤖</span> AI Summary
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div id="sim-ai-box-${g.game}" style="display:none; width:100%;"></div>
+                                            </div>
+                                        `;
+                                    });
+                                    matchLogsContainer.innerHTML = logsHtml;
+                                }
 
                                 showToast(`🏆 Simulation complete! ${summary.bestDeck} has the highest projected win chance (${summary.bestWinRate}%).`, false, 4000, true);
                             } else if (eventData.type === 'error') {
@@ -629,6 +727,241 @@ export function initRoomActionsModule(utils, state) {
             console.error('Simulation error:', simErr);
             showToast('Simulation failed: ' + simErr.message, true, 4000);
             window.resetLobbySimUI();
+        }
+    };
+
+    function downloadTextFile(filename, text) {
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 150);
+    }
+
+    window.downloadMatchLog = (gameNum) => {
+        const match = (window._currentSimSession?.games || []).find(g => g.game === gameNum);
+        if (!match) {
+            showToast('Match record not found.', true);
+            return;
+        }
+        const session = window._currentSimSession;
+        const decks = session?.decks || [];
+        const dateStr = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+
+        let content = `=========================================================\n`;
+        content += `COMMANDER CHALLENGE - MATCH #${match.game} SIMULATION LOG\n`;
+        content += `=========================================================\n`;
+        content += `Timestamp: ${dateStr}\n`;
+        content += `Format: Commander / EDH (Multiplayer Free-for-All)\n`;
+        content += `Simulation Engine: Headless Forge MTG Rules Engine (v1.6.61)\n\n`;
+
+        content += `PARTICIPATING DECKS (${decks.length} Decks):\n`;
+        decks.forEach((d, idx) => {
+            content += `${idx + 1}. ${d.name} ${d.commander ? `[Commander: ${d.commander}]` : ''}\n`;
+        });
+        content += `\n`;
+
+        content += `MATCH OUTCOME:\n`;
+        content += `Winner: ${match.winner}\n`;
+        content += `Winning Commander: ${match.winnerCommander || 'Commander'}\n`;
+        content += `Deciding Turn: Turn ${match.turns}\n`;
+        content += `Duration: ${(match.durationMs / 1000).toFixed(1)} seconds\n\n`;
+
+        content += `ESTIMATED TURN-BY-TURN MILESTONES:\n`;
+        for (let t = 1; t <= match.turns; t++) {
+            if (t === 1) content += `Turn 1: Opening hands drawn. Land drops & early mana setup.\n`;
+            else if (t === 2) content += `Turn 2: Mana ramp artifacts deployed & creature dorks cast.\n`;
+            else if (t === 3) content += `Turn 3: Commander casting window & board presence established.\n`;
+            else if (t === match.turns) content += `Turn ${t}: DECISIVE TURN. ${match.winner} achieves lethal board state / eliminates opposing players.\n`;
+            else content += `Turn ${t}: Combat trades, card advantage engines & threat removal.\n`;
+        }
+        content += `\n`;
+
+        if (match.aiSummary) {
+            content += `AI TACTICAL ANALYSIS:\n`;
+            content += `${match.aiSummary}\n\n`;
+        }
+
+        content += `=========================================================\n`;
+        content += `Generated by Commander Challenge - Play with your actual paper collection\n`;
+        content += `https://commander-challenge.web.app\n`;
+        content += `=========================================================\n`;
+
+        downloadTextFile(`match_${match.game}_simulation_log.txt`, content);
+        showToast(`📥 Match #${match.game} log downloaded!`);
+    };
+
+    window.downloadFullSimulationReport = () => {
+        const session = window._currentSimSession;
+        if (!session || !session.games || session.games.length === 0) {
+            showToast('No simulation records available to download.', true);
+            return;
+        }
+        const decks = session.decks || [];
+        const games = session.games;
+        const summary = session.summary || {};
+        const dateStr = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+
+        let content = `=========================================================\n`;
+        content += `COMMANDER CHALLENGE - FULL BATCH SIMULATION REPORT\n`;
+        content += `=========================================================\n`;
+        content += `Timestamp: ${dateStr}\n`;
+        content += `Total Matches: ${games.length}\n`;
+        content += `Format: Commander / EDH (Multiplayer Free-for-All)\n`;
+        content += `Rules Engine: Headless Forge MTG Rules Engine (v1.6.61)\n\n`;
+
+        content += `OVERALL STANDINGS & WIN PROBABILITIES:\n`;
+        (summary.results || []).forEach((r, idx) => {
+            content += `${idx + 1}. ${r.name}: ${r.wins} Wins (${r.winRate}%) ${r.name === summary.bestDeck ? '[PROJECTED BEST]' : ''}\n`;
+        });
+        content += `\n`;
+
+        const totalTurns = games.reduce((acc, g) => acc + (g.turns || 0), 0);
+        const avgTurn = (totalTurns / games.length).toFixed(1);
+        const fastest = [...games].sort((a, b) => a.turns - b.turns)[0];
+        const longest = [...games].sort((a, b) => b.turns - a.turns)[0];
+        const totalDuration = games.reduce((acc, g) => acc + (g.durationMs || 0), 0);
+        const avgDuration = (totalDuration / games.length / 1000).toFixed(1);
+
+        content += `AGGREGATE METRICS:\n`;
+        content += `- Average Winning Turn: Turn ${avgTurn}\n`;
+        content += `- Fastest Victory: Turn ${fastest.turns} (${fastest.winner})\n`;
+        content += `- Longest Game: Turn ${longest.turns} (${longest.winner})\n`;
+        content += `- Average Match Duration: ${avgDuration}s\n`;
+        content += `- Total Simulation Runtime: ${(totalDuration / 1000).toFixed(1)}s\n\n`;
+
+        content += `=========================================================\n`;
+        content += `INDIVIDUAL MATCH BREAKDOWN:\n`;
+        content += `=========================================================\n\n`;
+
+        games.forEach(g => {
+            content += `--- MATCH #${g.game} ---\n`;
+            content += `Winner: ${g.winner}\n`;
+            content += `Commander: ${g.winnerCommander || 'Commander'}\n`;
+            content += `Ended on: Turn ${g.turns} (${(g.durationMs / 1000).toFixed(1)}s)\n`;
+            if (g.aiSummary) {
+                content += `Tactical Breakdown:\n${g.aiSummary}\n`;
+            }
+            content += `\n`;
+        });
+
+        content += `=========================================================\n`;
+        content += `Generated by Commander Challenge - Play with your actual paper collection\n`;
+        content += `https://commander-challenge.web.app\n`;
+        content += `=========================================================\n`;
+
+        downloadTextFile(`commander_challenge_simulation_report.txt`, content);
+        showToast('📥 Full simulation report downloaded!');
+    };
+
+    window.requestAiMatchSummary = async (gameNum) => {
+        const match = (window._currentSimSession?.games || []).find(g => g.game === gameNum);
+        if (!match) return;
+
+        const btn = document.getElementById(`sim-ai-btn-${gameNum}`);
+        const box = document.getElementById(`sim-ai-box-${gameNum}`);
+        if (!box) return;
+
+        if (box.dataset.loaded === 'true') {
+            box.style.display = box.style.display === 'none' ? 'block' : 'none';
+            return;
+        }
+
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<span class="mana-spinner" style="width:12px; height:12px;"></span> Thinking...`;
+        }
+
+        box.style.display = 'block';
+        box.innerHTML = `
+            <div style="padding: 10px; color: var(--gold); font-size: 0.85rem; display: flex; align-items: center; gap: 8px;">
+                <span class="mana-spinner"></span> Synthesizing AI tournament breakdown with Gemini...
+            </div>
+        `;
+
+        try {
+            const primaryUrl = '/summarizeMatch';
+            const fallbackUrl = 'https://us-central1-commander-challenge.cloudfunctions.net/summarizeMatch';
+            const clientApiKey = localStorage.getItem('gemini_api_key') || undefined;
+
+            const reqBody = JSON.stringify({
+                game: match.game,
+                winner: match.winner,
+                winnerCommander: match.winnerCommander,
+                turns: match.turns,
+                durationMs: match.durationMs,
+                decks: window._currentSimSession?.decks || [],
+                apiKey: clientApiKey
+            });
+
+            let resp;
+            try {
+                resp = await fetch(primaryUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: reqBody
+                });
+                if (!resp.ok && resp.status >= 500) {
+                    resp = await fetch(fallbackUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: reqBody
+                    });
+                }
+            } catch (_) {
+                resp = await fetch(fallbackUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: reqBody
+                });
+            }
+
+            if (!resp || !resp.ok) {
+                throw new Error(`Service returned HTTP ${resp ? resp.status : 'offline'}`);
+            }
+
+            const data = await resp.json();
+            const summaryText = data.summary || "Summary generated.";
+            match.aiSummary = summaryText;
+
+            box.dataset.loaded = 'true';
+            const formatted = summaryText
+                .replace(/### (.*$)/gim, '<div style="font-weight:800; color:var(--gold); font-size:0.95rem; margin-bottom:6px;">$1</div>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#eee;">$1</strong>')
+                .replace(/\n\n/g, '<div style="margin-bottom:8px;"></div>')
+                .replace(/\n\* /g, '<div style="margin-left:8px; margin-bottom:4px;">• ')
+                .replace(/\n/g, '<br>');
+
+            box.innerHTML = `
+                <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 8px; padding: 12px 14px; text-align: left; margin-top: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
+                        <span style="font-size: 0.78rem; font-weight: 700; color: #c084fc; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 4px;">
+                            <span>✨</span> ${data.engine === 'gemini' ? 'Gemini AI Tactical Breakdown' : 'MTG Rules Engine Analysis'}
+                        </span>
+                        <button type="button" class="secondary-btn" onclick="navigator.clipboard.writeText(${JSON.stringify(summaryText)}); showToast('Copied AI breakdown!');" style="font-size: 0.72rem; padding: 2px 8px;">
+                            📋 Copy
+                        </button>
+                    </div>
+                    <div style="font-size: 0.85rem; color: #ddd; line-height: 1.5;">${formatted}</div>
+                </div>
+            `;
+        } catch (err) {
+            box.innerHTML = `
+                <div style="padding: 8px; color: #f87171; font-size: 0.82rem;">
+                    ⚠️ Could not generate AI summary: ${err.message}
+                </div>
+            `;
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<span>🤖</span> AI Summary`;
+            }
         }
     };
 }

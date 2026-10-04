@@ -60,6 +60,10 @@
         "function": "searchCommanderDecks"
       },
       {
+        "source": "/summarizeMatch",
+        "function": "summarizeMatch"
+      },
+      {
         "source": "/shortenUrl",
         "function": "shortenUrl"
       },

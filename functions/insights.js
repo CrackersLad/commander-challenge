@@ -189,12 +189,19 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
         let eurPrice = 0;
         let eurFoilPrice = 0;
 
-        if (prices.tcg || prices.ck || prices.scg || prices.cardTrader) {
-            usdPrice = parseFloat(prices.tcg || prices.ck || prices.scg || prices.cardTrader || 0) || 0;
-            usdFoilPrice = parseFloat(prices.tcgfoil || prices.ckfoil || (usdPrice * 1.6) || 0) || usdPrice;
-            eurPrice = parseFloat(prices.cm || (usdPrice * 0.92) || 0) || 0;
-            eurFoilPrice = parseFloat(prices.cmfoil || (usdFoilPrice * 0.92) || 0) || eurPrice;
-        } else if (prices.usd || prices.usd_foil) {
+        const hasArchidektPrice = Boolean(
+            prices.tcg || prices.tcgMinimum || prices.tcgfoil ||
+            prices.cm || prices.cmMinimum || prices.cmfoil || prices.cmFoil ||
+            prices.ck || prices.ckMinimum || prices.ckfoil ||
+            prices.scg || prices.scgfoil || prices.cardTrader || prices.cardTraderFoil
+        );
+
+        if (hasArchidektPrice) {
+            usdPrice = parseFloat(prices.tcg || prices.tcgMinimum || prices.ck || prices.ckMinimum || prices.scg || prices.cardTrader || prices.tcgfoil || 0) || 0;
+            usdFoilPrice = parseFloat(prices.tcgfoil || prices.ckfoil || prices.scgfoil || prices.cardTraderFoil || prices.tcg || (usdPrice * 1.6) || 0) || usdPrice;
+            eurPrice = parseFloat(prices.cm || prices.cmMinimum || prices.cardmarket || prices.cmfoil || (usdPrice * 0.92) || 0) || 0;
+            eurFoilPrice = parseFloat(prices.cmfoil || prices.cmFoil || prices.cardmarket_foil || prices.cm || prices.cmMinimum || (usdFoilPrice * 0.92) || 0) || eurPrice;
+        } else if (prices.usd || prices.usd_foil || prices.eur || prices.eur_foil) {
             usdPrice = parseFloat(prices.usd || 0) || 0;
             usdFoilPrice = parseFloat(prices.usd_foil || usdPrice || 0) || 0;
             eurPrice = parseFloat(prices.eur || (usdPrice * 0.92) || 0) || 0;
@@ -262,15 +269,19 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
                 typeLine,
                 colors,
                 setCode: setCode || enrichedPricesMap.get(cleanName)?.set || "",
+                collectorNumber: collectorNumber || "",
                 imageUrl,
-                collectorNumber,
                 prices: {
                     usd: usdPrice,
                     usd_foil: usdFoilPrice,
                     eur: eurPrice,
                     eur_foil: eurFoilPrice,
-                    ck: prices.ck || usdPrice,
-                    ck_foil: prices.ckfoil || usdFoilPrice
+                    cm: (prices.cm && Number(prices.cm) > 0) ? parseFloat(prices.cm) : eurPrice,
+                    cmfoil: (prices.cmfoil && Number(prices.cmfoil) > 0) ? parseFloat(prices.cmfoil) : ((prices.cmFoil && Number(prices.cmFoil) > 0) ? parseFloat(prices.cmFoil) : eurFoilPrice),
+                    tcg: (prices.tcg && Number(prices.tcg) > 0) ? parseFloat(prices.tcg) : usdPrice,
+                    tcgfoil: (prices.tcgfoil && Number(prices.tcgfoil) > 0) ? parseFloat(prices.tcgfoil) : usdFoilPrice,
+                    ck: (prices.ck && Number(prices.ck) > 0) ? parseFloat(prices.ck) : usdPrice,
+                    ck_foil: (prices.ckfoil && Number(prices.ckfoil) > 0) ? parseFloat(prices.ckfoil) : usdFoilPrice
                 }
             });
         }
@@ -415,9 +426,13 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
         }
     }
 
-    // Sort crown jewels by price descending
-    allCardsArray.sort((a, b) => b.unitPriceUsd - a.unitPriceUsd);
-    const crownJewels = allCardsArray.slice(0, 12).map(c => ({
+    // Sort crown jewels by highest market valuation (USD or EUR) descending across any market
+    allCardsArray.sort((a, b) => {
+        const valA = Math.max(a.unitPriceEur || 0, a.unitPriceUsd || 0);
+        const valB = Math.max(b.unitPriceEur || 0, b.unitPriceUsd || 0);
+        return valB - valA;
+    });
+    const crownJewels = allCardsArray.slice(0, 48).map(c => ({
         name: c.name,
         cleanName: c.cleanName,
         quantity: c.quantity,
@@ -458,9 +473,14 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
 
     const ownedStaplesCount = staplesCheck.filter(s => s.isOwned).length;
 
+    const uniquePrintings = cardMap.size;
+    const totalRecords = rawItems.length;
+
     return {
         summary: {
             uniqueCards,
+            uniquePrintings,
+            totalRecords,
             totalCopies,
             totalValueUsd: parseFloat(totalValueUsd.toFixed(2)),
             totalValueEur: parseFloat(totalValueEur.toFixed(2)),

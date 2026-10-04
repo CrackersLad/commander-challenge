@@ -493,37 +493,59 @@
             const isFoilish = normFinish.includes('foil') || normFinish.includes('etched');
 
             if (currentMarket === 'cardmarket') {
-                if (isFoilish && prices.eur_foil != null && prices.eur_foil !== '') {
-                    return parseFloat(prices.eur_foil) || 0;
+                if (isFoilish) {
+                    const foilPrice = prices.eur_foil ?? prices.cmfoil ?? prices.cmFoil;
+                    if (foilPrice != null && foilPrice !== '' && Number(foilPrice) > 0) {
+                        return parseFloat(foilPrice);
+                    }
                 }
-                if (prices.eur != null && prices.eur !== '') {
-                    return parseFloat(prices.eur) || 0;
+                const regPrice = prices.eur ?? prices.cm ?? prices.cmMinimum;
+                if (regPrice != null && regPrice !== '' && Number(regPrice) > 0) {
+                    return parseFloat(regPrice);
+                }
+                const fallbackFoil = prices.eur_foil ?? prices.cmfoil ?? prices.cmFoil;
+                if (fallbackFoil != null && fallbackFoil !== '' && Number(fallbackFoil) > 0) {
+                    return parseFloat(fallbackFoil);
                 }
                 // Fallback from USD with ~0.92 conversion
-                const usd = isFoilish ? (prices.usd_foil || prices.usd) : prices.usd;
+                const usd = isFoilish ? (prices.usd_foil || prices.tcgfoil || prices.usd || prices.tcg) : (prices.usd || prices.tcg);
                 return usd ? parseFloat((parseFloat(usd) * 0.92).toFixed(2)) : 0;
             }
 
             if (currentMarket === 'ck') {
-                if (isFoilish && prices.ck_foil != null && prices.ck_foil !== '') {
-                    return parseFloat(prices.ck_foil) || 0;
+                if (isFoilish) {
+                    const ckFoil = prices.ck_foil ?? prices.ckfoil;
+                    if (ckFoil != null && ckFoil !== '' && Number(ckFoil) > 0) {
+                        return parseFloat(ckFoil);
+                    }
                 }
-                if (prices.ck != null && prices.ck !== '') {
-                    return parseFloat(prices.ck) || 0;
+                const ckReg = prices.ck ?? prices.ckMinimum;
+                if (ckReg != null && ckReg !== '' && Number(ckReg) > 0) {
+                    return parseFloat(ckReg);
                 }
                 // Fallback to USD foil / regular
-                if (isFoilish && prices.usd_foil != null && prices.usd_foil !== '') {
-                    return parseFloat(prices.usd_foil) || 0;
+                if (isFoilish) {
+                    const usdFoil = prices.usd_foil ?? prices.tcgfoil;
+                    if (usdFoil != null && usdFoil !== '' && Number(usdFoil) > 0) return parseFloat(usdFoil);
                 }
-                return parseFloat(prices.usd) || 0;
+                const usd = prices.usd ?? prices.tcg;
+                return (usd != null && usd !== '') ? parseFloat(usd) : 0;
             }
 
             // Default: TCGPlayer
-            if (isFoilish && prices.usd_foil != null && prices.usd_foil !== '') {
-                return parseFloat(prices.usd_foil) || 0;
+            if (isFoilish) {
+                const tcgFoil = prices.usd_foil ?? prices.tcgfoil;
+                if (tcgFoil != null && tcgFoil !== '' && Number(tcgFoil) > 0) {
+                    return parseFloat(tcgFoil);
+                }
             }
-            if (prices.usd != null && prices.usd !== '') {
-                return parseFloat(prices.usd) || 0;
+            const tcgReg = prices.usd ?? prices.tcg ?? prices.tcgMinimum;
+            if (tcgReg != null && tcgReg !== '' && Number(tcgReg) > 0) {
+                return parseFloat(tcgReg);
+            }
+            const fallbackFoil = prices.usd_foil ?? prices.tcgfoil;
+            if (fallbackFoil != null && fallbackFoil !== '' && Number(fallbackFoil) > 0) {
+                return parseFloat(fallbackFoil);
             }
             return 0;
         }
@@ -1016,6 +1038,7 @@
         function refreshActiveCollection() {
             localStorage.removeItem('archidekt_cachedInsights');
             cachedInsightsData = null;
+            cachedParsedCsv = null;
             const collInput = document.getElementById('collectionId');
             let collId = collInput ? collInput.value.trim() : '';
             const collMatch = collId.match(/(?:archidekt\.com\/collections?\/)(\d+)/i);
@@ -1036,7 +1059,7 @@
             } else if (tab === 'deck') {
                 runComparison();
             } else if (tab === 'set') {
-                runSetComparison();
+                runSetComparison(true);
             } else if (tab === 'build') {
                 renderBuildSection(true);
             }
@@ -2155,7 +2178,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=7.20');
+                    const res = await fetch('./commander-precons.json?v=8.0');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2191,7 +2214,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=7.20');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=8.0');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -2777,25 +2800,118 @@
 
             if (ownedCardsList.length === 0 && collectionId) {
                 grid.innerHTML = `
-                    <div style="grid-column: 1 / -1; padding: 4rem 1rem; text-align: center;">
-                        <div class="spinner" style="width: 40px; height: 40px; border-width: 3px; margin: 0 auto 1.25rem auto;"></div>
-                        <h3 style="margin: 0 0 0.5rem 0; font-size: 1.3rem;">Analyzing Your Collection...</h3>
-                        <p style="color: var(--text-muted); font-size: 0.95rem; max-width: 500px; margin: 0 auto;">
-                            Evaluating Archidekt collection <strong>#${collectionId}</strong> against popular Commander precons & top archetypes...
-                        </p>
+                    <div style="grid-column: 1 / -1; padding: 1.5rem 0;">
+                        <div class="collection-progress-card">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem;">
+                                <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 999px; padding: 0.3rem 0.85rem; font-size: 0.78rem; font-weight: 700; color: #38bdf8; text-transform: uppercase;">
+                                    <span class="pulse-dot"></span> Archidekt Sync
+                                </div>
+                                <div id="buildLoadingEta" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); font-family: monospace;">
+                                    Est. remaining: ~15s (Elapsed: 0s)
+                                </div>
+                            </div>
+                            <h3 id="buildLoadingTitle" style="margin: 0 0 0.4rem 0; font-size: 1.35rem; font-weight: 800; color: var(--text-color); text-align: left;">
+                                Analyzing Collection #${collectionId}...
+                            </h3>
+                            <p id="buildLoadingStatus" style="margin: 0 0 1.25rem 0; font-size: 0.92rem; color: var(--text-muted); line-height: 1.4; text-align: left;">
+                                Evaluating collection against 180+ Commander precons & top meta archetypes...
+                            </p>
+                            <div class="collection-progress-wrap">
+                                <div class="collection-progress-track">
+                                    <div id="buildLoadingBarFill" class="collection-progress-fill" style="width: 5%;">
+                                        <div class="collection-progress-shimmer"></div>
+                                    </div>
+                                </div>
+                                <div class="collection-progress-labels">
+                                    <span id="buildLoadingCount" style="font-weight: 700; color: #38bdf8;">Retrieving collection...</span>
+                                    <span id="buildLoadingPct" style="font-weight: 800; font-size: 1.1rem; color: var(--text-color); font-family: monospace;">5%</span>
+                                    <span id="buildLoadingPage" style="color: var(--text-muted); font-family: monospace;">Page 1</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 `;
 
+                const startTime = Date.now();
+                let estTotalSec = 16;
+                const ticker = setInterval(() => {
+                    const elapsed = Math.max(1, Math.round((Date.now() - startTime) / 1000));
+                    const remaining = Math.max(1, Math.round(estTotalSec - elapsed));
+                    const etaEl = document.getElementById('buildLoadingEta');
+                    if (etaEl) etaEl.textContent = `Est. remaining: ~${remaining}s (Elapsed: ${elapsed}s)`;
+                }, 500);
+
                 try {
-                    let response = await fetch('/getCollectionInsights', {
+                    let response = await fetch('/getCollectionInsights?stream=true', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'text/event-stream'
+                        },
                         body: JSON.stringify({ collectionId })
                     });
-                    const data = await response.json();
-                    const collCards = (data.collection && Array.isArray(data.collection) && data.collection.length > 0)
+
+                    let data = null;
+                    const contentType = response.headers.get('content-type') || '';
+
+                    if (contentType.includes('text/event-stream') && response.body) {
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let buffer = '';
+
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            buffer += decoder.decode(value, { stream: true });
+                            const blocks = buffer.split('\n\n');
+                            buffer = blocks.pop();
+
+                            for (const block of blocks) {
+                                if (!block.trim()) continue;
+                                const lines = block.split('\n');
+                                let eventName = 'message';
+                                let dataStr = '';
+                                for (const line of lines) {
+                                    if (line.startsWith('event:')) eventName = line.substring(6).trim();
+                                    else if (line.startsWith('data:')) dataStr = line.substring(5).trim();
+                                }
+                                if (!dataStr) continue;
+                                let parsed = null;
+                                try { parsed = JSON.parse(dataStr); } catch (e) { continue; }
+
+                                if (eventName === 'progress') {
+                                    const fillEl = document.getElementById('buildLoadingBarFill');
+                                    const pctEl = document.getElementById('buildLoadingPct');
+                                    const countEl = document.getElementById('buildLoadingCount');
+                                    const pageEl = document.getElementById('buildLoadingPage');
+                                    const statusEl = document.getElementById('buildLoadingStatus');
+                                    const etaEl = document.getElementById('buildLoadingEta');
+
+                                    const pct = Math.min(100, Math.max(5, parsed.pct || 5));
+                                    if (fillEl) fillEl.style.width = `${pct}%`;
+                                    if (pctEl) pctEl.textContent = `${Math.round(pct)}%`;
+                                    if (countEl) countEl.textContent = parsed.count ? `${(parsed.fetched || 0).toLocaleString()} / ${(parsed.count || 0).toLocaleString()} Records` : 'Retrieving...';
+                                    if (pageEl && parsed.totalPages) pageEl.textContent = `Page ${parsed.page || 1} / ${parsed.totalPages}`;
+                                    if (statusEl && parsed.message) statusEl.textContent = parsed.message;
+                                    if (parsed.estRemainingMs) {
+                                        estTotalSec = Math.max(2, Math.round((Date.now() - startTime) / 1000) + Math.round(parsed.estRemainingMs / 1000));
+                                    }
+                                } else if (eventName === 'result') {
+                                    data = parsed;
+                                } else if (eventName === 'error') {
+                                    throw new Error(parsed.error || 'Server error loading collection stream');
+                                }
+                            }
+                        }
+                    } else {
+                        data = await response.json();
+                    }
+
+                    clearInterval(ticker);
+
+                    const collCards = (data?.collection && Array.isArray(data.collection) && data.collection.length > 0)
                         ? data.collection
-                        : ((data.cachedCollectionData && Array.isArray(data.cachedCollectionData) && data.cachedCollectionData.length > 0)
+                        : ((data?.cachedCollectionData && Array.isArray(data.cachedCollectionData) && data.cachedCollectionData.length > 0)
                             ? data.cachedCollectionData
                             : []);
 
@@ -2817,6 +2933,7 @@
                         return;
                     }
                 } catch (err) {
+                    clearInterval(ticker);
                     grid.innerHTML = `
                         <div style="grid-column: 1 / -1; padding: 3rem 1.5rem; text-align: center; color: var(--status-missing); background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 12px;">
                             <div style="font-size: 2rem; margin-bottom: 0.5rem;">⚠️</div>
@@ -3918,8 +4035,190 @@
             }
         }
 
+        function updateCollectionProgressUI({
+            title,
+            status,
+            badge,
+            pct = 0,
+            countText,
+            pageText,
+            elapsedSec = 0,
+            estRemainingSec = 0,
+            step = 1
+        }) {
+            const loadingCard = document.getElementById('collectionInsightsLoading');
+            if (!loadingCard) return;
+
+            if (title) {
+                const el = document.getElementById('collectionLoadingTitle');
+                if (el) el.textContent = title;
+            }
+            if (status) {
+                const el = document.getElementById('collectionLoadingStatus');
+                if (el) el.textContent = status;
+            }
+            if (badge) {
+                const el = document.getElementById('collectionLoadingBadgeText');
+                if (el) el.textContent = badge;
+            }
+
+            const fillEl = document.getElementById('collectionLoadingBarFill');
+            if (fillEl) fillEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+
+            const pctEl = document.getElementById('collectionLoadingPct');
+            if (pctEl) pctEl.textContent = `${Math.round(pct)}%`;
+
+            const countEl = document.getElementById('collectionLoadingCount');
+            if (countEl && countText !== undefined) countEl.textContent = countText;
+
+            const pageEl = document.getElementById('collectionLoadingPage');
+            if (pageEl && pageText !== undefined) pageEl.textContent = pageText;
+
+            const etaEl = document.getElementById('collectionLoadingEta');
+            if (etaEl) {
+                if (pct >= 100) {
+                    etaEl.textContent = `Complete (${elapsedSec}s)`;
+                } else if (estRemainingSec <= 0) {
+                    etaEl.textContent = `Elapsed: ${elapsedSec}s`;
+                } else {
+                    etaEl.textContent = `Est. remaining: ~${estRemainingSec}s (Elapsed: ${elapsedSec}s)`;
+                }
+            }
+
+            // Update step milestones: 1: stepManifest, 2: stepDownload, 3: stepPricing, 4: stepAnalytics
+            const stepIds = ['stepManifest', 'stepDownload', 'stepPricing', 'stepAnalytics'];
+            stepIds.forEach((id, idx) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const stepNum = idx + 1;
+                el.classList.remove('active', 'done');
+                if (stepNum < step) {
+                    el.classList.add('done');
+                } else if (stepNum === step) {
+                    el.classList.add('active');
+                }
+            });
+        }
+
+        function updateDeckCompareProgressUI({
+            title,
+            status,
+            badge,
+            pct = 0,
+            detailText,
+            phaseText,
+            elapsedSec = 0,
+            step = 1
+        }) {
+            const loadingCard = document.getElementById('deckCompareLoadingCard');
+            if (!loadingCard) return;
+
+            if (title) {
+                const el = document.getElementById('deckCompareLoadingTitle');
+                if (el) el.textContent = title;
+            }
+            if (status) {
+                const el = document.getElementById('deckCompareLoadingStatus');
+                if (el) el.textContent = status;
+            }
+            if (badge) {
+                const el = document.getElementById('deckCompareLoadingBadge');
+                if (el) el.textContent = badge;
+            }
+            if (detailText) {
+                const el = document.getElementById('deckCompareLoadingDetail');
+                if (el) el.textContent = detailText;
+            }
+            if (phaseText) {
+                const el = document.getElementById('deckCompareLoadingPhase');
+                if (el) el.textContent = phaseText;
+            }
+
+            const fillEl = document.getElementById('deckCompareLoadingBarFill');
+            if (fillEl) fillEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+
+            const pctEl = document.getElementById('deckCompareLoadingPct');
+            if (pctEl) pctEl.textContent = `${Math.round(pct)}%`;
+
+            const etaEl = document.getElementById('deckCompareLoadingEta');
+            if (etaEl) {
+                etaEl.textContent = pct >= 100 ? `Complete (${elapsedSec}s)` : `Elapsed: ${elapsedSec}s`;
+            }
+
+            const stepIds = ['dcStepDecks', 'dcStepCollection', 'dcStepCrossref', 'dcStepDeficits'];
+            stepIds.forEach((id, idx) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const num = idx + 1;
+                el.classList.remove('active', 'done');
+                if (num < step) el.classList.add('done');
+                else if (num === step) el.classList.add('active');
+            });
+        }
+
+        function updateSetProgressUI({
+            title,
+            status,
+            badge,
+            pct = 0,
+            detailText,
+            phaseText,
+            elapsedSec = 0,
+            step = 1
+        }) {
+            const loadingCard = document.getElementById('setProgressLoadingCard');
+            if (!loadingCard) return;
+
+            if (title) {
+                const el = document.getElementById('setProgressLoadingTitle');
+                if (el) el.textContent = title;
+            }
+            if (status) {
+                const el = document.getElementById('setProgressLoadingStatus');
+                if (el) el.textContent = status;
+            }
+            if (badge) {
+                const el = document.getElementById('setProgressLoadingBadge');
+                if (el) el.textContent = badge;
+            }
+            if (detailText) {
+                const el = document.getElementById('setProgressLoadingDetail');
+                if (el) el.textContent = detailText;
+            }
+            if (phaseText) {
+                const el = document.getElementById('setProgressLoadingPhase');
+                if (el) el.textContent = phaseText;
+            }
+
+            const fillEl = document.getElementById('setProgressLoadingBarFill');
+            if (fillEl) fillEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+
+            const pctEl = document.getElementById('setProgressLoadingPct');
+            if (pctEl) pctEl.textContent = `${Math.round(pct)}%`;
+
+            const etaEl = document.getElementById('setProgressLoadingEta');
+            if (etaEl) {
+                etaEl.textContent = pct >= 100 ? `Complete (${elapsedSec}s)` : `Elapsed: ${elapsedSec}s`;
+            }
+
+            const stepIds = ['spStepManifest', 'spStepCollection', 'spStepMatching', 'spStepMetrics'];
+            stepIds.forEach((id, idx) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const num = idx + 1;
+                el.classList.remove('active', 'done');
+                if (num < step) el.classList.add('done');
+                else if (num === step) el.classList.add('active');
+            });
+        }
+
         async function fetchCollectionInsights(forceFresh = false) {
-            if (!forceFresh && cachedInsightsData) {
+            if (forceFresh) {
+                cachedInsightsData = null;
+                try {
+                    localStorage.removeItem('archidekt_cachedInsights');
+                } catch (e) {}
+            } else if (cachedInsightsData) {
                 renderCollectionInsights(cachedInsightsData);
                 return;
             }
@@ -3959,23 +4258,64 @@
             document.getElementById('collectionInsightsDashboard').style.display = 'none';
             document.getElementById('collectionInsightsLoading').style.display = 'block';
 
+            const startTime = Date.now();
+            let estimatedTotalSec = 16;
+            let currentPct = 5;
+            let currentStep = 1;
+            let currentCountText = 'Connecting...';
+            let currentPageText = 'Page 0 / 0';
+            let currentStatus = collectionCsvData 
+                ? 'Parsing local collection CSV records...' 
+                : `Connecting to Archidekt for collection #${collectionId}...`;
+
+            updateCollectionProgressUI({
+                title: collectionCsvData ? 'Processing CSV Collection...' : `Retrieving Collection #${collectionId}`,
+                status: currentStatus,
+                badge: collectionCsvData ? 'CSV Parsing' : 'Pulling From Archidekt',
+                pct: currentPct,
+                countText: currentCountText,
+                pageText: currentPageText,
+                elapsedSec: 0,
+                estRemainingSec: estimatedTotalSec,
+                step: 1
+            });
+
+            const tickerInterval = setInterval(() => {
+                const elapsed = Math.max(1, Math.round((Date.now() - startTime) / 1000));
+                const estRemaining = Math.max(1, Math.round(estimatedTotalSec - elapsed));
+                updateCollectionProgressUI({
+                    elapsedSec: elapsed,
+                    estRemainingSec: estRemaining,
+                    pct: currentPct,
+                    step: currentStep
+                });
+            }, 500);
+
             try {
-                let response = await fetch('/getCollectionInsights', {
+                let response = await fetch('/getCollectionInsights?stream=true', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream'
+                    },
                     body: JSON.stringify({
                         collectionId,
-                        collectionData: collectionCsvData
+                        collectionData: collectionCsvData,
+                        forceFresh: Boolean(forceFresh)
                     })
                 });
 
                 if (!response.ok) {
-                    response = await fetch('https://us-central1-commander-challenge.cloudfunctions.net/getCollectionInsights', {
+                    response = await fetch('https://us-central1-commander-challenge.cloudfunctions.net/getCollectionInsights?stream=true', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'text/event-stream'
+                        },
                         body: JSON.stringify({
                             collectionId,
-                            collectionData: collectionCsvData
+                            collectionData: collectionCsvData,
+                            forceFresh: Boolean(forceFresh)
                         })
                     });
                 }
@@ -3985,14 +4325,124 @@
                     throw new Error(err.error || `Server returned status ${response.status}`);
                 }
 
-                const data = await response.json();
-                cachedInsightsData = data;
-                localStorage.setItem('archidekt_cachedInsights', JSON.stringify(data));
-                renderCollectionInsights(data);
+                const contentType = response.headers.get('content-type') || '';
+                let finalData = null;
+
+                if (contentType.includes('text/event-stream') && response.body) {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+                        const blocks = buffer.split('\n\n');
+                        buffer = blocks.pop(); // keep trailing incomplete chunk
+
+                        for (const block of blocks) {
+                            if (!block.trim()) continue;
+                            const lines = block.split('\n');
+                            let eventName = 'message';
+                            let dataStr = '';
+
+                            for (const line of lines) {
+                                if (line.startsWith('event:')) {
+                                    eventName = line.substring(6).trim();
+                                } else if (line.startsWith('data:')) {
+                                    dataStr = line.substring(5).trim();
+                                }
+                            }
+
+                            if (!dataStr) continue;
+                            let parsed = null;
+                            try { parsed = JSON.parse(dataStr); } catch (e) { continue; }
+
+                            if (eventName === 'progress') {
+                                if (parsed.phase === 'cached') {
+                                    currentStep = 4;
+                                    currentPct = 95;
+                                    estimatedTotalSec = 1;
+                                    currentCountText = `${parsed.count} Cards (Cached)`;
+                                    currentPageText = 'Instant Cache';
+                                    currentStatus = parsed.message;
+                                } else if (parsed.phase === 'manifest') {
+                                    currentStep = 2;
+                                    currentPct = Math.max(currentPct, parsed.pct || 15);
+                                    if (parsed.estRemainingMs) estimatedTotalSec = Math.round(parsed.estRemainingMs / 1000);
+                                    currentCountText = `Found ${parsed.count} records`;
+                                    currentPageText = `1 / ${parsed.totalPages} Pages`;
+                                    currentStatus = parsed.message;
+                                } else if (parsed.phase === 'fetching') {
+                                    currentStep = 2;
+                                    currentPct = Math.max(currentPct, parsed.pct || 40);
+                                    if (parsed.estRemainingMs) estimatedTotalSec = Math.max(2, Math.round((Date.now() - startTime) / 1000) + Math.round(parsed.estRemainingMs / 1000));
+                                    currentCountText = `${(parsed.fetched || 0).toLocaleString()} / ${(parsed.count || 0).toLocaleString()} Records`;
+                                    currentPageText = `Page ${parsed.page || 0} / ${parsed.totalPages || 0}`;
+                                    currentStatus = parsed.message;
+                                } else if (parsed.phase === 'pricing') {
+                                    currentStep = 3;
+                                    currentPct = Math.max(currentPct, 88);
+                                    currentStatus = parsed.message;
+                                } else if (parsed.phase === 'complete') {
+                                    currentStep = 4;
+                                    currentPct = 100;
+                                    currentStatus = parsed.message;
+                                }
+
+                                const elapsedNow = Math.round((Date.now() - startTime) / 1000);
+                                const estRemainingNow = Math.max(0, Math.round(estimatedTotalSec - elapsedNow));
+                                updateCollectionProgressUI({
+                                    status: currentStatus,
+                                    pct: currentPct,
+                                    countText: currentCountText,
+                                    pageText: currentPageText,
+                                    elapsedSec: elapsedNow,
+                                    estRemainingSec: estRemainingNow,
+                                    step: currentStep
+                                });
+                            } else if (eventName === 'result') {
+                                finalData = parsed;
+                            } else if (eventName === 'error') {
+                                throw new Error(parsed.error || 'Server error loading collection stream');
+                            }
+                        }
+                    }
+                } else {
+                    // Fallback to regular JSON parsing
+                    finalData = await response.json();
+                }
+
+                if (!finalData) {
+                    throw new Error("No collection data was returned.");
+                }
+
+                clearInterval(tickerInterval);
+                const totalElapsedSec = Math.max(1, Math.round((Date.now() - startTime) / 1000));
+
+                updateCollectionProgressUI({
+                    title: "Collection Loaded!",
+                    status: "Rendering your collection valuation, staples, and deck analytics...",
+                    badge: "Complete",
+                    pct: 100,
+                    countText: `${finalData.summary?.totalCopies || finalData.collection?.length || 0} Cards`,
+                    pageText: "Done",
+                    elapsedSec: totalElapsedSec,
+                    estRemainingSec: 0,
+                    step: 4
+                });
+
+                await new Promise(r => setTimeout(r, 350));
+
+                cachedInsightsData = finalData;
+                localStorage.setItem('archidekt_cachedInsights', JSON.stringify(finalData));
+                renderCollectionInsights(finalData);
             } catch (err) {
+                clearInterval(tickerInterval);
                 alert(`Could not generate Collection Insights: ${err.message}`);
                 document.getElementById('collectionInsightsEmpty').style.display = 'block';
             } finally {
+                clearInterval(tickerInterval);
                 document.getElementById('collectionInsightsLoading').style.display = 'none';
             }
         }
@@ -4119,8 +4569,20 @@
                 activeMarketEl.textContent = getMarketDisplayName();
             }
 
-            document.getElementById('factUniqueCards').textContent = summary.uniqueCards.toLocaleString();
-            document.getElementById('factTotalCopies').textContent = summary.totalCopies.toLocaleString();
+            const uniqueCardsEl = document.getElementById('factUniqueCards');
+            if (uniqueCardsEl) {
+                uniqueCardsEl.textContent = summary.uniqueCards.toLocaleString();
+                if (summary.uniquePrintings) {
+                    uniqueCardsEl.title = `${summary.uniqueCards.toLocaleString()} unique cards across ${summary.uniquePrintings.toLocaleString()} unique printings`;
+                }
+            }
+            const totalCopiesEl = document.getElementById('factTotalCopies');
+            if (totalCopiesEl) {
+                totalCopiesEl.textContent = summary.totalCopies.toLocaleString();
+                if (summary.totalRecords) {
+                    totalCopiesEl.title = `${summary.totalCopies.toLocaleString()} total cards across ${summary.totalRecords.toLocaleString()} collection records`;
+                }
+            }
             document.getElementById('factAvailableCopies').textContent = summary.availableCopies.toLocaleString();
             document.getElementById('factStaplesOwned').textContent = `${summary.ownedStaplesCount} / ${summary.totalStaplesTracked}`;
 
@@ -4128,12 +4590,12 @@
             const jewelsContainer = document.getElementById('crownJewelsGrid');
             jewelsContainer.innerHTML = '';
             if (Array.isArray(crownJewels) && crownJewels.length > 0) {
-                // Sort jewels dynamically based on the active market valuation for the card's specific finish
+                // Sort jewels dynamically based on the active market valuation for the card's specific finish and select top 12
                 const sortedJewels = [...crownJewels].sort((a, b) => {
                     const priceA = getCardMarketNumericPrice(a.prices, a.finish) || (currentMarket === 'cardmarket' ? (a.priceEur || 0) : (a.priceUsd || 0));
                     const priceB = getCardMarketNumericPrice(b.prices, b.finish) || (currentMarket === 'cardmarket' ? (b.priceEur || 0) : (b.priceUsd || 0));
                     return priceB - priceA;
-                });
+                }).slice(0, 12);
 
                 sortedJewels.forEach(c => {
                     const cardDiv = document.createElement('div');
@@ -4990,6 +5452,78 @@
             if (decksOverviewCard) decksOverviewCard.style.display = 'none';
             if (resultsContainer) resultsContainer.style.display = 'none';
 
+            const dcLoadingCard = document.getElementById('deckCompareLoadingCard');
+            if (dcLoadingCard) {
+                dcLoadingCard.style.display = 'block';
+                dcLoadingCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            const startTime = Date.now();
+            let dcPct = 15;
+            let dcStep = 1;
+            let dcDetail = 'Contacting Archidekt API...';
+            let dcPhase = 'Phase 1 / 4';
+
+            updateDeckCompareProgressUI({
+                title: 'Comparing Decks to Collection...',
+                status: 'Connecting to Archidekt and retrieving deck card manifests...',
+                badge: 'Scanning Decks',
+                pct: dcPct,
+                detailText: dcDetail,
+                phaseText: dcPhase,
+                elapsedSec: 0,
+                step: 1
+            });
+
+            const dcTicker = setInterval(() => {
+                const elapsed = Math.max(1, Math.round((Date.now() - startTime) / 1000));
+                if (elapsed >= 1 && elapsed < 3) {
+                    dcPct = Math.min(48, dcPct + 6);
+                    dcStep = 2;
+                    dcDetail = 'Resolving collection inventory & owned counts...';
+                    dcPhase = 'Phase 2 / 4';
+                    updateDeckCompareProgressUI({
+                        status: 'Validating collection inventory and available singles...',
+                        badge: 'Inventory Check',
+                        pct: dcPct,
+                        detailText: dcDetail,
+                        phaseText: dcPhase,
+                        elapsedSec: elapsed,
+                        step: dcStep
+                    });
+                } else if (elapsed >= 3 && elapsed < 5) {
+                    dcPct = Math.min(78, dcPct + 4);
+                    dcStep = 3;
+                    dcDetail = 'Matching deck requirements vs available inventory...';
+                    dcPhase = 'Phase 3 / 4';
+                    updateDeckCompareProgressUI({
+                        status: 'Calculating shared cards, commander legalities, and sideboards...',
+                        badge: 'Cross-Referencing',
+                        pct: dcPct,
+                        detailText: dcDetail,
+                        phaseText: dcPhase,
+                        elapsedSec: elapsed,
+                        step: dcStep
+                    });
+                } else if (elapsed >= 5) {
+                    dcPct = Math.min(94, dcPct + 1.5);
+                    dcStep = 4;
+                    dcDetail = 'Finalizing missing deficits & deck statistics...';
+                    dcPhase = 'Phase 4 / 4';
+                    updateDeckCompareProgressUI({
+                        status: 'Assembling deck overview & missing card calculations...',
+                        badge: 'Finalizing Deficits',
+                        pct: dcPct,
+                        detailText: dcDetail,
+                        phaseText: dcPhase,
+                        elapsedSec: elapsed,
+                        step: dcStep
+                    });
+                } else {
+                    updateDeckCompareProgressUI({ elapsedSec: elapsed, pct: dcPct, step: dcStep });
+                }
+            }, 300);
+
             const payload = {
                 collectionId,
                 deckIds,
@@ -5037,6 +5571,21 @@
                     throw new Error(data.error || `Server error (HTTP ${response.status})`);
                 }
 
+                clearInterval(dcTicker);
+                const totalElapsed = Math.max(1, Math.round((Date.now() - startTime) / 1000));
+                updateDeckCompareProgressUI({
+                    title: 'Decks Compared Successfully!',
+                    status: 'All decklists cross-referenced against collection inventory.',
+                    badge: 'Scan Complete',
+                    pct: 100,
+                    detailText: 'Displaying deck overviews and card insights...',
+                    phaseText: 'Finished',
+                    elapsedSec: totalElapsed,
+                    step: 5
+                });
+                await new Promise(r => setTimeout(r, 400));
+                if (dcLoadingCard) dcLoadingCard.style.display = 'none';
+
                 currentCollectionData = data.collection || [];
                 currentDecksData = data.decks || [];
                 currentDeckSummary = data.deckSummary || null;
@@ -5070,9 +5619,12 @@
                 });
                 hideCachedComparisonBanner();
             } catch (error) {
+                clearInterval(dcTicker);
+                if (dcLoadingCard) dcLoadingCard.style.display = 'none';
                 console.error("runComparison error:", error);
                 alert(`An error occurred: ${error.message}`);
             } finally {
+                clearInterval(dcTicker);
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<span>Scan & Compare Decks</span>';
@@ -6101,17 +6653,53 @@
 
             if (bodyEl) {
                 bodyEl.innerHTML = `
-                    <div style="text-align: center; padding: 3.5rem 1.5rem;">
-                        <div class="ai-pulse-glow" style="font-size: 3.2rem; margin-bottom: 1.2rem;">✨</div>
-                        <div style="font-size: 1.25rem; font-weight: 800; margin-bottom: 0.4rem; letter-spacing: -0.01em;">
-                            Looking for improvements to "${targetDeck.name}" from your existing collection...
+                    <div class="collection-progress-card" style="margin: 0.5rem 0;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem;">
+                            <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 999px; padding: 0.3rem 0.85rem; font-size: 0.78rem; font-weight: 700; color: #c084fc; text-transform: uppercase; letter-spacing: 0.05em;">
+                                <span class="pulse-dot" style="background: #c084fc;"></span> <span id="aiOptBadge">Analyzing Synergy</span>
+                            </div>
+                            <div id="aiOptEta" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); font-family: monospace;">
+                                Elapsed: 0s
+                            </div>
                         </div>
-                        ${activeAiDeckGoal ? `<div style="font-size: 0.88rem; color: #c084fc; font-weight: 700; margin-bottom: 0.5rem;">🎯 Aim: "${activeAiDeckGoal}"</div>` : ''}
-                        <div id="aiAnalysisTicker" style="font-size: 0.92rem; color: var(--text-muted); min-height: 1.6rem; font-weight: 500;">
-                            Scanning your collection for high-synergy cards...
+
+                        <h3 id="aiOptTitle" style="margin: 0 0 0.4rem 0; font-size: 1.35rem; font-weight: 800; color: var(--text-color); text-align: left;">
+                            Optimizing "${sanitizeHTML(targetDeck.name)}"...
+                        </h3>
+                        <p id="aiOptStatus" style="margin: 0 0 1.25rem 0; font-size: 0.92rem; color: var(--text-muted); line-height: 1.4; text-align: left;">
+                            ${activeAiDeckGoal ? `Aim: "${sanitizeHTML(activeAiDeckGoal)}" • ` : ''}Scanning your collection for high-synergy upgrades...
+                        </p>
+
+                        <div class="collection-progress-wrap">
+                            <div class="collection-progress-track">
+                                <div id="aiOptBarFill" class="collection-progress-fill" style="width: 15%; background: linear-gradient(90deg, #8b5cf6, #ec4899);">
+                                    <div class="collection-progress-shimmer"></div>
+                                </div>
+                            </div>
+                            <div class="collection-progress-labels">
+                                <span id="aiOptDetail" style="font-weight: 700; color: #c084fc;">Scanning card synergies...</span>
+                                <span id="aiOptPct" style="font-weight: 800; font-size: 1.1rem; color: var(--text-color); font-family: monospace;">15%</span>
+                                <span id="aiOptPhase" style="color: var(--text-muted); font-family: monospace;">Phase 1 / 4</span>
+                            </div>
                         </div>
-                        <div style="margin-top: 1.75rem; display: flex; justify-content: center; gap: 0.4rem;">
-                            <span class="spinner" style="width: 22px; height: 22px; border-width: 2.5px;"></span>
+
+                        <div class="collection-milestones">
+                            <div class="milestone-step active" id="aiStepCurve">
+                                <span class="milestone-num">1</span>
+                                <span class="milestone-txt">Mana Curve</span>
+                            </div>
+                            <div class="milestone-step" id="aiStepPool">
+                                <span class="milestone-num">2</span>
+                                <span class="milestone-txt">Unused Cards</span>
+                            </div>
+                            <div class="milestone-step" id="aiStepSynergy">
+                                <span class="milestone-num">3</span>
+                                <span class="milestone-txt">Synergy Engine</span>
+                            </div>
+                            <div class="milestone-step" id="aiStepRecommend">
+                                <span class="milestone-num">4</span>
+                                <span class="milestone-txt">AI Swaps</span>
+                            </div>
                         </div>
                     </div>`;
             }
@@ -6153,22 +6741,59 @@
                 return;
             }
 
-            // Cycling status messages
-            const loadingMessages = [
-                "Scanning your collection for high-synergy cards...",
-                "Evaluating deck archetype, commander strategy & mana curve...",
-                activeAiDeckGoal ? `Tailoring recommendations to match your aim: "${activeAiDeckGoal}"...` : "Testing card advantage engines & interaction packages...",
-                "Calculating high-impact upgrades and recommended swaps...",
-                "Drafting strategic rationale with Gemini AI..."
-            ];
-            let msgIdx = 0;
+            const startTime = Date.now();
+            let aiPct = 15;
+            let aiStep = 1;
 
             if (aiAnalysisInterval) clearInterval(aiAnalysisInterval);
             aiAnalysisInterval = setInterval(() => {
-                msgIdx = (msgIdx + 1) % loadingMessages.length;
-                const ticker = document.getElementById('aiAnalysisTicker');
-                if (ticker) ticker.textContent = loadingMessages[msgIdx];
-            }, 2200);
+                const elapsed = Math.max(1, Math.round((Date.now() - startTime) / 1000));
+                const etaEl = document.getElementById('aiOptEta');
+                if (etaEl) etaEl.textContent = `Elapsed: ${elapsed}s`;
+
+                const fillEl = document.getElementById('aiOptBarFill');
+                const pctEl = document.getElementById('aiOptPct');
+                const detailEl = document.getElementById('aiOptDetail');
+                const phaseEl = document.getElementById('aiOptPhase');
+                const statusEl = document.getElementById('aiOptStatus');
+                const badgeEl = document.getElementById('aiOptBadge');
+
+                if (elapsed >= 1 && elapsed < 3) {
+                    aiPct = Math.min(48, aiPct + 6);
+                    aiStep = 2;
+                    if (detailEl) detailEl.textContent = 'Filtering unused collection cards...';
+                    if (phaseEl) phaseEl.textContent = 'Phase 2 / 4';
+                    if (statusEl) statusEl.textContent = 'Identifying unused singles matching commander color identity...';
+                    if (badgeEl) badgeEl.textContent = 'Inventory Filter';
+                } else if (elapsed >= 3 && elapsed < 6) {
+                    aiPct = Math.min(78, aiPct + 4);
+                    aiStep = 3;
+                    if (detailEl) detailEl.textContent = 'Evaluating tribal & mechanical synergy...';
+                    if (phaseEl) phaseEl.textContent = 'Phase 3 / 4';
+                    if (statusEl) statusEl.textContent = activeAiDeckGoal ? `Tailoring recommendations to match your aim: "${activeAiDeckGoal}"...` : 'Evaluating card advantage, removal & win condition density...';
+                    if (badgeEl) badgeEl.textContent = 'Synergy Analysis';
+                } else if (elapsed >= 6) {
+                    aiPct = Math.min(94, aiPct + 1.5);
+                    aiStep = 4;
+                    if (detailEl) detailEl.textContent = 'Synthesizing recommendations & cuts...';
+                    if (phaseEl) phaseEl.textContent = 'Phase 4 / 4';
+                    if (statusEl) statusEl.textContent = 'Drafting strategic rationale and high-impact swaps...';
+                    if (badgeEl) badgeEl.textContent = 'AI Synthesis';
+                }
+
+                if (fillEl) fillEl.style.width = `${Math.min(100, Math.max(0, aiPct))}%`;
+                if (pctEl) pctEl.textContent = `${Math.round(aiPct)}%`;
+
+                const stepIds = ['aiStepCurve', 'aiStepPool', 'aiStepSynergy', 'aiStepRecommend'];
+                stepIds.forEach((id, idx) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    const num = idx + 1;
+                    el.classList.remove('active', 'done');
+                    if (num < aiStep) el.classList.add('done');
+                    else if (num === aiStep) el.classList.add('active');
+                });
+            }, 300);
 
             const savedApiKey = localStorage.getItem('gemini_api_key') || undefined;
 
@@ -6858,9 +7483,12 @@
             }
         });
 
-        async function runSetComparison() {
+        async function runSetComparison(forceFresh = false) {
+            const btn = document.getElementById('checkSetBtn');
+            const syncBtn = document.getElementById('syncSetBtn');
+
             if (!selectedSet) {
-                const searchVal = document.getElementById('setSearchInput').value.trim();
+                const searchVal = document.getElementById('setSearchInput')?.value.trim();
                 if (searchVal) {
                     selectSetByCode(searchVal);
                 } else {
@@ -6883,6 +7511,15 @@
             let collectionCsvData = cachedParsedCsv || AppStorage.loadCsv();
             if (collectionCsvData && !cachedParsedCsv) cachedParsedCsv = collectionCsvData;
 
+            if (forceFresh) {
+                if (collectionId) {
+                    AppStorage.clearArchidektCollection(collectionId);
+                }
+                currentCollectionData = [];
+                cachedParsedCsv = null;
+                collectionCsvData = null;
+            }
+
             if (csvFile && !collectionCsvData) {
                 try {
                     const csvText = await readCSVFile(csvFile);
@@ -6892,15 +7529,18 @@
                     updateCollectionStatusBadge();
                 } catch (e) {
                     alert("Error parsing CSV: " + e.message);
-                    btn.disabled = false;
-                    btn.innerHTML = '<span>Check Set Progress</span>';
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<span>Check Set Progress</span>';
+                    }
+                    if (syncBtn) syncBtn.disabled = false;
                     return;
                 }
             }
 
             // If we have an Archidekt collection ID and NO uploaded CSV:
             // Use stored or in-memory collection cards directly for sub-second execution with zero external API hits!
-            if (!collectionCsvData && collectionId) {
+            if (!forceFresh && !collectionCsvData && collectionId) {
                 const storedArch = AppStorage.loadArchidektCollection(collectionId);
                 const candidate = (storedArch && storedArch.length > 0)
                     ? storedArch
@@ -6915,28 +7555,103 @@
 
             if (!collectionId && !csvFile && !collectionCsvData) {
                 alert("Please enter a Collection ID or upload a CSV collection in Step 1 first.");
-                btn.disabled = false;
-                btn.innerHTML = '<span>Check Set Progress</span>';
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>Check Set Progress</span>';
+                }
+                if (syncBtn) syncBtn.disabled = false;
                 return;
             }
 
             const matchMode = document.querySelector('input[name="matchMode"]:checked')?.value || 'exact';
-            const includeBasicLands = document.getElementById('setIncludeBasicLands').checked;
-            const setScope = document.getElementById('setScopeAllVariants').checked ? 'all' : 'distinct';
+            const includeBasicLands = document.getElementById('setIncludeBasicLands')?.checked;
+            const setScope = document.getElementById('setScopeAllVariants')?.checked ? 'all' : 'distinct';
 
-            const btn = document.getElementById('checkSetBtn');
             const progressDashboard = document.getElementById('setProgressDashboard');
             const setResultsContainer = document.getElementById('setResultsContainer');
 
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Checking Set Progress...';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = forceFresh
+                    ? '<span class="spinner"></span> Syncing collection from Archidekt...'
+                    : '<span class="spinner"></span> Checking Set Progress...';
+            }
+            if (syncBtn) {
+                syncBtn.disabled = true;
+                syncBtn.innerHTML = '<span class="spinner"></span> Syncing...';
+            }
+
             progressDashboard.style.display = 'none';
             setResultsContainer.style.display = 'none';
 
-            // Pass collectionCsvData if available so the request runs instantly with zero Archidekt rate limit risk!
-            const validCollectionData = (collectionCsvData && collectionCsvData.length > 0)
+            // Pass collectionCsvData only when not forcing a fresh sync from Archidekt
+            const validCollectionData = (!forceFresh && collectionCsvData && collectionCsvData.length > 0)
                 ? collectionCsvData
                 : undefined;
+
+            const spLoadingCard = document.getElementById('setProgressLoadingCard');
+            if (spLoadingCard) {
+                spLoadingCard.style.display = 'block';
+                spLoadingCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            const spStartTime = Date.now();
+            let spPct = 14;
+            let spStep = 1;
+
+            updateSetProgressUI({
+                title: `Scanning ${selectedSet ? selectedSet.name : 'Set'} Progress...`,
+                status: `Retrieving card records and collector checklists for ${selectedSet ? selectedSet.name : 'set'}...`,
+                badge: forceFresh ? 'Archidekt Fresh Sync' : 'Scanning Set Cards',
+                pct: spPct,
+                detailText: 'Querying card checklist from Scryfall...',
+                phaseText: 'Phase 1 / 4',
+                elapsedSec: 0,
+                step: 1
+            });
+
+            const spTicker = setInterval(() => {
+                const elapsed = Math.max(1, Math.round((Date.now() - spStartTime) / 1000));
+                if (elapsed >= 1 && elapsed < 3) {
+                    spPct = Math.min(48, spPct + 6);
+                    spStep = 2;
+                    updateSetProgressUI({
+                        status: forceFresh ? 'Pulling updated collection cards from Archidekt...' : 'Loading collection inventory & owned counts...',
+                        badge: forceFresh ? 'Syncing Collection' : 'Collection Inventory',
+                        pct: spPct,
+                        detailText: 'Validating owned cards in inventory...',
+                        phaseText: 'Phase 2 / 4',
+                        elapsedSec: elapsed,
+                        step: spStep
+                    });
+                } else if (elapsed >= 3 && elapsed < 5) {
+                    spPct = Math.min(78, spPct + 4);
+                    spStep = 3;
+                    updateSetProgressUI({
+                        status: `Matching owned cards against set printings (${matchMode === 'exact' ? 'Exact printings' : 'Any edition'})...`,
+                        badge: 'Card Matching',
+                        pct: spPct,
+                        detailText: 'Analyzing set numbers and card finishes...',
+                        phaseText: 'Phase 3 / 4',
+                        elapsedSec: elapsed,
+                        step: spStep
+                    });
+                } else if (elapsed >= 5) {
+                    spPct = Math.min(94, spPct + 1.5);
+                    spStep = 4;
+                    updateSetProgressUI({
+                        status: 'Calculating set completion percentage, rarities & market pricing...',
+                        badge: 'Completion Metrics',
+                        pct: spPct,
+                        detailText: 'Compiling dashboard metrics...',
+                        phaseText: 'Phase 4 / 4',
+                        elapsedSec: elapsed,
+                        step: spStep
+                    });
+                } else {
+                    updateSetProgressUI({ elapsedSec: elapsed, pct: spPct, step: spStep });
+                }
+            }, 300);
 
             try {
                 const maxAttempts = 3;
@@ -6951,7 +7666,7 @@
                             ? '/checkSetProgress'
                             : 'https://us-central1-commander-challenge.cloudfunctions.net/checkSetProgress';
 
-                        if (attempt > 1) {
+                        if (attempt > 1 && btn) {
                             btn.innerHTML = '<span class="spinner"></span> Loading set results...';
                         }
 
@@ -6964,14 +7679,15 @@
                                 setCode: selectedSet.code,
                                 matchMode,
                                 includeBasicLands,
-                                setScope
+                                setScope,
+                                forceFresh: Boolean(forceFresh)
                             })
                         });
 
                         if (!response.ok && (response.status === 502 || response.status === 504)) {
                             if (attempt < maxAttempts) {
                                 console.warn(`[checkSetProgress] Gateway ${response.status} on attempt ${attempt}. Waiting 2.5s for background cache to finish, then retrying...`);
-                                btn.innerHTML = '<span class="spinner"></span> Finalizing scan cache...';
+                                if (btn) btn.innerHTML = '<span class="spinner"></span> Finalizing scan cache...';
                                 await new Promise(r => setTimeout(r, 2500));
                                 continue;
                             }
@@ -6982,7 +7698,7 @@
                         } catch (parseError) {
                             if ((response.status === 502 || response.status === 504) && attempt < maxAttempts) {
                                 console.warn(`[checkSetProgress] Parse error on gateway ${response.status}. Retrying in 2.5s...`);
-                                btn.innerHTML = '<span class="spinner"></span> Finalizing scan cache...';
+                                if (btn) btn.innerHTML = '<span class="spinner"></span> Finalizing scan cache...';
                                 await new Promise(r => setTimeout(r, 2500));
                                 continue;
                             }
@@ -6994,7 +7710,7 @@
 
                         if (!response.ok || data.error) {
                             if ((response.status === 502 || response.status === 504) && attempt < maxAttempts) {
-                                btn.innerHTML = '<span class="spinner"></span> Finalizing scan cache...';
+                                if (btn) btn.innerHTML = '<span class="spinner"></span> Finalizing scan cache...';
                                 await new Promise(r => setTimeout(r, 2500));
                                 continue;
                             }
@@ -7008,10 +7724,25 @@
                             throw fetchErr;
                         }
                         console.warn(`[checkSetProgress] Attempt ${attempt} failed: ${fetchErr.message}. Retrying in 2.5s...`);
-                        btn.innerHTML = '<span class="spinner"></span> Finishing scan in background...';
+                        if (btn) btn.innerHTML = '<span class="spinner"></span> Finishing scan in background...';
                         await new Promise(r => setTimeout(r, 2500));
                     }
                 }
+
+                clearInterval(spTicker);
+                const spTotalElapsed = Math.max(1, Math.round((Date.now() - spStartTime) / 1000));
+                updateSetProgressUI({
+                    title: 'Set Progress Scan Complete!',
+                    status: 'Checklist analyzed and owned cards matched.',
+                    badge: 'Scan Complete',
+                    pct: 100,
+                    detailText: 'Displaying set completion dashboard...',
+                    phaseText: 'Finished',
+                    elapsedSec: spTotalElapsed,
+                    step: 5
+                });
+                await new Promise(r => setTimeout(r, 400));
+                if (spLoadingCard) spLoadingCard.style.display = 'none';
 
                 currentSetData = data;
                 // If backend returned collection cards, cache locally for sub-second future lookups
@@ -7019,6 +7750,9 @@
                     currentCollectionData = data.cachedCollectionData;
                     if (collectionId) AppStorage.saveArchidektCollection(collectionId, data.cachedCollectionData);
                     updateCollectionStatusBadge();
+                    if (forceFresh) {
+                        showToast(`✓ Synced ${data.cachedCollectionData.length.toLocaleString()} cards from Archidekt!`);
+                    }
                 }
 
                 renderSetDashboard(data);
@@ -7028,10 +7762,19 @@
                 setResultsContainer.style.display = 'block';
                 progressDashboard.scrollIntoView({ behavior: 'smooth' });
             } catch (err) {
+                clearInterval(spTicker);
+                if (spLoadingCard) spLoadingCard.style.display = 'none';
                 alert(`Error: ${err.message}`);
             } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<span>Check Set Progress</span>';
+                clearInterval(spTicker);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>Check Set Progress</span>';
+                }
+                if (syncBtn) {
+                    syncBtn.disabled = false;
+                    syncBtn.innerHTML = '<span>🔄 Sync & Check</span>';
+                }
             }
         }
 
