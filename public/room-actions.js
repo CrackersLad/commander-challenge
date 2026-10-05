@@ -1,7 +1,7 @@
-import { db, functions } from './firebase-setup.js?v=8.0';
+import { db, functions } from './firebase-setup.js?v=8.1';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
-import { fetchDeckFromAPI } from './deck-parser.js?v=8.0';
+import { fetchDeckFromAPI } from './deck-parser.js?v=8.1';
 
 export function initRoomActionsModule(utils, state) {
     const { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, clearSession } = utils;
@@ -367,6 +367,21 @@ export function initRoomActionsModule(utils, state) {
         if (sumSec) sumSec.style.display = 'none';
     };
 
+    function cleanSimPlayerName(raw, decks = []) {
+        if (!raw) return '';
+        let name = String(raw).replace(/^Ai\(\d+\)-/, '').replace(/'s$/i, '').trim();
+        const possMatch = name.match(/^(.+?)'s\s+(.+)$/i);
+        if (possMatch) {
+            const potentialPlayer = possMatch[1].trim();
+            const matchedDeck = decks.find(d => d.name.toLowerCase() === potentialPlayer.toLowerCase() || (d.commander && possMatch[2].toLowerCase().includes(d.commander.toLowerCase())));
+            if (matchedDeck) return matchedDeck.name;
+            return potentialPlayer;
+        }
+        const matched = decks.find(d => d.name.toLowerCase() === name.toLowerCase() || name.toLowerCase().startsWith(d.name.toLowerCase()));
+        if (matched) return matched.name;
+        return name;
+    }
+
     window.runLobbySimulation = async () => {
         playSound('sfx-choose');
         const numGames = parseInt(document.getElementById('simCountSlider')?.value || '5', 10);
@@ -416,7 +431,12 @@ export function initRoomActionsModule(utils, state) {
                 const deckUrl = (p.deck || '').trim();
                 if (!cmdr && !deckUrl) continue;
 
-                const displayName = `${p.name || 'Player'}'s ${cmdr || 'Deck'}`;
+                const playerName = (p.name || 'Player').trim();
+                let displayName = playerName;
+                let counter = 2;
+                while (payloadDecks.some(d => d.name.toLowerCase() === displayName.toLowerCase())) {
+                    displayName = `${playerName} (${counter++})`;
+                }
                 let deckContent = '';
 
                 if (deckUrl.toLowerCase().includes('moxfield.com')) {
@@ -577,15 +597,51 @@ export function initRoomActionsModule(utils, state) {
                                 }
                                 statusHeader.textContent = `⚔️ Simulating match ${eventData.game} of ${eventData.total} (Turn ${eventData.turn})...`;
                             } else if (eventData.type === 'game_result') {
-                                const winnerCmdr = (payloadDecks.find(d => d.name === eventData.winner || eventData.winner.includes(d.name))?.commander) || '';
+                                const cleanWinner = cleanSimPlayerName(eventData.winner, payloadDecks);
+                                const winnerCmdr = (payloadDecks.find(d => d.name === cleanWinner || (eventData.winner && eventData.winner.includes(d.name)))?.commander) || '';
+
+                                let rawLog = eventData.log || '';
+                                payloadDecks.forEach(d => {
+                                    if (d.commander) {
+                                        const fullPossessive = new RegExp(`${d.name}'s\\s+${d.commander.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'gi');
+                                        rawLog = rawLog.replace(fullPossessive, d.name);
+                                    }
+                                });
+
+                                const cleanedTurnEvents = (eventData.turnEvents || []).map(t => {
+                                    const tPlayer = cleanSimPlayerName(t.player, payloadDecks);
+                                    const events = (t.events || []).map(ev => {
+                                        const p = cleanSimPlayerName(ev.player, payloadDecks);
+                                        const tgt = ev.target ? cleanSimPlayerName(ev.target, payloadDecks) : ev.target;
+                                        let text = ev.text || '';
+                                        payloadDecks.forEach(d => {
+                                            if (d.commander) {
+                                                const fullPossessive = new RegExp(`${d.name}'s\\s+${d.commander.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'gi');
+                                                text = text.replace(fullPossessive, d.name);
+                                            }
+                                        });
+                                        return {
+                                            ...ev,
+                                            player: p,
+                                            target: tgt,
+                                            text
+                                        };
+                                    });
+                                    return {
+                                        ...t,
+                                        player: tPlayer,
+                                        events
+                                    };
+                                });
+
                                 const matchRecord = {
                                     game: eventData.game,
-                                    winner: eventData.winner,
+                                    winner: cleanWinner,
                                     winnerCommander: winnerCmdr,
                                     turns: eventData.turns,
                                     durationMs: eventData.durationMs,
-                                    log: eventData.log || '',
-                                    turnEvents: eventData.turnEvents || [],
+                                    log: rawLog,
+                                    turnEvents: cleanedTurnEvents,
                                     aiSummary: null
                                 };
                                 window._currentSimSession.games.push(matchRecord);
@@ -598,7 +654,7 @@ export function initRoomActionsModule(utils, state) {
                                             <div>
                                                 <div style="display:flex; align-items:center; gap:8px;">
                                                     <span style="color:#10b981; font-weight:700;">✅ Match #${eventData.game}</span>
-                                                    <strong style="color:#fff;">${sanitizeHTML(eventData.winner)}</strong>
+                                                    <strong style="color:#fff;">${sanitizeHTML(cleanWinner)}</strong>
                                                 </div>
                                                 <div style="color:#34d399; font-weight:700; font-size:0.82rem; margin-top:2px;">
                                                     Won on Turn ${eventData.turns} (${(eventData.durationMs / 1000).toFixed(1)}s)${winnerCmdr ? ` • <span style="color:#aaa;">Cmdr: ${sanitizeHTML(winnerCmdr)}</span>` : ''}
@@ -631,7 +687,15 @@ export function initRoomActionsModule(utils, state) {
                                 progSec.style.display = 'none';
                                 sumSec.style.display = 'block';
 
-                                const summary = eventData.summary;
+                                const summary = eventData.summary || {};
+                                if (summary.bestDeck) {
+                                    summary.bestDeck = cleanSimPlayerName(summary.bestDeck, payloadDecks);
+                                }
+                                if (Array.isArray(summary.results)) {
+                                    summary.results.forEach(r => {
+                                        r.name = cleanSimPlayerName(r.name, payloadDecks);
+                                    });
+                                }
                                 window._currentSimSession.summary = summary;
                                 const games = window._currentSimSession.games;
 
