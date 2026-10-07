@@ -6878,3 +6878,447 @@ select:focus {
     color: #34d399 !important;
     font-weight: 700;
 }
+
+/* ==========================================================================
+   Draft Lane Tracker & Smart Signals (1.2 & 1.3)
+   ========================================================================== */
+.draft-lane-tracker-card {
+    background: linear-gradient(135deg, rgba(20, 24, 38, 0.95), rgba(15, 18, 30, 0.98));
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    border-radius: 12px;
+    padding: 12px 18px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.lane-pip-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.lane-pip-badge.W { border-color: #f6e05e; color: #fef08a; background: rgba(246, 224, 94, 0.12); }
+.lane-pip-badge.U { border-color: #63b3ed; color: #bae6fd; background: rgba(99, 179, 237, 0.12); }
+.lane-pip-badge.B { border-color: #a0aec0; color: #e2e8f0; background: rgba(160, 174, 192, 0.12); }
+.lane-pip-badge.R { border-color: #fc8181; color: #fecaca; background: rgba(252, 129, 129, 0.12); }
+.lane-pip-badge.G { border-color: #68d391; color: #bbf7d0; background: rgba(104, 211, 145, 0.12); }
+
+.signal-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.signal-on-color {
+    background: rgba(16, 185, 129, 0.22);
+    border: 1px solid #10b981;
+    color: #34d399;
+}
+
+.signal-splash {
+    background: rgba(234, 179, 8, 0.2);
+    border: 1px solid #eab308;
+    color: #fde047;
+}
+
+.signal-off-color {
+    background: rgba(100, 116, 139, 0.2);
+    border: 1px solid #64748b;
+    color: #94a3b8;
+}
+
+.signal-bomb {
+    background: rgba(245, 158, 11, 0.25);
+    border: 1px solid #f59e0b;
+    color: #fbbf24;
+}
+
+.signal-removal {
+    background: rgba(239, 68, 68, 0.22);
+    border: 1px solid #ef4444;
+    color: #fca5a5;
+}
+
+.signal-draw {
+    background: rgba(59, 130, 246, 0.22);
+    border: 1px solid #3b82f6;
+    color: #93c5fd;
+}
+
+.signal-fixing {
+    background: rgba(168, 85, 247, 0.22);
+    border: 1px solid #a855f7;
+    color: #d8b4fe;
+}
+
+/* ==========================================================================
+   Bot Lobby Controls
+   ========================================================================== */
+.lobby-bot-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.remove-bot-chip-btn {
+    background: transparent;
+    border: none;
+    color: #f87171;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    font-size: 0.9rem;
+    transition: transform 0.15s ease;
+}
+
+.remove-bot-chip-btn:hover {
+    transform: scale(1.3);
+}
+
+/* ==========================================================================
+   Arena-style Column Deckbuilder (2.2)
+   ========================================================================== */
+.arena-columns-container {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(130px, 1fr));
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 12px;
+}
+
+.arena-cmc-col {
+    background: rgba(15, 20, 32, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    min-height: 380px;
+    display: flex;
+    flex-direction: column;
+}
+
+.arena-cmc-col-header {
+    background: rgba(255, 255, 255, 0.04);
+    padding: 8px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.78rem;
+}
+
+.arena-cmc-col-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 6px;
+    flex-grow: 1;
+}
+
+.arena-card-tile {
+    position: relative;
+    background: linear-gradient(90deg, rgba(28, 33, 48, 0.95) 0%, rgba(18, 22, 34, 0.95) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    padding: 5px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.arena-card-tile:hover {
+    border-color: #d4af37;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.arena-card-tile.highlighted {
+    border: 2px solid #f59e0b !important;
+    animation: pulseBorder 1.5s infinite;
+}
+
+@keyframes pulseBorder {
+    0%, 100% { box-shadow: 0 0 4px #f59e0b; }
+    50% { box-shadow: 0 0 14px #f59e0b; }
+}
+
+.mana-symbol-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    font-size: 0.62rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.mana-symbol-badge.w { background: #fef08a; color: #1e293b; }
+.mana-symbol-badge.u { background: #38bdf8; color: #0f172a; }
+.mana-symbol-badge.b { background: #475569; color: #f8fafc; }
+.mana-symbol-badge.r { background: #f87171; color: #1e293b; }
+.mana-symbol-badge.g { background: #4ade80; color: #0f172a; }
+.mana-symbol-badge.generic { background: #64748b; color: #f8fafc; }
+
+/* ==========================================================================
+   Deck Doctor & Limited Advisor (2.3)
+   ========================================================================== */
+.deck-doctor-card {
+    background: linear-gradient(135deg, rgba(23, 27, 43, 0.95), rgba(15, 18, 30, 0.95));
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.doctor-alert-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    padding: 5px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.doctor-alert-row.warn {
+    border-left: 3px solid #f59e0b;
+    color: #fef3c7;
+}
+
+.doctor-alert-row.ok {
+    border-left: 3px solid #10b981;
+    color: #d1fae5;
+}
+
+.doctor-alert-row.info {
+    border-left: 3px solid #3b82f6;
+    color: #dbeafe;
+}
+
+.doctor-candidate-chip {
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.doctor-candidate-chip.cut-chip {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid #ef4444;
+    color: #fca5a5;
+}
+
+.doctor-candidate-chip.add-chip {
+    background: rgba(16, 185, 129, 0.2);
+    border: 1px solid #10b981;
+    color: #6ee7b7;
+}
+
+/* ==========================================================================
+   MANA COLOR THEMES (SECTION 4.3)
+   ========================================================================== */
+html[data-mana-theme="azorius"] {
+    --gold: #38bdf8;
+    --gold-light: #bae6fd;
+    --gold-dark: #0284c7;
+    --gold-glow: rgba(56, 189, 248, 0.45);
+    --gold-subtle: rgba(56, 189, 248, 0.15);
+    --card-border-gold: rgba(56, 189, 248, 0.35);
+    --arcane: #0284c7;
+}
+
+html[data-mana-theme="dimir"] {
+    --gold: #818cf8;
+    --gold-light: #c7d2fe;
+    --gold-dark: #4338ca;
+    --gold-glow: rgba(129, 140, 248, 0.45);
+    --gold-subtle: rgba(129, 140, 248, 0.15);
+    --card-border-gold: rgba(129, 140, 248, 0.35);
+    --arcane: #312e81;
+}
+
+html[data-mana-theme="rakdos"] {
+    --gold: #ef4444;
+    --gold-light: #fca5a5;
+    --gold-dark: #b91c1c;
+    --gold-glow: rgba(239, 68, 68, 0.45);
+    --gold-subtle: rgba(239, 68, 68, 0.15);
+    --card-border-gold: rgba(239, 68, 68, 0.35);
+    --arcane: #7f1d1d;
+}
+
+html[data-mana-theme="gruul"] {
+    --gold: #f97316;
+    --gold-light: #fed7aa;
+    --gold-dark: #c2410c;
+    --gold-glow: rgba(249, 115, 22, 0.45);
+    --gold-subtle: rgba(249, 115, 22, 0.15);
+    --card-border-gold: rgba(249, 115, 22, 0.35);
+    --arcane: #15803d;
+}
+
+html[data-mana-theme="selesnya"] {
+    --gold: #22c55e;
+    --gold-light: #bbf7d0;
+    --gold-dark: #15803d;
+    --gold-glow: rgba(34, 197, 94, 0.45);
+    --gold-subtle: rgba(34, 197, 94, 0.15);
+    --card-border-gold: rgba(34, 197, 94, 0.35);
+    --arcane: #166534;
+}
+
+html[data-mana-theme="phyrexian"] {
+    --gold: #c084fc;
+    --gold-light: #f3e8ff;
+    --gold-dark: #7e22ce;
+    --gold-glow: rgba(192, 132, 252, 0.45);
+    --gold-subtle: rgba(192, 132, 252, 0.15);
+    --card-border-gold: rgba(192, 132, 252, 0.35);
+    --arcane: #581c87;
+}
+
+/* ==========================================================================
+   AUDIO VOLUME CONTROLS (SECTION 4.1)
+   ========================================================================== */
+.audio-volume-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: #111118;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 12px 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    width: 200px;
+}
+
+.audio-volume-panel input[type="range"] {
+    accent-color: var(--gold);
+    cursor: pointer;
+}
+
+/* ==========================================================================
+   MOBILE BOTTOM NAVIGATION (SECTION 4.2)
+   ========================================================================== */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(56px + var(--sab));
+    background: rgba(12, 12, 18, 0.94);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 999;
+    padding-bottom: var(--sab);
+}
+
+@media (max-width: 768px) {
+    .mobile-bottom-nav {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+    }
+    body {
+        padding-bottom: calc(70px + var(--sab)) !important;
+    }
+}
+
+.mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    text-decoration: none;
+    font-size: 0.72rem;
+    font-weight: 500;
+    background: none;
+    border: none;
+    cursor: pointer;
+    flex: 1;
+    padding: 6px 0;
+    transition: color 0.15s ease;
+}
+
+.mobile-nav-item:active, .mobile-nav-item:hover {
+    color: var(--gold);
+}
+
+.mobile-nav-icon {
+    font-size: 1.25rem;
+    line-height: 1.1;
+    margin-bottom: 2px;
+}
+
+/* ==========================================================================
+   LONDON MULLIGAN & SAMPLE HAND STYLES (SECTION 2.4)
+   ========================================================================== */
+.mulligan-card-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 130px;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    position: relative;
+}
+
+.mulligan-card-item:hover {
+    transform: translateY(-8px);
+}
+
+.mulligan-card-img {
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.mulligan-card-name {
+    font-size: 0.75rem;
+    color: #ddd;
+    text-align: center;
+    margin-top: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.mulligan-bottom-badge {
+    position: absolute;
+    bottom: 25px;
+    background: #eab308;
+    color: black;
+    font-weight: 700;
+    font-size: 0.7rem;
+    border: none;
+    border-radius: 4px;
+    padding: 3px 8px;
+    pointer-events: none;
+}

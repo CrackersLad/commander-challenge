@@ -1,7 +1,7 @@
-import { db, functions } from './firebase-setup.js?v=8.1';
+import { db, functions } from './firebase-setup.js?v=8.2';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
-import { fetchDeckFromAPI } from './deck-parser.js?v=8.1';
+import { fetchDeckFromAPI } from './deck-parser.js?v=8.2';
 
 export function initRoomActionsModule(utils, state) {
     const { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, clearSession } = utils;
@@ -772,13 +772,13 @@ export function initRoomActionsModule(utils, state) {
                                                         <button type="button" class="secondary-btn" onclick="window.downloadMatchLog(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px;">
                                                             <span>📥</span> Log (.txt)
                                                         </button>
-                                                        <button type="button" id="sim-ai-btn-${g.game}" class="secondary-btn" onclick="window.requestAiMatchSummary(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
+                                                        <button type="button" id="sim-summary-ai-btn-${g.game}" class="secondary-btn" onclick="window.requestAiMatchSummary(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
                                                             <span>🤖</span> AI Summary
                                                         </button>
                                                     </div>
                                                 </div>
                                                 <div id="sim-summary-log-box-${g.game}" style="display:none; width:100%;"></div>
-                                                <div id="sim-ai-box-${g.game}" style="display:none; width:100%;"></div>
+                                                <div id="sim-summary-ai-box-${g.game}" style="display:none; width:100%;"></div>
                                             </div>
                                         `;
                                     });
@@ -1228,8 +1228,10 @@ export function initRoomActionsModule(utils, state) {
         const match = (window._currentSimSession?.games || []).find(g => g.game === gameNum);
         if (!match) return;
 
-        const btn = document.getElementById(`sim-ai-btn-${gameNum}`);
-        const box = document.getElementById(`sim-ai-box-${gameNum}`);
+        const isSummaryVisible = document.getElementById('lobbySimSummarySection')?.style.display !== 'none';
+        const box = isSummaryVisible
+            ? (document.getElementById(`sim-summary-ai-box-${gameNum}`) || document.getElementById(`sim-ai-box-${gameNum}`))
+            : (document.getElementById(`sim-ai-box-${gameNum}`) || document.getElementById(`sim-summary-ai-box-${gameNum}`));
         if (!box) return;
 
         if (box.dataset.loaded === 'true') {
@@ -1237,10 +1239,49 @@ export function initRoomActionsModule(utils, state) {
             return;
         }
 
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = `<span class="mana-spinner" style="width:12px; height:12px;"></span> Thinking...`;
+        function renderSummary(targetBox, summaryText, engine) {
+            targetBox.dataset.loaded = 'true';
+            targetBox.style.display = 'block';
+            const formatted = summaryText
+                .replace(/### (.*$)/gim, '<div style="font-weight:800; color:var(--gold); font-size:0.95rem; margin-bottom:6px;">$1</div>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#eee;">$1</strong>')
+                .replace(/\n\n/g, '<div style="margin-bottom:8px;"></div>')
+                .replace(/\n\* /g, '<div style="margin-left:8px; margin-bottom:4px;">• ')
+                .replace(/\n/g, '<br>');
+
+            const copyId = `sim-ai-copy-${gameNum}-${Math.random().toString(36).substring(2, 6)}`;
+            targetBox.innerHTML = `
+                <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 8px; padding: 12px 14px; text-align: left; margin-top: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
+                        <span style="font-size: 0.78rem; font-weight: 700; color: #c084fc; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 4px;">
+                            <span>✨</span> ${engine === 'gemini' ? 'Gemini AI Tactical Breakdown' : 'MTG Rules Engine Analysis'}
+                        </span>
+                        <button type="button" class="secondary-btn" id="${copyId}" style="font-size: 0.72rem; padding: 2px 8px;">
+                            📋 Copy
+                        </button>
+                    </div>
+                    <div style="font-size: 0.85rem; color: #ddd; line-height: 1.5;">${formatted}</div>
+                </div>
+            `;
+            const copyBtn = document.getElementById(copyId);
+            if (copyBtn) {
+                copyBtn.onclick = () => {
+                    navigator.clipboard.writeText(summaryText);
+                    showToast('Copied AI breakdown!');
+                };
+            }
         }
+
+        if (match.aiSummary) {
+            renderSummary(box, match.aiSummary, match.aiEngine || 'algorithmic');
+            return;
+        }
+
+        const allBtns = [document.getElementById(`sim-ai-btn-${gameNum}`), document.getElementById(`sim-summary-ai-btn-${gameNum}`)].filter(Boolean);
+        allBtns.forEach(b => {
+            b.disabled = true;
+            b.innerHTML = `<span class="mana-spinner" style="width:12px; height:12px;"></span> Thinking...`;
+        });
 
         box.style.display = 'block';
         box.innerHTML = `
@@ -1294,28 +1335,14 @@ export function initRoomActionsModule(utils, state) {
             const data = await resp.json();
             const summaryText = data.summary || "Summary generated.";
             match.aiSummary = summaryText;
+            match.aiEngine = data.engine;
 
-            box.dataset.loaded = 'true';
-            const formatted = summaryText
-                .replace(/### (.*$)/gim, '<div style="font-weight:800; color:var(--gold); font-size:0.95rem; margin-bottom:6px;">$1</div>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#eee;">$1</strong>')
-                .replace(/\n\n/g, '<div style="margin-bottom:8px;"></div>')
-                .replace(/\n\* /g, '<div style="margin-left:8px; margin-bottom:4px;">• ')
-                .replace(/\n/g, '<br>');
-
-            box.innerHTML = `
-                <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 8px; padding: 12px 14px; text-align: left; margin-top: 8px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
-                        <span style="font-size: 0.78rem; font-weight: 700; color: #c084fc; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 4px;">
-                            <span>✨</span> ${data.engine === 'gemini' ? 'Gemini AI Tactical Breakdown' : 'MTG Rules Engine Analysis'}
-                        </span>
-                        <button type="button" class="secondary-btn" onclick="navigator.clipboard.writeText(${JSON.stringify(summaryText)}); showToast('Copied AI breakdown!');" style="font-size: 0.72rem; padding: 2px 8px;">
-                            📋 Copy
-                        </button>
-                    </div>
-                    <div style="font-size: 0.85rem; color: #ddd; line-height: 1.5;">${formatted}</div>
-                </div>
-            `;
+            renderSummary(box, summaryText, data.engine);
+            const otherBox = isSummaryVisible ? document.getElementById(`sim-ai-box-${gameNum}`) : document.getElementById(`sim-summary-ai-box-${gameNum}`);
+            if (otherBox) {
+                renderSummary(otherBox, summaryText, data.engine);
+                otherBox.style.display = 'none';
+            }
         } catch (err) {
             box.innerHTML = `
                 <div style="padding: 8px; color: #f87171; font-size: 0.82rem;">
@@ -1323,10 +1350,10 @@ export function initRoomActionsModule(utils, state) {
                 </div>
             `;
         } finally {
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = `<span>🤖</span> AI Summary`;
-            }
+            allBtns.forEach(b => {
+                b.disabled = false;
+                b.innerHTML = `<span>🤖</span> AI Summary`;
+            });
         }
     };
 }

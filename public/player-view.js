@@ -1,5 +1,5 @@
-import { db, functions } from './firebase-setup.js?v=8.1';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=8.1';
+import { db, functions } from './firebase-setup.js?v=8.2';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=8.2';
 import { ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -71,7 +71,7 @@ export function initPlayerViewModule(utils, state) {
             }
             
             // Pack cracking animation
-            const { playBoosterPackReveal } = await import('./pack-animation.js?v=8.1');
+            const { playBoosterPackReveal } = await import('./pack-animation.js?v=8.2');
             playBoosterPackReveal(container, async () => {
                 await update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), { generated: list, rerollCount: 0 });
                 try { const logRollFn = httpsCallable(functions, 'logCommandersRolled'); logRollFn({ count: numOpts }); } catch(e) {}
@@ -201,8 +201,9 @@ export function initPlayerViewModule(utils, state) {
             `;
 
             cardDiv.querySelector('.select-btn').onclick = () => {
-                playSound('sfx-click'); showConfirm("Seal Your Champion?", `Are you sure you want to lock in ${card.name} as your commander?`, () => {
-                    playSound('sfx-choose'); update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), { selected: card.name, image: img1, display_rank: card.display_rank, scryfall_uri: card.scryfall_uri, color_identity: card.color_identity || [], card_set: card.set || '', collector_number: card.collector_number || '', scryfall_id: card.id || '', generated: null, rerollCount: 0 });
+                playSound('sfx-click'); 
+                showConfirm("Seal Your Champion?", `Are you sure you want to lock in ${card.name} as your commander?`, () => {
+                    handlePartnerSelection(card, img1);
                 });
             };
 
@@ -242,9 +243,9 @@ export function initPlayerViewModule(utils, state) {
 
     async function renderInteractiveDraft(activeDraft, container, s, players) {
         if (activeDraft.isComplete) { container.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; margin-top:50px;"><h2 style="color:var(--gold); font-family:Cinzel;">Finalizing Draft...</h2><span class="mana-spinner"></span></div>`; return; }
-        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=8.1'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=8.1'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
-        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=8.1'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
+        if (activeDraft.format === 'async_draft') { const { renderAsyncDraft } = await import('./draft-async.js?v=8.2'); renderAsyncDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'snake_draft') { const { renderSnakeDraft } = await import('./draft-snake.js?v=8.2'); renderSnakeDraft(activeDraft, container, s, state.currentPlayerId, players, utils); } 
+        else if (activeDraft.format === 'burn_draft') { const { renderBurnDraft } = await import('./draft-burn.js?v=8.2'); renderBurnDraft(activeDraft, container, s, state.currentPlayerId, players, utils); }
     }
 
     function renderFinalSelection(list, s) {
@@ -260,7 +261,12 @@ export function initPlayerViewModule(utils, state) {
             let imageHtml = img2 ? `<div class="scene"><div class="card-3d" id="final-card3d-${i}"><a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" style="display:block;" class="card-face card-face-front"><img src="${sanitizeHTML(img1)}" class="commander-img" loading="lazy"></a><a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')" style="display:block;" class="card-face card-face-back"><img src="${sanitizeHTML(img2)}" class="commander-img" loading="lazy"></a></div></div><button class="flip-btn" onclick="window.flipCard3D('final-card3d-${i}', event)">🔄 Flip Card</button>` : `<a href="${edhrecLink}" target="_blank" onclick="playSound('sfx-click')"><img id="final-img-${i}" src="${sanitizeHTML(img1)}" class="commander-img" loading="lazy"></a>`;
 
             cardDiv.innerHTML = `${imageHtml}<p class="price-tag" style="margin-top: 15px;">${priceString}</p><div class="mana-container">${getColorBadges(card.color_identity)}</div><p class="rank-tag" style="color:var(--gold); font-weight:bold; font-size: 1rem; margin-bottom: 15px;">EDHREC Rank: #${card.display_rank}</p><button class="select-btn" data-idx="${i}">Lock In ${safeCardName}</button>`;
-            cardDiv.querySelector('.select-btn').onclick = () => { playSound('sfx-click'); showConfirm("Seal Your Champion?", `Are you sure you want to lock in ${card.name} as your commander? This choice is final.`, () => { playSound('sfx-choose'); update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), { selected: card.name, image: img1, display_rank: card.display_rank, scryfall_uri: card.scryfall_uri, color_identity: card.color_identity || [], card_set: card.set || '', collector_number: card.collector_number || '', scryfall_id: card.id || '', generated: null, rerollCount: 0 }); }); };
+            cardDiv.querySelector('.select-btn').onclick = () => { 
+                playSound('sfx-click'); 
+                showConfirm("Seal Your Champion?", `Are you sure you want to lock in ${card.name} as your commander? This choice is final.`, () => { 
+                    handlePartnerSelection(card, img1);
+                }); 
+            };
             cardContainer.appendChild(cardDiv);
         });
         container.appendChild(cardContainer); attachScrollListener('content', 'player-scroll-left', 'player-scroll-right');
@@ -390,10 +396,150 @@ export function initPlayerViewModule(utils, state) {
                 await new Promise(r => setTimeout(r, 550));
             }
         }
-        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=8.1'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=8.1'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
-        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=8.1'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
+        if (actionType === 'async_pick') { const { handleAsyncPick } = await import('./draft-async.js?v=8.2'); await handleAsyncPick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'snake_pick') { const { handleSnakePick } = await import('./draft-snake.js?v=8.2'); await handleSnakePick(payload, state.currentRoom, state.currentPlayerId, utils); } 
+        else if (actionType === 'burn_pick') { const { handleBurnPick } = await import('./draft-burn.js?v=8.2'); await handleBurnPick(payload, state.currentRoom, state.currentPlayerId, utils); }
     };
+
+    async function handlePartnerSelection(card, img1) {
+        if (!card.isPartner) {
+            playSound('sfx-choose');
+            await update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), { 
+                selected: card.name, 
+                image: img1, 
+                display_rank: card.display_rank, 
+                scryfall_uri: card.scryfall_uri, 
+                color_identity: card.color_identity || [], 
+                card_set: card.set || '', 
+                collector_number: card.collector_number || '', 
+                scryfall_id: card.id || '', 
+                generated: null, 
+                rerollCount: 0 
+            });
+            return;
+        }
+
+        showConfirm("Partner / Background Detected!", `"${card.name}" can be paired with another Partner or Background. Would you like to roll and choose a Companion Partner?`, async () => {
+            try {
+                showToast("Rolling eligible partner companions...", false, 2000);
+                const archives = await getArchives();
+                const settingsSnap = await get(ref(db, `rooms/${state.currentRoom}/settings`));
+                const s = settingsSnap.val() || {};
+                
+                const eligiblePartners = (archives || []).filter(c => {
+                    if (!c.isPartner || c.name === card.name) return false;
+                    let price = s.currency === 'eur' ? c.prices?.eur : c.prices?.usd;
+                    if (parseFloat(s.budget) !== 0 && price >= parseFloat(s.budget)) return false;
+                    return true;
+                });
+
+                if (eligiblePartners.length === 0) {
+                    showToast("No additional partners match room budget. Sealing solo commander.", true, 3500);
+                    sealSolo(card, img1);
+                    return;
+                }
+
+                const companions = eligiblePartners.sort(() => Math.random() - 0.5).slice(0, 3).map(formatCardData);
+                renderPartnerCompanionModal(card, img1, companions);
+            } catch(e) {
+                console.error("Partner roll error:", e);
+                sealSolo(card, img1);
+            }
+        }, () => {
+            sealSolo(card, img1);
+        });
+    }
+
+    async function sealSolo(card, img1) {
+        playSound('sfx-choose');
+        await update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), { 
+            selected: card.name, 
+            image: img1, 
+            display_rank: card.display_rank, 
+            scryfall_uri: card.scryfall_uri, 
+            color_identity: card.color_identity || [], 
+            card_set: card.set || '', 
+            collector_number: card.collector_number || '', 
+            scryfall_id: card.id || '', 
+            generated: null, 
+            rerollCount: 0 
+        });
+    }
+
+    function renderPartnerCompanionModal(card1, img1, companions) {
+        let modal = document.getElementById('partnerCompanionModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'partnerCompanionModal';
+            modal.className = 'inspect-modal-overlay';
+            document.body.appendChild(modal);
+        }
+
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+            <div class="inspect-modal-backdrop" onclick="document.getElementById('partnerCompanionModal').style.display='none'"></div>
+            <div class="inspect-modal-container" style="max-width: 900px; width: 95%;">
+                <button class="inspect-close-btn" onclick="document.getElementById('partnerCompanionModal').style.display='none'">✕</button>
+                <div style="padding: 25px; text-align: center; width: 100%; box-sizing: border-box;">
+                    <h2 style="font-family: Cinzel; color: var(--gold); margin: 0 0 5px 0;">⚔️ Choose Your Companion Partner</h2>
+                    <p style="color: #aaa; margin: 0 0 20px 0; font-size: 0.95rem;">
+                        Primary Commander: <strong style="color: white;">${sanitizeHTML(card1.name)}</strong>
+                    </p>
+
+                    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin-bottom: 25px;">
+                        ${companions.map((comp, idx) => `
+                            <div class="option-card revealed" style="width: 220px; padding: 12px; transition: transform 0.15s ease;" onmouseover="this.style.transform='translateY(-6px)'" onmouseout="this.style.transform='none'">
+                                <img src="${sanitizeHTML(comp.image1 || comp.image_uris?.normal || 'card_back.webp')}" style="width: 100%; border-radius: 8px;" alt="${sanitizeHTML(comp.name)}">
+                                <h4 style="margin: 10px 0 5px 0; color: white; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${sanitizeHTML(comp.name)}</h4>
+                                <div class="mana-container">${getColorBadges(comp.color_identity)}</div>
+                                <button class="select-btn" onclick="window._confirmCompanionSelection(${idx})" style="width: 100%; margin-top: 10px; padding: 8px 12px; font-size: 0.85rem;">
+                                    Pair with ${sanitizeHTML(comp.name)}
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <button class="secondary-btn" onclick="window._sealSoloFromModal()" style="padding: 8px 20px; font-size: 0.9rem;">
+                        Skip Companion (Play ${sanitizeHTML(card1.name)} Solo)
+                    </button>
+                </div>
+            </div>
+        `;
+
+        window._sealSoloFromModal = () => {
+            modal.style.display = 'none';
+            sealSolo(card1, img1);
+        };
+
+        window._confirmCompanionSelection = async (idx) => {
+            const comp = companions[idx];
+            modal.style.display = 'none';
+            playSound('sfx-choose');
+
+            const dualName = `${card1.name} // ${comp.name}`;
+            const combinedColors = Array.from(new Set([...(card1.color_identity || []), ...(comp.color_identity || [])]));
+            
+            await update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), { 
+                selected: dualName, 
+                image: img1, 
+                display_rank: card1.display_rank, 
+                scryfall_uri: card1.scryfall_uri, 
+                color_identity: combinedColors, 
+                card_set: card1.set || '', 
+                collector_number: card1.collector_number || '', 
+                scryfall_id: card1.id || '', 
+                companion: {
+                    name: comp.name,
+                    image: comp.image1,
+                    color_identity: comp.color_identity || []
+                },
+                generated: null, 
+                rerollCount: 0 
+            });
+
+            showToast(`👑 Locked in dual commanders: ${dualName}!`, false, 3500, true);
+        };
+    }
 
     window.openPlayerView = async () => {
         playSound('sfx-click'); switchView('view-player'); getArchives(); isSearchingManually = false;

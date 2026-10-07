@@ -2178,7 +2178,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=8.1');
+                    const res = await fetch('./commander-precons.json?v=8.2');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2214,7 +2214,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=8.1');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=8.2');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -5279,21 +5279,31 @@
             if (lines.length < 2) throw new Error("CSV file is empty or invalid.");
 
             const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().replace(/^"|"$/g, '').trim());
-            let nameIdx = headers.findIndex(h => h === 'name' || h === 'card name' || h === 'card' || h === 'simple name');
-            if (nameIdx === -1) nameIdx = headers.findIndex(h => h.includes('name'));
+            
+            // Name: Support Archidekt, Moxfield, ManaBox ("Name"), Delver Lens ("Card Name"), Dragon Shield ("Card Name"), TCGplayer ("Product Name")
+            let nameIdx = headers.findIndex(h => h === 'name' || h === 'card name' || h === 'card' || h === 'product name' || h === 'simple name');
+            if (nameIdx === -1) nameIdx = headers.findIndex(h => h.includes('name') || h === 'card');
             if (nameIdx === -1) throw new Error("Could not find a 'Name' column in the CSV.");
 
+            // Quantity: Support Count, Qty, Amount, Quantity, Dragon Shield ("Trade Quantity" fallback)
             let qtyIdx = headers.findIndex(h => h === 'quantity' || h === 'count' || h === 'qty' || h === 'amount');
             if (qtyIdx === -1) qtyIdx = headers.findIndex(h => h.includes('quantity') || h.includes('count') || h.includes('qty'));
 
-            let setIdx = headers.findIndex(h => h === 'set code' || h === 'edition code' || h === 'expansion code' || h === 'set' || h === 'edition' || h === 'expansion' || h === 'setcode');
+            // Set / Edition: Support Set Code, Edition Code, Expansion Code, Set Name, Folder Name
+            let setIdx = headers.findIndex(h => h === 'set code' || h === 'edition code' || h === 'expansion code' || h === 'setcode' || h === 'set' || h === 'edition' || h === 'expansion' || h === 'folder name');
             if (setIdx === -1) setIdx = headers.findIndex(h => h.includes('set') || h.includes('edition') || h.includes('expansion'));
 
-            let numIdx = headers.findIndex(h => h === 'collector number' || h === 'card number' || h === 'number' || h === 'num' || h === 'card #' || h === 'card#');
+            // Collector / Card Number: Support Collector Number, Card Number, Number, Card #, Collector's Number
+            let numIdx = headers.findIndex(h => h === 'collector number' || h === "collector's number" || h === 'card number' || h === 'number' || h === 'num' || h === 'card #' || h === 'card#');
             if (numIdx === -1) numIdx = headers.findIndex(h => h.includes('collector') || h.includes('number'));
 
+            // Foil / Finish: Support Foil, Finish, Modifier, Printing
             let finishIdx = headers.findIndex(h => h === 'finish' || h === 'modifier' || h === 'foil' || h === 'printing');
-            if (finishIdx === -1) finishIdx = headers.findIndex(h => h.includes('finish') || h.includes('modifier') || h.includes('foil'));
+            if (finishIdx === -1) finishIdx = headers.findIndex(h => h.includes('finish') || h.includes('modifier') || h.includes('foil') || h.includes('printing'));
+
+            // Condition & Rarity (ManaBox, Delver Lens, Dragon Shield, TCGplayer)
+            let conditionIdx = headers.findIndex(h => h === 'condition' || h.includes('condition'));
+            let rarityIdx = headers.findIndex(h => h === 'rarity' || h.includes('rarity'));
 
             let colorIdx = headers.findIndex(h => h === 'color' || h === 'colors' || h === 'color identity' || h === 'coloridentity' || h === 'color_identity');
             if (colorIdx === -1) colorIdx = headers.findIndex(h => h.includes('color'));
@@ -8440,3 +8450,142 @@
         window.executeRealtimeCommanderSearch = typeof executeRealtimeCommanderSearch === 'function' ? executeRealtimeCommanderSearch : () => {};
         window.quickScanTopOwnedCommanders = typeof quickScanTopOwnedCommanders === 'function' ? quickScanTopOwnedCommanders : () => {};
         window.clearRealtimeSearchResults = typeof clearRealtimeSearchResults === 'function' ? clearRealtimeSearchResults : () => {};
+
+        // ==================== MULTI-COLLECTION / BINDER PROFILES ====================
+        function getCollectionProfiles() {
+            try {
+                const raw = localStorage.getItem('archidekt_collection_profiles');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                }
+            } catch (e) {}
+            return [
+                { id: 'default', name: 'Main Collection' },
+                { id: 'trade', name: 'Trade Binder' },
+                { id: 'cube_bulk', name: 'Cube / Bulk' }
+            ];
+        }
+
+        function saveCollectionProfiles(profiles) {
+            try {
+                localStorage.setItem('archidekt_collection_profiles', JSON.stringify(profiles));
+            } catch (e) {}
+        }
+
+        function renderCollectionProfilesUI() {
+            const select = document.getElementById('collectionProfileSelect');
+            if (!select) return;
+            const profiles = getCollectionProfiles();
+            const activeId = localStorage.getItem('archidekt_active_profile') || 'default';
+            select.innerHTML = profiles.map(p => `<option value="${p.id}" ${p.id === activeId ? 'selected' : ''}>${p.name}</option>`).join('');
+        }
+
+        window.switchCollectionProfile = function(profileId) {
+            if (!profileId) return;
+            const currentProfile = localStorage.getItem('archidekt_active_profile') || 'default';
+            if (currentProfile === profileId) return;
+
+            // Save active profile's data into its profile slot
+            const activeCollId = document.getElementById('collectionId')?.value.trim() || localStorage.getItem('archidekt_collectionId') || '';
+            const activeCsv = localStorage.getItem('archidekt_cachedCsvData') || '';
+            const activeDecks = localStorage.getItem('archidekt_deckIds') || '';
+            const activeCustomDecks = localStorage.getItem('archidekt_customDecks') || '';
+
+            localStorage.setItem(`archidekt_profile_${currentProfile}_collId`, activeCollId);
+            localStorage.setItem(`archidekt_profile_${currentProfile}_csv`, activeCsv);
+            localStorage.setItem(`archidekt_profile_${currentProfile}_decks`, activeDecks);
+            localStorage.setItem(`archidekt_profile_${currentProfile}_customDecks`, activeCustomDecks);
+
+            // Switch to new profile
+            localStorage.setItem('archidekt_active_profile', profileId);
+
+            // Restore new profile's data
+            const newCollId = localStorage.getItem(`archidekt_profile_${profileId}_collId`) || '';
+            const newCsv = localStorage.getItem(`archidekt_profile_${profileId}_csv`) || '';
+            const newDecks = localStorage.getItem(`archidekt_profile_${profileId}_decks`) || '';
+            const newCustomDecks = localStorage.getItem(`archidekt_profile_${profileId}_customDecks`) || '';
+
+            if (newCollId) {
+                localStorage.setItem('archidekt_collectionId', newCollId);
+                const collInput = document.getElementById('collectionId');
+                if (collInput) collInput.value = newCollId;
+            } else {
+                localStorage.removeItem('archidekt_collectionId');
+                const collInput = document.getElementById('collectionId');
+                if (collInput) collInput.value = '';
+            }
+
+            if (newCsv) {
+                localStorage.setItem('archidekt_cachedCsvData', newCsv);
+            } else {
+                localStorage.removeItem('archidekt_cachedCsvData');
+            }
+
+            if (newDecks) {
+                localStorage.setItem('archidekt_deckIds', newDecks);
+            } else {
+                localStorage.removeItem('archidekt_deckIds');
+            }
+
+            if (newCustomDecks) {
+                localStorage.setItem('archidekt_customDecks', newCustomDecks);
+            } else {
+                localStorage.removeItem('archidekt_customDecks');
+            }
+
+            localStorage.removeItem('archidekt_cachedInsights');
+            if (typeof cachedParsedCsv !== 'undefined') cachedParsedCsv = null;
+            if (typeof cachedInsightsData !== 'undefined') cachedInsightsData = null;
+
+            if (typeof toggleCollectionInputs === 'function') toggleCollectionInputs();
+            if (typeof updateCollectionStatusBadge === 'function') updateCollectionStatusBadge();
+            renderCollectionProfilesUI();
+
+            const profiles = getCollectionProfiles();
+            const prof = profiles.find(p => p.id === profileId);
+            if (typeof showToast === 'function') {
+                showToast(`Switched to profile: ${prof ? prof.name : profileId}`);
+            }
+        };
+
+        window.promptNewProfile = function() {
+            const name = prompt("Enter a name for the new Collection / Binder profile (e.g. 'Modern Binder', 'Commander Staples'):");
+            if (!name || !name.trim()) return;
+            const cleanName = name.trim();
+            const id = 'prof_' + Date.now();
+            const profiles = getCollectionProfiles();
+            profiles.push({ id, name: cleanName });
+            saveCollectionProfiles(profiles);
+            renderCollectionProfilesUI();
+            window.switchCollectionProfile(id);
+        };
+
+        window.deleteCurrentProfile = function() {
+            const activeId = localStorage.getItem('archidekt_active_profile') || 'default';
+            if (activeId === 'default') {
+                alert("Cannot delete the Default Collection profile. You can clear its data instead.");
+                return;
+            }
+            const profiles = getCollectionProfiles();
+            const prof = profiles.find(p => p.id === activeId);
+            if (!confirm(`Delete profile "${prof ? prof.name : activeId}" and its stored data?`)) return;
+
+            localStorage.removeItem(`archidekt_profile_${activeId}_collId`);
+            localStorage.removeItem(`archidekt_profile_${activeId}_csv`);
+            localStorage.removeItem(`archidekt_profile_${activeId}_decks`);
+            localStorage.removeItem(`archidekt_profile_${activeId}_customDecks`);
+
+            const updated = profiles.filter(p => p.id !== activeId);
+            saveCollectionProfiles(updated);
+            localStorage.setItem('archidekt_active_profile', 'default');
+            renderCollectionProfilesUI();
+            window.switchCollectionProfile('default');
+        };
+
+        // Initialize profiles UI
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', renderCollectionProfilesUI);
+        } else {
+            setTimeout(renderCollectionProfilesUI, 100);
+        }

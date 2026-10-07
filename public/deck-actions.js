@@ -1,5 +1,5 @@
-import { db } from './firebase-setup.js?v=8.1';
-import { fetchDeckPriceLocal, fetchDeckFromAPI } from './deck-parser.js?v=8.1';
+import { db } from './firebase-setup.js?v=8.2';
+import { fetchDeckPriceLocal, fetchDeckFromAPI } from './deck-parser.js?v=8.2';
 import { ref, get, update } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initDeckActionsModule(utils, state) {
@@ -19,7 +19,7 @@ export function initDeckActionsModule(utils, state) {
         const isMoxfield = myData.deck && myData.deck.toLowerCase().includes("moxfield.com");
         showToast(isMoxfield ? "Recalculating deck price... (Moxfield APIs may take a few seconds)" : "Recalculating deck price...", false, 0);
         try {
-            const res = await fetchDeckPriceLocal(myData.deck, settings.currency || 'eur', settings.includeCmdr !== false, myData.selected);
+            const res = await fetchDeckPriceLocal(myData.deck, settings.currency || 'eur', settings.includeCmdr !== false, myData.selected, settings);
             if (res && !res.error) {
                 const maxDeckBudget = settings.deckBudget !== undefined ? parseFloat(settings.deckBudget) : 50;
                 const maxBracket = settings.maxBracket !== undefined ? parseFloat(settings.maxBracket) : 0;
@@ -27,14 +27,29 @@ export function initDeckActionsModule(utils, state) {
                 const isBracketLegal = maxBracket === 0 || !res.deckBracket || res.deckBracket <= maxBracket;
                 const overallLegal = isSizeLegal && isBracketLegal;
 
-                let updates = { deckPrice: res.total, isLegal: overallLegal, deckSize: res.deckSize, deckSalt: res.deckSalt, deckBracket: res.deckBracket };
+                let updates = { 
+                    deckPrice: res.total, 
+                    isLegal: overallLegal, 
+                    deckSize: res.deckSize, 
+                    deckSalt: res.deckSalt, 
+                    deckBracket: res.deckBracket,
+                    wotcBracket: res.wotcBracket || 2,
+                    legalityViolations: res.validationDetails?.violations || []
+                };
                 if (res.commanderArt) updates.image = res.commanderArt;
 
                 const isNowReady = overallLegal && (maxDeckBudget === 0 || res.total <= maxDeckBudget);
                 if (isNowReady && myData.lockedDeckPrice === undefined) updates.lockedDeckPrice = res.total;
 
                 await update(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`), updates);
-                showToast("Deck price updated!", false, 3000, true);
+                
+                if (res.validationDetails?.violations?.length > 0) {
+                    showToast(`⚠️ Deck issues: ${res.validationDetails.violations[0]}`, true, 5000);
+                } else if (!isBracketLegal) {
+                    showToast(`⚠️ Deck is Bracket ${res.deckBracket} (Max allowed: ${maxBracket})`, true, 4000);
+                } else {
+                    showToast("Deck validated & price updated!", false, 3000, true);
+                }
             } else {
                 showToast(res.error || "Failed to update price.", true);
             }
@@ -74,7 +89,7 @@ export function initDeckActionsModule(utils, state) {
         for (const [pId, pData] of Object.entries(roomData.players)) {
             if (pData.deck && pData.selected) {
                 try {
-                    const res = await fetchDeckPriceLocal(pData.deck, settings.currency || 'eur', settings.includeCmdr !== false, pData.selected);
+                    const res = await fetchDeckPriceLocal(pData.deck, settings.currency || 'eur', settings.includeCmdr !== false, pData.selected, settings);
                     if (res && !res.error) {
                         const maxDeckBudget = settings.deckBudget !== undefined ? parseFloat(settings.deckBudget) : 50;
                         const maxBracket = settings.maxBracket !== undefined ? parseFloat(settings.maxBracket) : 0;
@@ -87,6 +102,8 @@ export function initDeckActionsModule(utils, state) {
                         updates[`rooms/${state.currentRoom}/players/${pId}/deckSize`] = res.deckSize;
                         updates[`rooms/${state.currentRoom}/players/${pId}/deckSalt`] = res.deckSalt;
                         updates[`rooms/${state.currentRoom}/players/${pId}/deckBracket`] = res.deckBracket;
+                        updates[`rooms/${state.currentRoom}/players/${pId}/wotcBracket`] = res.wotcBracket || 2;
+                        updates[`rooms/${state.currentRoom}/players/${pId}/legalityViolations`] = res.validationDetails?.violations || [];
                         if (res.commanderArt) updates[`rooms/${state.currentRoom}/players/${pId}/image`] = res.commanderArt;
 
                         const isNowReady = overallLegal && (maxDeckBudget === 0 || (res.total || 0) <= maxDeckBudget);

@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=8.1';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=8.1';
-import { getArchives } from './data-service.js?v=8.1';
-import { initDeckActionsModule } from './deck-actions.js?v=8.1';
-import { initRoomActionsModule } from './room-actions.js?v=8.1';
-import { initPlayerViewModule } from './player-view.js?v=8.1';
-import { initAdminModule } from './admin.js?v=8.1';
-import { initCalendarModule } from './calendar.js?v=8.1';
-import { initAuthModule } from './auth.js?v=8.1';
-import { initHubModule } from './hub.js?v=8.1';
-import { initProfileModule } from './profile.js?v=8.1';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=8.1';
-import { initWarRoom, openWarRoom } from './war-room.js?v=8.1';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=8.1';
-import { initBoosterDraftModule } from './booster-draft.js?v=8.1';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=8.1';
+import { db, auth, functions } from './firebase-setup.js?v=8.2';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=8.2';
+import { getArchives } from './data-service.js?v=8.2';
+import { initDeckActionsModule } from './deck-actions.js?v=8.2';
+import { initRoomActionsModule } from './room-actions.js?v=8.2';
+import { initPlayerViewModule } from './player-view.js?v=8.2';
+import { initAdminModule } from './admin.js?v=8.2';
+import { initCalendarModule } from './calendar.js?v=8.2';
+import { initAuthModule } from './auth.js?v=8.2';
+import { initHubModule } from './hub.js?v=8.2';
+import { initProfileModule } from './profile.js?v=8.2';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=8.2';
+import { initWarRoom, openWarRoom } from './war-room.js?v=8.2';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=8.2';
+import { initBoosterDraftModule } from './booster-draft.js?v=8.2';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=8.2';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -406,12 +406,63 @@ export function playSound(soundId) {
 
     if (isSfxMuted) return; 
     const sound = document.getElementById(soundId);
-    if (sound) { sound.currentTime = 0; sound.volume = soundId === 'sfx-choose' ? 0.35 : 0.2; sound.play().catch(()=>{}); }
+    if (sound) { 
+        sound.currentTime = 0; 
+        const sfxVol = parseFloat(localStorage.getItem('draft_sfx_volume') || '0.7');
+        const baseVol = soundId === 'sfx-choose' ? 0.35 : 0.2; 
+        sound.volume = Math.max(0, Math.min(1, baseVol * (sfxVol / 0.7)));
+        sound.play().catch(()=>{}); 
+    }
 }
 
 sfxToggle.onclick = () => {
     isSfxMuted = !isSfxMuted; localStorage.setItem('draft_sfx', isSfxMuted); applyAudioUI(); playSound('sfx-click'); 
 };
+
+window.toggleAudioVolumeDropdown = (event) => {
+    if (event) event.stopPropagation();
+    const panel = document.getElementById('audioVolumePanel');
+    if (panel) {
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+};
+
+// Initialize audio volume sliders
+const sfxVolSlider = document.getElementById('sfxVolSlider');
+if (sfxVolSlider) {
+    sfxVolSlider.value = localStorage.getItem('draft_sfx_volume') || '0.7';
+    sfxVolSlider.oninput = (e) => {
+        localStorage.setItem('draft_sfx_volume', e.target.value);
+    };
+}
+const musicVolSlider = document.getElementById('musicVolSlider');
+if (musicVolSlider) {
+    musicVolSlider.value = localStorage.getItem('draft_music_volume') || '0.5';
+    musicVolSlider.oninput = (e) => {
+        localStorage.setItem('draft_music_volume', e.target.value);
+        const bgMusic = document.getElementById('bgMusic');
+        if (bgMusic) bgMusic.volume = parseFloat(e.target.value);
+    };
+}
+
+// Mana Theme Management (Section 4.3)
+window.setManaTheme = (themeName) => {
+    if (!themeName || themeName === 'default') {
+        document.documentElement.removeAttribute('data-mana-theme');
+        localStorage.removeItem('draft_mana_theme');
+        showToast("Theme: Default (Void)", false, 2000, true);
+    } else {
+        document.documentElement.setAttribute('data-mana-theme', themeName);
+        localStorage.setItem('draft_mana_theme', themeName);
+        const cap = themeName.charAt(0).toUpperCase() + themeName.slice(1);
+        showToast(`Theme: ${cap}`, false, 2000, true);
+    }
+};
+
+const savedManaTheme = localStorage.getItem('draft_mana_theme');
+if (savedManaTheme) {
+    document.documentElement.setAttribute('data-mana-theme', savedManaTheme);
+}
 
 let toastTimeout;
 function showToast(msg, isError = false, duration = 3000, isSuccess = false) {
@@ -1232,6 +1283,8 @@ function syncSettingsToUI(s) {
     if (document.getElementById('settingMaxRerolls')) document.getElementById('settingMaxRerolls').value = s.maxRerolls || 1;
     if (document.getElementById('settingNoPartner')) document.getElementById('settingNoPartner').checked = s.noPartner || false;
     if (document.getElementById('settingBlindDraft')) document.getElementById('settingBlindDraft').checked = s.blindDraft || false;
+    if (document.getElementById('settingCustomBannedCards')) document.getElementById('settingCustomBannedCards').value = s.customBannedCards || '';
+    if (document.getElementById('settingCustomAllowedCards')) document.getElementById('settingCustomAllowedCards').value = s.customAllowedCards || '';
     if (document.getElementById('toggleCmdrBudget')) document.getElementById('toggleCmdrBudget').checked = s.budget > 0;
     if (document.getElementById('toggleDeckBudget')) document.getElementById('toggleDeckBudget').checked = s.deckBudget > 0;
     if (document.getElementById('toggleRank')) document.getElementById('toggleRank').checked = (s.minRank > 0 || s.maxRank > 0);
@@ -1457,6 +1510,8 @@ function autoSaveSettings() {
 
         const maxBracket = parseInt(document.getElementById('settingMaxBracket')?.value) || 5;
         const snakePoolSize = Math.min(30, Math.max(2, parseInt(document.getElementById('settingSnakePoolSize')?.value) || 15));
+        const customBannedCards = document.getElementById('settingCustomBannedCards')?.value?.trim() || '';
+        const customAllowedCards = document.getElementById('settingCustomAllowedCards')?.value?.trim() || '';
 
         const updates = {
             draftMode: 'commander_draft',
@@ -1473,7 +1528,9 @@ function autoSaveSettings() {
             maxRerolls: maxRr,
             selectionMode: selMode,
             blindDraft: blind,
-            maxBracket: maxBracket
+            maxBracket: maxBracket,
+            customBannedCards: customBannedCards,
+            customAllowedCards: customAllowedCards
         };
 
         await update(ref(db, `rooms/${currentRoom}/settings`), updates);
@@ -1519,6 +1576,8 @@ document.getElementById('startDraftBtn').onclick = async () => {
     const maxBracket = parseInt(document.getElementById('settingMaxBracket')?.value) || 5;
     const snakePoolSize = Math.min(30, Math.max(2, parseInt(document.getElementById('settingSnakePoolSize')?.value) || 15));
     const webhookUrl = document.getElementById('settingDiscordWebhook') ? document.getElementById('settingDiscordWebhook').value.trim() : '';
+    const customBannedCards = document.getElementById('settingCustomBannedCards')?.value?.trim() || '';
+    const customAllowedCards = document.getElementById('settingCustomAllowedCards')?.value?.trim() || '';
 
     const settingsPayload = {
         draftMode: 'commander_draft',
@@ -1536,6 +1595,8 @@ document.getElementById('startDraftBtn').onclick = async () => {
         selectionMode: selMode,
         blindDraft: blind,
         maxBracket: maxBracket,
+        customBannedCards: customBannedCards,
+        customAllowedCards: customAllowedCards,
         status: 'rolling'
     };
     localStorage.setItem('hostDefaultSettings', JSON.stringify(settingsPayload));
@@ -2144,7 +2205,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=8.1').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=8.2').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

@@ -34,13 +34,21 @@
         ".write": "newData.val() == null || (newData.child('url').val().matches(/^https:\\/\\/discord\\.com\\/api\\/webhooks\\//) && newData.child('url').val().length < 200)"
       }
     },
+    "hall_of_fame": {
+      ".read": true,
+      ".write": "auth != null"
+    },
     "rooms": {
       ".read": true,
-      ".write": true
+      "$roomId": {
+        ".write": "auth != null"
+      }
     },
     "booster_drafts": {
       ".read": true,
-      ".write": true
+      "$draftId": {
+        ".write": "auth != null"
+      }
     }
   }
 }

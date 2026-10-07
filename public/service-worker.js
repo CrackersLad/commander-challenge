@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'cmdr-draft-cache-v8.1';
+const CACHE_NAME = 'cmdr-draft-cache-v8.2';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -123,10 +123,10 @@ self.addEventListener('fetch', event => {
                 return networkResponse;
             })
             .catch(async () => {
-                const cached = await caches.match(event.request);
+                const cached = await caches.match(event.request, { ignoreSearch: true });
                 if (cached) return cached;
                 if (event.request.mode === 'navigate') {
-                    const fallbackHtml = await caches.match('/index.html');
+                    const fallbackHtml = await caches.match('/index.html', { ignoreSearch: true });
                     if (fallbackHtml) return fallbackHtml;
                 }
                 return new Response('Network error or offline', {
