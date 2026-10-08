@@ -25,8 +25,8 @@ async function performArchiveSync() {
         let edhrecDataMap = new Map();
 
         for (let i = 0; i <= 30; i++) {
-            let url = i === 0 
-                ? "https://json.edhrec.com/pages/commanders/year.json" 
+            let url = i === 0
+                ? "https://json.edhrec.com/pages/commanders/year.json"
                 : `https://json.edhrec.com/pages/commanders/year-past2years-${i}.json`;
 
             let res = await fetch(url);
@@ -35,7 +35,7 @@ async function performArchiveSync() {
 
             const data = await res.json();
             const rawCards = extractAll(data);
-            
+
             rawCards.forEach(c => {
                 if (c.name && c.num_decks) {
                     const deckCount = parseInt(c.num_decks);
@@ -63,7 +63,7 @@ async function performArchiveSync() {
         let scryCards = [];
         let sUrl = "https://api.scryfall.com/cards/search?q=is:commander+-is:digital";
         let retries = 0;
-        
+
         while (sUrl) {
             const res = await fetch(sUrl);
             if (!res.ok) {
@@ -92,7 +92,7 @@ async function performArchiveSync() {
 
             return {
                 name: c.name,
-                image1: img1, 
+                image1: img1,
                 image2: img2,
                 prices: { usd: parseFloat(c.prices?.usd || 9999), eur: parseFloat(c.prices?.eur || 9999) },
                 rank_edhrec: rank,
@@ -173,7 +173,7 @@ exports.cleanupInactiveRooms = onSchedule({
                 const draft = child.val();
                 const draftId = child.key;
                 if (!draft) return;
-                
+
                 const draftPlayerCount = draft.players ? Object.keys(draft.players).length : 0;
                 // STRICT SAFETY: Do NOT prune any draft that has players!
                 if (draftPlayerCount > 0) return;
@@ -241,6 +241,7 @@ exports.submitFeedback = onRequest({ cors: true, timeoutSeconds: 60 }, async (re
             const emailBody = JSON.stringify({
                 _subject: emailSubject,
                 _template: "box",
+                _captcha: "false",
                 Category: cleanPayload.category,
                 Name: cleanPayload.name,
                 Email: cleanPayload.email || "Not provided",
@@ -250,14 +251,20 @@ exports.submitFeedback = onRequest({ cors: true, timeoutSeconds: 60 }, async (re
                 Timestamp: new Date(timestamp).toUTCString()
             });
 
-            await fetch("https://formsubmit.co/ajax/crackerslad@gmail.com", {
+            const fsResp = await fetch("https://formsubmit.co/ajax/crackerslad@gmail.com", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "Accept": "application/json"
+                    "Accept": "application/json",
+                    "Origin": "https://edhchallenge.com",
+                    "Referer": "https://edhchallenge.com/"
                 },
                 body: emailBody
             });
+            const fsData = await fsResp.json().catch(() => ({}));
+            if (fsData && fsData.success !== "true" && fsData.success !== true) {
+                console.warn("[submitFeedback] FormSubmit returned warning:", fsData);
+            }
         } catch (emailErr) {
             console.warn("[submitFeedback] Email dispatch warning (data saved in DB):", emailErr.message);
         }
@@ -306,7 +313,7 @@ exports.getAdminData = onCall(async (request) => {
         for (let i = 0; i < uids.length; i += 100) {
             const batchUids = uids.slice(i, i + 100).map(uid => ({ uid }));
             const userRecords = await admin.auth().getUsers(batchUids);
-            
+
             userRecords.users.forEach(record => {
                 let provider = 'Unknown';
                 if (record.providerData && record.providerData.length > 0) {
@@ -341,7 +348,7 @@ exports.adminDeleteRoom = onCall(async (request) => {
     const db = admin.database();
     await db.ref(`rooms/${roomId}`).remove();
     await db.ref(`webhooks/${roomId}`).remove();
-    
+
     return { success: true };
 });
 
@@ -355,7 +362,7 @@ exports.adminPruneRooms = onCall(async (request) => {
     const now = Date.now();
     const thirtyDays = 30 * 24 * 60 * 60 * 1000;
     const updates = {};
-    
+
     for (const [code, data] of Object.entries(rooms)) {
         const pCount = data.players ? Object.keys(data.players).length : 0;
         let cTime = now;
@@ -411,9 +418,9 @@ async function resolveScryfallSetCode(input) {
     if (!input) {
         if (cachedScryfallSets && cachedScryfallSets.length > 0) {
             const today = new Date();
-            const released = cachedScryfallSets.filter(s => 
-                ['core', 'expansion', 'masters', 'draft_innovation', 'commander'].includes(s.set_type) && 
-                new Date(s.released_at) <= today && 
+            const released = cachedScryfallSets.filter(s =>
+                ['core', 'expansion', 'masters', 'draft_innovation', 'commander'].includes(s.set_type) &&
+                new Date(s.released_at) <= today &&
                 s.card_count > 40
             ).sort((a, b) => new Date(b.released_at) - new Date(a.released_at));
             if (released[0]) return released[0].code;
@@ -504,7 +511,7 @@ async function fetchSetCardsByRarity(setCode) {
     // Search query for non-basic cards from the set
     let sUrl = `https://api.scryfall.com/cards/search?q=set%3A${encodeURIComponent(cleanSet)}+is%3Abooster+-is:basic`;
     let res = await fetch(sUrl, { headers: fetchHeaders });
-    
+
     // Fallback if is:booster returned nothing
     if (!res.ok) {
         sUrl = `https://api.scryfall.com/cards/search?q=set%3A${encodeURIComponent(cleanSet)}+-is:basic`;
@@ -782,7 +789,7 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
             const queues = {};
             const drafted = {};
             playerIds.forEach((id, i) => {
-                queues[id] = [ packs[i] ];
+                queues[id] = [packs[i]];
                 drafted[id] = [];
             });
             activeDraftPayload.queues = queues;
@@ -852,17 +859,17 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
                 const packCards = [];
                 for (let j = 0; j < packSize; j++) {
                     let card; let attempts = 0;
-                    do { 
-                        card = pool[Math.floor(Math.random() * pool.length)]; 
-                        attempts++; 
+                    do {
+                        card = pool[Math.floor(Math.random() * pool.length)];
+                        attempts++;
                     } while (!isSetDraft && existingNames.has(card.name) && attempts < 100);
-                    
+
                     packCards.push(formatCard(card));
                     if (!isSetDraft) existingNames.add(card.name);
                 }
                 packs.push({ id: `pack_${i}`, cards: packCards });
             }
-            
+
             const queues = {};
             const drafted = {};
             playerIds.forEach((id) => {
@@ -885,16 +892,16 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
             }
             const existingNames = new Set();
             const poolCards = [];
-            
+
             let poolSize = settings.snakePoolSize || 15;
             if (poolSize < N * numOptions) poolSize = N * numOptions;
             if (poolSize > 30) poolSize = 30;
 
             for (let i = 0; i < poolSize; i++) {
                 let card; let attempts = 0;
-                do { card = pool[Math.floor(Math.random() * pool.length)]; attempts++; } 
+                do { card = pool[Math.floor(Math.random() * pool.length)]; attempts++; }
                 while (existingNames.has(card.name) && attempts < 100);
-                
+
                 poolCards.push(formatCard(card));
                 existingNames.add(card.name);
             }
@@ -924,19 +931,19 @@ exports.hostStartInteractiveDraft = onCall(async (request) => {
                 const packCards = [];
                 for (let j = 0; j < numOptions; j++) {
                     let card; let attempts = 0;
-                    do { card = pool[Math.floor(Math.random() * pool.length)]; attempts++; } 
+                    do { card = pool[Math.floor(Math.random() * pool.length)]; attempts++; }
                     while (existingNames.has(card.name) && attempts < 100);
-                    
+
                     packCards.push(formatCard(card));
                     existingNames.add(card.name);
                 }
                 packs.push({ id: `pack_${i}`, cards: packCards });
             }
-            
+
             const queues = {};
             const drafted = {};
             playerIds.forEach((id, i) => {
-                queues[id] = [ packs[i] ]; drafted[id] = [];
+                queues[id] = [packs[i]]; drafted[id] = [];
             });
 
             activeDraftPayload.queues = queues;
@@ -964,7 +971,7 @@ exports.hostKickPlayer = onCall(async (request) => {
     const { roomId, targetId } = request.data;
     if (!roomId || !targetId) throw new HttpsError('invalid-argument', 'Missing parameters.');
     await verifyIsHost(roomId, request.auth);
-    
+
     await admin.database().ref(`rooms/${roomId}/players/${targetId}`).remove();
     return { success: true };
 });
@@ -1046,11 +1053,11 @@ exports.hostDeclareWinner = onCall(async (request) => {
         // 1. Update user-specific stats
         const userStatsRef = db.ref(`users/${winnerUid}/stats`);
         await userStatsRef.child('wins').transaction(current => (current || 0) + 1);
-        
+
         const winRecord = { commander: commanderName, date: Date.now(), room: roomId };
         await userStatsRef.child('win_history').push(winRecord);
 
-        
+
     }
 
     let updates = {};
@@ -1084,14 +1091,14 @@ async function sendDiscordWebhook(roomId, content) {
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
-        
+
         await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                content, 
+            body: JSON.stringify({
+                content,
                 username: "Commander Archives",
-                allowed_mentions: { parse: [] } 
+                allowed_mentions: { parse: [] }
             }),
             signal: controller.signal
         });
@@ -1161,7 +1168,7 @@ async function sendRoomNotification(roomId, payload, excludeUid = null) {
     const db = admin.database();
     const playersSnap = await db.ref(`rooms/${roomId}/players`).once('value');
     if (!playersSnap.exists()) return;
-    
+
     const players = playersSnap.val();
     let targetTokens = [];
     let tokenToUidMap = {};
@@ -1200,7 +1207,7 @@ async function sendRoomNotification(roomId, payload, excludeUid = null) {
     try {
         const response = await admin.messaging().sendEachForMulticast(message);
         console.log(`Sent ${response.successCount} push notifications successfully.`);
-        
+
         // Automatically clean up invalid/expired tokens to prevent database bloat
         if (response.failureCount > 0) {
             const tokenRemovals = {};
@@ -1225,7 +1232,7 @@ exports.notifyDraftStarted = onValueUpdated({ ref: "/rooms/{roomId}/settings/sta
     const before = event.data.before.val();
     const after = event.data.after.val();
     if (before !== 'waiting' || after !== 'rolling') return;
-    
+
     await sendDiscordWebhook(event.params.roomId, `🎲 **A new Commander Draft has begun!**\nJoin the playgroup: https://edhchallenge.com/?room=${event.params.roomId}`);
 
     return sendRoomNotification(event.params.roomId, {
@@ -1240,21 +1247,21 @@ exports.pingPlayer = onCall(async (request) => {
     if (!roomId || !targetId) throw new HttpsError('invalid-argument', 'Missing parameters.');
 
     const db = admin.database();
-    
+
     // Enforce 1 ping per day per target per room
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD in UTC
     const pingRef = db.ref(`rooms/${roomId}/pings/${targetId}/${today}`);
-    
+
     const pingSnap = await pingRef.once('value');
     if (pingSnap.exists()) {
         throw new HttpsError('resource-exhausted', 'This player has already been pinged today.');
     }
-    
+
     const targetPlayerSnap = await db.ref(`rooms/${roomId}/players/${targetId}`).once('value');
     if (!targetPlayerSnap.exists()) throw new HttpsError('not-found', 'Player not found.');
-    
+
     const targetPlayer = targetPlayerSnap.val();
-    
+
     let actionNeeded = "take action in the draft";
     if (!targetPlayer.selected) {
         actionNeeded = "pick your commander";
@@ -1274,7 +1281,7 @@ exports.pingPlayer = onCall(async (request) => {
             title, body, url: `/?room=${roomId}`
         });
     }
-    
+
     await sendDiscordWebhook(roomId, `🔔 **${targetPlayer.name}**, you have been pinged by **${pingerName || 'Someone'}**! Please ${actionNeeded}.\nhttps://edhchallenge.com/?room=${roomId}`);
 
     return { success: true };
@@ -1282,10 +1289,10 @@ exports.pingPlayer = onCall(async (request) => {
 
 exports.adminTestPing = onCall(async (request) => {
     await verifyIsAdmin(request.auth);
-    
+
     const targetUid = request.data.targetUid;
     if (!targetUid) throw new HttpsError('invalid-argument', 'Missing target UID.');
-    
+
     try {
         const debugMsg = await sendDirectNotification(targetUid, {
             title: "Admin Test Ping! 🔔",
@@ -1300,7 +1307,7 @@ exports.adminTestPing = onCall(async (request) => {
 
 exports.onRoomCreated = onValueCreated({ ref: "/rooms/{roomId}", instance: "commander-challenge-default-rtdb", region: "europe-west1" }, async (event) => {
     const data = event.data.val();
-    
+
     // If the room was created without settings, it's a ghost room (likely from a lingering onDisconnect).
     // Delete it instantly and prevent the activeRooms stat from falsely incrementing.
     if (!data || !data.settings) {
@@ -1333,7 +1340,7 @@ exports.notifyPlayerProgress = onValueUpdated({ ref: "/rooms/{roomId}/players/{p
 
     let title = null;
     let body = null;
-    
+
     const roomSnap = await admin.database().ref(`rooms/${event.params.roomId}`).once('value');
     const roomData = roomSnap.val();
     if (!roomData) return;
@@ -1346,7 +1353,7 @@ exports.notifyPlayerProgress = onValueUpdated({ ref: "/rooms/{roomId}/players/{p
     if (!before.selected && after.selected) {
         title = "Commander Locked In! 🔒";
         body = hideInfo ? `${after.name} has locked in a mysterious Commander!` : `${after.name} has chosen ${after.selected}!`;
-        
+
         const firstCmdr = after.selected.split(' // ')[0].trim();
         const edhrecSlug = firstCmdr.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         const edhrecLink = `https://edhrec.com/commanders/${edhrecSlug}`;
@@ -1356,16 +1363,16 @@ exports.notifyPlayerProgress = onValueUpdated({ ref: "/rooms/{roomId}/players/{p
         if (allLocked) {
             const revealMsg = `🎉 **${isBlind ? 'All Commanders Revealed!' : 'All Commanders Locked In!'}** 🎉\n${isBlind ? 'The Blind Draft is complete! The board is now revealed.' : 'Everyone has chosen their commanders. Time to brew!'}\nhttps://edhchallenge.com/?room=${event.params.roomId}`;
             await sendDiscordWebhook(event.params.roomId, revealMsg);
-            
+
             title = isBlind ? "All Commanders Revealed! 🎭" : "Draft Phase Complete! 🎉";
             body = isBlind ? "The Blind Draft is over! Check the board to see the matchups." : "Everyone has locked in their commanders.";
         }
     } else if (after.deck) {
         const maxBudget = roomData.settings?.deckBudget !== undefined ? parseFloat(roomData.settings?.deckBudget) : 50;
-        
+
         const beforePrice = before.lockedDeckPrice !== undefined ? before.lockedDeckPrice : (before.deckPrice || 0);
         const afterPrice = after.lockedDeckPrice !== undefined ? after.lockedDeckPrice : (after.deckPrice || 0);
-        
+
         const wasReady = before.deck && before.isLegal && (maxBudget === 0 || beforePrice <= maxBudget);
         const isReady = after.isLegal && (maxBudget === 0 || afterPrice <= maxBudget);
 
@@ -1392,7 +1399,7 @@ exports.notifyPlayerProgress = onValueUpdated({ ref: "/rooms/{roomId}/players/{p
 exports.notifyBattleScheduled = onValueWritten({ ref: "/rooms/{roomId}/meetup", instance: "commander-challenge-default-rtdb", region: "europe-west1" }, async (event) => {
     const before = event.data.before.val();
     const after = event.data.after.val();
-    
+
     if (!after) return; // Meetup was completely canceled/removed
 
     // If the meetup is brand new or the date was changed
@@ -1415,30 +1422,30 @@ exports.notifyBattleScheduled = onValueWritten({ ref: "/rooms/{roomId}/meetup", 
         const beforeCant = before.cantMakeIt || {};
         const afterCant = after.cantMakeIt || {};
         const allKeys = new Set([...Object.keys(beforeCant), ...Object.keys(afterCant)]);
-        
+
         for (const playerId of allKeys) {
             const wasCantMakeIt = beforeCant[playerId];
             const isCantMakeIt = afterCant[playerId];
-                if (wasCantMakeIt !== isCantMakeIt) {
-                    const playerSnap = await admin.database().ref(`rooms/${event.params.roomId}/players/${playerId}`).once('value');
-                    const pData = playerSnap.val();
-                    if (pData && pData.name) {
-                        if (!wasCantMakeIt && isCantMakeIt) {
-                            await sendDiscordWebhook(event.params.roomId, `⚠️ **${pData.name}** can no longer make the scheduled date!`);
-                            await sendRoomNotification(event.params.roomId, {
-                                title: "Battle Update ⚠️",
-                                body: `${pData.name} can no longer make the scheduled date!`,
-                                url: `/?room=${event.params.roomId}`
-                            }, pData.uid);
-                        } else if (wasCantMakeIt && !isCantMakeIt) {
-                            await sendDiscordWebhook(event.params.roomId, `✅ **${pData.name}** can make the scheduled date again!`);
-                            await sendRoomNotification(event.params.roomId, {
-                                title: "Battle Update ✅",
-                                body: `${pData.name} can make the scheduled date again!`,
-                                url: `/?room=${event.params.roomId}`
-                            }, pData.uid);
-                        }
+            if (wasCantMakeIt !== isCantMakeIt) {
+                const playerSnap = await admin.database().ref(`rooms/${event.params.roomId}/players/${playerId}`).once('value');
+                const pData = playerSnap.val();
+                if (pData && pData.name) {
+                    if (!wasCantMakeIt && isCantMakeIt) {
+                        await sendDiscordWebhook(event.params.roomId, `⚠️ **${pData.name}** can no longer make the scheduled date!`);
+                        await sendRoomNotification(event.params.roomId, {
+                            title: "Battle Update ⚠️",
+                            body: `${pData.name} can no longer make the scheduled date!`,
+                            url: `/?room=${event.params.roomId}`
+                        }, pData.uid);
+                    } else if (wasCantMakeIt && !isCantMakeIt) {
+                        await sendDiscordWebhook(event.params.roomId, `✅ **${pData.name}** can make the scheduled date again!`);
+                        await sendRoomNotification(event.params.roomId, {
+                            title: "Battle Update ✅",
+                            body: `${pData.name} can make the scheduled date again!`,
+                            url: `/?room=${event.params.roomId}`
+                        }, pData.uid);
                     }
+                }
             }
         }
     }
@@ -1459,10 +1466,10 @@ exports.notifyWinnerDeclared = onValueCreated({ ref: "/rooms/{roomId}/history/{h
 
 exports.adminClearTokens = onCall(async (request) => {
     await verifyIsAdmin(request.auth);
-    
+
     const targetUid = request.data.targetUid;
     if (!targetUid) throw new HttpsError('invalid-argument', 'Missing target UID.');
-    
+
     await admin.database().ref(`users/${targetUid}/fcmTokens`).remove();
     return { success: true };
 });
@@ -1481,7 +1488,7 @@ exports.getDeckPrice = onCall({ cors: true, timeoutSeconds: 60, memory: "256MiB"
             const archMatch = deckUrl.match(/decks\/(\d+)/);
             const deckId = archMatch ? archMatch[1] : null;
             if (!deckId) throw new HttpsError('invalid-argument', 'Invalid Archidekt URL.');
-            
+
             const response = await fetchWithRetry(`https://archidekt.com/api/decks/${deckId}/`, {
                 headers: {
                     ...DEFAULT_HEADERS,
@@ -1521,7 +1528,7 @@ exports.getDeckPrice = onCall({ cors: true, timeoutSeconds: 60, memory: "256MiB"
         console.error("Deck price fetch error:", error);
         throw new HttpsError('internal', error.message || 'Failed to fetch deck data from the source API.');
     }
-    
+
     throw new HttpsError('unknown', 'Could not process the provided URL.');
 });
 

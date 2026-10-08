@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=8.5';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=8.5';
-import { getArchives } from './data-service.js?v=8.5';
-import { initDeckActionsModule } from './deck-actions.js?v=8.5';
-import { initRoomActionsModule } from './room-actions.js?v=8.5';
-import { initPlayerViewModule } from './player-view.js?v=8.5';
-import { initAdminModule } from './admin.js?v=8.5';
-import { initCalendarModule } from './calendar.js?v=8.5';
-import { initAuthModule } from './auth.js?v=8.5';
-import { initHubModule } from './hub.js?v=8.5';
-import { initProfileModule } from './profile.js?v=8.5';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=8.5';
-import { initWarRoom, openWarRoom } from './war-room.js?v=8.5';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=8.5';
-import { initBoosterDraftModule } from './booster-draft.js?v=8.5';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=8.5';
+import { db, auth, functions } from './firebase-setup.js?v=8.6';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=8.6';
+import { getArchives } from './data-service.js?v=8.6';
+import { initDeckActionsModule } from './deck-actions.js?v=8.6';
+import { initRoomActionsModule } from './room-actions.js?v=8.6';
+import { initPlayerViewModule } from './player-view.js?v=8.6';
+import { initAdminModule } from './admin.js?v=8.6';
+import { initCalendarModule } from './calendar.js?v=8.6';
+import { initAuthModule } from './auth.js?v=8.6';
+import { initHubModule } from './hub.js?v=8.6';
+import { initProfileModule } from './profile.js?v=8.6';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=8.6';
+import { initWarRoom, openWarRoom } from './war-room.js?v=8.6';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=8.6';
+import { initBoosterDraftModule } from './booster-draft.js?v=8.6';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=8.6';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -650,47 +650,52 @@ window.handleFeedbackSubmit = async (e) => {
         btn.innerHTML = `<span class="mana-spinner" style="width:12px; height:12px;"></span> Sending...`;
     }
 
-    const payload = {
-        name,
-        email,
-        category,
-        message,
-        appVersion: '8.4',
-        pageUrl: window.location.href
-    };
+    let emailDelivered = false;
 
-    let sent = false;
+    // 1. Direct browser-to-FormSubmit delivery (guarantees native browser Origin/Referer headers)
     try {
-        const resp = await fetch('/submitFeedback', {
+        const fsRes = await fetch('https://formsubmit.co/ajax/crackerslad@gmail.com', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Accept': 'application/json' 
+            },
+            body: JSON.stringify({
+                _subject: `[Commander Challenge ${category}] from ${name}`,
+                _template: 'box',
+                _captcha: 'false',
+                Category: category,
+                Name: name,
+                Email: email || 'Not provided',
+                Message: message,
+                Version: document.getElementById('appVersion')?.textContent || '8.5',
+                Page: window.location.href,
+                Timestamp: new Date().toUTCString()
+            })
+        });
+        const fsData = await fsRes.json().catch(() => ({}));
+        if (fsData && (fsData.success === 'true' || fsData.success === true)) {
+            emailDelivered = true;
+        }
+    } catch (e) {
+        console.warn("Direct form email delivery error:", e);
+    }
+
+    // 2. Also archive permanently in Firebase Realtime Database
+    try {
+        await fetch('/submitFeedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                name,
+                email,
+                category,
+                message,
+                appVersion: document.getElementById('appVersion')?.textContent || '8.5',
+                pageUrl: window.location.href
+            })
         });
-        if (resp.ok) {
-            sent = true;
-        }
     } catch (_) {}
-
-    // Fallback directly to FormSubmit from client if Cloud Function endpoint is unreachable
-    if (!sent) {
-        try {
-            await fetch('https://formsubmit.co/ajax/crackerslad@gmail.com', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({
-                    _subject: `[Commander Challenge ${category}] from ${name}`,
-                    _template: 'box',
-                    Category: category,
-                    Name: name,
-                    Email: email || 'Not provided',
-                    Message: message,
-                    Version: '8.4',
-                    Page: window.location.href
-                })
-            });
-            sent = true;
-        } catch (_) {}
-    }
 
     if (btn) {
         btn.disabled = false;
@@ -2337,7 +2342,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=8.5').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=8.6').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
