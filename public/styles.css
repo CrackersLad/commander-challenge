@@ -2802,7 +2802,7 @@ select:focus {
    ========================================================================== */
 .app-footer {
     margin-top: 50px;
-    color: #666;
+    color: var(--text-muted);
     font-size: 0.78rem;
     max-width: 840px;
     margin-left: auto;
@@ -2811,10 +2811,51 @@ select:focus {
     padding-bottom: 30px;
 }
 
+.footer-legal-links {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.footer-link-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: underline;
+    transition: color 0.15s ease;
+    padding: 2px 4px;
+}
+
+.footer-link-btn:hover {
+    color: var(--gold);
+}
+
+.footer-divider {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+}
+
+.footer-subtext {
+    margin-top: 6px;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+}
+
+.footer-subtext a {
+    color: var(--gold);
+    text-decoration: underline;
+}
+
 .version-tag {
     display: inline-block;
     margin-top: 10px;
-    color: #444;
+    color: var(--text-muted);
     font-size: 0.75rem;
     cursor: pointer;
     transition: color 0.2s ease;
@@ -8027,4 +8068,56 @@ html[data-mana-theme="phyrexian"] {
 [data-theme="light"] .mobile-nav-item:hover,
 [data-theme="light"] .mobile-nav-item:active {
     color: var(--gold);
+}
+
+/* Pick Timer & AFK Controls */
+.pick-timer-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border-radius: var(--radius-full);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    transition: all 0.25s ease;
+}
+
+[data-theme="light"] .pick-timer-badge {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #0f172a;
+}
+
+.pick-timer-badge.is-warning {
+    border-color: #f59e0b;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+}
+
+.pick-timer-badge.is-urgent {
+    border-color: #ef4444;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.15);
+    animation: pulseBorder 1s infinite;
+}
+
+.mini-force-pick-btn {
+    background: rgba(245, 158, 11, 0.2);
+    border: 1px solid #f59e0b;
+    color: #fbbf24;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 6px;
+    transition: all 0.15s ease;
+}
+
+.mini-force-pick-btn:hover {
+    background: #f59e0b;
+    color: #000;
 }

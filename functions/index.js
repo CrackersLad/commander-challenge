@@ -129,6 +129,72 @@ exports.buildWeeklyArchives = onSchedule({
     await performArchiveSync();
 });
 
+exports.cleanupInactiveRooms = onSchedule({
+    schedule: "every 6 hours",
+    timeoutSeconds: 300,
+    memory: "512MiB",
+    cpu: 1
+}, async (event) => {
+    const db = admin.database();
+    const now = Date.now();
+    const maxRoomAgeMs = 48 * 60 * 60 * 1000;
+    const maxGhostRoomAgeMs = 6 * 60 * 60 * 1000;
+
+    try {
+        const roomsSnap = await db.ref('rooms').once('value');
+        if (roomsSnap.exists()) {
+            const updates = {};
+            roomsSnap.forEach(child => {
+                const room = child.val();
+                const code = child.key;
+                if (!room) return;
+
+                let createdAt = room.settings?.createdAt || room.createdAt || null;
+                if (!createdAt && room.players) {
+                    const hostEntry = Object.values(room.players).find(p => p && p.isHost);
+                    if (hostEntry && hostEntry.joinedAt) createdAt = hostEntry.joinedAt;
+                }
+
+                const playerCount = room.players ? Object.keys(room.players).length : 0;
+
+                if (playerCount === 0 && createdAt && (now - createdAt > maxGhostRoomAgeMs)) {
+                    updates[`rooms/${code}`] = null;
+                    updates[`webhooks/${code}`] = null;
+                } else if (createdAt && (now - createdAt > maxRoomAgeMs)) {
+                    updates[`rooms/${code}`] = null;
+                    updates[`webhooks/${code}`] = null;
+                }
+            });
+
+            if (Object.keys(updates).length > 0) {
+                console.log(`[cleanupInactiveRooms] Pruning ${Object.keys(updates).length} abandoned/expired room nodes.`);
+                await db.ref().update(updates);
+            }
+        }
+
+        const draftsSnap = await db.ref('booster_drafts').once('value');
+        if (draftsSnap.exists()) {
+            const draftUpdates = {};
+            draftsSnap.forEach(child => {
+                const draft = child.val();
+                const draftId = child.key;
+                if (!draft) return;
+                const createdAt = draft.createdAt || null;
+                if (createdAt && (now - createdAt > maxRoomAgeMs)) {
+                    draftUpdates[`booster_drafts/${draftId}`] = null;
+                }
+            });
+            if (Object.keys(draftUpdates).length > 0) {
+                console.log(`[cleanupInactiveRooms] Pruning ${Object.keys(draftUpdates).length} expired booster draft nodes.`);
+                await db.ref().update(draftUpdates);
+            }
+        }
+    } catch (err) {
+        console.error("[cleanupInactiveRooms] Error during room cleanup:", err);
+    }
+});
+
+
 exports.manualArchiveSync = onCall({ timeoutSeconds: 540, memory: "1GiB", cpu: 1 }, async (request) => {
     await verifyIsAdmin(request.auth);
     await performArchiveSync();

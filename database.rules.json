@@ -36,18 +36,23 @@
     },
     "hall_of_fame": {
       ".read": true,
-      ".write": "auth != null"
+      ".write": false,
+      "$entryId": {
+        ".write": "auth != null && (!data.exists() || newData.exists())"
+      }
     },
     "rooms": {
       ".read": true,
+      ".write": false,
       "$roomId": {
-        ".write": "auth != null"
+        ".write": "auth != null && $roomId.length >= 3 && $roomId.length <= 32"
       }
     },
     "booster_drafts": {
       ".read": true,
+      ".write": false,
       "$draftId": {
-        ".write": "auth != null"
+        ".write": "auth != null && $draftId.length >= 3 && $draftId.length <= 48"
       }
     }
   }

@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=8.3';
+import { db, auth } from './firebase-setup.js?v=8.4';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -21,7 +21,7 @@ import {
     getCardPrice,
     formatCurrency,
     getSetBasicLands 
-} from './booster-simulator.js?v=8.3';
+} from './booster-simulator.js?v=8.4';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -42,6 +42,9 @@ let hoverPreviewEnabled = localStorage.getItem('draftHoverPreview') !== 'false';
 let deckCardSize = localStorage.getItem('draftCardSize') || 'normal'; // 'small', 'normal', 'large'
 let deckLayoutMode = localStorage.getItem('draftDeckLayout') || 'columns'; // 'columns' or 'grid'
 let isBotPickInProgress = false;
+let liveDraftTimerInterval = null;
+let currentTimerSecondsLeft = 0;
+let lastTimerPackHash = null;
 
 const BOT_NAMES = [
     'Urza Bot', 'Chandra Bot', 'Teferi Bot', 'Liliana Bot', 
@@ -167,6 +170,8 @@ export function initBoosterDraftModule(utils, state) {
     window.leaveDraftRoom = leaveDraftRoom;
     window.switchDraftTab = switchDraftTab;
     window.confirmActiveDraftPick = confirmActiveDraftPick;
+    window.autoPickActiveCards = autoPickActiveCards;
+    window.forceAutoPickPlayer = forceAutoPickPlayer;
     window.toggleDraftCardSelection = toggleDraftCardSelection;
     window.pickGridLine = pickGridLine;
     window.takeWinstonPile = takeWinstonPile;
@@ -1570,6 +1575,8 @@ function renderDraftActiveSessionView(room, root) {
             </div>
         </div>
     `;
+
+    initDraftPickTimer(room, playerData, activePack);
 }
 
 // Render Active Picking Arena
@@ -1599,11 +1606,15 @@ function renderDraftPickingArena(room, player, activePack, formatConfig) {
                 <h3>Picks Submitted!</h3>
                 <p>Waiting for other players to complete their picks before passing packs...</p>
                 <div class="waiting-player-status-row">
-                    ${Object.values(room.players || {}).map(p => `
-                        <span class="player-pass-chip ${p.hasPickedInRound ? 'ready' : 'picking'}">
-                            ${p.hasPickedInRound ? '✓' : '⏳'} ${p.name}
-                        </span>
-                    `).join('')}
+                    ${Object.values(room.players || {}).map(p => {
+                        const isMeHost = playerData.isHost || player.isHost;
+                        return `
+                            <span class="player-pass-chip ${p.hasPickedInRound ? 'ready' : 'picking'}">
+                                ${p.hasPickedInRound ? '✓' : '⏳'} ${p.name}
+                                ${(!p.hasPickedInRound && isMeHost && !p.isBot) ? `<button type="button" class="mini-force-pick-btn" onclick="window.forceAutoPickPlayer('${p.id}')" title="Auto-pick for AFK player">⚡ Auto-pick</button>` : ''}
+                            </span>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
@@ -1657,6 +1668,11 @@ function renderDraftPickingArena(room, player, activePack, formatConfig) {
                         ? `Select <strong>${picksNeeded} cards</strong> to add to your pool (${selectionsLeft} remaining)` 
                         : `Select <strong>1 card</strong> to draft into your pool`}
                 </div>
+                ${(room.timerSeconds && room.timerSeconds > 0) ? `
+                    <div class="pick-timer-badge ${currentTimerSecondsLeft <= 15 ? 'is-warning' : ''}" id="draftLiveTimerBadge">
+                        ⏱️ <span id="draftTimerSecs">${currentTimerSecondsLeft || room.timerSeconds}</span>s
+                    </div>
+                ` : ''}
                 <button id="confirmPickBtn" class="select-btn confirm-pick-btn" 
                         ${activePickSelections.length === picksNeeded ? '' : 'disabled'}
                         onclick="window.confirmActiveDraftPick()">
@@ -2280,6 +2296,10 @@ async function confirmActiveDraftPick() {
     const updatedPool = [...currentPool, ...pickedCards];
 
     activePickSelections = [];
+    if (liveDraftTimerInterval) {
+        clearInterval(liveDraftTimerInterval);
+        liveDraftTimerInterval = null;
+    }
     if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
 
     // Update player's picked status and pool
@@ -2290,6 +2310,116 @@ async function confirmActiveDraftPick() {
     });
 
     // Check if ALL players in room have completed their picks for this turn
+    checkAndPassPacksAroundTable(currentDraftCode);
+}
+
+function initDraftPickTimer(room, playerData, activePack) {
+    if (!room.timerSeconds || room.timerSeconds <= 0 || playerData.hasPickedInRound || !activePack || activePack.length === 0) {
+        if (liveDraftTimerInterval) {
+            clearInterval(liveDraftTimerInterval);
+            liveDraftTimerInterval = null;
+        }
+        return;
+    }
+
+    const packHash = `${room.currentRound || 1}_${activePack.length}_${activePack[0]?.id || activePack[0]?.name || ''}`;
+    if (packHash !== lastTimerPackHash) {
+        lastTimerPackHash = packHash;
+        currentTimerSecondsLeft = room.timerSeconds;
+        if (liveDraftTimerInterval) {
+            clearInterval(liveDraftTimerInterval);
+        }
+
+        const updateTimerDisplay = () => {
+            const timerEl = document.getElementById('draftTimerSecs');
+            const pillEl = document.getElementById('draftLiveTimerBadge');
+            if (timerEl) {
+                timerEl.textContent = currentTimerSecondsLeft;
+            }
+            if (pillEl) {
+                pillEl.classList.remove('is-warning', 'is-urgent');
+                if (currentTimerSecondsLeft <= 10) {
+                    pillEl.classList.add('is-urgent');
+                } else if (currentTimerSecondsLeft <= 20) {
+                    pillEl.classList.add('is-warning');
+                }
+            }
+        };
+
+        liveDraftTimerInterval = setInterval(() => {
+            currentTimerSecondsLeft--;
+            updateTimerDisplay();
+
+            if (currentTimerSecondsLeft <= 0) {
+                clearInterval(liveDraftTimerInterval);
+                liveDraftTimerInterval = null;
+                if (window.autoPickActiveCards) {
+                    window.autoPickActiveCards();
+                }
+            }
+        }, 1000);
+    }
+}
+
+async function autoPickActiveCards() {
+    if (!currentDraftData || !currentDraftCode) return;
+    const player = getPlayerIdentity();
+    const me = getDraftPlayerData(currentDraftData, player);
+    const effectivePlayerId = me.id || player.id;
+    const playerData = currentDraftData.players?.[effectivePlayerId] || me;
+    const activePack = playerData.currentPack || [];
+    if (!activePack || activePack.length === 0 || playerData.hasPickedInRound) return;
+
+    const formatConfig = DRAFT_FORMATS[currentDraftData.format] || DRAFT_FORMATS.commander_draft;
+    const maxPicks = formatConfig.picksPerTurn || 1;
+
+    if (activePickSelections.length < maxPicks) {
+        const remainingNeeded = maxPicks - activePickSelections.length;
+        const availableIndices = activePack.map((_, i) => i).filter(i => !activePickSelections.includes(i));
+        const availablePack = availableIndices.map(i => activePack[i]);
+        const recommended = botChoosePicks(playerData, availablePack, remainingNeeded, currentDraftData.format);
+        recommended.forEach(rec => {
+            const foundIdx = activePack.findIndex((c, i) => availableIndices.includes(i) && (c.id === rec.id || c.name === rec.name));
+            if (foundIdx !== -1 && !activePickSelections.includes(foundIdx)) {
+                activePickSelections.push(foundIdx);
+            }
+        });
+        for (const idx of availableIndices) {
+            if (activePickSelections.length >= maxPicks) break;
+            if (!activePickSelections.includes(idx)) activePickSelections.push(idx);
+        }
+    }
+
+    if (draftUtils?.showToast) {
+        draftUtils.showToast("⏱️ Pick timer expired — cards auto-picked!", true, 3000);
+    }
+    await confirmActiveDraftPick();
+}
+
+async function forceAutoPickPlayer(targetPlayerId) {
+    if (!currentDraftData || !currentDraftCode) return;
+    const snap = await get(ref(db, `${getDraftDbPath(currentDraftCode)}/players/${targetPlayerId}`));
+    if (!snap.exists()) return;
+    const target = snap.val();
+    if (target.hasPickedInRound || !target.currentPack || target.currentPack.length === 0) return;
+
+    const formatConfig = DRAFT_FORMATS[currentDraftData.format] || DRAFT_FORMATS.commander_draft;
+    const picksNeeded = formatConfig.picksPerTurn || 1;
+    const chosenCards = botChoosePicks(target, target.currentPack, picksNeeded, currentDraftData.format);
+    const chosenIds = new Set(chosenCards.map(c => c.id || c.name));
+
+    const remainingPack = target.currentPack.filter(c => !chosenIds.has(c.id || c.name));
+    const updatedPool = [...(target.pool || []), ...chosenCards];
+
+    await update(ref(db, `${getDraftDbPath(currentDraftCode)}/players/${targetPlayerId}`), {
+        pool: updatedPool,
+        hasPickedInRound: true,
+        remainingPassedPack: remainingPack
+    });
+
+    if (draftUtils?.showToast) {
+        draftUtils.showToast(`⚡ Auto-picked card(s) for ${target.name}`, false, 2500);
+    }
     checkAndPassPacksAroundTable(currentDraftCode);
 }
 

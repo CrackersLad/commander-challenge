@@ -4,7 +4,7 @@
 
 const DEFAULT_HEADERS = {
     "Accept": "application/json, text/plain, */*",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "User-Agent": "CommanderDraftChallenge/8.3 (https://github.com/CrackersLad/commander-challenge; contact@edhchallenge.com)",
     "Accept-Language": "en-US,en;q=0.9"
 };
 
