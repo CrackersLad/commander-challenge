@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=8.2';
+import { db, auth } from './firebase-setup.js?v=8.3';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -21,7 +21,7 @@ import {
     getCardPrice,
     formatCurrency,
     getSetBasicLands 
-} from './booster-simulator.js?v=8.2';
+} from './booster-simulator.js?v=8.3';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -902,7 +902,7 @@ function renderDraftLobbyView(room, root) {
                             </div>
                             <div class="player-details">
                                 <span class="player-name">${p.name} ${p.id === player.id ? '(You)' : ''}</span>
-                                <span class="player-role">${p.isHost ? 'Host' : (p.isBot ? 'AI Bot Drafter' : 'Challenger')}</span>
+                                <span class="player-role">${p.isHost ? 'Host' : (p.isBot ? 'Bot Drafter' : 'Challenger')}</span>
                             </div>
                             ${(isHost && p.isBot) ? `
                                 <button type="button" class="remove-bot-chip-btn" onclick="window.removeBotFromDraft('${p.id}')" title="Remove Bot">✕</button>
@@ -1115,7 +1115,7 @@ async function fillDraftWithBots() {
     if (addedCount > 0) {
         await update(ref(db, getDraftDbPath(currentDraftCode)), updates);
         if (draftUtils?.playSound) draftUtils.playSound('sfx-choose');
-        if (draftUtils?.showToast) draftUtils.showToast(`🤖 Added ${addedCount} AI bot drafter(s) to fill pod!`, false, 2500);
+        if (draftUtils?.showToast) draftUtils.showToast(`Added ${addedCount} bot drafter(s) to fill pod!`, false, 2500);
     }
 }
 
@@ -1138,7 +1138,7 @@ async function clearAllBotsFromDraft() {
     });
     await update(ref(db, getDraftDbPath(currentDraftCode)), updates);
     if (draftUtils?.playSound) draftUtils.playSound('sfx-click');
-    if (draftUtils?.showToast) draftUtils.showToast(`Cleared all AI bots.`, false, 2000);
+    if (draftUtils?.showToast) draftUtils.showToast(`Cleared all bots.`, false, 2000);
 }
 
 function botChoosePicks(botPlayer, pack, picksNeeded, format) {

@@ -597,26 +597,52 @@
             if (document.body) document.body.setAttribute('data-theme', finalTheme);
             const hubScope = document.getElementById('view-collection-hub');
             if (hubScope) hubScope.setAttribute('data-theme', finalTheme);
-            localStorage.setItem('theme', finalTheme);
+            try { localStorage.setItem('theme', finalTheme); } catch(e) {}
+
+            const metaTheme = document.querySelector('meta[name="theme-color"]');
+            if (metaTheme) metaTheme.setAttribute('content', finalTheme === 'dark' ? '#0b0d14' : '#f8fafc');
+
             const toggle = document.getElementById('themeToggle');
             if (toggle) {
                 toggle.textContent = finalTheme === 'dark' ? '☀️' : '🌙';
                 toggle.setAttribute('title', finalTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode');
             }
+
+            const navToggle = document.getElementById('navThemeToggleBtn');
+            const navIcon = document.getElementById('navThemeToggleIcon');
+            const navText = document.getElementById('navThemeToggleText');
+            if (navToggle) {
+                navToggle.setAttribute('title', finalTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode');
+            }
+            if (navIcon) {
+                navIcon.textContent = finalTheme === 'dark' ? '☀️' : '🌙';
+            }
+            if (navText) {
+                navText.textContent = finalTheme === 'dark' ? ' Light' : ' Dark';
+            }
         }
         window.applyAppTheme = applyAppTheme;
+        window.toggleAppTheme = function () {
+            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            const next = current === 'dark' ? 'light' : 'dark';
+            applyAppTheme(next);
+        };
 
         const themeToggle = document.getElementById('themeToggle');
-        const savedTheme = localStorage.getItem('theme') || 'dark';
+        const savedTheme = localStorage.getItem('theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
         applyAppTheme(savedTheme);
 
         if (themeToggle) {
             themeToggle.addEventListener('click', function () {
-                let current = document.documentElement.getAttribute('data-theme') || 'dark';
-                let next = current === 'dark' ? 'light' : 'dark';
-                applyAppTheme(next);
+                window.toggleAppTheme();
             });
         }
+
+        window.addEventListener('storage', function (e) {
+            if (e.key === 'theme' && e.newValue) {
+                applyAppTheme(e.newValue);
+            }
+        });
 
         // ==================== TAB SWITCHING LOGIC ====================
         function switchTab(tab) {
@@ -2178,7 +2204,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=8.2');
+                    const res = await fetch('./commander-precons.json?v=8.3');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2214,7 +2240,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=8.2');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=8.3');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {

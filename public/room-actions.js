@@ -1,7 +1,7 @@
-import { db, functions } from './firebase-setup.js?v=8.2';
+import { db, functions } from './firebase-setup.js?v=8.3';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
-import { fetchDeckFromAPI } from './deck-parser.js?v=8.2';
+import { fetchDeckFromAPI } from './deck-parser.js?v=8.3';
 
 export function initRoomActionsModule(utils, state) {
     const { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, clearSession } = utils;
@@ -668,7 +668,7 @@ export function initRoomActionsModule(utils, state) {
                                                     <span>📥</span> Log (.txt)
                                                 </button>
                                                 <button type="button" id="sim-ai-btn-${eventData.game}" class="secondary-btn" onclick="window.requestAiMatchSummary(${eventData.game})" style="font-size:0.75rem; padding:3px 8px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
-                                                    <span>🤖</span> AI Summary
+                                                    <span>📊</span> Match Breakdown
                                                 </button>
                                             </div>
                                         </div>
@@ -773,7 +773,7 @@ export function initRoomActionsModule(utils, state) {
                                                             <span>📥</span> Log (.txt)
                                                         </button>
                                                         <button type="button" id="sim-summary-ai-btn-${g.game}" class="secondary-btn" onclick="window.requestAiMatchSummary(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
-                                                            <span>🤖</span> AI Summary
+                                                            <span>📊</span> Match Breakdown
                                                         </button>
                                                     </div>
                                                 </div>
@@ -1254,7 +1254,7 @@ export function initRoomActionsModule(utils, state) {
                 <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 8px; padding: 12px 14px; text-align: left; margin-top: 8px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px;">
                         <span style="font-size: 0.78rem; font-weight: 700; color: #c084fc; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 4px;">
-                            <span>✨</span> ${engine === 'gemini' ? 'Gemini AI Tactical Breakdown' : 'MTG Rules Engine Analysis'}
+                            <span>📊</span> ${engine === 'gemini' ? 'Tactical Match Analysis' : 'MTG Rules Engine Analysis'}
                         </span>
                         <button type="button" class="secondary-btn" id="${copyId}" style="font-size: 0.72rem; padding: 2px 8px;">
                             📋 Copy
@@ -1267,7 +1267,7 @@ export function initRoomActionsModule(utils, state) {
             if (copyBtn) {
                 copyBtn.onclick = () => {
                     navigator.clipboard.writeText(summaryText);
-                    showToast('Copied AI breakdown!');
+                    showToast('Copied match breakdown!');
                 };
             }
         }
@@ -1286,7 +1286,7 @@ export function initRoomActionsModule(utils, state) {
         box.style.display = 'block';
         box.innerHTML = `
             <div style="padding: 10px; color: var(--gold); font-size: 0.85rem; display: flex; align-items: center; gap: 8px;">
-                <span class="mana-spinner"></span> Synthesizing AI tournament breakdown with Gemini...
+                <span class="mana-spinner"></span> Analyzing match performance and combat log...
             </div>
         `;
 
@@ -1346,13 +1346,13 @@ export function initRoomActionsModule(utils, state) {
         } catch (err) {
             box.innerHTML = `
                 <div style="padding: 8px; color: #f87171; font-size: 0.82rem;">
-                    ⚠️ Could not generate AI summary: ${err.message}
+                    ⚠️ Could not generate match analysis: ${err.message}
                 </div>
             `;
         } finally {
             allBtns.forEach(b => {
                 b.disabled = false;
-                b.innerHTML = `<span>🤖</span> AI Summary`;
+                b.innerHTML = `<span>📊</span> Match Breakdown`;
             });
         }
     };

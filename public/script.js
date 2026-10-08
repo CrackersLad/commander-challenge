@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=8.2';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=8.2';
-import { getArchives } from './data-service.js?v=8.2';
-import { initDeckActionsModule } from './deck-actions.js?v=8.2';
-import { initRoomActionsModule } from './room-actions.js?v=8.2';
-import { initPlayerViewModule } from './player-view.js?v=8.2';
-import { initAdminModule } from './admin.js?v=8.2';
-import { initCalendarModule } from './calendar.js?v=8.2';
-import { initAuthModule } from './auth.js?v=8.2';
-import { initHubModule } from './hub.js?v=8.2';
-import { initProfileModule } from './profile.js?v=8.2';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=8.2';
-import { initWarRoom, openWarRoom } from './war-room.js?v=8.2';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=8.2';
-import { initBoosterDraftModule } from './booster-draft.js?v=8.2';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=8.2';
+import { db, auth, functions } from './firebase-setup.js?v=8.3';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=8.3';
+import { getArchives } from './data-service.js?v=8.3';
+import { initDeckActionsModule } from './deck-actions.js?v=8.3';
+import { initRoomActionsModule } from './room-actions.js?v=8.3';
+import { initPlayerViewModule } from './player-view.js?v=8.3';
+import { initAdminModule } from './admin.js?v=8.3';
+import { initCalendarModule } from './calendar.js?v=8.3';
+import { initAuthModule } from './auth.js?v=8.3';
+import { initHubModule } from './hub.js?v=8.3';
+import { initProfileModule } from './profile.js?v=8.3';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=8.3';
+import { initWarRoom, openWarRoom } from './war-room.js?v=8.3';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=8.3';
+import { initBoosterDraftModule } from './booster-draft.js?v=8.3';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=8.3';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -464,6 +464,27 @@ if (savedManaTheme) {
     document.documentElement.setAttribute('data-mana-theme', savedManaTheme);
 }
 
+// Global App Theme Management (Dark / Light Mode Fallback)
+if (typeof window.applyAppTheme !== 'function') {
+    window.applyAppTheme = function (theme) {
+        const finalTheme = (theme === 'light') ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', finalTheme);
+        if (document.body) document.body.setAttribute('data-theme', finalTheme);
+        try { localStorage.setItem('theme', finalTheme); } catch(e) {}
+        const navToggle = document.getElementById('navThemeToggleBtn');
+        const navIcon = document.getElementById('navThemeToggleIcon');
+        const navText = document.getElementById('navThemeToggleText');
+        if (navToggle) navToggle.setAttribute('title', finalTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode');
+        if (navIcon) navIcon.textContent = finalTheme === 'dark' ? '☀️' : '🌙';
+        if (navText) navText.textContent = finalTheme === 'dark' ? ' Light' : ' Dark';
+    };
+    window.toggleAppTheme = function () {
+        const current = document.documentElement.getAttribute('data-theme') || 'dark';
+        const next = current === 'dark' ? 'light' : 'dark';
+        window.applyAppTheme(next);
+    };
+}
+
 let toastTimeout;
 function showToast(msg, isError = false, duration = 3000, isSuccess = false) {
     const toast = document.getElementById('toast-container');
@@ -525,7 +546,7 @@ window.switchLaunchTab = (tab) => {
 
 window.openPlaytesterLaunchModal = () => {
     if (window.isMobileDevice()) {
-        showToast("⚔️ The AI Battle Arena requires a desktop/laptop screen and is not supported on mobile devices.", true, 4500);
+        showToast("⚔️ The Battle Arena requires a desktop/laptop screen and is not supported on mobile devices.", true, 4500);
         return;
     }
 
@@ -575,7 +596,7 @@ window.closePlaytesterLaunchModal = () => {
 
 window.launchPlaytesterSession = ({ deckName = '', deckContent = '', opponentArchetype = 'tokens', autoStart = true, inDrawer = false } = {}) => {
     if (window.isMobileDevice()) {
-        showToast("⚔️ The AI Battle Arena requires a desktop screen and is not supported on mobile devices.", true, 4500);
+        showToast("⚔️ The Battle Arena requires a desktop screen and is not supported on mobile devices.", true, 4500);
         return;
     }
     const arenaUrl = 'https://arena.edhchallenge.com';
@@ -612,12 +633,12 @@ window.launchPlaytesterSession = ({ deckName = '', deckContent = '', opponentArc
         }
 
         if (sessionBadge) {
-            sessionBadge.textContent = deckName ? `Table: ${deckName.substring(0, 24)}` : 'AI Arena: Active Table';
+            sessionBadge.textContent = deckName ? `Table: ${deckName.substring(0, 24)}` : 'Arena: Active Table';
         }
         if (embedModal) {
             embedModal.style.display = 'flex';
         }
-        showToast("⚔️ Connected to AI Battle Arena", false, 2500, true);
+        showToast("⚔️ Connected to Battle Arena", false, 2500, true);
         return;
     }
 
@@ -704,7 +725,7 @@ window.executePlaytesterLaunch = async () => {
 
 window.openPlaytester = (deckName = '', deckContent = '', autoStart = false, opponentArchetype = 'tokens') => {
     if (window.isMobileDevice()) {
-        showToast("⚔️ The AI Battle Arena requires a desktop/laptop screen with keyboard & mouse and is not supported on mobile devices.", true, 4500);
+        showToast("⚔️ The Battle Arena requires a desktop/laptop screen with keyboard & mouse and is not supported on mobile devices.", true, 4500);
         return;
     }
     // If opened directly without specific deck, open launch modal
@@ -2205,7 +2226,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=8.2').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=8.3').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

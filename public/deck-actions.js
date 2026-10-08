@@ -1,5 +1,5 @@
-import { db } from './firebase-setup.js?v=8.2';
-import { fetchDeckPriceLocal, fetchDeckFromAPI } from './deck-parser.js?v=8.2';
+import { db } from './firebase-setup.js?v=8.3';
+import { fetchDeckPriceLocal, fetchDeckFromAPI } from './deck-parser.js?v=8.3';
 import { ref, get, update } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initDeckActionsModule(utils, state) {
@@ -148,7 +148,7 @@ export function initDeckActionsModule(utils, state) {
     window.testMyDeckInPlaytester = async () => {
         playSound('sfx-click');
         if (window.isMobileDevice && window.isMobileDevice()) {
-            return showToast("⚔️ The AI Battle Arena requires a desktop/laptop screen and is not supported on mobile devices.", true, 4000);
+            return showToast("⚔️ The Battle Arena requires a desktop/laptop screen and is not supported on mobile devices.", true, 4000);
         }
         const snap = await get(ref(db, `rooms/${state.currentRoom}/players/${state.currentPlayerId}`));
         const myData = snap.val();
@@ -162,7 +162,7 @@ export function initDeckActionsModule(utils, state) {
             return showToast("Please draft a commander or submit a deck link first.", true);
         }
 
-        showToast("Preparing deck for AI Battle Arena...", false, 2500);
+        showToast("Preparing deck for Battle Arena...", false, 2500);
 
         try {
             let deckContent = '';
@@ -191,7 +191,7 @@ export function initDeckActionsModule(utils, state) {
 
             if (window.openPlaytester) {
                 window.openPlaytester(deckName, deckContent, true);
-                showToast("⚔️ Launching AI Battle Arena...", false, 3500, true);
+                showToast("⚔️ Launching Battle Arena...", false, 3500, true);
             }
         } catch (err) {
             console.error("Test deck error:", err);
@@ -205,7 +205,7 @@ export function initDeckActionsModule(utils, state) {
     window.testPlayerDeckInPlaytester = async (targetPlayerId) => {
         playSound('sfx-click');
         if (window.isMobileDevice && window.isMobileDevice()) {
-            return showToast("⚔️ The AI Battle Arena requires a desktop/laptop screen and is not supported on mobile devices.", true, 4000);
+            return showToast("⚔️ The Battle Arena requires a desktop/laptop screen and is not supported on mobile devices.", true, 4000);
         }
         const snap = await get(ref(db, `rooms/${state.currentRoom}/players/${targetPlayerId}`));
         const pData = snap.val();
@@ -239,7 +239,7 @@ export function initDeckActionsModule(utils, state) {
 
             if (window.openPlaytester) {
                 window.openPlaytester(deckName, deckContent, true);
-                showToast("⚔️ Launching AI Battle Arena...", false, 3000, true);
+                showToast("⚔️ Launching Battle Arena...", false, 3000, true);
             }
         } catch (err) {
             console.error("Test player deck error:", err);

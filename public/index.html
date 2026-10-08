@@ -9,7 +9,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0a0a0f">
+    <meta name="theme-color" content="#0b0d14">
+    <meta name="color-scheme" content="dark light">
+    <script>
+        (function() {
+            try {
+                var saved = localStorage.getItem('theme');
+                var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+                var theme = saved ? saved : (prefersLight ? 'light' : 'dark');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch(e) {}
+        })();
+    </script>
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" type="image/png" href="icon.png">
     
@@ -64,8 +75,8 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=8.2">
-    <link rel="stylesheet" href="collection-hub.css?v=8.2">
+    <link rel="stylesheet" href="styles.css?v=8.3">
+    <link rel="stylesheet" href="collection-hub.css?v=8.3">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -103,7 +114,7 @@
                         <span>📦</span> Booster Simulator
                     </div>
                     <div class="nav-popup-item desktop-only-playtester" onclick="window.openPlaytester(); window.closeAllNavMenus();">
-                        <span>⚔️</span> Solo Playtester (AI Bot)
+                        <span>⚔️</span> Solo Playtester (Practice Bot)
                     </div>
                     <div class="nav-popup-item" onclick="window.openDeckBuilder(); window.closeAllNavMenus();">
                         <span>🛠️</span> Native Deck Builder
@@ -131,7 +142,7 @@
                         <span>⚡</span> What Can I Build?
                     </div>
                     <div class="nav-popup-item" onclick="window.openCollectionTab('deck', { openUpgrader: true }); window.closeAllNavMenus();">
-                        <span>🧠</span> Upgrade My Decks (AI)
+                        <span>⚙️</span> Deck Optimizer
                     </div>
                     <div class="nav-popup-item" onclick="window.openCollectionTab('collection'); window.closeAllNavMenus();">
                         <span>📈</span> Collection Insights
@@ -141,7 +152,7 @@
 
             <!-- Mana Theme Selector -->
             <div class="nav-dropdown-wrapper">
-                <button class="nav-icon-btn theme-nav-btn" onclick="window.toggleNavMenu('themeMenu', event)" title="Mana Color Theme"><span>🎨</span><span class="nav-btn-text"> Theme</span> ▾</button>
+                <button class="nav-icon-btn theme-nav-btn" onclick="window.toggleNavMenu('themeMenu', event)" title="Mana Color Theme"><span>🎨</span><span class="nav-btn-text"> Mana</span> ▾</button>
                 <div id="themeMenu" class="nav-popup-menu" style="display: none; min-width: 170px;">
                     <div class="nav-popup-item" onclick="window.setManaTheme('default'); window.closeAllNavMenus();">
                         <span>✨</span> Default (Void)
@@ -166,6 +177,12 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Dark / Light Mode Switcher -->
+            <button id="navThemeToggleBtn" class="nav-icon-btn nav-theme-toggle-btn" onclick="window.toggleAppTheme()" title="Toggle Dark / Light Mode" aria-label="Toggle Dark / Light Mode">
+                <span id="navThemeToggleIcon">☀️</span>
+                <span class="nav-btn-text" id="navThemeToggleText"> Light</span>
+            </button>
 
             <div id="audioContainer" class="nav-audio-box" style="position: relative;">
                 <button id="sfxToggle" class="nav-icon-btn" title="Toggle Sound Effects"><span>🔊</span><span class="nav-btn-text"> SFX</span></button>
@@ -287,19 +304,19 @@
         </div>
     </div>
 
-    <!-- Lobby Match Simulation Modal (Headless Forge AI Engine) -->
+    <!-- Lobby Match Simulation Modal (Forge Engine) -->
     <div id="lobbySimModal" class="modal-overlay">
         <div class="modal-content" style="max-width: 680px; width: 95%; text-align: left;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 16px;">
                 <h2 style="color: var(--gold); margin: 0; display: flex; align-items: center; gap: 8px; font-size: 1.3rem;">
-                    <span>⚡</span> AI Match Simulator
-                    <span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 6px; background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4); font-weight: 700;">Headless Forge Rules Engine</span>
+                    <span>⚡</span> Match Simulator
+                    <span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 6px; background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4); font-weight: 700;">Forge Rules Engine</span>
                 </h2>
                 <button class="btn-cancel" onclick="window.closeLobbySimulationModal()" style="padding: 4px 10px; font-size: 0.85rem;">✕</button>
             </div>
             
             <p style="color: #bbb; font-size: 0.88rem; margin-bottom: 16px; line-height: 1.4;">
-                Simulate full Commander matches between decks currently marked <strong style="color:var(--gold);">Ready for Battle</strong> in this lobby. Official MTG AI resolves turns, combat, commander damage, and life totals in real time.
+                Simulate full Commander matches between decks currently marked <strong style="color:var(--gold);">Ready for Battle</strong> in this lobby. The Forge rules engine resolves turns, combat, commander damage, and life totals in real time.
             </p>
 
             <!-- Decks in Lobby List -->
@@ -425,13 +442,13 @@
         <div class="modal-content" style="max-width: 620px; width: 95%; text-align: left;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 16px;">
                 <h2 style="color: var(--gold); margin: 0; display: flex; align-items: center; gap: 8px; font-size: 1.3rem;">
-                    <span>⚔️</span> Solo Playtester & AI Arena
+                    <span>⚔️</span> Solo Playtester & Arena
                 </h2>
                 <button class="btn-cancel" onclick="window.closePlaytesterLaunchModal()" style="padding: 4px 10px; font-size: 0.85rem;">✕</button>
             </div>
 
             <p style="color: #bbb; font-size: 0.88rem; margin-bottom: 14px; line-height: 1.4;">
-                Launch a private 60 FPS cloud game table with the official MTG rules engine. Choose your deck and select your AI opponent.
+                Launch a private 60 FPS cloud game table with the official MTG rules engine. Choose your deck and select your practice bot opponent.
             </p>
 
             <!-- Deck Source Tabs -->
@@ -463,7 +480,7 @@
 
             <!-- Opponent Selection -->
             <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
-                <label style="display: block; color: var(--gold); font-size: 0.88rem; font-weight: 700; margin-bottom: 6px;">🎯 Choose AI Opponent Archetype:</label>
+                <label style="display: block; color: var(--gold); font-size: 0.88rem; font-weight: 700; margin-bottom: 6px;">🎯 Choose Opponent Archetype:</label>
                 <select id="launchOpponentArchetype" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 6px; background: #181c26; border: 1px solid rgba(255,255,255,0.2); color: #fff;">
                     <option value="aggro">🔥 Goblin Aggro (Krenko, Mob Boss)</option>
                     <option value="tokens">🌲 Elf Swarm & Tokens (Lathril, Blade of the Elves)</option>
@@ -491,7 +508,7 @@
     <div id="playtesterEmbedModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10000; background: #000; flex-direction: column;">
         <div style="height: 44px; background: #111722; border-bottom: 1px solid rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: space-between; padding: 0 16px;">
             <div style="display: flex; align-items: center; gap: 10px; font-weight: 700; color: #fff; font-family: 'Outfit', sans-serif;">
-                <span>⚔️ MTG AI Arena</span>
+                <span>⚔️ MTG Practice Arena</span>
                 <span id="embedSessionBadge" style="font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4);">Session Active</span>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -631,13 +648,13 @@
                     <button class="select-btn action-cta-btn" onclick="window.openBoosterSimulator(); event.stopPropagation();">Crack Some Packs</button>
                 </div>
 
-                <!-- Tile 4: Solo Playtester (AI Bot) [Desktop Only] -->
+                <!-- Tile 4: Solo Playtester [Desktop Only] -->
                 <div class="action-card action-card-arena desktop-only-playtester" onclick="window.openPlaytester()">
-                    <div class="action-card-badge arena-badge">60 FPS Cloud Arena</div>
+                    <div class="action-card-badge arena-badge">Cloud Arena</div>
                     <div class="action-card-icon">⚔️</div>
-                    <h3 class="action-card-title">Solo Playtester (AI Bot)</h3>
-                    <p class="action-card-desc">Play and test your Commander or 60-card decks against intelligent AI bots right in your browser. Real MTG rules, triggers, combat, and zero installs!</p>
-                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #10b981, #059669); border-color: rgba(16,185,129,0.4);" onclick="window.openPlaytester(); event.stopPropagation();">Launch AI Arena ↗</button>
+                    <h3 class="action-card-title">Solo Playtester</h3>
+                    <p class="action-card-desc">Play and test your Commander or 60-card decks against automated Forge practice bots directly in your browser. Full MTG rules engine, priority, triggers, and combat.</p>
+                    <button class="select-btn action-cta-btn" onclick="window.openPlaytester(); event.stopPropagation();">Launch Playtester ↗</button>
                 </div>
             </div>
 
@@ -686,7 +703,7 @@
                     <div class="action-card-icon">🔄</div>
                     <h3 class="action-card-title">Deck Comparator</h3>
                     <p class="action-card-desc">Compare your collection to your built decks (Archidekt, Moxfield, or text lists). See which cards you own vs. what to acquire.</p>
-                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #0284c7, #0ea5e9);" onclick="window.openCollectionTab('deck'); event.stopPropagation();">Compare Decks</button>
+                    <button class="select-btn action-cta-btn" onclick="window.openCollectionTab('deck'); event.stopPropagation();">Compare Decks</button>
                 </div>
 
                 <!-- Tile 5: Trade Binder -->
@@ -695,7 +712,7 @@
                     <div class="action-card-icon">🤝</div>
                     <h3 class="action-card-title">Trade Binder</h3>
                     <p class="action-card-desc">Setup a trade list to share with friends. Automatically isolates cards in your collection not currently in any of your built decks.</p>
-                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #059669, #10b981);" onclick="window.openCollectionTab('trade'); event.stopPropagation();">Open Trade Binder</button>
+                    <button class="select-btn action-cta-btn" onclick="window.openCollectionTab('trade'); event.stopPropagation();">Open Trade Binder</button>
                 </div>
 
                 <!-- Tile 6: Set Completion -->
@@ -704,7 +721,7 @@
                     <div class="action-card-icon">📊</div>
                     <h3 class="action-card-title">Set Completion</h3>
                     <p class="action-card-desc">Check how far I am from completing a set. Visual progress bars, rarity breakdowns, and missing card checklists for any MTG set.</p>
-                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #d97706, #f59e0b);" onclick="window.openCollectionTab('set'); event.stopPropagation();">Check Set Progress</button>
+                    <button class="select-btn action-cta-btn" onclick="window.openCollectionTab('set'); event.stopPropagation();">Check Set Progress</button>
                 </div>
 
                 <!-- Tile 7: What Can I Build? -->
@@ -713,16 +730,16 @@
                     <div class="action-card-icon">⚡</div>
                     <h3 class="action-card-title">What Can I Build?</h3>
                     <p class="action-card-desc">Get recommendations on what decks I can build from my collection. Scans top EDHREC & community commanders for your highest owned card matches.</p>
-                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #7c3aed, #8b5cf6);" onclick="window.openCollectionTab('build'); event.stopPropagation();">Get Recommendations</button>
+                    <button class="select-btn action-cta-btn" onclick="window.openCollectionTab('build'); event.stopPropagation();">Get Recommendations</button>
                 </div>
 
-                <!-- Tile 8: Upgrade & Improve Decks (AI) -->
+                <!-- Tile 8: Upgrade & Improve Decks -->
                 <div class="action-card action-card-ai" onclick="window.openCollectionTab('deck', { openUpgrader: true })">
-                    <div class="action-card-badge ai-badge">AI Advisor</div>
+                    <div class="action-card-badge">Synergy Engine</div>
                     <div class="action-card-icon">🧠</div>
-                    <h3 class="action-card-title">Deck Upgrader (AI)</h3>
-                    <p class="action-card-desc">Upgrade and improve my existing decks. Uses Gemini AI to analyze your deck synergy, mana curve, and recommend card swaps directly from your collection.</p>
-                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #db2777, #ec4899);" onclick="window.openCollectionTab('deck', { openUpgrader: true }); event.stopPropagation();">Upgrade My Decks</button>
+                    <h3 class="action-card-title">Deck Optimizer</h3>
+                    <p class="action-card-desc">Analyze and enhance your decks with targeted upgrade recommendations directly from your card collection, matching synergies and mana curves.</p>
+                    <button class="select-btn action-cta-btn" onclick="window.openCollectionTab('deck', { openUpgrader: true }); event.stopPropagation();">Optimize My Decks</button>
                 </div>
 
                 <!-- Tile 9: Collection Insights -->
@@ -731,7 +748,7 @@
                     <div class="action-card-icon">📈</div>
                     <h3 class="action-card-title">Collection Insights</h3>
                     <p class="action-card-desc">Deep visual breakdown of your entire collection. View estimated financial value, color wheel balance, mana curves, and top format staples.</p>
-                    <button class="select-btn action-cta-btn" style="background: linear-gradient(135deg, #4f46e5, #6366f1);" onclick="window.openCollectionTab('collection'); event.stopPropagation();">View Insights</button>
+                    <button class="select-btn action-cta-btn" onclick="window.openCollectionTab('collection'); event.stopPropagation();">View Insights</button>
                 </div>
             </div>
         </div>
@@ -1129,7 +1146,7 @@
                     <!-- Product Edition & Format -->
                     <div class="booster-field-group">
                         <label class="booster-field-label">
-                            <span>✨ Booster Edition:</span>
+                            <span>📦 Booster Edition:</span>
                             <span class="tooltip">?<span class="tooltiptext">Play/Draft: Standard booster. Collector: Premium foils, borderless & showcase cards!</span></span>
                         </label>
                         <div class="booster-segmented-switch booster-edition-switch">
@@ -1139,7 +1156,7 @@
                             </label>
                             <label class="segmented-option">
                                 <input type="radio" name="boosterPackEdition" id="boosterEditionCollector" value="collector">
-                                <span class="segmented-pill">✨ Collector</span>
+                                <span class="segmented-pill">Collector</span>
                             </label>
                         </div>
 
@@ -1240,7 +1257,7 @@
                             <button type="button" class="booster-filter-chip" data-filter="hits">🔥 Hits ($2+ / Foils)</button>
                             <button type="button" class="booster-filter-chip" data-filter="mythic">🟠 Mythic</button>
                             <button type="button" class="booster-filter-chip" data-filter="rare">🟡 Rare</button>
-                            <button type="button" class="booster-filter-chip" data-filter="foil">✨ Foils</button>
+                            <button type="button" class="booster-filter-chip" data-filter="foil">⭐ Foils</button>
                         </div>
                     </div>
                 </div>
@@ -1292,7 +1309,7 @@
                 <div class="header" style="margin-bottom: 1rem;">
                     <div class="header-title-area">
                         <h1>Collection & Decks Hub</h1>
-                        <div class="header-subtitle">Deck Comparator, Set Completion Tracker, Trade Binder & AI Upgrader</div>
+                        <div class="header-subtitle">Deck Comparator, Set Completion Tracker, Trade Binder & Deck Optimizer</div>
                     </div>
                 </div>
 
@@ -1596,8 +1613,8 @@
                             </div>
                             <div class="actions deck-results-actions">
                                 <button type="button" class="secondary-btn ai-btn" id="btnAiOptimizer" onclick="openAiOptimizer()"
-                                    title="Find deck improvements from your collection using Gemini AI">
-                                    <span>✨</span> AI Improvements
+                                    title="Find deck improvements from your collection">
+                                    <span>⚙️</span> Recommended Upgrades
                                 </button>
                                 <button type="button" class="secondary-btn" onclick="openBuyMissingModal('deck')"
                                     title="Buy missing cards on TCGPlayer or Cardmarket" style="border-color: #38bdf8; color: #38bdf8;">
@@ -2637,13 +2654,13 @@
     <div id="aiOptimizerModal" class="modal-backdrop collection-hub-modal" style="display: none;"
         onclick="if(event.target === this) closeAiOptimizer()">
         <div class="ai-modal-content" onclick="event.stopPropagation()">
-            <div class="modal-header" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(99, 102, 241, 0.08));">
+            <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; flex: 1;">
-                    <span style="font-size: 1.6rem;">✨</span>
+                    <span style="font-size: 1.4rem;">⚙️</span>
                     <div>
                         <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                            <h3 id="aiModalDeckTitle" style="margin: 0; font-size: 1.25rem; font-weight: 800;">Deck Improvement Assistant</h3>
-                            <span class="ai-pill-badge">✨ Gemini AI</span>
+                            <h3 id="aiModalDeckTitle" style="margin: 0; font-size: 1.25rem; font-weight: 700;">Deck Improvement Assistant</h3>
+                            <span class="ai-pill-badge" style="background: var(--obsidian-elevated); color: var(--gold); border: 1px solid var(--obsidian-border);">Optimization Engine</span>
                         </div>
                         <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 500;" id="aiModalDeckSubtitle">
                             Finding high-impact upgrades from your collection
@@ -2756,7 +2773,7 @@
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
-        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v8.2</span>
+        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v8.3</span>
     </footer>
 
     <!-- PWA Install Button -->
@@ -2790,7 +2807,7 @@
         </button>
     </nav>
 
-    <script src="./collection-hub.js?v=8.2"></script>
-    <script type="module" src="./script.js?v=8.2"></script>
+    <script src="./collection-hub.js?v=8.3"></script>
+    <script type="module" src="./script.js?v=8.3"></script>
 </body>
 </html>
