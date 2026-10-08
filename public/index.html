@@ -75,8 +75,8 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=8.4">
-    <link rel="stylesheet" href="collection-hub.css?v=8.4">
+    <link rel="stylesheet" href="styles.css?v=8.5">
+    <link rel="stylesheet" href="collection-hub.css?v=8.5">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -770,6 +770,20 @@
                 <span class="stat-label">Commanders Rolled:</span>
                 <span id="stat-rolled" class="stat-value highlight">--</span>
             </div>
+        </div>
+
+        <!-- Feedback & Bug Report Banner Card on Landing -->
+        <div class="feedback-banner-card" onclick="window.openFeedbackModal()">
+            <div class="feedback-banner-content">
+                <div class="feedback-banner-icon">💬</div>
+                <div class="feedback-banner-text">
+                    <h3 class="feedback-banner-title">Feedback & Bug Reports</h3>
+                    <p class="feedback-banner-desc">Encountered an issue with a card, rule, or simulator? Have an idea? Send direct feedback to the creator.</p>
+                </div>
+            </div>
+            <button type="button" class="select-btn feedback-banner-btn" onclick="window.openFeedbackModal(); event.stopPropagation();">
+                <span>Send Feedback / Bug Report ➔</span>
+            </button>
         </div>
     </main>
 
@@ -2773,14 +2787,61 @@
     <!-- Footer Disclaimer -->
     <footer class="app-footer">
         <div class="footer-legal-links">
+            <button type="button" class="footer-link-btn" onclick="window.openFeedbackModal()">💬 Send Feedback / Bug Report</button>
+            <span class="footer-divider">•</span>
             <button type="button" class="footer-link-btn" onclick="window.openLegalModal()">Legal & Policy Notice</button>
             <span class="footer-divider">•</span>
             <button type="button" class="footer-link-btn" onclick="window.openAboutModal()">Community & Scryfall Attribution</button>
         </div>
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy. Not approved or endorsed by Wizards of the Coast. Portions of materials used are property of Wizards of the Coast LLC. © Wizards of the Coast LLC.</p>
         <p class="footer-subtext">Card data, symbols, and high-resolution imagery provided by the <a href="https://scryfall.com" target="_blank" rel="noopener">Scryfall API</a> under Community Guidelines. Non-commercial community tool.</p>
-        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v8.4</span>
+        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v8.5</span>
     </footer>
+
+    <!-- Feedback & Bug Report Modal -->
+    <div id="feedbackModal" class="modal-overlay" onclick="if(event.target === this) window.closeFeedbackModal()">
+        <div class="modal-content" style="max-width: 520px; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--obsidian-border); padding-bottom: 10px;">
+                <h3 style="margin: 0; color: var(--gold); font-family: var(--font-display); font-size: 1.25rem;">💬 Feedback & Bug Reports</h3>
+                <button type="button" class="secondary-btn" onclick="window.closeFeedbackModal()" style="padding: 4px 10px; font-size: 0.85rem;">✕</button>
+            </div>
+
+            <form id="feedbackForm" onsubmit="window.handleFeedbackSubmit(event)">
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 6px;">Category</label>
+                    <select id="feedbackCategory" style="width: 100%; text-align: left; padding: 10px 12px;">
+                        <option value="Bug Report">🐞 Bug Report</option>
+                        <option value="Card / Rules Issue">⚔️ Card or Rules Engine Issue</option>
+                        <option value="Feature Suggestion">💡 Feature Suggestion</option>
+                        <option value="General Feedback">💬 General Feedback</option>
+                    </select>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 6px;">Your Name / Handle</label>
+                        <input type="text" id="feedbackName" placeholder="e.g. MoxMaster" style="width: 100%; text-align: left; padding: 10px 12px;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 6px;">Email (Optional)</label>
+                        <input type="email" id="feedbackEmail" placeholder="for reply/updates" style="width: 100%; text-align: left; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.15); background: var(--obsidian-surface); color: var(--text-primary);">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-primary); margin-bottom: 6px;">Details / Message <span style="color: var(--danger);">*</span></label>
+                    <textarea id="feedbackMessage" required rows="4" placeholder="Describe what happened, which card was involved, or what you'd like to see improved..." style="width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.15); background: var(--obsidian-surface); color: var(--text-primary); font-family: var(--font-body); resize: vertical;"></textarea>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px; align-items: center;">
+                    <button type="button" class="secondary-btn" onclick="window.closeFeedbackModal()">Cancel</button>
+                    <button type="submit" id="feedbackSubmitBtn" class="select-btn" style="padding: 10px 22px;">
+                        <span>Send to Developer ➔</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- Legal & Attribution Modal -->
     <div id="legalModal" class="modal-overlay" onclick="if(event.target === this) window.closeLegalModal()">
@@ -2841,7 +2902,7 @@
         </button>
     </nav>
 
-    <script src="./collection-hub.js?v=8.4"></script>
-    <script type="module" src="./script.js?v=8.4"></script>
+    <script src="./collection-hub.js?v=8.5"></script>
+    <script type="module" src="./script.js?v=8.5"></script>
 </body>
 </html>

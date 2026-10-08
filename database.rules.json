@@ -54,6 +54,10 @@
       "$draftId": {
         ".write": "auth != null && $draftId.length >= 3 && $draftId.length <= 48"
       }
+    },
+    "feedback": {
+      ".read": false,
+      ".write": false
     }
   }
 }

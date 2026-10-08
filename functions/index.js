@@ -137,8 +137,7 @@ exports.cleanupInactiveRooms = onSchedule({
 }, async (event) => {
     const db = admin.database();
     const now = Date.now();
-    const maxRoomAgeMs = 48 * 60 * 60 * 1000;
-    const maxGhostRoomAgeMs = 6 * 60 * 60 * 1000;
+    const maxGhostRoomAgeMs = 6 * 60 * 60 * 1000; // 6 hours for ghost/empty rooms with ZERO players
 
     try {
         const roomsSnap = await db.ref('rooms').once('value');
@@ -149,25 +148,20 @@ exports.cleanupInactiveRooms = onSchedule({
                 const code = child.key;
                 if (!room) return;
 
-                let createdAt = room.settings?.createdAt || room.createdAt || null;
-                if (!createdAt && room.players) {
-                    const hostEntry = Object.values(room.players).find(p => p && p.isHost);
-                    if (hostEntry && hostEntry.joinedAt) createdAt = hostEntry.joinedAt;
-                }
-
                 const playerCount = room.players ? Object.keys(room.players).length : 0;
+                // STRICT SAFETY: Do NOT prune any room that has players!
+                if (playerCount > 0) return;
 
-                if (playerCount === 0 && createdAt && (now - createdAt > maxGhostRoomAgeMs)) {
-                    updates[`rooms/${code}`] = null;
-                    updates[`webhooks/${code}`] = null;
-                } else if (createdAt && (now - createdAt > maxRoomAgeMs)) {
+                let createdAt = room.settings?.createdAt || room.createdAt || null;
+                // Only prune if completely empty (0 players) and older than 6 hours
+                if (playerCount === 0 && (!createdAt || (now - createdAt > maxGhostRoomAgeMs))) {
                     updates[`rooms/${code}`] = null;
                     updates[`webhooks/${code}`] = null;
                 }
             });
 
             if (Object.keys(updates).length > 0) {
-                console.log(`[cleanupInactiveRooms] Pruning ${Object.keys(updates).length} abandoned/expired room nodes.`);
+                console.log(`[cleanupInactiveRooms] Pruning ${Object.keys(updates).length} empty room nodes (0 players).`);
                 await db.ref().update(updates);
             }
         }
@@ -179,18 +173,99 @@ exports.cleanupInactiveRooms = onSchedule({
                 const draft = child.val();
                 const draftId = child.key;
                 if (!draft) return;
+                
+                const draftPlayerCount = draft.players ? Object.keys(draft.players).length : 0;
+                // STRICT SAFETY: Do NOT prune any draft that has players!
+                if (draftPlayerCount > 0) return;
+
                 const createdAt = draft.createdAt || null;
-                if (createdAt && (now - createdAt > maxRoomAgeMs)) {
+                if (draftPlayerCount === 0 && (!createdAt || (now - createdAt > maxGhostRoomAgeMs))) {
                     draftUpdates[`booster_drafts/${draftId}`] = null;
                 }
             });
             if (Object.keys(draftUpdates).length > 0) {
-                console.log(`[cleanupInactiveRooms] Pruning ${Object.keys(draftUpdates).length} expired booster draft nodes.`);
+                console.log(`[cleanupInactiveRooms] Pruning ${Object.keys(draftUpdates).length} empty draft nodes (0 players).`);
                 await db.ref().update(draftUpdates);
             }
         }
     } catch (err) {
         console.error("[cleanupInactiveRooms] Error during room cleanup:", err);
+    }
+});
+
+// Feedback & Bug Reports endpoint -> sends directly to crackerslad@gmail.com and saves in DB
+exports.submitFeedback = onRequest({ cors: true, timeoutSeconds: 60 }, async (req, res) => {
+    // Enable CORS headers
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+    }
+
+    if (req.method !== "POST") {
+        res.status(405).json({ error: "Method not allowed" });
+        return;
+    }
+
+    try {
+        const { name, email, category, message, appVersion, pageUrl } = req.body || {};
+
+        if (!message || typeof message !== "string" || message.trim().length === 0) {
+            res.status(400).json({ error: "Message is required." });
+            return;
+        }
+
+        const feedbackId = `fb_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const timestamp = Date.now();
+        const cleanPayload = {
+            id: feedbackId,
+            name: (name || "Anonymous").substring(0, 100),
+            email: (email || "").substring(0, 150),
+            category: (category || "General Feedback").substring(0, 50),
+            message: message.substring(0, 4000),
+            appVersion: (appVersion || "8.4").substring(0, 20),
+            pageUrl: (pageUrl || "").substring(0, 250),
+            timestamp,
+            ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress || ""
+        };
+
+        // 1. Record feedback permanently in Realtime Database under /feedback
+        await admin.database().ref(`feedback/${feedbackId}`).set(cleanPayload);
+
+        // 2. Dispatch email to crackerslad@gmail.com
+        try {
+            const emailSubject = `[Commander Challenge ${cleanPayload.category}] from ${cleanPayload.name}`;
+            const emailBody = JSON.stringify({
+                _subject: emailSubject,
+                _template: "box",
+                Category: cleanPayload.category,
+                Name: cleanPayload.name,
+                Email: cleanPayload.email || "Not provided",
+                Message: cleanPayload.message,
+                Version: cleanPayload.appVersion,
+                Page: cleanPayload.pageUrl,
+                Timestamp: new Date(timestamp).toUTCString()
+            });
+
+            await fetch("https://formsubmit.co/ajax/crackerslad@gmail.com", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: emailBody
+            });
+        } catch (emailErr) {
+            console.warn("[submitFeedback] Email dispatch warning (data saved in DB):", emailErr.message);
+        }
+
+        res.status(200).json({ success: true, id: feedbackId });
+    } catch (err) {
+        console.error("[submitFeedback] Error recording feedback:", err);
+        res.status(500).json({ error: "Failed to record feedback" });
     }
 });
 

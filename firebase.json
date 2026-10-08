@@ -68,6 +68,10 @@
         "function": "shortenUrl"
       },
       {
+        "source": "/submitFeedback",
+        "function": "submitFeedback"
+      },
+      {
         "source": "/s/**",
         "function": "shortenUrl"
       },

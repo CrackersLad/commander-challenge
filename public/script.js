@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=8.4';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=8.4';
-import { getArchives } from './data-service.js?v=8.4';
-import { initDeckActionsModule } from './deck-actions.js?v=8.4';
-import { initRoomActionsModule } from './room-actions.js?v=8.4';
-import { initPlayerViewModule } from './player-view.js?v=8.4';
-import { initAdminModule } from './admin.js?v=8.4';
-import { initCalendarModule } from './calendar.js?v=8.4';
-import { initAuthModule } from './auth.js?v=8.4';
-import { initHubModule } from './hub.js?v=8.4';
-import { initProfileModule } from './profile.js?v=8.4';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=8.4';
-import { initWarRoom, openWarRoom } from './war-room.js?v=8.4';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=8.4';
-import { initBoosterDraftModule } from './booster-draft.js?v=8.4';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=8.4';
+import { db, auth, functions } from './firebase-setup.js?v=8.5';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=8.5';
+import { getArchives } from './data-service.js?v=8.5';
+import { initDeckActionsModule } from './deck-actions.js?v=8.5';
+import { initRoomActionsModule } from './room-actions.js?v=8.5';
+import { initPlayerViewModule } from './player-view.js?v=8.5';
+import { initAdminModule } from './admin.js?v=8.5';
+import { initCalendarModule } from './calendar.js?v=8.5';
+import { initAuthModule } from './auth.js?v=8.5';
+import { initHubModule } from './hub.js?v=8.5';
+import { initProfileModule } from './profile.js?v=8.5';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=8.5';
+import { initWarRoom, openWarRoom } from './war-room.js?v=8.5';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=8.5';
+import { initBoosterDraftModule } from './booster-draft.js?v=8.5';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=8.5';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -611,6 +611,98 @@ window.closeLegalModal = () => {
 };
 
 window.openAboutModal = window.openLegalModal;
+
+window.openFeedbackModal = () => {
+    const modal = document.getElementById('feedbackModal');
+    if (modal) {
+        const nameInput = document.getElementById('feedbackName');
+        if (nameInput && !nameInput.value && state.currentPlayerName) {
+            nameInput.value = state.currentPlayerName;
+        }
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('show'), 10);
+    }
+};
+
+window.closeFeedbackModal = () => {
+    const modal = document.getElementById('feedbackModal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.style.display = 'none', 250);
+    }
+};
+
+window.handleFeedbackSubmit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const btn = document.getElementById('feedbackSubmitBtn');
+    const category = document.getElementById('feedbackCategory')?.value || 'General Feedback';
+    const name = document.getElementById('feedbackName')?.value?.trim() || state.currentPlayerName || 'Anonymous';
+    const email = document.getElementById('feedbackEmail')?.value?.trim() || '';
+    const message = document.getElementById('feedbackMessage')?.value?.trim() || '';
+
+    if (!message) {
+        showToast("Please enter a description or message.", true);
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="mana-spinner" style="width:12px; height:12px;"></span> Sending...`;
+    }
+
+    const payload = {
+        name,
+        email,
+        category,
+        message,
+        appVersion: '8.4',
+        pageUrl: window.location.href
+    };
+
+    let sent = false;
+    try {
+        const resp = await fetch('/submitFeedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+            sent = true;
+        }
+    } catch (_) {}
+
+    // Fallback directly to FormSubmit from client if Cloud Function endpoint is unreachable
+    if (!sent) {
+        try {
+            await fetch('https://formsubmit.co/ajax/crackerslad@gmail.com', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    _subject: `[Commander Challenge ${category}] from ${name}`,
+                    _template: 'box',
+                    Category: category,
+                    Name: name,
+                    Email: email || 'Not provided',
+                    Message: message,
+                    Version: '8.4',
+                    Page: window.location.href
+                })
+            });
+            sent = true;
+        } catch (_) {}
+    }
+
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<span>Send to Developer ➔</span>`;
+    }
+
+    playSound('sfx-choose');
+    showToast("🎉 Thank you! Your feedback has been sent directly to the creator.", false, 4000, true);
+    const msgEl = document.getElementById('feedbackMessage');
+    if (msgEl) msgEl.value = '';
+    window.closeFeedbackModal();
+};
 
 
 window.launchPlaytesterSession = ({ deckName = '', deckContent = '', opponentArchetype = 'tokens', autoStart = true, inDrawer = false } = {}) => {
@@ -2245,7 +2337,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=8.4').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=8.5').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
