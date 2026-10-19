@@ -180,15 +180,15 @@ async function fetchArchidektCollection(collectionId, options = {}, onProgress =
                     }
                 });
 
-                // Fetch 2 pages in parallel with polite 200ms spacing between batches to prevent 429
+                // Fetch 2 pages in parallel with polite 250ms spacing between batches to prevent 429 rate limit
                 let completedInBatch = 0;
-                const batchResults = await runWithConcurrency(taskFns, 2, 200, (doneCount, totalCount) => {
+                const batchResults = await runWithConcurrency(taskFns, 2, 250, (doneCount, totalCount) => {
                     completedInBatch = doneCount;
                     if (typeof onProgress === 'function') {
                         const remainingPagesInRound = totalCount - doneCount;
                         const pagesFinishedTotal = (totalPages - pendingPages.length) + doneCount;
                         const pct = Math.min(80, Math.round((pagesFinishedTotal / totalPages) * 75) + 8);
-                        const estMs = Math.max(1000, Math.round((remainingPagesInRound / 2) * 400 + 2000));
+                        const estMs = Math.max(1000, Math.round((remainingPagesInRound / 2) * 350 + 1500));
                         onProgress({
                             phase: 'fetching',
                             message: `Fetching collection: page ${pagesFinishedTotal} of ${totalPages} (${allCardsMap.size} records)...`,
@@ -1786,5 +1786,174 @@ Format your response in concise, punchy markdown with 3 bulleted sections. Keep 
     } catch (err) {
         console.error("summarizeMatch error:", err);
         return res.status(500).json({ error: err.message || "Failed to generate match summary." });
+    }
+});
+
+// ==================== CROSS-DECK RECOMMENDATIONS ENGINE ====================
+function computeCrossDeckRecommendations({ targetDeckId, decks, collection }) {
+    if (!decks || !Array.isArray(decks) || decks.length === 0) {
+        throw new Error("Missing decks data for cross-deck recommendations.");
+    }
+
+    const targetDeck = decks.find(d => String(d.id) === String(targetDeckId) && !d.error) || decks.find(d => !d.error);
+    if (!targetDeck) {
+        throw new Error("Target deck not found among scanned decks.");
+    }
+
+    const otherDecks = decks.filter(d => String(d.id) !== String(targetDeck.id) && !d.error);
+    if (otherDecks.length === 0) {
+        return {
+            success: false,
+            reason: "single_deck",
+            message: `Only 1 deck provided ("${targetDeck.name}"). Provide at least 2 decks to cross-reference cards.`
+        };
+    }
+
+    // Build target deck card set
+    const targetCardsMap = new Map();
+    (targetDeck.cards || []).forEach(c => {
+        const clean = (c.cleanName || c.name || "").toLowerCase().trim();
+        if (clean) targetCardsMap.set(clean, (targetCardsMap.get(clean) || 0) + (c.quantity || 1));
+    });
+
+    // Determine target deck color identity
+    const targetColors = new Set();
+    (targetDeck.colors || []).forEach(c => targetColors.add(String(c).toUpperCase()));
+    (targetDeck.cards || []).forEach(c => {
+        (c.colors || []).forEach(col => targetColors.add(String(col).toUpperCase()));
+    });
+
+    const basicLands = new Set([
+        'plains', 'island', 'swamp', 'mountain', 'forest', 'wastes',
+        'snow-covered plains', 'snow-covered island', 'snow-covered swamp',
+        'snow-covered mountain', 'snow-covered forest'
+    ]);
+
+    const formatStr = String(targetDeck.deckFormat || targetDeck.format || 'Commander').toLowerCase();
+    const isSingleton = /commander|edh|brawl|oathbreaker|highlander/i.test(formatStr) || true;
+
+    const candidatesMap = new Map();
+    otherDecks.forEach(otherDeck => {
+        (otherDeck.cards || []).forEach(card => {
+            const clean = (card.cleanName || card.name || "").toLowerCase().trim();
+            if (!clean || basicLands.has(clean)) return;
+
+            const typeLower = (card.typeLine || card.type || "").toLowerCase();
+            if (typeLower.includes("basic land")) return;
+
+            const inTarget = targetCardsMap.get(clean) || 0;
+            if (isSingleton && inTarget > 0) return;
+            if (!isSingleton && inTarget >= 4) return;
+
+            const cardColors = (card.colors || []).map(c => String(c).toUpperCase());
+            if (cardColors.length > 0 && targetColors.size > 0) {
+                if (!cardColors.every(col => targetColors.has(col))) return;
+            } else if (cardColors.length > 0 && targetColors.size === 0) {
+                return;
+            }
+
+            if (!candidatesMap.has(clean)) {
+                candidatesMap.set(clean, {
+                    name: card.name,
+                    cleanName: clean,
+                    typeLine: card.typeLine || card.type || "Spell",
+                    category: card.category || "Spell",
+                    manaCost: card.manaCost || "",
+                    colors: cardColors,
+                    sourceDecks: [{
+                        id: otherDeck.id,
+                        name: otherDeck.name,
+                        quantity: card.quantity || 1
+                    }],
+                    otherDecksCount: 1,
+                    totalCopiesInOtherDecks: card.quantity || 1
+                });
+            } else {
+                const existing = candidatesMap.get(clean);
+                const existingDeck = existing.sourceDecks.find(d => String(d.id) === String(otherDeck.id));
+                if (existingDeck) existingDeck.quantity += (card.quantity || 1);
+                else {
+                    existing.sourceDecks.push({
+                        id: otherDeck.id,
+                        name: otherDeck.name,
+                        quantity: card.quantity || 1
+                    });
+                    existing.otherDecksCount += 1;
+                }
+                existing.totalCopiesInOtherDecks += (card.quantity || 1);
+            }
+        });
+    });
+
+    const collectionLookup = new Map();
+    (collection || []).forEach(c => {
+        const clean = (c.cleanName || c.name || "").toLowerCase().trim();
+        if (clean && !collectionLookup.has(clean)) collectionLookup.set(clean, c);
+    });
+
+    const recommendations = [];
+    candidatesMap.forEach((cand, clean) => {
+        const coll = collectionLookup.get(clean);
+        const owned = coll ? (coll.owned !== undefined ? coll.owned : 1) : cand.totalCopiesInOtherDecks;
+        const inDecks = coll ? (coll.inDecks !== undefined ? coll.inDecks : cand.totalCopiesInOtherDecks) : cand.totalCopiesInOtherDecks;
+        const spareInCollection = Math.max(0, owned - inDecks);
+        const edhrecRank = coll?.edhrecRank || coll?.edhrecCommanderRank || 999999;
+        const price = coll?.price || coll?.prices?.usd || null;
+
+        let reason = cand.otherDecksCount > 1
+            ? `Core staple active in ${cand.otherDecksCount} of your other decks (${cand.sourceDecks.map(s => s.name).join(', ')}).`
+            : `Card currently run in your "${cand.sourceDecks[0].name}" deck.`;
+        if (spareInCollection > 0) {
+            reason += ` You have ${spareInCollection} spare copy in your collection ready to add!`;
+        }
+
+        let score = cand.otherDecksCount * 35;
+        if (spareInCollection > 0) score += 30;
+        if (edhrecRank < 200) score += 20;
+
+        recommendations.push({
+            ...cand,
+            owned,
+            inDecks,
+            spareInCollection,
+            hasSpare: spareInCollection > 0,
+            edhrecRank,
+            price,
+            reason,
+            score
+        });
+    });
+
+    recommendations.sort((a, b) => b.otherDecksCount - a.otherDecksCount || b.score - a.score || a.name.localeCompare(b.name));
+
+    return {
+        success: true,
+        targetDeck: {
+            id: targetDeck.id,
+            name: targetDeck.name,
+            colors: Array.from(targetColors)
+        },
+        otherDecksScannedCount: otherDecks.length,
+        totalRecommendations: recommendations.length,
+        spareAvailableCount: recommendations.filter(r => r.spareInCollection > 0).length,
+        recommendations
+    };
+}
+
+exports.computeCrossDeckRecommendations = computeCrossDeckRecommendations;
+
+exports.recommendCardsFromEnteredDecks = onRequest({ cors: true, timeoutSeconds: 60, memory: "512MiB" }, async (req, res) => {
+    if (req.method === "OPTIONS") {
+        return res.status(204).send("");
+    }
+
+    try {
+        const body = req.body || {};
+        const { targetDeckId, decks, collection } = body;
+        const result = computeCrossDeckRecommendations({ targetDeckId, decks, collection });
+        return res.json(result);
+    } catch (err) {
+        console.error("recommendCardsFromEnteredDecks error:", err);
+        return res.status(500).json({ error: err.message || "Failed to generate cross-deck recommendations." });
     }
 });

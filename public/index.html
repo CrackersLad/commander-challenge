@@ -75,8 +75,8 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=8.7">
-    <link rel="stylesheet" href="collection-hub.css?v=8.7">
+    <link rel="stylesheet" href="styles.css?v=8.8">
+    <link rel="stylesheet" href="collection-hub.css?v=8.8">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -1626,6 +1626,10 @@
                                 </select>
                             </div>
                             <div class="actions deck-results-actions">
+                                <button type="button" class="secondary-btn cross-deck-btn" id="btnCrossDeckRecommendations" onclick="openCrossDeckRecommendationsModal()"
+                                    title="Recommends cards to add to the selected deck that are already in other decks you entered">
+                                    <span>🔄</span> Cards in Other Decks (<span id="crossDeckCountBadge">0</span>)
+                                </button>
                                 <button type="button" class="secondary-btn ai-btn" id="btnAiOptimizer" onclick="openAiOptimizer()"
                                     title="Find deck improvements from your collection">
                                     <span>⚙️</span> Recommended Upgrades
@@ -2690,6 +2694,32 @@
         </div>
     </div>
 
+    <!-- ==================== CROSS-DECK RECOMMENDATIONS MODAL ==================== -->
+    <div id="crossDeckModal" class="modal-backdrop collection-hub-modal" style="display: none;"
+        onclick="if(event.target === this) closeCrossDeckRecommendationsModal()">
+        <div class="ai-modal-content cross-deck-modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; flex: 1;">
+                    <span style="font-size: 1.4rem;">🔄</span>
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <h3 id="crossDeckModalTitle" style="margin: 0; font-size: 1.25rem; font-weight: 700;">Cards in Other Entered Decks</h3>
+                            <span class="cross-deck-pill-badge">Cross-Deck Synergy</span>
+                        </div>
+                        <div style="font-size: 0.82rem; color: var(--text-muted); font-weight: 500;" id="crossDeckModalSubtitle">
+                            Discover cards already running in your other decks that fit this deck
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeCrossDeckRecommendationsModal()" aria-label="Close Modal">&times;</button>
+            </div>
+
+            <div id="crossDeckModalBody" class="modal-body" style="padding: 1.25rem 1.5rem; overflow-y: auto; max-height: calc(88vh - 120px);">
+                <!-- Dynamic Content Rendered by JS -->
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== BUY MISSING (TCGPLAYER / CARDMARKET) MODAL ==================== -->
     <div id="buyMissingModal" class="modal-backdrop collection-hub-modal" style="display: none;" onclick="if(event.target === this) closeBuyMissingModal()">
         <div class="modal-content" style="max-width: 620px;" onclick="event.stopPropagation()">
@@ -2795,7 +2825,7 @@
         </div>
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy. Not approved or endorsed by Wizards of the Coast. Portions of materials used are property of Wizards of the Coast LLC. © Wizards of the Coast LLC.</p>
         <p class="footer-subtext">Card data, symbols, and high-resolution imagery provided by the <a href="https://scryfall.com" target="_blank" rel="noopener">Scryfall API</a> under Community Guidelines. Non-commercial community tool.</p>
-        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v8.7</span>
+        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v8.8</span>
     </footer>
 
     <!-- Feedback & Bug Report Modal -->
@@ -2902,7 +2932,7 @@
         </button>
     </nav>
 
-    <script src="./collection-hub.js?v=8.7"></script>
-    <script type="module" src="./script.js?v=8.7"></script>
+    <script src="./collection-hub.js?v=8.8"></script>
+    <script type="module" src="./script.js?v=8.8"></script>
 </body>
 </html>

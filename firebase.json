@@ -64,6 +64,10 @@
         "function": "summarizeMatch"
       },
       {
+        "source": "/recommendCardsFromEnteredDecks",
+        "function": "recommendCardsFromEnteredDecks"
+      },
+      {
         "source": "/shortenUrl",
         "function": "shortenUrl"
       },

@@ -804,9 +804,16 @@
                     if (!id || !Array.isArray(cards)) return;
                     const cleanId = String(id).trim();
                     const key = `archidekt_coll_${cleanId}`;
-                    localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), cards }));
+                    try {
+                        localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), cards }));
+                    } catch (e) {
+                        console.warn("Could not cache Archidekt collection in localStorage (quota):", e);
+                    }
+                    if (typeof idbSet === 'function') {
+                        idbSet(key, { timestamp: Date.now(), cards }).catch(() => {});
+                    }
                 } catch (e) {
-                    console.warn("Could not cache Archidekt collection in localStorage:", e);
+                    console.warn("Could not cache Archidekt collection:", e);
                 }
             },
             loadArchidektCollection(id) {
@@ -842,10 +849,46 @@
                     return null;
                 }
             },
+            async loadArchidektCollectionAsync(id) {
+                const memOrLocal = this.loadArchidektCollection(id);
+                if (memOrLocal && memOrLocal.length > 0) return memOrLocal;
+                try {
+                    if (!id || typeof idbGet !== 'function') return null;
+                    const cleanId = String(id).trim();
+                    const key = `archidekt_coll_${cleanId}`;
+                    const stored = await idbGet(key);
+                    if (stored && Array.isArray(stored.cards) && (Date.now() - (stored.timestamp || 0) < 2 * 60 * 60 * 1000)) {
+                        return stored.cards.map(c => {
+                            const s = (c.set || c.setCode || '').toLowerCase();
+                            const num = (c.collectorNumber || c.collector_number || c.number || '').toString().trim();
+                            const q = Number(c.quantity || c.owned || c.count) || 1;
+                            const inD = Number(c.inDecks || c.in_decks || 0);
+                            return {
+                                ...c,
+                                set: s,
+                                setCode: s.toUpperCase(),
+                                collectorNumber: num,
+                                collector_number: num,
+                                quantity: q,
+                                owned: q,
+                                inDecks: inD,
+                                in_decks: inD
+                            };
+                        });
+                    }
+                } catch (e) {
+                    console.warn("Could not load Archidekt collection from IndexedDB:", e);
+                }
+                return null;
+            },
             clearArchidektCollection(id) {
                 try {
                     if (!id) return;
-                    localStorage.removeItem(`archidekt_coll_${String(id).trim()}`);
+                    const cleanId = String(id).trim();
+                    localStorage.removeItem(`archidekt_coll_${cleanId}`);
+                    if (typeof idbDelete === 'function') {
+                        idbDelete(`archidekt_coll_${cleanId}`).catch(() => {});
+                    }
                 } catch (e) {}
             },
             saveTradeBinder(binder) {
@@ -2204,7 +2247,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=8.7');
+                    const res = await fetch('./commander-precons.json?v=8.8');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2240,7 +2283,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=8.7');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=8.8');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -2816,7 +2859,10 @@
 
             let ownedCardsList = (cachedParsedCsv && cachedParsedCsv.length > 0) ? cachedParsedCsv : (currentCollectionData || []);
             if (ownedCardsList.length === 0 && collectionId && !forceRefresh) {
-                const stored = AppStorage.loadArchidektCollection(collectionId);
+                let stored = AppStorage.loadArchidektCollection(collectionId);
+                if (!stored || stored.length === 0) {
+                    stored = await AppStorage.loadArchidektCollectionAsync(collectionId);
+                }
                 if (stored && stored.length > 0) {
                     currentCollectionData = stored;
                     ownedCardsList = stored;
@@ -2868,14 +2914,49 @@
                 }, 500);
 
                 try {
-                    let response = await fetch('/getCollectionInsights?stream=true', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'text/event-stream'
-                        },
-                        body: JSON.stringify({ collectionId })
-                    });
+                    let response = null;
+                    try {
+                        response = await fetch('/getCollectionInsights?stream=true', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'text/event-stream'
+                            },
+                            body: JSON.stringify({ collectionId })
+                        });
+                    } catch (netErr) {
+                        console.warn("[BUILD] Primary route network error, falling back to direct Cloud Functions:", netErr);
+                    }
+
+                    if (!response || !response.ok) {
+                        try {
+                            response = await fetch('https://us-central1-commander-challenge.cloudfunctions.net/getCollectionInsights?stream=true', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'text/event-stream'
+                                },
+                                body: JSON.stringify({ collectionId })
+                            });
+                        } catch (directErr) {
+                            console.warn("[BUILD] Direct Cloud Functions fetch error:", directErr);
+                        }
+                    }
+
+                    if (!response || !response.ok) {
+                        let errMsg = response ? `Server returned status ${response.status}` : 'Network error';
+                        if (response) {
+                            try {
+                                const errJson = await response.json();
+                                if (errJson && errJson.error) errMsg = errJson.error;
+                            } catch (_) {
+                                if (response.status === 504 || response.status === 502) {
+                                    errMsg = "The collection sync timed out on the gateway. Please click 'Retry Analysis' to resume.";
+                                }
+                            }
+                        }
+                        throw new Error(errMsg);
+                    }
 
                     let data = null;
                     const contentType = response.headers.get('content-type') || '';
@@ -2929,8 +3010,15 @@
                                 }
                             }
                         }
-                    } else {
+                    } else if (contentType.includes('application/json')) {
                         data = await response.json();
+                    } else {
+                        const rawText = await response.text();
+                        try {
+                            data = JSON.parse(rawText);
+                        } catch (e) {
+                            throw new Error("Unable to parse server response. Please retry.");
+                        }
                     }
 
                     clearInterval(ticker);
@@ -4347,8 +4435,16 @@
                 }
 
                 if (!response.ok) {
-                    const err = await response.json().catch(() => ({}));
-                    throw new Error(err.error || `Server returned status ${response.status}`);
+                    let errMsg = `Server returned status ${response.status}`;
+                    try {
+                        const err = await response.json();
+                        if (err && err.error) errMsg = err.error;
+                    } catch (_) {
+                        if (response.status === 504 || response.status === 502) {
+                            errMsg = "The collection sync timed out on the gateway. Please click 'Analyze Collection' again to retry.";
+                        }
+                    }
+                    throw new Error(errMsg);
                 }
 
                 const contentType = response.headers.get('content-type') || '';
@@ -4434,9 +4530,16 @@
                             }
                         }
                     }
-                } else {
+                } else if (contentType.includes('application/json')) {
                     // Fallback to regular JSON parsing
                     finalData = await response.json();
+                } else {
+                    const rawText = await response.text();
+                    try {
+                        finalData = JSON.parse(rawText);
+                    } catch (e) {
+                        throw new Error("Unable to parse server response. Please retry.");
+                    }
                 }
 
                 if (!finalData) {
@@ -5631,6 +5734,7 @@
                 if (typeof populateDeckSelector === 'function') populateDeckSelector();
                 if (typeof renderDeckCardsList === 'function') renderDeckCardsList();
                 if (typeof renderList === 'function') renderList();
+                if (typeof updateCrossDeckRecommendationsBadge === 'function') updateCrossDeckRecommendationsBadge();
 
                 if (decksOverviewCard) {
                     decksOverviewCard.style.display = 'block';
@@ -5734,6 +5838,7 @@
                             <span class="deck-stat-pill deck-stat-owned">✅ ${deck.ownedCards} Owned</span>
                             <span class="deck-stat-pill deck-stat-missing">❌ ${deck.missingCards} Missing</span>
                             <span class="deck-stat-pill deck-stat-total">📄 ${deck.totalCards} Total</span>
+                            <span class="deck-stat-pill" style="cursor: pointer; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);" onclick="event.stopPropagation(); openCrossDeckRecommendationsModal('${deck.id}')" title="Recommend cards to add to this deck that are in other entered decks">🔄 Cross-Deck</span>
                         </div>
                     `;
                 }
@@ -5752,6 +5857,9 @@
                 dropdown.appendChild(opt);
             });
             dropdown.value = activeDeckViewId;
+            if (typeof updateCrossDeckRecommendationsBadge === 'function') {
+                updateCrossDeckRecommendationsBadge();
+            }
         }
 
         function switchDeckResultsMode(mode) {
@@ -5785,6 +5893,7 @@
             activeDeckViewId = deckId;
             if (deckId !== 'all') {
                 activeAiDeckId = deckId;
+                activeCrossDeckDeckId = deckId;
             }
             const dropdown = document.getElementById('deckSelectorDropdown');
             if (dropdown) dropdown.value = deckId;
@@ -5795,6 +5904,9 @@
             });
 
             renderDeckCardsList();
+            if (typeof updateCrossDeckRecommendationsBadge === 'function') {
+                updateCrossDeckRecommendationsBadge();
+            }
         }
 
         function setDeckCardsStatusFilter(filter) {
@@ -7090,6 +7202,759 @@
             navigator.clipboard.writeText(text)
                 .then(() => showToast(`Copied ${currentAiAnalysis.suggestions.length} swaps to clipboard!`))
                 .catch(() => showToast("Failed to copy swaps."));
+        }
+
+        // ==================== CROSS-DECK RECOMMENDATIONS ENGINE ====================
+        let activeCrossDeckDeckId = null;
+        let activeCrossDeckFilter = 'all'; // 'all', 'spare', 'multi'
+        let activeCrossDeckCategory = 'all';
+        let activeCrossDeckRole = 'all';
+        let activeCrossDeckSort = 'decks';
+        let activeCrossDeckSearch = '';
+
+        function getCardCategoryType(card) {
+            if (card.category && !['Main', 'Sideboard', 'Maybeboard'].includes(card.category)) {
+                return card.category;
+            }
+            const type = (card.typeLine || card.type || '').toLowerCase();
+            if (type.includes('creature')) return 'Creatures';
+            if (type.includes('planeswalker')) return 'Planeswalkers';
+            if (type.includes('instant')) return 'Instants';
+            if (type.includes('sorcery')) return 'Sorceries';
+            if (type.includes('artifact')) return 'Artifacts';
+            if (type.includes('enchantment')) return 'Enchantments';
+            if (type.includes('battle')) return 'Battles';
+            if (type.includes('land')) return 'Lands';
+            return 'Spells';
+        }
+
+        function detectCardFunctionalRoles(card) {
+            const roles = [];
+            const name = (card.name || '').toLowerCase();
+            const type = (card.typeLine || card.type || '').toLowerCase();
+
+            // Ramp
+            if (
+                name.includes('sol ring') || name.includes('arcane signet') || name.includes('signet') ||
+                name.includes('talisman') || name.includes('cultivate') || name.includes('kodama') ||
+                name.includes('rampant growth') || name.includes('farseek') || name.includes('birds of paradise') ||
+                name.includes('llanowar') || name.includes('elves of deep shadow') || name.includes('chromatic lantern') ||
+                name.includes('thought vessel') || name.includes('mind stone') || name.includes('fellwar stone') ||
+                name.includes('smothering tithe') || name.includes('dockside') || name.includes('nature\'s lore') ||
+                name.includes('three visits') || name.includes('skyshroud claim') || name.includes('relic of legends') ||
+                name.includes('cryptic trilobite') || name.includes('dowsing dagger')
+            ) {
+                roles.push('Ramp');
+            }
+
+            // Card Draw / Advantage
+            if (
+                name.includes('rhystic study') || name.includes('mystic remora') || name.includes('sylvan library') ||
+                name.includes('esper sentinel') || name.includes('skullclamp') || name.includes('phyrexian arena') ||
+                name.includes('windfall') || name.includes('wheel of fortune') || name.includes('guardian project') ||
+                name.includes('beast whisperer') || name.includes('night\'s whisper') || name.includes('ponder') ||
+                name.includes('brainstorm') || name.includes('preordain') || name.includes('fact or fiction') ||
+                name.includes('read the bones') || name.includes('trouble in pairs') || name.includes('ledger shredder') ||
+                name.includes('jeska\'s will') || name.includes('black market connections')
+            ) {
+                roles.push('Card Draw');
+            }
+
+            // Removal / Interaction
+            if (
+                name.includes('swords to plowshares') || name.includes('path to exile') || name.includes('beast within') ||
+                name.includes('generous gift') || name.includes('chaos warp') || name.includes('pongify') ||
+                name.includes('rapid hybridization') || name.includes('assassin\'s trophy') || name.includes('counterspell') ||
+                name.includes('negate') || name.includes('swan song') || name.includes('fierce guardianship') ||
+                name.includes('deflecting swat') || name.includes('deadly rollick') || name.includes('dovin\'s veto') ||
+                name.includes('an offer you can\'t refuse') || name.includes('abrupt decay') || name.includes('infernal grasp') ||
+                name.includes('feed the swarm') || name.includes('force of will') || name.includes('force of negation')
+            ) {
+                roles.push('Removal');
+            }
+
+            // Board Wipe
+            if (
+                name.includes('cyclonic rift') || name.includes('blasphemous act') || name.includes('toxic deluge') ||
+                name.includes('wrath of god') || name.includes('farewell') || name.includes('damnation') ||
+                name.includes('supreme verdict') || name.includes('vanquish the horde') || name.includes('vandalblast') ||
+                name.includes('austere command') || name.includes('culling ritual')
+            ) {
+                roles.push('Board Wipe');
+            }
+
+            // Protection
+            if (
+                name.includes('heroic intervention') || name.includes('teferi\'s protection') || name.includes('lightning greaves') ||
+                name.includes('swiftfoot boots') || name.includes('flawless maneuver') || name.includes('boros charm') ||
+                name.includes('tamiyo\'s safekeeping') || name.includes('mithril coat') || name.includes('whispersilk cloak')
+            ) {
+                roles.push('Protection');
+            }
+
+            // Tutor
+            if (
+                name.includes('demonic tutor') || name.includes('vampiric tutor') || name.includes('enlightened tutor') ||
+                name.includes('mystical tutor') || name.includes('worldly tutor') || name.includes('green sun\'s zenith') ||
+                name.includes('chord of calling') || name.includes('gamble') || name.includes('imperial seal')
+            ) {
+                roles.push('Tutor');
+            }
+
+            // Lands / Fixing
+            if (type.includes('land')) {
+                roles.push('Mana Base');
+            }
+
+            if (roles.length === 0) {
+                if (type.includes('creature')) roles.push('Creature');
+                else if (type.includes('instant') || type.includes('sorcery')) roles.push('Spell');
+                else roles.push('Synergy');
+            }
+
+            return roles;
+        }
+
+        /**
+         * Scans the user's entered decks and collection, and recommends cards to add to the selected deck
+         * that are currently already present in other decks the user has entered.
+         * 
+         * @param {string|number|null} targetDeckId - ID of deck to recommend cards for (defaults to activeDeckViewId)
+         * @param {Object} options - Optional filters (searchVal, filterSpareOnly, categoryFilter, roleFilter, sortBy)
+         * @returns {Object} Comprehensive recommendations and analysis result
+         */
+        function recommendCardsFromEnteredDecks(targetDeckId = null, options = {}) {
+            if (!Array.isArray(currentDecksData) || currentDecksData.length === 0) {
+                return {
+                    success: false,
+                    reason: 'not_scanned',
+                    message: 'No decks have been scanned yet. Please enter decks and run comparison first.'
+                };
+            }
+
+            // Determine target deck
+            let targetDeck = null;
+            if (targetDeckId && targetDeckId !== 'all') {
+                targetDeck = currentDecksData.find(d => String(d.id) === String(targetDeckId) && !d.error);
+            }
+            if (!targetDeck) {
+                if (activeDeckViewId && activeDeckViewId !== 'all') {
+                    targetDeck = currentDecksData.find(d => String(d.id) === String(activeDeckViewId) && !d.error);
+                }
+            }
+            if (!targetDeck) {
+                targetDeck = currentDecksData.find(d => !d.error);
+            }
+
+            if (!targetDeck) {
+                return {
+                    success: false,
+                    reason: 'no_target_deck',
+                    message: 'Target deck not found among scanned decks.'
+                };
+            }
+
+            const formatStr = String(targetDeck.deckFormat || targetDeck.format || 'Commander').toLowerCase();
+            const isSingleton = /commander|edh|brawl|oathbreaker|highlander/i.test(formatStr) || true;
+
+            // Map of cards already in target deck
+            const targetCardsMap = new Map();
+            (targetDeck.cards || []).forEach(c => {
+                const clean = normalizeCardName(c.cleanName || c.name);
+                if (clean) {
+                    targetCardsMap.set(clean, (targetCardsMap.get(clean) || 0) + (c.quantity || 1));
+                }
+            });
+
+            // Target deck color identity
+            const targetColorSet = new Set();
+            const resolvedDeckColors = resolveCardColorsClient(targetDeck);
+            resolvedDeckColors.forEach(c => targetColorSet.add(c));
+            (targetDeck.cards || []).forEach(c => {
+                const cColors = resolveCardColorsClient(c);
+                cColors.forEach(col => targetColorSet.add(col));
+            });
+
+            // Other entered decks
+            const otherDecks = currentDecksData.filter(d => String(d.id) !== String(targetDeck.id) && !d.error);
+            if (otherDecks.length === 0) {
+                return {
+                    success: false,
+                    reason: 'single_deck',
+                    message: `Only 1 deck entered ("${targetDeck.name}"). Enter at least 2 decks so cards from your other decks can be compared and recommended!`,
+                    targetDeck: {
+                        id: targetDeck.id,
+                        name: targetDeck.name
+                    }
+                };
+            }
+
+            const basicLands = new Set([
+                'plains', 'island', 'swamp', 'mountain', 'forest', 'wastes',
+                'snow-covered plains', 'snow-covered island', 'snow-covered swamp',
+                'snow-covered mountain', 'snow-covered forest'
+            ]);
+
+            // Scan candidate cards across all other entered decks
+            const candidatesMap = new Map();
+            let totalCardsScanned = 0;
+
+            otherDecks.forEach(otherDeck => {
+                (otherDeck.cards || []).forEach(card => {
+                    totalCardsScanned++;
+                    const clean = normalizeCardName(card.cleanName || card.name);
+                    if (!clean || basicLands.has(clean)) return;
+
+                    const typeLower = (card.typeLine || card.type || '').toLowerCase();
+                    if (typeLower.includes('basic land')) return;
+
+                    // Cannot add if already at max allowable copies in target deck
+                    const currentCountInTarget = targetCardsMap.get(clean) || 0;
+                    if (isSingleton && currentCountInTarget > 0) return;
+                    if (!isSingleton && currentCountInTarget >= 4) return;
+
+                    // Color identity legality
+                    const cardColors = resolveCardColorsClient(card);
+                    if (cardColors.length > 0 && targetColorSet.size > 0) {
+                        const isColorLegal = cardColors.every(col => targetColorSet.has(col));
+                        if (!isColorLegal) return;
+                    } else if (cardColors.length > 0 && targetColorSet.size === 0) {
+                        return; // Colorless deck cannot run colored cards
+                    }
+
+                    if (!candidatesMap.has(clean)) {
+                        candidatesMap.set(clean, {
+                            name: card.name,
+                            cleanName: clean,
+                            typeLine: card.typeLine || card.type || 'Spell',
+                            category: getCardCategoryType(card),
+                            manaCost: card.manaCost || card.mana_cost || '',
+                            colors: cardColors,
+                            sourceDecks: [{
+                                id: otherDeck.id,
+                                name: otherDeck.name,
+                                platform: otherDeck.platform || 'archidekt',
+                                quantity: card.quantity || 1
+                            }],
+                            otherDecksCount: 1,
+                            totalCopiesInOtherDecks: card.quantity || 1
+                        });
+                    } else {
+                        const existing = candidatesMap.get(clean);
+                        const existingDeckEntry = existing.sourceDecks.find(d => String(d.id) === String(otherDeck.id));
+                        if (existingDeckEntry) {
+                            existingDeckEntry.quantity += (card.quantity || 1);
+                        } else {
+                            existing.sourceDecks.push({
+                                id: otherDeck.id,
+                                name: otherDeck.name,
+                                platform: otherDeck.platform || 'archidekt',
+                                quantity: card.quantity || 1
+                            });
+                            existing.otherDecksCount += 1;
+                        }
+                        existing.totalCopiesInOtherDecks += (card.quantity || 1);
+                    }
+                });
+            });
+
+            // Cross-reference with collection inventory
+            const collectionLookup = new Map();
+            (currentCollectionData || []).forEach(c => {
+                const clean = normalizeCardName(c.cleanName || c.name);
+                if (clean && !collectionLookup.has(clean)) {
+                    collectionLookup.set(clean, c);
+                }
+            });
+
+            const recommendations = [];
+
+            candidatesMap.forEach((cand, clean) => {
+                const coll = collectionLookup.get(clean);
+                const owned = coll ? (coll.owned !== undefined ? coll.owned : 1) : cand.totalCopiesInOtherDecks;
+                const inDecks = coll ? (coll.inDecks !== undefined ? coll.inDecks : cand.totalCopiesInOtherDecks) : cand.totalCopiesInOtherDecks;
+                const spareInCollection = Math.max(0, owned - inDecks);
+                const edhrecRank = coll?.edhrecRank || coll?.edhrecCommanderRank || 999999;
+                const price = coll?.price || coll?.prices?.usd || null;
+                const roles = detectCardFunctionalRoles(cand);
+                const primaryRole = roles[0] || 'Synergy';
+
+                // Personalized reasoning
+                let reason = '';
+                if (cand.otherDecksCount > 1) {
+                    reason = `Core staple active in ${cand.otherDecksCount} of your other decks (${cand.sourceDecks.map(s => s.name).join(', ')}). `;
+                } else {
+                    reason = `Proven ${primaryRole.toLowerCase()} card currently run in your "${cand.sourceDecks[0].name}" deck. `;
+                }
+                if (spareInCollection > 0) {
+                    reason += `You have ${spareInCollection} spare cop${spareInCollection > 1 ? 'ies' : 'y'} in your collection ready to add!`;
+                } else {
+                    reason += `In use in other decks (can be proxied, swapped, or transferred).`;
+                }
+
+                // Composite score
+                let score = 0;
+                score += cand.otherDecksCount * 35;
+                if (spareInCollection > 0) score += 30;
+                if (edhrecRank < 150) score += 25;
+                else if (edhrecRank < 500) score += 18;
+                else if (edhrecRank < 1500) score += 10;
+                if (['Ramp', 'Card Draw', 'Removal', 'Board Wipe', 'Protection', 'Tutor'].includes(primaryRole)) {
+                    score += 15;
+                }
+
+                recommendations.push({
+                    name: cand.name,
+                    cleanName: cand.cleanName,
+                    typeLine: cand.typeLine,
+                    category: cand.category,
+                    manaCost: cand.manaCost,
+                    colors: cand.colors,
+                    roles: roles,
+                    primaryRole: primaryRole,
+                    sourceDecks: cand.sourceDecks,
+                    otherDecksCount: cand.otherDecksCount,
+                    totalCopiesInOtherDecks: cand.totalCopiesInOtherDecks,
+                    owned: owned,
+                    inDecks: inDecks,
+                    spareInCollection: spareInCollection,
+                    hasSpare: spareInCollection > 0,
+                    edhrecRank: edhrecRank,
+                    price: price,
+                    reason: reason,
+                    score: score
+                });
+            });
+
+            const totalUnfiltered = recommendations.length;
+            const totalSpare = recommendations.filter(r => r.spareInCollection > 0).length;
+            const totalMulti = recommendations.filter(r => r.otherDecksCount > 1).length;
+
+            // Apply filters
+            let filtered = recommendations;
+            if (options.filterSpareOnly) {
+                filtered = filtered.filter(r => r.spareInCollection > 0);
+            }
+            if (options.minDeckFrequency && options.minDeckFrequency > 1) {
+                filtered = filtered.filter(r => r.otherDecksCount >= options.minDeckFrequency);
+            }
+            if (options.categoryFilter && options.categoryFilter !== 'all') {
+                filtered = filtered.filter(r => r.category === options.categoryFilter);
+            }
+            if (options.roleFilter && options.roleFilter !== 'all') {
+                filtered = filtered.filter(r => r.roles.includes(options.roleFilter));
+            }
+            if (options.searchVal) {
+                const s = options.searchVal.toLowerCase().trim();
+                filtered = filtered.filter(r => 
+                    r.name.toLowerCase().includes(s) || 
+                    r.typeLine.toLowerCase().includes(s) ||
+                    r.sourceDecks.some(d => d.name.toLowerCase().includes(s))
+                );
+            }
+
+            const sortBy = options.sortBy || 'decks';
+            if (sortBy === 'decks') {
+                filtered.sort((a, b) => b.otherDecksCount - a.otherDecksCount || b.score - a.score || a.name.localeCompare(b.name));
+            } else if (sortBy === 'score') {
+                filtered.sort((a, b) => b.score - a.score || b.otherDecksCount - a.otherDecksCount || a.name.localeCompare(b.name));
+            } else if (sortBy === 'spare') {
+                filtered.sort((a, b) => b.spareInCollection - a.spareInCollection || b.otherDecksCount - a.otherDecksCount || a.name.localeCompare(b.name));
+            } else if (sortBy === 'edhrec') {
+                filtered.sort((a, b) => a.edhrecRank - b.edhrecRank || b.otherDecksCount - a.otherDecksCount);
+            } else if (sortBy === 'name') {
+                filtered.sort((a, b) => a.name.localeCompare(b.name));
+            }
+
+            return {
+                success: true,
+                targetDeck: {
+                    id: targetDeck.id,
+                    name: targetDeck.name,
+                    colors: Array.from(targetColorSet),
+                    totalCards: targetDeck.totalCards,
+                    percentComplete: targetDeck.percentComplete
+                },
+                otherDecksScannedCount: otherDecks.length,
+                otherDecks: otherDecks.map(d => ({ id: d.id, name: d.name, totalCards: d.totalCards })),
+                totalCardsScanned: totalCardsScanned,
+                totalRecommendations: totalUnfiltered,
+                spareAvailableCount: totalSpare,
+                multiDeckCount: totalMulti,
+                recommendations: filtered
+            };
+        }
+
+        function updateCrossDeckRecommendationsBadge() {
+            const badge = document.getElementById('crossDeckCountBadge');
+            if (!badge) return;
+
+            if (!Array.isArray(currentDecksData) || currentDecksData.length < 2) {
+                badge.textContent = '0';
+                return;
+            }
+
+            let targetId = activeDeckViewId;
+            if (!targetId || targetId === 'all') {
+                const first = currentDecksData.find(d => !d.error);
+                if (first) targetId = first.id;
+            }
+
+            const res = recommendCardsFromEnteredDecks(targetId);
+            if (res && res.success) {
+                badge.textContent = res.totalRecommendations;
+            } else {
+                badge.textContent = '0';
+            }
+        }
+
+        function openCrossDeckRecommendationsModal(deckId) {
+            const modal = document.getElementById('crossDeckModal');
+            if (!modal) return;
+
+            modal.style.display = 'flex';
+
+            if (!currentDecksData || currentDecksData.length === 0) {
+                renderCrossDeckNoDecksPrompt();
+                return;
+            }
+
+            let targetId = deckId;
+            if (!targetId || targetId === 'all') {
+                if (activeDeckViewId && activeDeckViewId !== 'all') {
+                    targetId = activeDeckViewId;
+                } else {
+                    const validDeck = currentDecksData.find(d => !d.error);
+                    if (validDeck) targetId = validDeck.id;
+                }
+            }
+
+            const targetDeck = currentDecksData.find(d => String(d.id) === String(targetId) && !d.error) || currentDecksData.find(d => !d.error);
+            if (targetDeck) {
+                activeCrossDeckDeckId = targetDeck.id;
+            }
+
+            renderCrossDeckModalContent();
+        }
+
+        function closeCrossDeckRecommendationsModal() {
+            const modal = document.getElementById('crossDeckModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function onCrossDeckDeckSelect(deckId) {
+            activeCrossDeckDeckId = deckId;
+            renderCrossDeckModalContent();
+            updateCrossDeckRecommendationsBadge();
+        }
+
+        function setCrossDeckStatusFilter(filter) {
+            activeCrossDeckFilter = filter;
+            renderCrossDeckModalContent();
+        }
+
+        function onCrossDeckSearchInput(val) {
+            activeCrossDeckSearch = val || '';
+            renderCrossDeckModalContent();
+        }
+
+        function clearCrossDeckSearch() {
+            activeCrossDeckSearch = '';
+            const input = document.getElementById('crossDeckSearchInput');
+            if (input) input.value = '';
+            renderCrossDeckModalContent();
+        }
+
+        function onCrossDeckCategoryChange(val) {
+            activeCrossDeckCategory = val || 'all';
+            renderCrossDeckModalContent();
+        }
+
+        function onCrossDeckRoleChange(val) {
+            activeCrossDeckRole = val || 'all';
+            renderCrossDeckModalContent();
+        }
+
+        function onCrossDeckSortChange(val) {
+            activeCrossDeckSort = val || 'decks';
+            renderCrossDeckModalContent();
+        }
+
+        function renderCrossDeckNoDecksPrompt() {
+            const bodyEl = document.getElementById('crossDeckModalBody');
+            document.getElementById('crossDeckModalTitle').textContent = "Cards in Other Entered Decks";
+            document.getElementById('crossDeckModalSubtitle').textContent = "Cross-deck card recommendations";
+            if (bodyEl) {
+                bodyEl.innerHTML = `
+                    <div style="padding: 3rem 1.5rem; text-align: center;">
+                        <div style="font-size: 3.2rem; margin-bottom: 0.75rem;">🃏</div>
+                        <h4 style="margin: 0 0 0.5rem 0; font-size: 1.25rem; font-weight: 800;">No Decks Scanned Yet</h4>
+                        <p style="margin: 0 auto 1.5rem auto; max-width: 480px; font-size: 0.92rem; color: var(--text-muted); line-height: 1.55;">
+                            Please enter at least 2 decks on the main page and click "Scan & Compare Decks" so we can recommend cards across your decks.
+                        </p>
+                        <button type="button" class="main-btn" style="max-width: 260px; margin: 0 auto;" onclick="closeCrossDeckRecommendationsModal(); runComparison();">
+                            🚀 Scan & Compare Decks
+                        </button>
+                    </div>`;
+            }
+        }
+
+        function renderCrossDeckModalContent() {
+            const bodyEl = document.getElementById('crossDeckModalBody');
+            if (!bodyEl) return;
+
+            const targetDeck = currentDecksData.find(d => String(d.id) === String(activeCrossDeckDeckId)) || currentDecksData.find(d => !d.error);
+            if (targetDeck) activeCrossDeckDeckId = targetDeck.id;
+
+            const options = {
+                searchVal: activeCrossDeckSearch,
+                filterSpareOnly: activeCrossDeckFilter === 'spare',
+                minDeckFrequency: activeCrossDeckFilter === 'multi' ? 2 : 1,
+                categoryFilter: activeCrossDeckCategory,
+                roleFilter: activeCrossDeckRole,
+                sortBy: activeCrossDeckSort
+            };
+
+            const result = recommendCardsFromEnteredDecks(activeCrossDeckDeckId, options);
+
+            // Populate deck picker options
+            let deckOptionsHtml = '';
+            currentDecksData.forEach(d => {
+                if (d.error) return;
+                const isSelected = String(d.id) === String(activeCrossDeckDeckId) ? 'selected' : '';
+                deckOptionsHtml += `<option value="${d.id}" ${isSelected}>${d.name} (${d.ownedCards}/${d.totalCards} cards - ${d.percentComplete}%)</option>`;
+            });
+
+            if (!result || !result.success) {
+                bodyEl.innerHTML = `
+                    <div style="max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.15rem; padding: 0.5rem 0;">
+                        <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.15rem;">
+                            <label style="font-weight: 800; font-size: 0.95rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;">
+                                <span>🎯</span> Select Deck to Recommend Cards For:
+                            </label>
+                            <select style="width: 100%; font-size: 0.95rem; font-weight: 700; padding: 0.6rem 0.85rem; background-color: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer;" onchange="onCrossDeckDeckSelect(this.value)">
+                                ${deckOptionsHtml}
+                            </select>
+                        </div>
+                        <div style="padding: 2.5rem 1.5rem; text-align: center; color: var(--text-muted); background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px;">
+                            <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🎴</div>
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1.15rem; font-weight: 800; color: var(--text-color);">${result ? result.message : 'No recommendations available.'}</h4>
+                            <p style="font-size: 0.88rem; max-width: 440px; margin: 0 auto; line-height: 1.5;">
+                                Enter at least 2 decks into the comparator (e.g. paste URLs or decklists) to analyze shared cards and cross-deck additions!
+                            </p>
+                        </div>
+                    </div>`;
+                return;
+            }
+
+            document.getElementById('crossDeckModalTitle').textContent = `Cross-Deck Recommendations: ${result.targetDeck.name}`;
+            document.getElementById('crossDeckModalSubtitle').textContent = `Found ${result.totalRecommendations} cards in ${result.otherDecksScannedCount} other entered decks matching ${result.targetDeck.colors.join('/') || 'Colorless'} colors`;
+
+            const cards = result.recommendations || [];
+
+            let cardsListHtml = '';
+            if (cards.length === 0) {
+                cardsListHtml = `
+                    <div style="padding: 3rem 1.5rem; text-align: center; color: var(--text-muted); background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔍</div>
+                        <div style="font-weight: 700; font-size: 1.05rem; margin-bottom: 0.25rem;">No cards match your filter criteria.</div>
+                        <div style="font-size: 0.85rem;">Try clearing your search or switching filters.</div>
+                        <button type="button" class="secondary-btn" style="margin-top: 0.75rem;" onclick="clearCrossDeckSearch(); setCrossDeckStatusFilter('all');">Clear Filters</button>
+                    </div>`;
+            } else {
+                cards.forEach(card => {
+                    const cleanNameEsc = (card.name || '').replace(/'/g, "\\'");
+                    const sourceDecksTags = card.sourceDecks.map(s => `
+                        <span class="source-deck-tag" title="Present in ${s.name} (${s.quantity}x)">
+                            <span>🎴</span> ${s.name} (${s.quantity}x)
+                        </span>
+                    `).join('');
+
+                    const spareBadge = card.spareInCollection > 0
+                        ? `<span class="spare-ready-badge"><span>🟢</span> ${card.spareInCollection} Spare in Collection</span>`
+                        : `<span class="in-use-badge"><span>🟡</span> In Use (${card.owned} owned / ${card.inDecks} in decks)</span>`;
+
+                    const manaCostDisplay = card.manaCost ? `<span style="font-family: monospace; font-size: 0.85rem; color: #38bdf8; margin-left: 0.4rem;">${card.manaCost}</span>` : '';
+                    const priceDisplay = card.price ? `<span style="font-size: 0.8rem; color: #34d399; font-weight: 700; margin-left: 0.4rem;">$${Number(card.price).toFixed(2)}</span>` : '';
+
+                    cardsListHtml += `
+                        <div class="cross-deck-card-item">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; flex-wrap: wrap;">
+                                <div style="display: flex; flex-direction: column; gap: 0.3rem; flex: 1; min-width: 240px;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                                        <span class="card-name" style="font-size: 1.05rem; font-weight: 800; color: #f1f5f9; cursor: pointer;"
+                                            onclick="openInScryfall('${cleanNameEsc}', event)"
+                                            onmouseenter="bindHoverName(this, '${cleanNameEsc}')"
+                                            title="Click to view on Scryfall • Hover to preview">
+                                            ${card.name} ↗
+                                        </span>
+                                        ${manaCostDisplay}
+                                        <span class="cross-deck-role-badge">⚡ ${card.primaryRole}</span>
+                                        ${priceDisplay}
+                                    </div>
+                                    <div style="font-size: 0.82rem; color: var(--text-muted); display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                        <span>${card.typeLine}</span> • 
+                                        <span>EDHREC Rank #${card.edhrecRank < 900000 ? card.edhrecRank : 'N/A'}</span>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;">
+                                    <button type="button" class="secondary-btn" style="padding: 0.3rem 0.65rem; font-size: 0.78rem;" onclick="copyCardNameToClipboard('${cleanNameEsc}')" title="Copy card name">📋 Copy</button>
+                                    <button type="button" class="secondary-btn" style="padding: 0.3rem 0.65rem; font-size: 0.78rem; border-color: rgba(16, 185, 129, 0.4); color: #34d399;" onclick="addCrossDeckCardToWants('${cleanNameEsc}', ${card.price || 0.5})" title="Add to Trade Binder wishlist">➕ Want List</button>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.2rem;">
+                                <span style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted);">In Your Other Decks:</span>
+                                ${sourceDecksTags}
+                                ${spareBadge}
+                            </div>
+
+                            <div style="font-size: 0.86rem; color: #cbd5e1; line-height: 1.45; background: rgba(255, 255, 255, 0.025); border-left: 3px solid #38bdf8; padding: 0.5rem 0.75rem; border-radius: 0 6px 6px 0;">
+                                💡 ${card.reason}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            bodyEl.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <!-- Deck Selector & Overview Banner -->
+                    <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem 1.15rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                        <div style="flex: 1; min-width: 220px;">
+                            <label style="font-weight: 800; font-size: 0.86rem; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.35rem;">
+                                <span>🎯</span> Select Deck to Receive Recommendations:
+                            </label>
+                            <select id="crossDeckTargetSelector" style="width: 100%; font-size: 0.95rem; font-weight: 700; padding: 0.5rem 0.85rem; background-color: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer;" onchange="onCrossDeckDeckSelect(this.value)">
+                                ${deckOptionsHtml}
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                            <button type="button" class="secondary-btn" style="padding: 0.45rem 0.85rem; font-size: 0.82rem;" onclick="copyAllCrossDeckRecommendations()" title="Copy list of all recommended cards to clipboard">📋 Copy All (${result.totalRecommendations})</button>
+                        </div>
+                    </div>
+
+                    <!-- Summary Metrics Banner -->
+                    <div class="cross-deck-summary-banner">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem;">
+                            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                                <span style="font-weight: 800; font-size: 0.95rem; color: #38bdf8;">
+                                    ⚡ Cross-Deck Analysis for ${result.targetDeck.name}
+                                </span>
+                                <span style="font-size: 0.82rem; color: var(--text-muted);">
+                                    (${result.targetDeck.colors.join('/') || 'Colorless'} Identity)
+                                </span>
+                            </div>
+                            <div style="font-size: 0.84rem; font-weight: 700; display: flex; gap: 0.6rem; flex-wrap: wrap;">
+                                <span style="color: #c084fc;">🎴 ${result.otherDecksScannedCount} Other Decks</span> • 
+                                <span style="color: #38bdf8;">⚡ ${result.totalRecommendations} Compatible Cards</span> • 
+                                <span style="color: #34d399;">🟢 ${result.spareAvailableCount} Spare in Binder</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Controls: Search, Filters, Categories, Sort -->
+                    <div style="background: var(--bg-color); border: 1px solid var(--border-color); padding: 0.85rem 1rem; border-radius: 12px; display: flex; flex-direction: column; gap: 0.65rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                            <div class="status-filters-group">
+                                <button type="button" class="secondary-btn ${activeCrossDeckFilter === 'all' ? 'active' : ''}" onclick="setCrossDeckStatusFilter('all')">
+                                    📋 All (${result.totalRecommendations})
+                                </button>
+                                <button type="button" class="secondary-btn ${activeCrossDeckFilter === 'spare' ? 'active' : ''}" onclick="setCrossDeckStatusFilter('spare')">
+                                    🟢 Spare in Binder (${result.spareAvailableCount})
+                                </button>
+                                <button type="button" class="secondary-btn ${activeCrossDeckFilter === 'multi' ? 'active' : ''}" onclick="setCrossDeckStatusFilter('multi')">
+                                    ⚡ 2+ Decks (${result.multiDeckCount})
+                                </button>
+                            </div>
+                            <div style="font-size: 0.84rem; color: var(--text-muted); font-weight: 600;">
+                                Showing: <strong style="color: #38bdf8;">${cards.length}</strong> / ${result.totalRecommendations}
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                            <div class="search-bar-wrapper" style="flex: 1; min-width: 180px;">
+                                <span class="search-bar-icon">🔍</span>
+                                <input type="text" id="crossDeckSearchInput" class="search-bar-input" value="${activeCrossDeckSearch}" placeholder="Filter by card name, type, or deck..." oninput="onCrossDeckSearchInput(this.value)">
+                                ${activeCrossDeckSearch ? '<button type="button" class="search-clear-btn" style="display: flex;" onclick="clearCrossDeckSearch()">✖</button>' : ''}
+                            </div>
+
+                            <select class="secondary-btn" style="padding: 0.45rem 0.75rem;" onchange="onCrossDeckRoleChange(this.value)">
+                                <option value="all" ${activeCrossDeckRole === 'all' ? 'selected' : ''}>All Roles</option>
+                                <option value="Ramp" ${activeCrossDeckRole === 'Ramp' ? 'selected' : ''}>⚡ Ramp</option>
+                                <option value="Card Draw" ${activeCrossDeckRole === 'Card Draw' ? 'selected' : ''}>📖 Card Draw</option>
+                                <option value="Removal" ${activeCrossDeckRole === 'Removal' ? 'selected' : ''}>🎯 Removal</option>
+                                <option value="Board Wipe" ${activeCrossDeckRole === 'Board Wipe' ? 'selected' : ''}>💥 Board Wipe</option>
+                                <option value="Protection" ${activeCrossDeckRole === 'Protection' ? 'selected' : ''}>🛡️ Protection</option>
+                                <option value="Tutor" ${activeCrossDeckRole === 'Tutor' ? 'selected' : ''}>🔮 Tutor</option>
+                                <option value="Mana Base" ${activeCrossDeckRole === 'Mana Base' ? 'selected' : ''}>🏔️ Mana Base</option>
+                            </select>
+
+                            <select class="secondary-btn" style="padding: 0.45rem 0.75rem;" onchange="onCrossDeckCategoryChange(this.value)">
+                                <option value="all" ${activeCrossDeckCategory === 'all' ? 'selected' : ''}>All Types</option>
+                                <option value="Creatures" ${activeCrossDeckCategory === 'Creatures' ? 'selected' : ''}>Creatures</option>
+                                <option value="Instants" ${activeCrossDeckCategory === 'Instants' ? 'selected' : ''}>Instants</option>
+                                <option value="Sorceries" ${activeCrossDeckCategory === 'Sorceries' ? 'selected' : ''}>Sorceries</option>
+                                <option value="Artifacts" ${activeCrossDeckCategory === 'Artifacts' ? 'selected' : ''}>Artifacts</option>
+                                <option value="Enchantments" ${activeCrossDeckCategory === 'Enchantments' ? 'selected' : ''}>Enchantments</option>
+                                <option value="Lands" ${activeCrossDeckCategory === 'Lands' ? 'selected' : ''}>Lands</option>
+                            </select>
+
+                            <select class="secondary-btn" style="padding: 0.45rem 0.75rem;" onchange="onCrossDeckSortChange(this.value)">
+                                <option value="decks" ${activeCrossDeckSort === 'decks' ? 'selected' : ''}>Sort: Most Decks Using</option>
+                                <option value="score" ${activeCrossDeckSort === 'score' ? 'selected' : ''}>Sort: Recommendation Score</option>
+                                <option value="spare" ${activeCrossDeckSort === 'spare' ? 'selected' : ''}>Sort: Spare Copies First</option>
+                                <option value="edhrec" ${activeCrossDeckSort === 'edhrec' ? 'selected' : ''}>Sort: EDHREC Rank</option>
+                                <option value="name" ${activeCrossDeckSort === 'name' ? 'selected' : ''}>Sort: Name (A-Z)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Cards Recommendations List -->
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        ${cardsListHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        function copyAllCrossDeckRecommendations() {
+            const res = recommendCardsFromEnteredDecks(activeCrossDeckDeckId);
+            if (!res || !res.success || !res.recommendations || res.recommendations.length === 0) {
+                showToast("No recommendations to copy.");
+                return;
+            }
+
+            let text = `=== Recommended Cards for "${res.targetDeck.name}" From Other Entered Decks ===\n`;
+            text += `Format: ${res.targetDeck.format || 'Commander'} • Color Identity: ${res.targetDeck.colors.join('/') || 'Colorless'}\n`;
+            text += `Total Cards Found Across ${res.otherDecksScannedCount} Decks: ${res.recommendations.length}\n\n`;
+
+            res.recommendations.forEach((card, idx) => {
+                const spareStr = card.spareInCollection > 0 ? ` [${card.spareInCollection} spare in collection]` : ` [In use in other decks]`;
+                const deckListStr = card.sourceDecks.map(s => `${s.name} (${s.quantity}x)`).join(', ');
+                text += `${idx + 1}. 1x ${card.name} (${card.typeLine}) - Role: ${card.primaryRole}${spareStr}\n`;
+                text += `   In Decks: ${deckListStr}\n`;
+                text += `   Reason: ${card.reason}\n\n`;
+            });
+
+            navigator.clipboard.writeText(text)
+                .then(() => showToast(`Copied ${res.recommendations.length} recommendations to clipboard! 📋`))
+                .catch(() => showToast("Failed to copy recommendations."));
+        }
+
+        function addCrossDeckCardToWants(cardName, price = 0.5) {
+            if (typeof addToTradeBinder === 'function') {
+                addToTradeBinder({
+                    name: cardName,
+                    priceUsd: price || 0.5,
+                    type: 'want'
+                });
+                if (typeof saveTradeBinderToStorage === 'function') saveTradeBinderToStorage();
+                if (typeof updateTradeBadge === 'function') updateTradeBadge();
+                showToast(`Added "${cardName}" to your Trade Binder wishlist! 📋`);
+            } else {
+                showToast(`Added "${cardName}" to wants!`);
+            }
         }
 
         // ==================== INVENTORY LIST LOGIC ====================
@@ -8476,6 +9341,21 @@
         window.executeRealtimeCommanderSearch = typeof executeRealtimeCommanderSearch === 'function' ? executeRealtimeCommanderSearch : () => {};
         window.quickScanTopOwnedCommanders = typeof quickScanTopOwnedCommanders === 'function' ? quickScanTopOwnedCommanders : () => {};
         window.clearRealtimeSearchResults = typeof clearRealtimeSearchResults === 'function' ? clearRealtimeSearchResults : () => {};
+        window.recommendCardsFromEnteredDecks = typeof recommendCardsFromEnteredDecks === 'function' ? recommendCardsFromEnteredDecks : () => {};
+        window.getCrossDeckRecommendations = typeof recommendCardsFromEnteredDecks === 'function' ? recommendCardsFromEnteredDecks : () => {};
+        window.openCrossDeckRecommendationsModal = typeof openCrossDeckRecommendationsModal === 'function' ? openCrossDeckRecommendationsModal : () => {};
+        window.closeCrossDeckRecommendationsModal = typeof closeCrossDeckRecommendationsModal === 'function' ? closeCrossDeckRecommendationsModal : () => {};
+        window.copyAllCrossDeckRecommendations = typeof copyAllCrossDeckRecommendations === 'function' ? copyAllCrossDeckRecommendations : () => {};
+        window.onCrossDeckDeckSelect = typeof onCrossDeckDeckSelect === 'function' ? onCrossDeckDeckSelect : () => {};
+        window.setCrossDeckStatusFilter = typeof setCrossDeckStatusFilter === 'function' ? setCrossDeckStatusFilter : () => {};
+        window.onCrossDeckSearchInput = typeof onCrossDeckSearchInput === 'function' ? onCrossDeckSearchInput : () => {};
+        window.clearCrossDeckSearch = typeof clearCrossDeckSearch === 'function' ? clearCrossDeckSearch : () => {};
+        window.onCrossDeckCategoryChange = typeof onCrossDeckCategoryChange === 'function' ? onCrossDeckCategoryChange : () => {};
+        window.onCrossDeckRoleChange = typeof onCrossDeckRoleChange === 'function' ? onCrossDeckRoleChange : () => {};
+        window.onCrossDeckSortChange = typeof onCrossDeckSortChange === 'function' ? onCrossDeckSortChange : () => {};
+        window.updateCrossDeckRecommendationsBadge = typeof updateCrossDeckRecommendationsBadge === 'function' ? updateCrossDeckRecommendationsBadge : () => {};
+        window.addCrossDeckCardToWants = typeof addCrossDeckCardToWants === 'function' ? addCrossDeckCardToWants : () => {};
+        window.copyCardNameToClipboard = typeof copyCardNameToClipboard === 'function' ? copyCardNameToClipboard : () => {};
 
         // ==================== MULTI-COLLECTION / BINDER PROFILES ====================
         function getCollectionProfiles() {

@@ -61,15 +61,15 @@ async function computeCollectionInsights(rawItems = [], options = {}) {
     let totalCopies = 0;
     let inDecksCopies = 0;
 
-    // Check if items are CSV items that need basic Scryfall price or color/type enrichment
-    const needsBatchEnrichment = rawItems.some(item => {
+    // Check if items are raw CSV items that lack rich card/oracle and price metadata
+    const isRichArchidektData = rawItems.length > 0 && (rawItems.filter(it => it && (it.card?.oracleCard || it.card?.prices)).length / rawItems.length) > 0.5;
+    const needsBatchEnrichment = !isRichArchidektData && rawItems.some(item => {
         const cardInfo = item.card || item || {};
         const oracleData = cardInfo.oracleCard || cardInfo;
         const p = cardInfo.prices || item.prices;
-        const resolved = resolveCardColors(item);
         const hasPrices = p && (typeof p.tcg !== "undefined" || typeof p.usd !== "undefined" || typeof p.ck !== "undefined");
-        const hasColors = resolved.length > 0;
-        return !hasPrices || !hasColors;
+        const hasType = Boolean(oracleData.type_line || oracleData.typeLine || cardInfo.type_line || cardInfo.typeLine || item.type_line || item.typeLine);
+        return !hasPrices || !hasType;
     });
 
     const enrichedPricesMap = new Map(); // cleanName -> { usd, eur, rarity, type_line, colors, image_url }
