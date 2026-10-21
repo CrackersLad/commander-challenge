@@ -2,6 +2,19 @@
         // ==================== UNIFIED SITE AUTHENTICATION ====================
         let currentAuthUser = null;
 
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+        window.escapeHtml = escapeHtml;
+        function sanitizeHTML(str) { return escapeHtml(str); }
+        window.sanitizeHTML = sanitizeHTML;
+
         window.openCollectionTab = function(tab, options = {}) {
             // 1. Direct view switch to view-collection-hub
             if (typeof window.switchView === 'function') {
@@ -977,6 +990,61 @@
             showToast("Saved comparison results cleared.");
         }
 
+        function sanitizeDeckCommanders(decks) {
+            if (!Array.isArray(decks)) return decks;
+            decks.forEach(deck => {
+                if (!deck || deck.error) return;
+                const deckCards = deck.cards || [];
+                let cmdrName = typeof deck.commander === 'string' ? deck.commander : (deck.commanders?.[0] || null);
+                const markedCmdrs = deckCards.filter(c => c.isCommander === true);
+                const strictCategoryCmdrs = deckCards.filter(c => c.category === 'Commander');
+
+                // If commander is missing or if more than 2 cards were marked isCommander (old-scanned deck bug)
+                if (!cmdrName || markedCmdrs.length > 2) {
+                    if (strictCategoryCmdrs.length >= 1 && strictCategoryCmdrs.length <= 2) {
+                        cmdrName = strictCategoryCmdrs[0].name;
+                    } else {
+                        const dNameLower = (deck.name || '').toLowerCase();
+                        const candidates = deckCards.filter(c => {
+                            const tl = (c.typeLine || c.type || '').toLowerCase();
+                            return c.isCommander || c.canBeCommander || (tl.includes('legendary') && tl.includes('creature')) || tl.includes('can be your commander');
+                        });
+
+                        // 1. Deck title matching card name
+                        const nameMatch = candidates.find(c => {
+                            const cLower = (c.name || '').toLowerCase();
+                            const first = cLower.split(',')[0].trim();
+                            return dNameLower.includes(cLower) || (first.length >= 4 && dNameLower.includes(first));
+                        });
+
+                        if (nameMatch) {
+                            cmdrName = nameMatch.name;
+                        } else if (markedCmdrs.length >= 1 && markedCmdrs.length <= 2) {
+                            cmdrName = markedCmdrs[0].name;
+                        } else if (candidates.length > 0) {
+                            candidates.sort((a, b) => (a.edhrecRank || a.edhrecCommanderRank || 999999) - (b.edhrecRank || b.edhrecCommanderRank || 999999));
+                            cmdrName = candidates[0].name;
+                        }
+                    }
+                }
+
+                if (cmdrName) {
+                    deck.commander = cmdrName;
+                    deck.commanders = [cmdrName];
+                    deckCards.forEach(c => {
+                        const isCmdr = c.name && c.name.toLowerCase() === cmdrName.toLowerCase();
+                        c.isCommander = isCmdr;
+                        if (isCmdr) {
+                            c.category = 'Commander';
+                        } else if (c.category === 'Commander') {
+                            c.category = 'Creatures';
+                        }
+                    });
+                }
+            });
+            return decks;
+        }
+
         async function restoreCachedComparison() {
             try {
                 const cached = await AppStorage.loadComparison();
@@ -1018,7 +1086,7 @@
                 }
 
                 currentCollectionData = cached.data.collection || [];
-                currentDecksData = cached.data.decks || [];
+                currentDecksData = sanitizeDeckCommanders(cached.data.decks || []);
                 currentDeckSummary = cached.data.deckSummary || null;
 
                 if (!currentDecksData || currentDecksData.length === 0) {
@@ -2247,7 +2315,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=8.8');
+                    const res = await fetch('./commander-precons.json?v=8.12');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2283,7 +2351,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=8.8');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=8.12');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -6576,6 +6644,8 @@
                 return;
             }
 
+            sanitizeDeckCommanders(currentDecksData);
+
             let targetId = deckId;
             if (!targetId || targetId === 'all') {
                 if (activeDeckViewId && activeDeckViewId !== 'all') {
@@ -6653,7 +6723,8 @@
                         <select id="aiDeckPicker" style="width: 100%; font-size: 0.95rem; font-weight: 700; padding: 0.6rem 0.85rem; background-color: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer;" onchange="onAiDeckPickerChange(this.value)">
                             ${deckOptionsHtml}
                         </select>
-                        <div id="aiDeckPickerStats" style="margin-top: 0.65rem; font-size: 0.84rem; color: var(--text-muted); display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                        <div id="aiDeckPickerStats" style="margin-top: 0.65rem; font-size: 0.84rem; color: var(--text-muted); display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+                            ${targetDeck && targetDeck.commander ? `<span style="display: inline-flex; align-items: center; gap: 0.3rem; background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.35); padding: 0.15rem 0.55rem; border-radius: 6px; font-weight: 700; color: #c084fc;">👑 ${escapeHtml(targetDeck.commander)}</span> • ` : ''}
                             <span>✅ ${targetDeck ? targetDeck.ownedCards : 0} Owned</span> • 
                             <span>❌ ${targetDeck ? targetDeck.missingCards : 0} Missing</span> • 
                             <span>📦 ${currentCollectionData.length} Collection Cards Pool</span>
@@ -6718,7 +6789,11 @@
             const targetDeck = currentDecksData.find(d => String(d.id) === String(deckId));
             const statsEl = document.getElementById('aiDeckPickerStats');
             if (statsEl && targetDeck) {
+                const cmdrBadge = targetDeck.commander
+                    ? `<span style="display: inline-flex; align-items: center; gap: 0.3rem; background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.35); padding: 0.15rem 0.55rem; border-radius: 6px; font-weight: 700; color: #c084fc;">👑 ${escapeHtml(targetDeck.commander)}</span> • `
+                    : '';
                 statsEl.innerHTML = `
+                    ${cmdrBadge}
                     <span>✅ ${targetDeck.ownedCards} Owned</span> • 
                     <span>❌ ${targetDeck.missingCards} Missing</span> • 
                     <span>📦 ${currentCollectionData.length} Collection Cards Pool</span>`;
@@ -6771,88 +6846,95 @@
         }
 
         function startAiAnalysis() {
-            const picker = document.getElementById('aiDeckPicker');
-            if (picker && picker.value) {
-                activeAiDeckId = picker.value;
-            }
+            try {
+                const picker = document.getElementById('aiDeckPicker');
+                if (picker && picker.value) {
+                    activeAiDeckId = picker.value;
+                }
 
-            const goalInput = document.getElementById('aiDeckGoalInput');
-            activeAiDeckGoal = (goalInput?.value || '').trim() || (activeAiDeckId ? localStorage.getItem('archidekt_ai_goal_' + activeAiDeckId) || '' : '');
-            if (activeAiDeckId && activeAiDeckGoal) {
-                localStorage.setItem('archidekt_ai_goal_' + activeAiDeckId, activeAiDeckGoal);
-            }
+                const goalInput = document.getElementById('aiDeckGoalInput');
+                activeAiDeckGoal = (goalInput?.value || '').trim() || (activeAiDeckId ? localStorage.getItem('archidekt_ai_goal_' + activeAiDeckId) || '' : '');
+                if (activeAiDeckId && activeAiDeckGoal) {
+                    localStorage.setItem('archidekt_ai_goal_' + activeAiDeckId, activeAiDeckGoal);
+                }
 
-            const keyInput = document.getElementById('aiApiKeyField');
-            const enteredKey = (keyInput?.value || '').trim() || localStorage.getItem('gemini_api_key') || '';
+                const keyInput = document.getElementById('aiApiKeyField');
+                const enteredKey = (keyInput?.value || '').trim() || localStorage.getItem('gemini_api_key') || '';
 
-            if (enteredKey) {
-                localStorage.setItem('gemini_api_key', enteredKey);
-            }
+                if (enteredKey) {
+                    localStorage.setItem('gemini_api_key', enteredKey);
+                }
 
-            const targetDeck = currentDecksData.find(d => String(d.id) === String(activeAiDeckId));
-            if (!targetDeck || targetDeck.error) {
-                alert("Please select a valid deck first.");
-                return;
-            }
+                const targetDeck = currentDecksData.find(d => String(d.id) === String(activeAiDeckId));
+                if (!targetDeck || targetDeck.error) {
+                    alert("Please select a valid deck first.");
+                    return;
+                }
 
-            const bodyEl = document.getElementById('aiModalBody');
-            document.getElementById('aiModalDeckTitle').textContent = targetDeck.name;
-            document.getElementById('aiModalDeckSubtitle').textContent = activeAiDeckGoal ? `Aim: "${activeAiDeckGoal}" • ${currentCollectionData.length} collection cards` : `Evaluating against ${currentCollectionData.length} collection cards`;
+                const bodyEl = document.getElementById('aiModalBody');
+                const titleEl = document.getElementById('aiModalDeckTitle');
+                if (titleEl) titleEl.textContent = targetDeck.name || "Deck Improvement Assistant";
+                const subTitleEl = document.getElementById('aiModalDeckSubtitle');
+                if (subTitleEl) subTitleEl.textContent = activeAiDeckGoal ? `Aim: "${activeAiDeckGoal}" • ${currentCollectionData.length} collection cards` : `Evaluating against ${currentCollectionData.length} collection cards`;
 
-            if (bodyEl) {
-                bodyEl.innerHTML = `
-                    <div class="collection-progress-card" style="margin: 0.5rem 0;">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem;">
-                            <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 999px; padding: 0.3rem 0.85rem; font-size: 0.78rem; font-weight: 700; color: #c084fc; text-transform: uppercase; letter-spacing: 0.05em;">
-                                <span class="pulse-dot" style="background: #c084fc;"></span> <span id="aiOptBadge">Analyzing Synergy</span>
-                            </div>
-                            <div id="aiOptEta" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); font-family: monospace;">
-                                Elapsed: 0s
-                            </div>
-                        </div>
-
-                        <h3 id="aiOptTitle" style="margin: 0 0 0.4rem 0; font-size: 1.35rem; font-weight: 800; color: var(--text-color); text-align: left;">
-                            Optimizing "${sanitizeHTML(targetDeck.name)}"...
-                        </h3>
-                        <p id="aiOptStatus" style="margin: 0 0 1.25rem 0; font-size: 0.92rem; color: var(--text-muted); line-height: 1.4; text-align: left;">
-                            ${activeAiDeckGoal ? `Aim: "${sanitizeHTML(activeAiDeckGoal)}" • ` : ''}Scanning your collection for high-synergy upgrades...
-                        </p>
-
-                        <div class="collection-progress-wrap">
-                            <div class="collection-progress-track">
-                                <div id="aiOptBarFill" class="collection-progress-fill" style="width: 15%; background: linear-gradient(90deg, #8b5cf6, #ec4899);">
-                                    <div class="collection-progress-shimmer"></div>
+                if (bodyEl) {
+                    bodyEl.innerHTML = `
+                        <div class="collection-progress-card" style="margin: 0.5rem 0;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem;">
+                                <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 999px; padding: 0.3rem 0.85rem; font-size: 0.78rem; font-weight: 700; color: #c084fc; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    <span class="pulse-dot" style="background: #c084fc;"></span> <span id="aiOptBadge">Analyzing Synergy</span>
+                                </div>
+                                <div id="aiOptEta" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); font-family: monospace;">
+                                    Elapsed: 0s
                                 </div>
                             </div>
-                            <div class="collection-progress-labels">
-                                <span id="aiOptDetail" style="font-weight: 700; color: #c084fc;">Scanning card synergies...</span>
-                                <span id="aiOptPct" style="font-weight: 800; font-size: 1.1rem; color: var(--text-color); font-family: monospace;">15%</span>
-                                <span id="aiOptPhase" style="color: var(--text-muted); font-family: monospace;">Phase 1 / 4</span>
-                            </div>
-                        </div>
 
-                        <div class="collection-milestones">
-                            <div class="milestone-step active" id="aiStepCurve">
-                                <span class="milestone-num">1</span>
-                                <span class="milestone-txt">Mana Curve</span>
+                            <h3 id="aiOptTitle" style="margin: 0 0 0.4rem 0; font-size: 1.35rem; font-weight: 800; color: var(--text-color); text-align: left;">
+                                Optimizing "${escapeHtml(targetDeck.name)}"...
+                            </h3>
+                            <p id="aiOptStatus" style="margin: 0 0 1.25rem 0; font-size: 0.92rem; color: var(--text-muted); line-height: 1.4; text-align: left;">
+                                ${targetDeck.commander ? `<span style="color: #c084fc; font-weight: 700;">👑 ${escapeHtml(targetDeck.commander)}</span> • ` : ''}${activeAiDeckGoal ? `Aim: "${escapeHtml(activeAiDeckGoal)}" • ` : ''}Scanning your collection for high-synergy upgrades...
+                            </p>
+
+                            <div class="collection-progress-wrap">
+                                <div class="collection-progress-track">
+                                    <div id="aiOptBarFill" class="collection-progress-fill" style="width: 15%; background: linear-gradient(90deg, #8b5cf6, #ec4899);">
+                                        <div class="collection-progress-shimmer"></div>
+                                    </div>
+                                </div>
+                                <div class="collection-progress-labels">
+                                    <span id="aiOptDetail" style="font-weight: 700; color: #c084fc;">Scanning card synergies...</span>
+                                    <span id="aiOptPct" style="font-weight: 800; font-size: 1.1rem; color: var(--text-color); font-family: monospace;">15%</span>
+                                    <span id="aiOptPhase" style="color: var(--text-muted); font-family: monospace;">Phase 1 / 4</span>
+                                </div>
                             </div>
-                            <div class="milestone-step" id="aiStepPool">
-                                <span class="milestone-num">2</span>
-                                <span class="milestone-txt">Unused Cards</span>
+
+                            <div class="collection-milestones">
+                                <div class="milestone-step active" id="aiStepCurve">
+                                    <span class="milestone-num">1</span>
+                                    <span class="milestone-txt">Mana Curve</span>
+                                </div>
+                                <div class="milestone-step" id="aiStepPool">
+                                    <span class="milestone-num">2</span>
+                                    <span class="milestone-txt">EDHREC Meta</span>
+                                </div>
+                                <div class="milestone-step" id="aiStepSynergy">
+                                    <span class="milestone-num">3</span>
+                                    <span class="milestone-txt">Synergy Engine</span>
+                                </div>
+                                <div class="milestone-step" id="aiStepRecommend">
+                                    <span class="milestone-num">4</span>
+                                    <span class="milestone-txt">AI Swaps</span>
+                                </div>
                             </div>
-                            <div class="milestone-step" id="aiStepSynergy">
-                                <span class="milestone-num">3</span>
-                                <span class="milestone-txt">Synergy Engine</span>
-                            </div>
-                            <div class="milestone-step" id="aiStepRecommend">
-                                <span class="milestone-num">4</span>
-                                <span class="milestone-txt">AI Swaps</span>
-                            </div>
-                        </div>
-                    </div>`;
+                        </div>`;
+                }
+
+                runAiDeckAnalysis();
+            } catch (err) {
+                console.error("startAiAnalysis failed:", err);
+                renderAiError(err.message || "Failed to initialize AI optimizer.");
             }
-
-            runAiDeckAnalysis();
         }
 
         function closeAiOptimizer() {
@@ -6909,10 +6991,10 @@
                 if (elapsed >= 1 && elapsed < 3) {
                     aiPct = Math.min(48, aiPct + 6);
                     aiStep = 2;
-                    if (detailEl) detailEl.textContent = 'Filtering unused collection cards...';
+                    if (detailEl) detailEl.textContent = 'Querying commander staples from EDHREC...';
                     if (phaseEl) phaseEl.textContent = 'Phase 2 / 4';
-                    if (statusEl) statusEl.textContent = 'Identifying unused singles matching commander color identity...';
-                    if (badgeEl) badgeEl.textContent = 'Inventory Filter';
+                    if (statusEl) statusEl.textContent = 'Matching your unused collection against top EDHREC commander decklists...';
+                    if (badgeEl) badgeEl.textContent = 'EDHREC Meta';
                 } else if (elapsed >= 3 && elapsed < 6) {
                     aiPct = Math.min(78, aiPct + 4);
                     aiStep = 3;
@@ -7101,6 +7183,7 @@
                                 <span class="card-name" style="font-size: 1.08rem; font-weight: 800;" onclick="openInScryfall('${sug.addCardName.replace(/'/g, "\\'")}', event)" onmouseenter="bindHoverName(this, '${sug.addCardName.replace(/'/g, "\\'")}')" title="Click to view on Scryfall • Hover to preview card">${sug.addCardName} <span style="font-size: 0.75rem; color: #a855f7; opacity: 0.85;">↗</span></span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                                ${sug.cmdrSynergyBadge ? `<span class="badge" style="background: rgba(245, 158, 11, 0.16); border: 1px solid rgba(245, 158, 11, 0.38); color: #fbbf24; font-weight: 700;">${escapeHtml(sug.cmdrSynergyBadge)}</span>` : ''}
                                 ${sug.category ? `<span class="badge" style="background: var(--card-hover); color: var(--text-color);">${sug.category}</span>` : ''}
                                 <span class="ai-impact-badge ${impactClass}">${impactLabel}</span>
                             </div>
@@ -7182,7 +7265,7 @@
                 return;
             }
 
-            const targetDeck = currentDecksData.find(d => d.id === activeAiDeckId);
+            const targetDeck = currentDecksData.find(d => String(d.id) === String(activeAiDeckId));
             const deckName = targetDeck ? targetDeck.name : 'Deck';
 
             let text = `=== Gemini AI Suggested Improvements for ${deckName} ===\n`;

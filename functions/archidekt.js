@@ -6,7 +6,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { parseCards, normalizeMoxfield, enrichCardsWithScryfall, parseDecklistText, parseDeckIdentifier } = require("./parsers.js");
-const { fetchEdhrecRanks } = require("./edhrec.js");
+const { fetchEdhrecRanks, fetchCommanderCommonCards } = require("./edhrec.js");
 const { fetchAllSets, fetchSetCards, compareCollectionToSet } = require("./sets.js");
 const { computeCollectionInsights, normalizeColorCodes, resolveCardColors } = require("./insights.js");
 const { DEFAULT_HEADERS, fetchWithRetry, runWithConcurrency } = require("./http.js");
@@ -921,10 +921,10 @@ exports.compareDecks = onRequest({ cors: true, timeoutSeconds: 300, memory: "512
         // --- 5. Discover Commanders & Fetch EDHREC Popularity Ranks ---
         const potentialCommanderNames = new Set();
         for (const card of Object.values(collection)) {
-            if (card.isCommander) potentialCommanderNames.add(card.originalName);
+            if (card.isCommander || card.canBeCommander) potentialCommanderNames.add(card.originalName);
         }
         for (const card of Object.values(allDeckCards)) {
-            if (card.isCommander) potentialCommanderNames.add(card.originalName);
+            if (card.isCommander || card.canBeCommander) potentialCommanderNames.add(card.originalName);
         }
 
         const edhrecRanks = (sortCommanders !== false)
@@ -940,6 +940,48 @@ exports.compareDecks = onRequest({ cors: true, timeoutSeconds: 300, memory: "512
         for (const deckEntry of parsedDecksList) {
             const rawDeck = deckEntry.raw;
             const parsedCards = deckEntry.parsedCards;
+
+            // Detect explicit commander(s) from categories or deck metadata
+            let explicitCommanders = [];
+            for (const [cleanName, cardData] of Object.entries(parsedCards)) {
+                if (cardData.isCommander || cardData.category === 'Commander') {
+                    explicitCommanders.push(cardData.originalName);
+                }
+            }
+
+            // Fallback commander resolution ONLY if deck has no explicit commander category (e.g. unformatted paste)
+            if (explicitCommanders.length === 0) {
+                const deckNameLower = (rawDeck.name || '').toLowerCase();
+                const candidates = Object.values(parsedCards).filter(c => c.canBeCommander);
+                // 1. Deck title matching card name (e.g. "Wilhelt Zombie Tribal" -> "Wilhelt, the Rotcleaver")
+                const nameMatch = candidates.find(c => {
+                    const cLower = c.originalName.toLowerCase();
+                    const firstName = cLower.split(',')[0].trim();
+                    return deckNameLower.includes(cLower) || (firstName.length >= 4 && deckNameLower.includes(firstName));
+                });
+                if (nameMatch) {
+                    explicitCommanders.push(nameMatch.originalName);
+                    const cKey = normalizeCardName(nameMatch.originalName);
+                    if (parsedCards[cKey]) {
+                        parsedCards[cKey].isCommander = true;
+                        parsedCards[cKey].category = 'Commander';
+                    }
+                } else if (candidates.length > 0) {
+                    // 2. Highest EDHREC commander popularity (lowest rank number)
+                    candidates.sort((a, b) => {
+                        const rankA = (edhrecRanks && edhrecRanks[normalizeCardName(a.originalName)]) || a.edhrecRank || 999999;
+                        const rankB = (edhrecRanks && edhrecRanks[normalizeCardName(b.originalName)]) || b.edhrecRank || 999999;
+                        return rankA - rankB;
+                    });
+                    const chosen = candidates[0];
+                    explicitCommanders.push(chosen.originalName);
+                    const cKey = normalizeCardName(chosen.originalName);
+                    if (parsedCards[cKey]) {
+                        parsedCards[cKey].isCommander = true;
+                        parsedCards[cKey].category = 'Commander';
+                    }
+                }
+            }
 
             const deckCards = [];
             let deckTotalCards = 0;
@@ -969,20 +1011,21 @@ exports.compareDecks = onRequest({ cors: true, timeoutSeconds: 300, memory: "512
                     owned: ownedInCollection,
                     missing: missingForDeck,
                     status: status,
-                    category: cardData.category || "Other",
+                    category: cardData.isCommander ? 'Commander' : (cardData.category || "Other"),
                     colors: cardData.colors || [],
                     typeLine: cardData.typeLine || "",
                     manaCost: cardData.manaCost || "",
-                    isCommander: Boolean(cardData.isCommander || edhrecRanks[cleanName]),
+                    isCommander: Boolean(cardData.isCommander),
+                    canBeCommander: Boolean(cardData.canBeCommander),
                     edhrecRank: cardData.edhrecRank || null
                 });
             }
 
-            // Sort cards: Category and Name
-            const categoryOrder = { 'Creatures': 1, 'Planeswalkers': 2, 'Instants': 3, 'Sorceries': 4, 'Artifacts': 5, 'Enchantments': 6, 'Battles': 7, 'Lands': 8, 'Sideboard': 9, 'Maybeboard': 10, 'Other': 11 };
+            // Sort cards: Category (Commanders first) and Name
+            const categoryOrder = { 'Commander': 0, 'Creatures': 1, 'Planeswalkers': 2, 'Instants': 3, 'Sorceries': 4, 'Artifacts': 5, 'Enchantments': 6, 'Battles': 7, 'Lands': 8, 'Sideboard': 9, 'Maybeboard': 10, 'Other': 11 };
             deckCards.sort((a, b) => {
-                const catA = categoryOrder[a.category] || 99;
-                const catB = categoryOrder[b.category] || 99;
+                const catA = categoryOrder[a.category] !== undefined ? categoryOrder[a.category] : 99;
+                const catB = categoryOrder[b.category] !== undefined ? categoryOrder[b.category] : 99;
                 if (catA !== catB) return catA - catB;
                 return a.name.localeCompare(b.name);
             });
@@ -1000,6 +1043,8 @@ exports.compareDecks = onRequest({ cors: true, timeoutSeconds: 300, memory: "512
                 ownedCards: deckOwnedCards,
                 missingCards: deckMissingCards,
                 percentComplete: pctComplete,
+                commander: explicitCommanders[0] || null,
+                commanders: explicitCommanders,
                 cards: deckCards
             });
 
@@ -1300,7 +1345,76 @@ exports.suggestImprovements = onRequest({ cors: true, timeoutSeconds: 120, memor
         const rawFormat = deck.deckFormat !== undefined ? deck.deckFormat : (deck.format !== undefined ? deck.format : 'Commander');
         const deckFormat = typeof rawFormat === 'number' ? (formatIdMap[rawFormat] || `Format #${rawFormat}`) : String(rawFormat || 'Commander');
         const formatLower = deckFormat.toLowerCase();
-        const commanders = deck.commanders || deck.commander || [];
+
+        // 1b. Robust Commander Detection
+        let commanderList = [];
+        if (Array.isArray(deck.commanders) && deck.commanders.length > 0) {
+            commanderList = deck.commanders.map(c => typeof c === 'string' ? c : (c?.name || ''));
+        } else if (typeof deck.commander === 'string' && deck.commander.trim()) {
+            commanderList = [deck.commander.trim()];
+        } else if (deck.commander && deck.commander.name) {
+            commanderList = [deck.commander.name];
+        }
+
+        const dNameLower = (deckName || '').toLowerCase();
+        const markedCmdrs = deckCards.filter(c => c.isCommander === true);
+        const strictCategoryCmdrs = deckCards.filter(c => c.category === 'Commander' || (Array.isArray(c.categories) && c.categories.map(cat => (cat || '').toString().toLowerCase()).includes('commander')));
+
+        // If commander is unknown, or if deck had > 2 cards marked isCommander (the old-scanned bug where every legendary creature was marked):
+        if (commanderList.length === 0 || markedCmdrs.length > 2) {
+            if (strictCategoryCmdrs.length >= 1 && strictCategoryCmdrs.length <= 2) {
+                commanderList = strictCategoryCmdrs.map(c => c.name);
+            } else {
+                const eligible = deckCards.filter(c => {
+                    const tl = (c.typeLine || '').toLowerCase();
+                    return c.isCommander || c.canBeCommander || (tl.includes('legendary') && tl.includes('creature')) || tl.includes('can be your commander');
+                });
+
+                // 1. Check if deck title matches any candidate commander (e.g. "Wilhelt Zombie Swarm" matches "Wilhelt, the Rotcleaver")
+                const nameMatch = eligible.find(c => {
+                    const cLower = (c.name || '').toLowerCase();
+                    const first = cLower.split(',')[0].trim();
+                    return dNameLower.includes(cLower) || (first.length >= 4 && dNameLower.includes(first));
+                });
+
+                if (nameMatch) {
+                    commanderList = [nameMatch.name];
+                } else if (markedCmdrs.length >= 1 && markedCmdrs.length <= 2) {
+                    commanderList = markedCmdrs.map(c => c.name);
+                } else if (eligible.length > 0) {
+                    // Fallback to highest EDHREC popularity rank (lowest number)
+                    eligible.sort((a, b) => (a.edhrecRank || a.edhrecCommanderRank || 999999) - (b.edhrecRank || b.edhrecCommanderRank || 999999));
+                    commanderList = [eligible[0].name];
+                }
+            }
+        }
+        commanderList = commanderList.filter(Boolean);
+        const primaryCommander = commanderList[0] || null;
+
+        // Backward compatibility cleanup for already-scanned decks:
+        // Ensure legendary creatures in the 99 are NOT flagged as isCommander so they can be upgraded/swapped!
+        if (primaryCommander && Array.isArray(deck.cards)) {
+            deckCards.forEach(c => {
+                const isCmdr = commanderList.some(cmdr => cmdr.toLowerCase() === (c.name || '').toLowerCase());
+                c.isCommander = isCmdr;
+                if (isCmdr) {
+                    c.category = 'Commander';
+                } else if (c.category === 'Commander') {
+                    c.category = 'Creatures';
+                }
+            });
+        }
+
+        // 1c. Fetch Commander Meta & Commonly Used Cards from EDHREC
+        let commanderMeta = { totalDecks: 0, rank: null, cards: new Map(), cardList: [] };
+        if (primaryCommander) {
+            try {
+                commanderMeta = await fetchCommanderCommonCards(primaryCommander);
+                console.log(`[EDHREC] Retrieved ${commanderMeta.cards.size} common cards for commander "${primaryCommander}" (${commanderMeta.totalDecks} decks).`);
+            } catch (err) {
+                console.warn(`[EDHREC] Could not load common cards for "${primaryCommander}":`, err.message || err);
+            }
+        }
 
         const deckColorSet = new Set();
         (deck.colors || []).forEach(c => deckColorSet.add(c.toUpperCase()));
@@ -1350,6 +1464,16 @@ exports.suggestImprovements = onRequest({ cors: true, timeoutSeconds: 120, memor
             }
             if (!isColorCompatible) return;
 
+            // Check if card is commonly played with this commander on EDHREC
+            const cmdrCardData = commanderMeta.cards.get(clean) || null;
+            const isCmdrSynergy = Boolean(cmdrCardData && cmdrCardData.isHighSynergy);
+            const isCmdrTopCard = Boolean(cmdrCardData && cmdrCardData.isTopCard);
+            const cmdrInclusionPct = cmdrCardData ? cmdrCardData.inclusionPct : 0;
+            const cmdrSynergyVal = cmdrCardData ? cmdrCardData.synergy : 0;
+            const cmdrNumDecks = cmdrCardData ? cmdrCardData.numDecks : 0;
+            const cmdrTag = cmdrCardData ? (cmdrCardData.header || cmdrCardData.tag) : null;
+            const cmdrSynergyScore = (cmdrSynergyVal * 100) + (cmdrInclusionPct * 0.5);
+
             candidates.push({
                 name: c.originalName || c.name,
                 typeLine: c.typeLine || c.category || 'Spell',
@@ -1358,16 +1482,34 @@ exports.suggestImprovements = onRequest({ cors: true, timeoutSeconds: 120, memor
                 colors: c.colors || [],
                 owned: owned,
                 available: availableUnused,
-                edhrecRank: c.edhrecRank || c.edhrecCommanderRank || 999999
+                edhrecRank: c.edhrecRank || c.edhrecCommanderRank || 999999,
+                cmdrCardData: cmdrCardData ? {
+                    synergyPercent: cmdrCardData.synergyPercent,
+                    inclusionPct: cmdrInclusionPct,
+                    numDecks: cmdrNumDecks,
+                    tag: cmdrTag,
+                    isHighSynergy: isCmdrSynergy,
+                    isTopCard: isCmdrTopCard
+                } : null,
+                cmdrSynergyScore
             });
         });
 
-        // Sort candidates by popularity / power (EDHREC rank)
-        candidates.sort((a, b) => a.edhrecRank - b.edhrecRank);
+        // Sort candidates: heavily prioritize cards specifically common / synergistic with this commander on EDHREC,
+        // then fall back to overall EDHREC popularity rank.
+        candidates.sort((a, b) => {
+            if (a.cmdrCardData && b.cmdrCardData) {
+                return b.cmdrSynergyScore - a.cmdrSynergyScore;
+            }
+            if (a.cmdrCardData && !b.cmdrCardData) return -1;
+            if (!a.cmdrCardData && b.cmdrCardData) return 1;
+            return a.edhrecRank - b.edhrecRank;
+        });
+
         // Top Candidates pool
         const topCandidates = candidates.slice(0, 150);
 
-        console.log(`[AI] Analyzing deck "${deckName}" (${deckFormat}) with ${deckCards.length} cards against ${topCandidates.length} candidate collection cards. Stated Goal: "${deckGoal || 'General Optimization'}"`);
+        console.log(`[AI] Analyzing deck "${deckName}" (${deckFormat}) with ${deckCards.length} cards against ${topCandidates.length} candidate collection cards. Commander: "${primaryCommander || 'None'}" (${commanderMeta.cards.size} EDHREC matches). Stated Goal: "${deckGoal || 'General Optimization'}"`);
 
         let analysis = null;
 
@@ -1381,9 +1523,19 @@ Analyze the following deck and determine if any cards from the player's availabl
 DECK INFORMATION:
 - Name: "${deckName}"
 - Format: ${deckFormat}
-- Commander(s): ${commanders.length > 0 ? (Array.isArray(commanders) ? commanders.join(', ') : commanders) : 'None / Standard Deck'}
+- Commander(s): ${commanderList.length > 0 ? commanderList.join(', ') : 'None / Standard Deck'}
 - Colors: ${deckColors.join(', ') || 'Colorless'}
 - Total Cards in Deck: ${deckCards.reduce((acc, c) => acc + (c.quantity || 1), 0)}
+${primaryCommander && commanderMeta.totalDecks > 0 ? `
+COMMANDER META INSIGHTS (From EDHREC):
+- Commander: "${primaryCommander}" (Found across ${commanderMeta.totalDecks.toLocaleString()} recorded decks)
+${topCandidates.filter(c => c.cmdrCardData).length > 0 ? `
+The player OWNS the following high-synergy / commonly-played cards for "${primaryCommander}" in their collection that are NOT yet in the deck:
+${topCandidates.filter(c => c.cmdrCardData).slice(0, 20).map(c => `- ${c.name} (${c.typeLine}, Cost: ${c.manaCost || 'N/A'}) -> Played in ${c.cmdrCardData.inclusionPct}% of ${primaryCommander} decks (${c.cmdrCardData.numDecks.toLocaleString()} decks), Synergy: ${c.cmdrCardData.synergyPercent >= 0 ? '+' : ''}${c.cmdrCardData.synergyPercent}% [${c.cmdrCardData.tag || 'Commander Staple'}]`).join('\n')}
+
+CRITICAL INSTRUCTION: Heavily prioritize recommending these proven ${primaryCommander} commander staples from the player's collection whenever they fit the deck's gameplan and curve! In "whyAdd" and "whySwap", mention their specific EDHREC inclusion rate or synergy with ${primaryCommander}. Include "cmdrSynergyBadge" in each suggestion if it is a commander staple (e.g. "🔥 In ${topCandidates.filter(c => c.cmdrCardData)[0]?.cmdrCardData?.inclusionPct || 65}% of ${primaryCommander} decks").
+` : ''}
+` : ''}
 
 PLAYER'S CUSTOM DECK GOAL & STRATEGY FOCUS:
 "${deckGoal ? deckGoal : 'Synergy maximization, curve lowering, gameplan consistency, and strategic upgrades.'}"
@@ -1392,16 +1544,17 @@ CURRENT DECK CARD LIST:
 ${deckCards.map(c => `- ${c.quantity || 1}x ${c.name} (${c.typeLine || c.category || 'Spell'}, Cost: ${c.manaCost || 'N/A'}, Category: ${c.category || 'Main'})`).join('\n')}
 
 AVAILABLE COLLECTION CARDS (Candidates to consider adding):
-${topCandidates.length > 0 ? topCandidates.map(c => `- ${c.name} (${c.typeLine}, Cost: ${c.manaCost || 'N/A'})`).join('\n') : 'No unused compatible cards in collection.'}
+${topCandidates.length > 0 ? topCandidates.map(c => `- ${c.name} (${c.typeLine}, Cost: ${c.manaCost || 'N/A'})${c.cmdrCardData ? ` [Common in ${primaryCommander} decks: ${c.cmdrCardData.inclusionPct}%, Synergy ${c.cmdrCardData.synergyPercent >= 0 ? '+' : ''}${c.cmdrCardData.synergyPercent}%]` : ''}`).join('\n') : 'No unused compatible cards in collection.'}
 
 CRITICAL RULES & INSTRUCTIONS:
-1. FOCUS ON TRUE DECK SYNERGY AND THE PLAYER'S STATED GOAL. DO NOT simply recommend generic EDHREC staples (like Sol Ring or Arcane Signet) unless they directly and uniquely advance this specific deck's theme, mechanic, or tribe.
+1. FOCUS ON TRUE DECK SYNERGY, THE COMMANDER'S CORE GAMEPLAN, AND THE PLAYER'S STATED GOAL. Prioritize cards that are specifically proven staples or high-synergy tech for ${primaryCommander || 'this deck'}.
 2. Examine the deck's gameplan, creature types/tribes, synergies, curve, card advantage, interaction, and win conditions.
 3. Select between 0 and 6 meaningful upgrade cards STRICTLY from the "AVAILABLE COLLECTION CARDS" list that make genuine sense in this deck.
 4. For each recommended card to add:
    - Identify the BEST specific card currently in the deck to CUT/SWAP out (e.g. an off-tribe creature, an inefficient high-CMC spell, or a redundant piece).
    - In "whyAdd", explain specifically how the card's mechanics, keywords, and abilities synergize with the deck and fulfill the player's goal. AVOID generic filler phrases.
    - In "whySwap", provide a direct comparative analysis between [recommendedCut] and [addCardName] (comparing mana cost, speed, synergy, and game impact).
+   - If the card is commonly run with this commander, provide a "cmdrSynergyBadge" string (e.g. "🔥 In 78% of ${primaryCommander || 'Commander'} decks").
    - Provide 1-2 alternative cuts from the deck.
 5. If the deck is already optimal for the stated goal and no collection cards improve it, set "hasImprovements" to false and write a detailed "noImprovementsReason".
 6. Return ONLY a valid JSON object matching the schema below.
@@ -1415,8 +1568,9 @@ JSON SCHEMA:
   "suggestions": [
     {
       "addCardName": "Exact name of card from available collection to add",
-      "category": "Category name (e.g. Tribal Synergy, Card Advantage, Interaction & Removal, Mana Ramp, Synergy Engine, Win Condition, Mana Base)",
+      "category": "Category name (e.g. Commander Staple, Tribal Synergy, Card Advantage, Interaction & Removal, Mana Ramp, Synergy Engine, Win Condition, Mana Base)",
       "impactRating": "High" | "Medium" | "Synergy",
+      "cmdrSynergyBadge": "Optional string e.g. '🔥 In 78% of decks (+45% synergy)' if card is an EDHREC commander staple",
       "whyAdd": "Detailed, specific MTG mechanical explanation of why this card belongs in this deck.",
       "recommendedCut": "Exact name of a card currently in the deck to remove",
       "whySwap": "Detailed comparative analysis of why replacing [recommendedCut] with [addCardName] elevates the deck's performance.",
@@ -1451,7 +1605,7 @@ JSON SCHEMA:
 
         // If no Gemini key or Gemini fallback, run the Comprehensive MTG Synergy Engine
         if (!analysis) {
-            analysis = generateBuiltInImprovements(deck, collection, deckColors, candidates, deckGoal);
+            analysis = generateBuiltInImprovements(deck, collection, deckColors, candidates, deckGoal, commanderMeta, primaryCommander);
             analysis.engine = 'synergy_analyzer';
         }
 
@@ -1572,10 +1726,10 @@ function detectDeckTribe(deckCards, commanders) {
     return detectedTribe ? { tribe: detectedTribe.charAt(0).toUpperCase() + detectedTribe.slice(1), count: maxCount } : null;
 }
 
-function generateBuiltInImprovements(deck, collection, deckColors, candidates, deckGoal) {
+function generateBuiltInImprovements(deck, collection, deckColors, candidates, deckGoal, commanderMeta, primaryCommander) {
     const deckCards = deck.cards || [];
     const deckName = deck.name || "My Deck";
-    const commanders = Array.isArray(deck.commanders) ? deck.commanders : (deck.commander ? [deck.commander] : []);
+    const commanders = primaryCommander ? [primaryCommander] : (Array.isArray(deck.commanders) ? deck.commanders : (deck.commander ? [deck.commander] : []));
 
     const tribeInfo = detectDeckTribe(deckCards, commanders);
     const primaryTribe = tribeInfo ? tribeInfo.tribe : null;
@@ -1595,6 +1749,49 @@ function generateBuiltInImprovements(deck, collection, deckColors, candidates, d
     const suggestions = [];
     const usedCuts = new Set();
     const usedAdds = new Set();
+
+    // 0. High-Priority Commander Meta Staples (from EDHREC)
+    if (primaryCommander && commanderMeta && commanderMeta.cards && commanderMeta.cards.size > 0) {
+        const cmdrAdds = classifiedCollection
+            .filter(c => c.cmdrCardData && (c.cmdrCardData.inclusionPct >= 25 || c.cmdrCardData.isHighSynergy || c.cmdrCardData.isTopCard) && !usedAdds.has(c.name))
+            .sort((a, b) => (b.cmdrSynergyScore || 0) - (a.cmdrSynergyScore || 0));
+
+        for (const addCard of cmdrAdds) {
+            if (suggestions.length >= 5) break;
+
+            // Find a cut in the deck: prefer clunky tier cards, off-tribe cards, or vanilla chaff
+            let cutCard = classifiedDeck.find(c => !usedCuts.has(c.name) && !c.isCommander && c.name !== primaryCommander && (c.meta.tier === 'clunky_interaction' || c.meta.tier === 'clunky_ramp' || c.meta.tier === 'clunky_draw' || c.meta.tier === 'clunky_wipe' || c.meta.tier === 'vanilla_chaff'));
+
+            if (!cutCard) {
+                // Otherwise find highest CMC non-land card in deck that is higher CMC than addCard
+                cutCard = classifiedDeck.find(c => !usedCuts.has(c.name) && !c.isCommander && c.name !== primaryCommander && c.meta.role !== 'Lands' && c.meta.cmc >= addCard.meta.cmc);
+            }
+
+            if (!cutCard) {
+                cutCard = classifiedDeck.find(c => !usedCuts.has(c.name) && !c.isCommander && c.name !== primaryCommander && c.meta.role !== 'Lands');
+            }
+
+            if (cutCard) {
+                usedAdds.add(addCard.name);
+                usedCuts.add(cutCard.name);
+
+                const badge = `🔥 In ${addCard.cmdrCardData.inclusionPct}% of ${primaryCommander} decks${addCard.cmdrCardData.synergyPercent > 0 ? ` (+${addCard.cmdrCardData.synergyPercent}% synergy)` : ''}`;
+                const whyAdd = `Proven staple for ${primaryCommander} on EDHREC (played in ${addCard.cmdrCardData.inclusionPct}% of decks${addCard.cmdrCardData.synergyPercent > 0 ? ` with +${addCard.cmdrCardData.synergyPercent}% synergy` : ''}). Directly synergizes with your commander's strategy.`;
+                const whySwap = `Swapping out ${cutCard.name} for ${addCard.name} replaces a lower-impact card with one of the most tested, proven staples specifically run in ${primaryCommander} decks.`;
+
+                suggestions.push({
+                    addCardName: addCard.name,
+                    category: addCard.cmdrCardData.tag || addCard.meta.role || "Commander Staple",
+                    impactRating: "High",
+                    cmdrSynergyBadge: badge,
+                    whyAdd,
+                    recommendedCut: cutCard.name,
+                    whySwap,
+                    alternativeCuts: classifiedDeck.filter(c => c.name !== cutCard.name && !c.isCommander && c.meta.role !== 'Lands').slice(0, 2).map(c => c.name)
+                });
+            }
+        }
+    }
 
     // 1. Check for Direct 1-to-1 Functional Role Upgrades
     const upgradePairs = [

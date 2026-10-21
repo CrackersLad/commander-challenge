@@ -75,8 +75,9 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=8.8">
-    <link rel="stylesheet" href="collection-hub.css?v=8.8">
+    <link rel="stylesheet" href="styles.css?v=8.12">
+    <link rel="stylesheet" href="collection-hub.css?v=8.12">
+    <link rel="stylesheet" href="commander-arena.css?v=8.12">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -104,6 +105,9 @@
             <div class="nav-dropdown-wrapper">
                 <button class="nav-icon-btn draft-nav-btn" onclick="window.toggleNavMenu('playMenu', event)" title="Start Playing"><span>⚔️</span><span class="nav-btn-text"> Play</span> ▾</button>
                 <div id="playMenu" class="nav-popup-menu" style="display: none;">
+                    <div class="nav-popup-item" onclick="window.openCommanderArena(); window.closeAllNavMenus();" style="background: rgba(168, 85, 247, 0.12); font-weight: 700; color: #c084fc;">
+                        <span>👑</span> Commander Arena (Bot Simulator)
+                    </div>
                     <div class="nav-popup-item" onclick="window.goToMainMenu(); window.scrollToSection('section-play'); window.closeAllNavMenus();">
                         <span>⚔️</span> Commander Challenge
                     </div>
@@ -648,13 +652,13 @@
                     <button class="select-btn action-cta-btn" onclick="window.openBoosterSimulator(); event.stopPropagation();">Crack Some Packs</button>
                 </div>
 
-                <!-- Tile 4: Solo Playtester [Desktop Only] -->
-                <div class="action-card action-card-arena desktop-only-playtester" onclick="window.openPlaytester()">
-                    <div class="action-card-badge arena-badge">Cloud Arena</div>
+                <!-- Tile 4: Commander Arena (Bot Simulator) -->
+                <div class="action-card action-card-arena" onclick="window.openCommanderArena()">
+                    <div class="action-card-badge arena-badge">👑 Web Arena</div>
                     <div class="action-card-icon">⚔️</div>
-                    <h3 class="action-card-title">Solo Playtester</h3>
-                    <p class="action-card-desc">Play and test your Commander or 60-card decks against automated Forge practice bots directly in your browser. Full MTG rules engine, priority, triggers, and combat.</p>
-                    <button class="select-btn action-cta-btn" onclick="window.openPlaytester(); event.stopPropagation();">Launch Playtester ↗</button>
+                    <h3 class="action-card-title">Commander Arena</h3>
+                    <p class="action-card-desc">Simulate and test your decks against automated AI bots in a full 4-player Commander pod. Instant combat math, priority stack, and commander tax tracking directly in your browser!</p>
+                    <button class="select-btn action-cta-btn" onclick="window.openCommanderArena(); event.stopPropagation();">Launch Arena ⚔️</button>
                 </div>
             </div>
 
@@ -2825,7 +2829,7 @@
         </div>
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy. Not approved or endorsed by Wizards of the Coast. Portions of materials used are property of Wizards of the Coast LLC. © Wizards of the Coast LLC.</p>
         <p class="footer-subtext">Card data, symbols, and high-resolution imagery provided by the <a href="https://scryfall.com" target="_blank" rel="noopener">Scryfall API</a> under Community Guidelines. Non-commercial community tool.</p>
-        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v8.8</span>
+        <span id="appVersion" class="version-tag" onclick="window.enterAdminMode()" title="Admin Access">v8.12</span>
     </footer>
 
     <!-- Feedback & Bug Report Modal -->
@@ -2932,7 +2936,9 @@
         </button>
     </nav>
 
-    <script src="./collection-hub.js?v=8.8"></script>
-    <script type="module" src="./script.js?v=8.8"></script>
+    <script src="./commander-engine.js?v=8.12"></script>
+    <script src="./commander-arena.js?v=8.12"></script>
+    <script src="./collection-hub.js?v=8.12"></script>
+    <script type="module" src="./script.js?v=8.12"></script>
 </body>
 </html>

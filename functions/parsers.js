@@ -75,6 +75,7 @@ function parseDeckIdentifier(input) {
  */
 function categorizeCard(typeLine = '', existingCategories = []) {
     const catsLower = existingCategories.map(c => (c || '').toString().toLowerCase());
+    if (catsLower.includes('commander')) return 'Commander';
     if (catsLower.includes('sideboard')) return 'Sideboard';
     if (catsLower.includes('maybeboard') || catsLower.includes('considering')) return 'Maybeboard';
 
@@ -88,7 +89,7 @@ function categorizeCard(typeLine = '', existingCategories = []) {
     if (t.includes('land')) return 'Lands';
     if (t.includes('battle')) return 'Battles';
 
-    if (existingCategories.length > 0 && !catsLower.includes('commander')) return existingCategories[0];
+    if (existingCategories.length > 0) return existingCategories[0];
     return 'Other';
 }
 
@@ -170,8 +171,14 @@ function parseCards(jsonData, options = {}) {
                 const canBeCommanderText = oracleText.includes('can be your commander');
                 const isCommanderCategory = categoriesLower.includes('commander');
 
-                // In MTG Commander rules, only legendary creatures and cards with explicit "can be your commander" text are commanders
-                const isCommander = (isLegendary && isCreature) || canBeCommanderText || isCommanderCategory;
+                // In MTG rules, legendary creatures and cards with explicit "can be your commander" text can be commanders.
+                const canBeCommander = (isLegendary && isCreature) || canBeCommanderText || isCommanderCategory;
+
+                // When parsing a deck, ONLY cards explicitly assigned to the Commander slot/category are commanders.
+                // When parsing a collection, any eligible legendary creature is flagged as canBeCommander / isCommander.
+                const isCommander = options.isDeck
+                    ? Boolean(isCommanderCategory || item.isCommander || cardInfo.isCommander)
+                    : canBeCommander;
 
                 const rawSet = (
                     cardInfo.edition?.editioncode ||
@@ -208,10 +215,11 @@ function parseCards(jsonData, options = {}) {
                     foil: isFoil,
                     colors: parsedColors,
                     isCommander: isCommander,
+                    canBeCommander: canBeCommander,
                     edhrecRank: oracleDataSource.edhrecRank || oracleDataSource.edhrec_rank || null,
                     typeLine: oracleDataSource.type_line || oracleDataSource.typeLine || typeLine,
                     manaCost: oracleDataSource.mana_cost || oracleDataSource.manaCost || '',
-                    category: category,
+                    category: isCommander ? 'Commander' : category,
                     categories: rawCategories
                 };
             }
@@ -397,13 +405,16 @@ async function enrichCardsWithScryfall(cardItems) {
                     const isCreature = typeLine.includes('creature');
                     const canBeCommander = oracleText.includes('can be your commander');
 
+                    const isEligibleCommander = (isLegendary && isCreature) || canBeCommander;
+
                     nameMap.set(normName, {
                         name: scryfallCard.name,
                         type_line: scryfallCard.type_line,
                         mana_cost: scryfallCard.mana_cost || '',
                         color_identity: scryfallCard.color_identity || [],
                         edhrec_rank: scryfallCard.edhrec_rank || null,
-                        isCommander: (isLegendary && isCreature) || canBeCommander
+                        canBeCommander: isEligibleCommander,
+                        isCommander: isEligibleCommander
                     });
                 }
             }

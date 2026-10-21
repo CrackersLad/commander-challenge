@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=8.8';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=8.8';
-import { getArchives } from './data-service.js?v=8.8';
-import { initDeckActionsModule } from './deck-actions.js?v=8.8';
-import { initRoomActionsModule } from './room-actions.js?v=8.8';
-import { initPlayerViewModule } from './player-view.js?v=8.8';
-import { initAdminModule } from './admin.js?v=8.8';
-import { initCalendarModule } from './calendar.js?v=8.8';
-import { initAuthModule } from './auth.js?v=8.8';
-import { initHubModule } from './hub.js?v=8.8';
-import { initProfileModule } from './profile.js?v=8.8';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=8.8';
-import { initWarRoom, openWarRoom } from './war-room.js?v=8.8';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=8.8';
-import { initBoosterDraftModule } from './booster-draft.js?v=8.8';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=8.8';
+import { db, auth, functions } from './firebase-setup.js?v=8.12';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=8.12';
+import { getArchives } from './data-service.js?v=8.12';
+import { initDeckActionsModule } from './deck-actions.js?v=8.12';
+import { initRoomActionsModule } from './room-actions.js?v=8.12';
+import { initPlayerViewModule } from './player-view.js?v=8.12';
+import { initAdminModule } from './admin.js?v=8.12';
+import { initCalendarModule } from './calendar.js?v=8.12';
+import { initAuthModule } from './auth.js?v=8.12';
+import { initHubModule } from './hub.js?v=8.12';
+import { initProfileModule } from './profile.js?v=8.12';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=8.12';
+import { initWarRoom, openWarRoom } from './war-room.js?v=8.12';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=8.12';
+import { initBoosterDraftModule } from './booster-draft.js?v=8.12';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=8.12';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -217,6 +217,7 @@ function sanitizeHTML(str) {
         tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
     );
 }
+window.sanitizeHTML = sanitizeHTML;
 
 function getColorBadges(colors) {
     if (!colors || colors.length === 0) return `<span class="mana-badge mana-C">C</span>`;
@@ -840,6 +841,15 @@ window.executePlaytesterLaunch = async () => {
 };
 
 window.openPlaytester = (deckName = '', deckContent = '', autoStart = false, opponentArchetype = 'tokens') => {
+    // Route to the new lightweight, web-native Commander Arena simulator
+    if (window.openCommanderArena) {
+        if (deckContent || deckName) {
+            window.openCommanderArena({ name: deckName, content: deckContent });
+        } else {
+            window.openCommanderArena();
+        }
+        return;
+    }
     if (window.isMobileDevice()) {
         showToast("⚔️ The Battle Arena requires a desktop/laptop screen with keyboard & mouse and is not supported on mobile devices.", true, 4500);
         return;
@@ -2342,7 +2352,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=8.8').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=8.12').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

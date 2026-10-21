@@ -48,6 +48,100 @@ async function populateTopCommanders() {
 }
 
 /**
+ * In-memory cache for commander details and commonly run cards.
+ */
+const commanderDetailsCache = new Map();
+
+/**
+ * Fetches cards commonly used with a specific commander from EDHREC.
+ * Returns a map of normalized card name to synergy, inclusion, and deck count data.
+ * @param {string} name
+ * @returns {Promise<{ totalDecks: number, rank: number|null, cards: Map<string, object>, cardList: Array<object> }>}
+ */
+async function fetchCommanderCommonCards(name) {
+    if (!name) return { totalDecks: 0, rank: null, cards: new Map(), cardList: [] };
+    const cleanKey = normalizeCardName(name);
+    if (commanderDetailsCache.has(cleanKey)) {
+        return commanderDetailsCache.get(cleanKey);
+    }
+
+    const slug = commanderNameToSlug(name);
+    if (!slug) return { totalDecks: 0, rank: null, cards: new Map(), cardList: [] };
+
+    try {
+        const res = await fetchWithRetry(`https://json.edhrec.com/pages/commanders/${slug}.json`, {
+            headers: DEFAULT_HEADERS,
+            timeoutMs: 4000
+        }, 2);
+
+        if (!res || !res.ok) {
+            const empty = { totalDecks: 0, rank: null, cards: new Map(), cardList: [] };
+            commanderDetailsCache.set(cleanKey, empty);
+            return empty;
+        }
+
+        const data = await res.json();
+        const cardObj = data.container?.json_dict?.card || {};
+        const totalDecks = cardObj.num_decks || 0;
+        const rank = (cardObj.rank !== undefined && cardObj.rank !== null) ? cardObj.rank : null;
+        if (rank !== null) {
+            commanderRankCache.set(cleanKey, rank);
+        }
+
+        const cardlists = data.container?.json_dict?.cardlists || [];
+        const cardsMap = new Map();
+        const cardList = [];
+
+        for (const cl of cardlists) {
+            const header = cl.header || cl.tag || '';
+            const cardviews = cl.cardviews || [];
+            for (const cv of cardviews) {
+                if (!cv.name) continue;
+                const cardClean = normalizeCardName(cv.name);
+                if (cardsMap.has(cardClean)) continue;
+
+                const synergy = typeof cv.synergy === 'number' ? cv.synergy : 0;
+                const numDecks = typeof cv.num_decks === 'number' ? cv.num_decks : 0;
+                const inclusionPct = totalDecks > 0 ? Math.round((numDecks / totalDecks) * 100) : (typeof cv.inclusion === 'number' ? cv.inclusion : 0);
+                const tag = cl.tag || '';
+
+                const entry = {
+                    name: cv.name,
+                    cleanName: cardClean,
+                    synergy,
+                    synergyPercent: Math.round(synergy * 100),
+                    numDecks,
+                    inclusionPct,
+                    header,
+                    tag,
+                    isHighSynergy: synergy >= 0.15 || tag === 'highsynergycards',
+                    isTopCard: tag === 'topcards' || tag === 'highsynergycards' || synergy >= 0.35 || inclusionPct >= 50
+                };
+
+                cardsMap.set(cardClean, entry);
+                cardList.push(entry);
+            }
+        }
+
+        const result = {
+            commanderName: name,
+            totalDecks,
+            rank,
+            cards: cardsMap,
+            cardList
+        };
+
+        commanderDetailsCache.set(cleanKey, result);
+        return result;
+    } catch (err) {
+        console.warn(`[WARN] Could not fetch EDHREC common cards for commander "${name}":`, err.message || err);
+        const fallback = { totalDecks: 0, rank: null, cards: new Map(), cardList: [] };
+        commanderDetailsCache.set(cleanKey, fallback);
+        return fallback;
+    }
+}
+
+/**
  * Fetches an individual commander's rank by slug from EDHREC.
  * @param {string} name
  * @returns {Promise<number|null>}
@@ -58,30 +152,12 @@ async function fetchCommanderRank(name) {
         return commanderRankCache.get(cleanKey);
     }
 
-    const slug = commanderNameToSlug(name);
-    if (!slug) return null;
-
-    try {
-        const res = await fetchWithRetry(`https://json.edhrec.com/pages/commanders/${slug}.json`, {
-            headers: DEFAULT_HEADERS,
-            timeoutMs: 2500
-        }, 1);
-
-        if (!res || !res.ok) {
-            commanderRankCache.set(cleanKey, null);
-            return null;
-        }
-
-        const data = await res.json();
-        const card = data.container?.json_dict?.card;
-        const rank = (card && card.rank !== undefined && card.rank !== null) ? card.rank : null;
-
-        commanderRankCache.set(cleanKey, rank);
-        return rank;
-    } catch (err) {
-        commanderRankCache.set(cleanKey, null);
-        return null;
+    const details = await fetchCommanderCommonCards(name);
+    if (details && details.rank !== null && details.rank !== undefined) {
+        return details.rank;
     }
+
+    return null;
 }
 
 /**
@@ -141,4 +217,4 @@ async function fetchEdhrecRanks(commanderNames = []) {
     }
 }
 
-module.exports = { fetchEdhrecRanks, commanderNameToSlug };
+module.exports = { fetchEdhrecRanks, commanderNameToSlug, fetchCommanderCommonCards };
