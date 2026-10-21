@@ -839,6 +839,33 @@
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.hand-card-cost-tag {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-weight: 800;
+  font-size: 0.62rem;
+  text-align: center;
+  padding: 2px 0;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(4px);
+}
+
+.hand-card.need-mana {
+  opacity: 0.85;
+}
+
+.hand-card.need-mana:hover {
+  opacity: 1;
+  transform: translateY(-8px) scale(1.05);
 }
 
 /* ============================================================================

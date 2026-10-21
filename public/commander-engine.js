@@ -197,11 +197,23 @@
 
     function createCardInstance(rawCard, ownerId) {
         const name = (rawCard.name || 'Unnamed Card').trim();
-        const typeLine = (rawCard.typeLine || rawCard.type || '').trim();
+        const nameLower = name.toLowerCase();
+        // Check if cached metadata is available when rawCard lacks data
+        let cachedMeta = null;
+        if (typeof window !== 'undefined' && window.__MTG_CARD_CACHE__) {
+            cachedMeta = window.__MTG_CARD_CACHE__[nameLower];
+        } else if (typeof global !== 'undefined' && global.__MTG_CARD_CACHE__) {
+            cachedMeta = global.__MTG_CARD_CACHE__[nameLower];
+        }
+
+        const typeLine = (rawCard.typeLine || rawCard.type || (cachedMeta ? cachedMeta.typeLine : '') || '').trim();
         const typeLower = typeLine.toLowerCase();
-        const oracleText = (rawCard.oracleText || rawCard.oracle_text || rawCard.text || '').trim();
-        const manaCostStr = rawCard.manaCost || rawCard.mana_cost || '';
+        const oracleText = (rawCard.oracleText || rawCard.oracle_text || rawCard.text || (cachedMeta ? cachedMeta.oracleText : '') || '').trim();
+        const manaCostStr = rawCard.manaCost || rawCard.mana_cost || (cachedMeta ? cachedMeta.manaCost : '') || '';
         const parsedCost = parseManaCost(manaCostStr);
+        if (rawCard.cmc !== undefined) parsedCost.cmc = rawCard.cmc;
+        else if (cachedMeta && cachedMeta.cmc !== undefined) parsedCost.cmc = cachedMeta.cmc;
+
         const keywords = extractKeywords(oracleText, typeLine);
 
         // Power & Toughness
@@ -210,13 +222,16 @@
         if (rawCard.power !== undefined && rawCard.toughness !== undefined) {
             power = parseInt(rawCard.power, 10) || 0;
             toughness = parseInt(rawCard.toughness, 10) || 0;
+        } else if (cachedMeta && cachedMeta.power !== undefined && cachedMeta.toughness !== undefined) {
+            power = parseInt(cachedMeta.power, 10) || 0;
+            toughness = parseInt(cachedMeta.toughness, 10) || 0;
         } else if (rawCard.pt) {
             const parts = String(rawCard.pt).split('/');
             power = parseInt(parts[0], 10) || 0;
             toughness = parseInt(parts[1], 10) || 0;
         } else {
             // Check regex in text or default based on cmc
-            const ptMatch = (rawCard.text || '').match(/(\d+)\/(\d+)/);
+            const ptMatch = (rawCard.text || oracleText || '').match(/(\d+)\/(\d+)/);
             if (ptMatch && typeLower.includes('creature')) {
                 power = parseInt(ptMatch[1], 10);
                 toughness = parseInt(ptMatch[2], 10);
@@ -227,7 +242,6 @@
         }
 
         // Mechanics classification
-        const nameLower = name.toLowerCase();
         const isLand = rawCard.isLand === true ||
                        rawCard.category === 'Lands' ||
                        rawCard.category === 'Land' ||
@@ -240,6 +254,7 @@
         const isPlaneswalker = typeLower.includes('planeswalker');
         const isInstant = typeLower.includes('instant');
         const isSorcery = typeLower.includes('sorcery');
+        const isPermanent = isLand || isCreature || isArtifact || isEnchantment || isPlaneswalker || (!isInstant && !isSorcery);
         const isCommander = Boolean(rawCard.isCommander || rawCard.category === 'Commander');
 
         // Functional roles
@@ -283,6 +298,7 @@
             isPlaneswalker,
             isInstant,
             isSorcery,
+            isPermanent,
             isCommander,
             // Roles
             isManaRock,
@@ -912,7 +928,7 @@
                 message: `⚡ **${this.name}** cast **${card.name}** (${card.typeLine}) for **${cost}** mana.`
             }];
 
-            if (card.isCreature || card.isArtifact || card.isEnchantment || card.isPlaneswalker) {
+            if (card.isCreature || card.isArtifact || card.isEnchantment || card.isPlaneswalker || card.isPermanent || (!card.isInstant && !card.isSorcery)) {
                 card.tapped = false;
                 card.summoningSick = !card.keywords.has('haste');
                 this.battlefield.push(card);
