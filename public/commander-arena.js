@@ -3255,20 +3255,28 @@
         return `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}&format=image&version=normal`;
     }
 
+    let userActiveCustomDeck = null;
+
     function getAvailableDecks() {
-        const list = [...PRESET_DECKS];
+        const list = [];
+        if (userActiveCustomDeck) {
+            list.push(userActiveCustomDeck);
+        }
         if (window.currentDecksData && Array.isArray(window.currentDecksData)) {
             window.currentDecksData.forEach(d => {
                 if (d && !d.error && d.cards && d.cards.length > 0) {
-                    list.unshift({
-                        id: `scanned_${d.id}`,
-                        name: `⭐ ${d.name} (${d.commander || 'Commander'})`,
-                        commander: d.commander || 'Commander',
-                        cards: d.cards
-                    });
+                    if (!userActiveCustomDeck || (userActiveCustomDeck.id !== `scanned_${d.id}` && userActiveCustomDeck.id !== d.id)) {
+                        list.push({
+                            id: `scanned_${d.id}`,
+                            name: `⭐ ${d.name} (${d.commander || 'Commander'})`,
+                            commander: d.commander || 'Commander',
+                            cards: d.cards
+                        });
+                    }
                 }
             });
         }
+        PRESET_DECKS.forEach(pd => list.push(pd));
         return list;
     }
 
@@ -3306,6 +3314,12 @@
                     <!-- Action Controls -->
                     <div class="arena-controls">
                         <div class="arena-turn-badge" id="arenaTurnIndicator">Turn 1</div>
+                        <button class="arena-btn" id="arenaBtnFullscreen" onclick="window.toggleFullscreenArena()" title="Toggle Fullscreen Arena">
+                            <span id="arenaFullscreenIcon">⛶</span> Fullscreen
+                        </button>
+                        <button class="arena-btn arena-btn-gold" onclick="window.openArenaSetup()" title="Change Your Deck or AI Pod">
+                            ⚔️ Select Deck
+                        </button>
                         <button class="arena-btn" id="arenaBtnPlayPause" onclick="window.toggleArenaPlayPause()">
                             <span id="arenaPlayIcon">▶️</span> <span id="arenaPlayText">Auto-Bots</span>
                         </button>
@@ -3314,9 +3328,6 @@
                         </button>
                         <button class="arena-btn" onclick="window.simulateArenaInstant()">
                             ⚡ Instant Match
-                        </button>
-                        <button class="arena-btn" onclick="window.openArenaSetup()">
-                            ⚙️ Pod Setup
                         </button>
                         <button class="arena-btn" style="color: #ef4444;" onclick="window.closeCommanderArena()">
                             ✕ Close
@@ -4317,17 +4328,8 @@
         const backdrop = document.getElementById('arenaModalBackdrop');
         if (backdrop) backdrop.style.display = 'flex';
 
-        if (customDeck) {
-            window.applyArenaSetupAndStart(customDeck);
-        } else if (!currentGame) {
-            // Requirement: Select deck FIRST before opening hand
-            window.openArenaSetup();
-        } else {
-            updateArenaDOM();
-            if (currentGame && currentGame.players[0] && !currentGame.players[0].hasKeptHand) {
-                window.openMulliganModal();
-            }
-        }
+        // Requirement: Allow selecting which deck to play FIRST before the opening hand is drawn
+        window.openArenaSetup(customDeck);
     };
 
     window.closeCommanderArena = function () {
@@ -4417,20 +4419,68 @@
         }
     };
 
-    window.openArenaSetup = function () {
+    window.openArenaSetup = function (customDeck = null) {
         initArenaModal();
+        const backdrop = document.getElementById('arenaModalBackdrop');
+        if (backdrop) backdrop.style.display = 'flex';
+
+        if (customDeck) {
+            let deckObj = customDeck;
+            const engine = window.MtgCommanderEngine;
+            if (typeof customDeck === 'string') {
+                const parsed = engine ? engine.parseDecklistText(customDeck) : { commander: null, cards: [] };
+                deckObj = {
+                    id: 'custom_deck_active',
+                    name: `⭐ ${parsed.commander || 'Custom Deck'}`,
+                    commander: parsed.commander || 'Custom Commander',
+                    cards: parsed.cards
+                };
+            } else if (customDeck.content && (!customDeck.cards || customDeck.cards.length === 0)) {
+                const parsed = engine ? engine.parseDecklistText(customDeck.content) : { commander: null, cards: [] };
+                deckObj = {
+                    id: customDeck.id ? `custom_${customDeck.id}` : 'custom_deck_active',
+                    name: `⭐ ${customDeck.name || parsed.commander || 'Custom Deck'}`,
+                    commander: parsed.commander || customDeck.commander || 'Custom Commander',
+                    cards: parsed.cards
+                };
+            } else {
+                deckObj = {
+                    id: customDeck.id ? `custom_${customDeck.id}` : 'custom_deck_active',
+                    name: `⭐ ${customDeck.name || customDeck.commander || 'Custom Deck'}`,
+                    commander: customDeck.commander || customDeck.name || 'Custom Commander',
+                    cards: customDeck.cards || []
+                };
+            }
+            userActiveCustomDeck = deckObj;
+        }
+
         const overlay = document.getElementById('arenaSetupOverlay');
         const decks = getAvailableDecks();
 
         for (let i = 0; i < 4; i++) {
             const select = document.getElementById(`seatSelect${i}`);
             if (select) {
+                const prevVal = select.value;
                 select.innerHTML = '';
                 decks.forEach((d, idx) => {
                     const opt = document.createElement('option');
                     opt.value = d.id;
                     opt.textContent = d.name;
-                    if (idx === i) opt.selected = true;
+                    if (i === 0) {
+                        if (userActiveCustomDeck && d.id === userActiveCustomDeck.id) {
+                            opt.selected = true;
+                        } else if (!userActiveCustomDeck && (prevVal ? d.id === prevVal : idx === 0)) {
+                            opt.selected = true;
+                        }
+                    } else {
+                        const defaultBotIndex = i % PRESET_DECKS.length;
+                        const defaultBotId = PRESET_DECKS[defaultBotIndex].id;
+                        if (prevVal && prevVal !== (userActiveCustomDeck && userActiveCustomDeck.id)) {
+                            opt.selected = (d.id === prevVal);
+                        } else {
+                            opt.selected = (d.id === defaultBotId);
+                        }
+                    }
                     select.appendChild(opt);
                 });
             }
