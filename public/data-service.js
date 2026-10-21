@@ -1,4 +1,4 @@
-import { db } from './firebase-setup.js?v=8.24';
+import { db } from './firebase-setup.js?v=8.25';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 let localArchives = null;
