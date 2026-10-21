@@ -3369,19 +3369,25 @@
                 <div class="arena-setup-overlay" id="arenaSetupOverlay">
                     <div class="arena-setup-card">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #fff;">
-                                👑 Configure 4-Player Pod
+                            <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>⚔️</span> Select Your Deck & Pod Setup
                             </h3>
                             <button class="arena-btn" onclick="window.closeArenaSetup()">✕</button>
                         </div>
-                        <p style="font-size: 0.84rem; color: var(--arena-text-muted); margin: 0; line-height: 1.45;">
-                            Choose your deck for Seat 1 (interactive live play) and assign decks for the 3 practice AI bots.
+                        <p style="font-size: 0.86rem; color: var(--arena-text-muted); margin: 0; line-height: 1.45;">
+                            Choose the deck you want to pilot in <strong>Seat 1</strong> before drawing your opening hand. You can also customize your AI opponents or leave them on presets.
                         </p>
 
                         <div class="setup-seats-grid">
-                            <div class="setup-seat-box">
-                                <span class="setup-seat-label">Seat 1 (You / Interactive)</span>
-                                <select class="setup-seat-select" id="seatSelect0"></select>
+                            <div class="setup-seat-box seat-1-featured">
+                                <span class="setup-seat-label" style="color: #f59e0b; font-weight: 900; font-size: 0.84rem;">👑 Your Deck (Seat 1 - Player)</span>
+                                <div style="display: flex; gap: 0.85rem; align-items: center; margin-top: 0.35rem;">
+                                    <img id="seat0CmdrThumb" class="setup-seat-thumb" src="https://cards.scryfall.io/back.png" alt="Commander Art" />
+                                    <div style="flex: 1; min-width: 0;">
+                                        <select class="setup-seat-select" id="seatSelect0" onchange="window.updateSeat0Preview()"></select>
+                                        <div id="seat0CmdrDetails" style="font-size: 0.78rem; color: #cbd5e1; margin-top: 0.3rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Loading Commander...</div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="setup-seat-box">
                                 <span class="setup-seat-label">Seat 2 (Bot Opponent 1)</span>
@@ -3397,10 +3403,10 @@
                             </div>
                         </div>
 
-                        <div style="display: flex; justify-content: flex-end; gap: 0.65rem; margin-top: 0.5rem;">
-                            <button class="arena-btn" onclick="window.closeArenaSetup()">Cancel</button>
-                            <button class="arena-btn arena-btn-primary" onclick="window.applyArenaSetupAndStart()">
-                                🚀 Launch Pod Match
+                        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem; align-items: center;">
+                            <button class="arena-btn" onclick="window.closeArenaSetup()">Close</button>
+                            <button class="arena-btn arena-btn-gold" id="btnLaunchPodMatch" onclick="window.applyArenaSetupAndStart()" style="font-weight: 900; font-size: 0.95rem; padding: 0.6rem 1.4rem;">
+                                ⚔️ Select Deck & Draw Hand 🎴
                             </button>
                         </div>
                     </div>
@@ -4311,8 +4317,11 @@
         const backdrop = document.getElementById('arenaModalBackdrop');
         if (backdrop) backdrop.style.display = 'flex';
 
-        if (customDeck || !currentGame) {
+        if (customDeck) {
             window.applyArenaSetupAndStart(customDeck);
+        } else if (!currentGame) {
+            // Requirement: Select deck FIRST before opening hand
+            window.openArenaSetup();
         } else {
             updateArenaDOM();
             if (currentGame && currentGame.players[0] && !currentGame.players[0].hasKeptHand) {
@@ -4394,6 +4403,20 @@
         if (streamEl) streamEl.innerHTML = '';
     };
 
+    window.updateSeat0Preview = function () {
+        const select0 = document.getElementById('seatSelect0');
+        const thumb = document.getElementById('seat0CmdrThumb');
+        const details = document.getElementById('seat0CmdrDetails');
+        if (!select0) return;
+        const decks = getAvailableDecks();
+        const chosen = decks.find(d => d.id === select0.value) || decks[0];
+        if (chosen) {
+            const cmdrName = chosen.commander || chosen.name;
+            if (thumb) thumb.src = getCardArtCropUrl(cmdrName);
+            if (details) details.textContent = `Commander: ${cmdrName}`;
+        }
+    };
+
     window.openArenaSetup = function () {
         initArenaModal();
         const overlay = document.getElementById('arenaSetupOverlay');
@@ -4413,6 +4436,7 @@
             }
         }
 
+        window.updateSeat0Preview();
         if (overlay) overlay.style.display = 'flex';
     };
 
