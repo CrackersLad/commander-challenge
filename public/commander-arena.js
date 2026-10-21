@@ -15,6 +15,7 @@
     let isPaused = true;
     let selectedAttackerIds = new Set();
     let selectedOpponentTargetId = null;
+    let selectedBottomCardIds = new Set();
 
     // High quality Commander precons with curated card lists
     const PRESET_DECKS = [
@@ -262,6 +263,9 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Opening Hand & Mulligan Modal Overlay -->
+                <div class="arena-mulligan-overlay" id="arenaMulliganOverlay"></div>
             </div>
         `;
 
@@ -303,8 +307,8 @@
             const cmdrArt = getCardArtCropUrl(cmdrName);
 
             const creatures = opp.battlefield.filter(c => c.isCreature);
-            const landsCount = opp.battlefield.filter(c => c.isLand).length;
-            const rocksCount = opp.battlefield.filter(c => c.isManaRock).length;
+            const lands = opp.battlefield.filter(c => c.isLand);
+            const supports = opp.battlefield.filter(c => !c.isCreature && !c.isLand);
 
             let creaturesHtml = '';
             if (creatures.length === 0) {
@@ -328,6 +332,40 @@
                         </div>
                     `;
                 });
+            }
+
+            let landsHtml = '';
+            if (lands.length === 0) {
+                landsHtml = `<span style="font-size: 0.65rem; color: var(--arena-text-muted);">No lands played</span>`;
+            } else {
+                landsHtml = lands.map(c => `
+                    <div class="opp-land-chip ${c.tapped ? 'tapped' : ''}"
+                         onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                         onmouseleave="window.hideCardInspector()"
+                         title="${escapeHtml(c.name)} (${c.tapped ? 'Tapped' : 'Untapped'})">
+                        <span>🏞️</span>
+                        <span>${escapeHtml(c.name)}</span>
+                    </div>
+                `).join('');
+            }
+
+            let supportsHtml = '';
+            if (supports.length > 0) {
+                supportsHtml = supports.map(c => {
+                    let icon = '💎';
+                    if (c.isEnchantment) icon = '✨';
+                    else if (c.isPlaneswalker) icon = '🛡️';
+                    else if (c.isArtifact) icon = '⚙️';
+                    return `
+                        <div class="opp-support-chip ${c.tapped ? 'tapped' : ''}"
+                             onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                             onmouseleave="window.hideCardInspector()"
+                             title="${escapeHtml(c.name)} - ${escapeHtml(c.typeLine || 'Support')} (${c.tapped ? 'Tapped' : 'Untapped'})">
+                            <span>${icon}</span>
+                            <span>${escapeHtml(c.name)}</span>
+                        </div>
+                    `;
+                }).join('');
             }
 
             return `
@@ -359,16 +397,25 @@
                         </div>
                     </div>
 
-                    <!-- Opponent Battlefield Shelf -->
+                    <!-- Opponent Battlefield Shelves -->
                     <div class="opponent-battlefield">
+                        <!-- Creatures Line -->
                         <div class="opponent-creatures-shelf">
                             ${creaturesHtml}
                         </div>
-                        <div class="opponent-lands-shelf">
-                            <span>🏞️ Lands: ${landsCount}</span>
-                            <span>💎 Rocks: ${rocksCount}</span>
-                            <span>📚 Library: ${opp.library.length}</span>
+                        <!-- Lands Shelf -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.66rem; color: var(--arena-text-muted); font-weight: 700; padding: 0.1rem 0.2rem;">
+                            <span>🏞️ Opponent Lands (${lands.length})</span>
+                            <span>💎 Support (${supports.length}) • 📚 ${opp.library.length}</span>
                         </div>
+                        <div class="opponent-lands-shelf">
+                            ${landsHtml}
+                        </div>
+                        <!-- Support Permanents Line (Artifacts, Rocks, Enchantments) -->
+                        ${supports.length > 0 ? `
+                        <div class="opponent-support-shelf">
+                            ${supportsHtml}
+                        </div>` : ''}
                     </div>
                 </div>
             `;
@@ -389,7 +436,10 @@
         const cmdrName = cmdr ? cmdr.name : 'Unknown Commander';
         const cmdrArt = getCardArtCropUrl(cmdrName);
         const cmdrCastCost = cmdr ? (cmdr.cmc || 0) + player.commanderTax : 0;
-        const canCastCmdr = isMyTurn && currentPhase.includes('MAIN') && player.canCastCommander();
+        const availableMana = player.getAvailableMana().total;
+        const isCmdrInZone = player.isCommanderInCommandZone();
+        const isCmdrOnField = player.isCommanderOnBattlefield();
+        const canCastCmdr = isMyTurn && currentPhase.includes('MAIN') && isCmdrInZone && (availableMana >= cmdrCastCost);
 
         // 1. Creatures on your battlefield
         const creatures = player.battlefield.filter(c => c.isCreature);
@@ -451,13 +501,31 @@
             handHtml = `<div style="font-size: 0.8rem; color: var(--arena-text-muted); margin: auto;">Your hand is currently empty</div>`;
         } else {
             player.hand.forEach(c => {
-                const isPlayable = isMyTurn && currentPhase.includes('MAIN') && player.canCastCard(c);
-                const isLand = c.isLand;
-                const tagText = isLand ? 'Play Land' : `Cast {${c.cmc}}`;
+                const isInstantOrFlash = c.isInstant || (c.keywords && c.keywords.has('flash'));
+                const cost = player.getCardCost(c, currentGame);
+                let isPlayable = false;
+                let tagText = '';
+
+                if (c.isLand) {
+                    isPlayable = isMyTurn && currentPhase.includes('MAIN') && !player.landPlayedThisTurn;
+                    tagText = 'Play Land';
+                } else if (isInstantOrFlash) {
+                    isPlayable = availableMana >= cost;
+                    tagText = isMyTurn ? `Cast {${cost}}` : `⚡ Flash {${cost}}`;
+                } else {
+                    isPlayable = isMyTurn && currentPhase.includes('MAIN') && availableMana >= cost;
+                    tagText = `Cast {${cost}}`;
+                }
+
+                const cardClasses = ['hand-card'];
+                if (isPlayable) {
+                    if (isInstantOrFlash && !isMyTurn) cardClasses.push('instant-playable');
+                    else cardClasses.push('playable');
+                }
 
                 handHtml += `
                     <div class="hand-card-wrapper" onclick="window.playCardFromHand('${c.id}')">
-                        <div class="hand-card ${isPlayable ? 'playable' : ''}"
+                        <div class="${cardClasses.join(' ')}"
                              onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
                              onmouseleave="window.hideCardInspector()">
                             <img class="hand-card-art" src="${getCardNormalUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
@@ -498,12 +566,17 @@
                              onmouseenter="window.showCardInspector('${escapeHtml(cmdrName)}')"
                              onmouseleave="window.hideCardInspector()" />
                         <div style="font-size: 0.75rem; font-weight: 700; color: #e2e8f0;">${escapeHtml(cmdrName)}</div>
+                        ${isCmdrOnField ? '<span class="cmdr-status-badge on-field">👑 On Battlefield</span>' : '<span class="cmdr-status-badge in-zone">👑 In Command Zone</span>'}
                         <div style="font-size: 0.7rem; color: #c084fc; font-weight: 800;">Tax: {${player.commanderTax}} • Cost: {${cmdrCastCost}}</div>
-                        <button class="cmdr-cast-cta"
-                                onclick="window.castPlayerCommander()"
-                                ${!canCastCmdr ? 'disabled' : ''}>
-                            ${canCastCmdr ? `Cast Commander {${cmdrCastCost}}` : 'Cannot Cast'}
-                        </button>
+                        ${isCmdrOnField ? `
+                            <button class="cmdr-cast-cta" disabled style="opacity: 0.7; cursor: default;">👑 On Field</button>
+                        ` : canCastCmdr ? `
+                            <button class="cmdr-cast-cta ready" onclick="window.castPlayerCommander()">🚀 Cast Commander {${cmdrCastCost}}</button>
+                        ` : (isCmdrInZone && availableMana < cmdrCastCost) ? `
+                            <button class="cmdr-cast-cta need-mana" onclick="window.castPlayerCommander()">Need {${cmdrCastCost}} Mana (Have {${availableMana}})</button>
+                        ` : `
+                            <button class="cmdr-cast-cta" onclick="window.castPlayerCommander()" ${!isMyTurn ? 'disabled' : ''}>Cast Commander {${cmdrCastCost}}</button>
+                        `}
                     </div>
 
                     <!-- Right: Your Battlefield Shelves -->
@@ -534,7 +607,7 @@
                         <span style="font-size: 0.74rem; font-weight: 800; color: var(--arena-text-muted); text-transform: uppercase;">
                             🃏 Your Hand (${player.hand.length} cards)
                         </span>
-                        <span style="font-size: 0.72rem; color: #a855f7;">Click any highlighted card to cast or play</span>
+                        <span style="font-size: 0.72rem; color: #a855f7;">Click any highlighted card to cast or play (Instants playable anytime)</span>
                     </div>
                     <div class="arena-hand-tray">
                         ${handHtml}
@@ -642,13 +715,40 @@
         const player = currentGame.players[0];
         const activePlayer = currentGame.getActivePlayer();
 
-        if (activePlayer.id !== player.id) {
-            alert("It is not your turn to play spells!");
-            return;
-        }
-
         const card = player.hand.find(c => c.id === cardId);
         if (!card) return;
+
+        const isInstantOrFlash = card.isInstant || (card.keywords && card.keywords.has('flash'));
+
+        // Rule checks
+        if (card.isLand) {
+            if (activePlayer.id !== player.id) {
+                alert("You can only play lands during your own turn!");
+                return;
+            }
+            if (currentGame.currentPhase !== 'MAIN_1' && currentGame.currentPhase !== 'MAIN_2') {
+                alert("Lands can only be played during your Main phase (MTG Rule 305.1).");
+                return;
+            }
+            if (player.landPlayedThisTurn) {
+                alert("You have already played a land this turn (MTG Rule 305.2).");
+                return;
+            }
+        } else if (!isInstantOrFlash) {
+            if (activePlayer.id !== player.id) {
+                alert(`You can only cast Instants or cards with Flash on an opponent's turn! (${card.name} is a ${card.typeLine}).`);
+                return;
+            }
+            if (currentGame.currentPhase !== 'MAIN_1' && currentGame.currentPhase !== 'MAIN_2') {
+                alert("Sorceries and permanent spells can only be cast during your Main phase (MTG Rule 307.1).");
+                return;
+            }
+        }
+
+        // Auto-pause bot runner if playing an instant during bot turn so user can observe the resolution
+        if (activePlayer.id !== player.id && !isPaused) {
+            window.toggleArenaPlayPause();
+        }
 
         // Visual stack popup animation
         const stackBox = document.getElementById('arenaStackBox');
@@ -656,7 +756,7 @@
         const stackName = document.getElementById('stackSpellName');
         if (stackBox && stackThumb && stackName) {
             stackThumb.src = getCardArtCropUrl(card.name);
-            stackName.textContent = card.name;
+            stackName.textContent = isInstantOrFlash && activePlayer.id !== player.id ? `⚡ Instant: ${card.name}` : card.name;
             stackBox.style.display = 'flex';
             setTimeout(() => {
                 if (stackBox) stackBox.style.display = 'none';
@@ -677,10 +777,46 @@
         if (!currentGame) return;
         const player = currentGame.players[0];
         const activePlayer = currentGame.getActivePlayer();
+        const cmdr = player.getCommander();
+
+        if (!cmdr) {
+            alert("No Commander assigned to your deck!");
+            return;
+        }
+
+        if (player.isCommanderOnBattlefield()) {
+            alert(`**${cmdr.name}** is already on the battlefield!`);
+            return;
+        }
 
         if (activePlayer.id !== player.id) {
             alert("You can only cast your Commander during your turn!");
             return;
+        }
+
+        if (currentGame.currentPhase !== 'MAIN_1' && currentGame.currentPhase !== 'MAIN_2') {
+            alert("Commanders can only be cast during a Main phase (MTG Rule 305.1 / 903.8).");
+            return;
+        }
+
+        const totalCost = (cmdr.cmc || 0) + player.commanderTax;
+        const available = player.getAvailableMana().total;
+        if (available < totalCost) {
+            alert(`Need ${totalCost} mana to cast ${cmdr.name} (Base: {${cmdr.cmc || 0}}, Tax: {${player.commanderTax}}), but only have ${available} untapped mana available!`);
+            return;
+        }
+
+        // Visual stack popup animation
+        const stackBox = document.getElementById('arenaStackBox');
+        const stackThumb = document.getElementById('stackCardThumb');
+        const stackName = document.getElementById('stackSpellName');
+        if (stackBox && stackThumb && stackName) {
+            stackThumb.src = getCardArtCropUrl(cmdr.name);
+            stackName.textContent = `👑 Casting Commander: ${cmdr.name}`;
+            stackBox.style.display = 'flex';
+            setTimeout(() => {
+                if (stackBox) stackBox.style.display = 'none';
+            }, 750);
         }
 
         const res = player.castCommander(currentGame);
@@ -761,6 +897,244 @@
     };
 
     // ============================================================================
+    // OPENING HAND & MULLIGAN CONTROLLER (MTG Rule 103.4c)
+    // ============================================================================
+    window.openMulliganModal = function () {
+        if (!currentGame) return;
+        selectedBottomCardIds.clear();
+        const overlay = document.getElementById('arenaMulliganOverlay');
+        if (!overlay) return;
+        window.renderMulliganModal();
+        overlay.style.display = 'flex';
+    };
+
+    window.closeMulliganModal = function () {
+        selectedBottomCardIds.clear();
+        const overlay = document.getElementById('arenaMulliganOverlay');
+        if (overlay) overlay.style.display = 'none';
+    };
+
+    window.renderMulliganModal = function () {
+        if (!currentGame) return;
+        const overlay = document.getElementById('arenaMulliganOverlay');
+        if (!overlay) return;
+
+        const player = currentGame.players[0];
+        const mullCount = player.mulliganCount || 0;
+        // In multiplayer, 1st mulligan is FREE (Rule 103.4c)
+        // Subsequent mulligans put (mulliganCount - 1) cards on bottom
+        const cardsToBottomCount = Math.max(0, mullCount - 1);
+        const hand = player.hand || [];
+
+        const landsCount = hand.filter(c => c.isLand).length;
+        const spellsCount = hand.length - landsCount;
+        const totalCmc = hand.filter(c => !c.isLand).reduce((sum, c) => sum + (c.cmc || 0), 0);
+        const avgCmc = spellsCount > 0 ? (totalCmc / spellsCount).toFixed(1) : '0.0';
+
+        // Mulligan badge status
+        let statusBadgeText = `Opening Hand (7 Cards)`;
+        if (mullCount === 1) {
+            statusBadgeText = `Mulligan 1 (FREE • 7 Cards)`;
+        } else if (mullCount > 1) {
+            statusBadgeText = `Mulligan #${mullCount} (Keep ${7 - cardsToBottomCount} • Bottom ${cardsToBottomCount})`;
+        }
+
+        // Instruction banner
+        let bannerHtml = '';
+        if (cardsToBottomCount > 0) {
+            const needSelect = cardsToBottomCount;
+            const currentSelected = selectedBottomCardIds.size;
+            bannerHtml = `
+                <div class="mulligan-instruction-banner require-bottom">
+                    <div>
+                        <strong>London Mulligan:</strong> Please select <strong>${needSelect}</strong> card${needSelect > 1 ? 's' : ''} from your hand to put on the bottom of your library.
+                    </div>
+                    <div style="font-weight: 800; font-size: 0.85rem;">
+                        Selected: ${currentSelected} / ${needSelect}
+                    </div>
+                </div>
+            `;
+        } else {
+            bannerHtml = `
+                <div class="mulligan-instruction-banner">
+                    <span>💡 <strong>Multiplayer Format:</strong> Your first mulligan is 100% free with no penalty (Rule 103.4c).</span>
+                    <span style="color: #38bdf8; font-weight: 700;">Hand Size: 7</span>
+                </div>
+            `;
+        }
+
+        // Cards Grid
+        let cardsHtml = '';
+        hand.forEach(c => {
+            const isBottomSelected = selectedBottomCardIds.has(c.id);
+            const isSelectable = cardsToBottomCount > 0;
+            const effP = player.getEffectivePower ? player.getEffectivePower(c) : c.power;
+            const effT = player.getEffectiveToughness ? player.getEffectiveToughness(c) : c.toughness;
+
+            cardsHtml += `
+                <div class="mulligan-card ${isSelectable ? 'selectable' : ''} ${isBottomSelected ? 'selected-bottom' : ''}"
+                     onclick="${isSelectable ? `window.toggleMulliganBottomCard('${c.id}')` : ''}"
+                     onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                     onmouseleave="window.hideCardInspector()"
+                     title="${escapeHtml(c.name)} - ${c.typeLine}">
+                    <div class="mulligan-card-topbar">
+                        <span class="mulligan-card-name">${escapeHtml(c.name)}</span>
+                        <span class="mulligan-card-cost">${c.manaCost || ''}</span>
+                    </div>
+                    <img class="mulligan-card-art" src="${getCardArtCropUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
+                    <div class="mulligan-card-footer">
+                        <span class="mulligan-card-type">${escapeHtml(c.typeLine || 'Spell')}</span>
+                        ${c.isCreature ? `<span class="mulligan-card-pt">${effP}/${effT}</span>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+
+        // Action Buttons
+        const canConfirmKeep = cardsToBottomCount === 0 || selectedBottomCardIds.size === cardsToBottomCount;
+        const keepBtnLabel = cardsToBottomCount === 0 
+            ? `✅ Keep Hand (7 Cards)` 
+            : `✅ Confirm & Keep Hand (${7 - cardsToBottomCount} Cards)`;
+
+        let mullBtnLabel = '';
+        let mullBtnClass = '';
+        if (mullCount === 0) {
+            mullBtnLabel = `🔄 Free Mulligan (Draw 7)`;
+            mullBtnClass = 'arena-btn mulligan-btn-free';
+        } else {
+            const nextHandSize = Math.max(1, 7 - cardsToBottomCount - 1);
+            mullBtnLabel = `🔄 Mulligan to ${nextHandSize} Cards`;
+            mullBtnClass = 'arena-btn mulligan-btn-mull';
+        }
+
+        overlay.innerHTML = `
+            <div class="arena-mulligan-dialog">
+                <!-- Header -->
+                <div class="mulligan-header">
+                    <div class="mulligan-title-area">
+                        <div class="mulligan-badge-icon">🃏</div>
+                        <div>
+                            <h3 class="mulligan-heading">Opening Hand & Mulligan</h3>
+                            <div class="mulligan-rule-tag">
+                                <span>⚖️ MTG Comprehensive Rules 103.4c</span>
+                                <span>•</span>
+                                <span>1st Mulligan is FREE in Multiplayer Commander</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stats Bar -->
+                    <div class="mulligan-stats-bar">
+                        <span class="mulligan-stat-chip" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); color: #c084fc;">
+                            ${statusBadgeText}
+                        </span>
+                        <span class="mulligan-stat-chip">🏞️ ${landsCount} Land${landsCount !== 1 ? 's' : ''}</span>
+                        <span class="mulligan-stat-chip">⚔️ ${spellsCount} Spell${spellsCount !== 1 ? 's' : ''}</span>
+                        <span class="mulligan-stat-chip">⚡ Avg CMC: ${avgCmc}</span>
+                    </div>
+                </div>
+
+                <!-- Instruction Banner -->
+                ${bannerHtml}
+
+                <!-- Cards Grid -->
+                <div class="mulligan-cards-grid">
+                    ${cardsHtml}
+                </div>
+
+                <!-- Action Controls -->
+                <div class="mulligan-actions-bar">
+                    <div style="font-size: 0.78rem; color: var(--arena-text-muted);">
+                        ${cardsToBottomCount > 0 
+                            ? 'Tip: Put excess high-cost spells or extra lands onto the bottom of your library.' 
+                            : 'Evaluate your curve and mana base before deciding to keep or take a free mulligan.'}
+                    </div>
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button class="${mullBtnClass}" onclick="window.takePlayerMulligan()">
+                            ${mullBtnLabel}
+                        </button>
+                        <button class="arena-btn arena-btn-primary" 
+                                onclick="window.keepPlayerOpeningHand()"
+                                ${!canConfirmKeep ? 'disabled style="opacity: 0.45; cursor: not-allowed;"' : ''}>
+                            ${keepBtnLabel}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    };
+
+    window.toggleMulliganBottomCard = function (cardId) {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        const mullCount = player.mulliganCount || 0;
+        const cardsToBottomCount = Math.max(0, mullCount - 1);
+        if (cardsToBottomCount <= 0) return;
+
+        if (selectedBottomCardIds.has(cardId)) {
+            selectedBottomCardIds.delete(cardId);
+        } else {
+            if (selectedBottomCardIds.size >= cardsToBottomCount) {
+                // Remove first selected to allow sliding selection
+                const first = selectedBottomCardIds.values().next().value;
+                selectedBottomCardIds.delete(first);
+            }
+            selectedBottomCardIds.add(cardId);
+        }
+        window.renderMulliganModal();
+    };
+
+    window.takePlayerMulligan = function () {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        // Human player draws fresh 7 cards; autoBottom = false so human can inspect and choose cards to bottom
+        const mullRes = player.takeMulligan([], false);
+        selectedBottomCardIds.clear();
+
+        appendArenaLogs([mullRes.log]);
+        window.renderMulliganModal();
+    };
+
+    window.keepPlayerOpeningHand = function () {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        const mullCount = player.mulliganCount || 0;
+        const cardsToBottomCount = Math.max(0, mullCount - 1);
+
+        if (cardsToBottomCount > 0) {
+            if (selectedBottomCardIds.size !== cardsToBottomCount) {
+                alert(`Please select exactly ${cardsToBottomCount} card(s) to place on the bottom of your library.`);
+                return;
+            }
+            // Move chosen cards to bottom of library
+            const bottomed = player.bottomCards(Array.from(selectedBottomCardIds));
+            if (bottomed.length > 0) {
+                appendArenaLogs([{
+                    type: 'MULLIGAN_BOTTOM',
+                    message: `⬇️ **${player.name}** placed **${bottomed.map(c => c.name).join(', ')}** onto the bottom of the library.`
+                }]);
+            }
+        }
+
+        const keepRes = player.keepHand();
+        appendArenaLogs([keepRes.log]);
+
+        // Resolve AI bot opponents' mulligans according to Forge heuristics
+        const botLogs = currentGame.resolveBotMulligans();
+        if (botLogs && botLogs.length > 0) {
+            appendArenaLogs(botLogs);
+        }
+
+        appendArenaLogs([{
+            type: 'MATCH_START',
+            message: `⚔️ **All players have kept opening hands! Starting Turn 1.**`
+        }]);
+
+        window.closeMulliganModal();
+        updateArenaDOM();
+    };
+
+    // ============================================================================
     // SIMULATION & STEPPING LIFECYCLE
     // ============================================================================
 
@@ -773,6 +1147,9 @@
             window.applyArenaSetupAndStart(customDeck);
         } else {
             updateArenaDOM();
+            if (currentGame && currentGame.players[0] && !currentGame.players[0].hasKeptHand) {
+                window.openMulliganModal();
+            }
         }
     };
 
@@ -837,6 +1214,7 @@
         if (!currentGame || currentGame.isGameOver) return;
         if (autoPlayTimer) clearInterval(autoPlayTimer);
         isPaused = true;
+        window.closeMulliganModal();
 
         const result = currentGame.runMatchSimulation();
         updateArenaDOM();
@@ -941,6 +1319,7 @@
         }]);
 
         updateArenaDOM();
+        window.openMulliganModal();
     };
 
     // Auto-mount listener on document ready
