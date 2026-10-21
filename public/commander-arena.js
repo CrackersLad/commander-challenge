@@ -3295,25 +3295,12 @@
                         <div class="arena-crown-badge">👑</div>
                         <div>
                             <h2 class="arena-title">Commander Battle Arena</h2>
-                            <span style="font-size: 0.72rem; color: #a855f7; font-weight: 700;">Client-Native Forge Rules Engine • Live 4-Player Tabletop</span>
+                            <span class="arena-subtitle">Client-Native Forge Rules Engine • Live 4-Player Tabletop</span>
                         </div>
-                    </div>
-
-                    <!-- Phase Tracker -->
-                    <div class="arena-phase-bar" id="arenaPhaseBar">
-                        <span class="arena-phase-step" data-phase="UNTAP">Untap</span>
-                        <span class="arena-phase-step" data-phase="UPKEEP">Upkeep</span>
-                        <span class="arena-phase-step" data-phase="DRAW">Draw</span>
-                        <span class="arena-phase-step" data-phase="MAIN_1">Main 1</span>
-                        <span class="arena-phase-step" data-phase="DECLARE_ATTACKERS">Attack</span>
-                        <span class="arena-phase-step" data-phase="COMBAT_DAMAGE">Damage</span>
-                        <span class="arena-phase-step" data-phase="MAIN_2">Main 2</span>
-                        <span class="arena-phase-step" data-phase="END_STEP">End</span>
                     </div>
 
                     <!-- Action Controls -->
                     <div class="arena-controls">
-                        <div class="arena-turn-badge" id="arenaTurnIndicator">Turn 1</div>
                         <button class="arena-btn" id="arenaBtnFullscreen" onclick="window.toggleFullscreenArena()" title="Toggle Fullscreen Arena">
                             <span id="arenaFullscreenIcon">⛶</span> Fullscreen
                         </button>
@@ -3323,7 +3310,7 @@
                         <button class="arena-btn" id="arenaBtnPlayPause" onclick="window.toggleArenaPlayPause()">
                             <span id="arenaPlayIcon">▶️</span> <span id="arenaPlayText">Auto-Bots</span>
                         </button>
-                        <button class="arena-btn" id="arenaBtnStep" onclick="window.stepArenaPhase()">
+                        <button class="arena-btn arena-btn-primary" id="arenaBtnStep" onclick="window.stepArenaPhase()">
                             ⏭️ Next Action
                         </button>
                         <button class="arena-btn" onclick="window.simulateArenaInstant()">
@@ -3334,6 +3321,38 @@
                         </button>
                     </div>
                 </header>
+
+                <!-- Dedicated High-Visibility Turn Progression & Phase Ribbon -->
+                <div class="arena-turn-bar" id="arenaTurnBar">
+                    <div class="turn-status-cluster">
+                        <div class="turn-badge-pill" id="arenaTurnNumberBadge">👑 Turn 1</div>
+                        <div class="turn-active-player-box" id="arenaActivePlayerBadge">
+                            <span class="active-dot"></span>
+                            <span id="arenaActivePlayerName">Wilhelt, the Rotcleaver (You)</span>
+                        </div>
+                    </div>
+
+                    <!-- Phase Tracker -->
+                    <div class="arena-phase-bar" id="arenaPhaseBar">
+                        <span class="arena-phase-step" data-phase="UNTAP">Untap</span>
+                        <span class="arena-phase-sep">›</span>
+                        <span class="arena-phase-step" data-phase="UPKEEP">Upkeep</span>
+                        <span class="arena-phase-sep">›</span>
+                        <span class="arena-phase-step" data-phase="DRAW">Draw</span>
+                        <span class="arena-phase-sep">›</span>
+                        <span class="arena-phase-step active" data-phase="MAIN_1">Main 1</span>
+                        <span class="arena-phase-sep">›</span>
+                        <span class="arena-phase-step" data-phase="COMBAT">Combat</span>
+                        <span class="arena-phase-sep">›</span>
+                        <span class="arena-phase-step" data-phase="MAIN_2">Main 2</span>
+                        <span class="arena-phase-sep">›</span>
+                        <span class="arena-phase-step" data-phase="END_STEP">End</span>
+                    </div>
+
+                    <div class="phase-detail-chip" id="arenaPhaseDetailChip">
+                        Pre-Combat Main Phase
+                    </div>
+                </div>
 
                 <!-- Arena Main Theater -->
                 <div class="arena-theater">
@@ -3789,11 +3808,18 @@
 
                     <!-- Available Mana Display -->
                     <div class="player-mana-pool-bar">
-                        <span>💎 Mana Available:</span>
-                        <span style="color: #38bdf8;">${player.getAvailableMana().total}</span>
+                        <span>💎 Mana:</span>
+                        <span style="color: #38bdf8; font-weight: 800;">${player.getAvailableMana().total}</span>
                         <button class="arena-btn" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; margin-left: 0.4rem;" onclick="window.untapAllMyLands()">
                             ⚡ Untap All
                         </button>
+                    </div>
+
+                    <!-- Tactical Turn & Phase Pill in Cockpit -->
+                    <div class="hud-phase-chip" style="display: flex; align-items: center; gap: 0.45rem; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.14); padding: 0.35rem 0.75rem; border-radius: 8px; font-size: 0.78rem; font-weight: 800; white-space: nowrap;">
+                        <span style="color: #f59e0b;">Turn ${currentGame.turn}</span>
+                        <span style="color: rgba(255,255,255,0.25);">•</span>
+                        <span style="color: #38bdf8;">${currentPhase.replace(/_/g, ' ')}</span>
                     </div>
 
                     <!-- Primary Phase Action Button -->
@@ -3820,21 +3846,72 @@
             bottomBay.innerHTML = renderPlayerCockpit();
         }
 
-        // Update Turn Indicator
+        // Update Turn Number Badge
+        const turnBadge = document.getElementById('arenaTurnNumberBadge');
+        if (turnBadge) {
+            turnBadge.textContent = `👑 Turn ${currentGame.turn}`;
+        }
+
+        // Update Active Player
+        const activeP = currentGame.getActivePlayer();
+        const activePlayerBox = document.getElementById('arenaActivePlayerName');
+        if (activePlayerBox && activeP) {
+            activePlayerBox.textContent = activeP.isAI ? `🤖 ${activeP.name}` : `👤 ${activeP.name}`;
+        }
+
+        // Backward compatibility for arenaTurnIndicator
         const turnInd = document.getElementById('arenaTurnIndicator');
         if (turnInd) {
-            const activeP = currentGame.getActivePlayer();
             turnInd.innerHTML = `<strong>Turn ${currentGame.turn}</strong> • <span style="color: #a855f7;">${activeP ? activeP.name : ''}</span>`;
         }
 
-        // Update Phase Steps
-        const currentPhase = currentGame.currentPhase;
+        // Friendly phase display names
+        const PHASE_DISPLAY_NAMES = {
+            'UNTAP': 'Untap Step',
+            'UPKEEP': 'Upkeep Step',
+            'DRAW': 'Draw Step',
+            'MAIN_1': 'Pre-Combat Main Phase',
+            'COMBAT_BEGIN': 'Beginning of Combat',
+            'DECLARE_ATTACKERS': 'Declare Attackers Step',
+            'DECLARE_BLOCKERS': 'Declare Blockers Step',
+            'COMBAT_DAMAGE': 'Combat Damage Step',
+            'COMBAT_END': 'End of Combat',
+            'MAIN_2': 'Post-Combat Main Phase',
+            'END_STEP': 'End Step',
+            'CLEANUP': 'Cleanup Step'
+        };
+
+        const currentPhase = currentGame.currentPhase || 'MAIN_1';
+        const phaseDetailChip = document.getElementById('arenaPhaseDetailChip');
+        if (phaseDetailChip) {
+            phaseDetailChip.textContent = `⚡ ${PHASE_DISPLAY_NAMES[currentPhase] || currentPhase}`;
+        }
+
+        // Map current engine phase into one of the ribbon categories:
+        // UNTAP, UPKEEP, DRAW, MAIN_1, COMBAT, MAIN_2, END_STEP
+        let activeRibbonCategory = 'MAIN_1';
+        if (currentPhase === 'UNTAP') activeRibbonCategory = 'UNTAP';
+        else if (currentPhase === 'UPKEEP') activeRibbonCategory = 'UPKEEP';
+        else if (currentPhase === 'DRAW') activeRibbonCategory = 'DRAW';
+        else if (currentPhase === 'MAIN_1') activeRibbonCategory = 'MAIN_1';
+        else if (currentPhase.includes('COMBAT') || currentPhase.includes('ATTACK') || currentPhase.includes('BLOCK')) activeRibbonCategory = 'COMBAT';
+        else if (currentPhase === 'MAIN_2') activeRibbonCategory = 'MAIN_2';
+        else if (currentPhase === 'END_STEP' || currentPhase === 'CLEANUP') activeRibbonCategory = 'END_STEP';
+
+        const phaseSequence = ['UNTAP', 'UPKEEP', 'DRAW', 'MAIN_1', 'COMBAT', 'MAIN_2', 'END_STEP'];
+        const currentCatIdx = phaseSequence.indexOf(activeRibbonCategory);
+
+        // Update Phase Step ribbons
         const phaseSteps = document.querySelectorAll('.arena-phase-step');
         phaseSteps.forEach(step => {
             const phaseAttr = step.getAttribute('data-phase');
-            step.classList.remove('active');
-            if (phaseAttr === currentPhase || (phaseAttr === 'MAIN_1' && currentPhase === 'MAIN_1') || (phaseAttr === 'DECLARE_ATTACKERS' && currentPhase.includes('COMBAT'))) {
+            step.classList.remove('active', 'past');
+            const stepIdx = phaseSequence.indexOf(phaseAttr);
+
+            if (phaseAttr === activeRibbonCategory) {
                 step.classList.add('active');
+            } else if (stepIdx !== -1 && stepIdx < currentCatIdx) {
+                step.classList.add('past');
             }
         });
     }

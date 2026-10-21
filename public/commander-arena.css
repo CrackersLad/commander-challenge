@@ -40,7 +40,7 @@
   background: rgba(3, 7, 18, 0.98);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  z-index: 10000;
+  z-index: 100000; /* Must sit above global master-navbar (z-index: 90000) */
   display: none;
   align-items: stretch;
   justify-content: stretch;
@@ -71,21 +71,23 @@
 
 /* Header */
 .arena-header {
-  padding: 0.65rem 1.25rem;
-  background: rgba(15, 23, 42, 0.9);
+  padding: 0.55rem 1.25rem;
+  background: rgba(15, 23, 42, 0.95);
   border-bottom: 1px solid var(--arena-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   z-index: 20;
+  flex-shrink: 0;
 }
 
 .arena-brand {
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  min-width: 0;
 }
 
 .arena-crown-badge {
@@ -96,57 +98,25 @@
   padding: 0.25rem 0.55rem;
   border-radius: 8px;
   box-shadow: 0 0 14px rgba(168, 85, 247, 0.25);
+  flex-shrink: 0;
 }
 
 .arena-title {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 800;
   background: linear-gradient(135deg, #fff, #c084fc);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   margin: 0;
+  white-space: nowrap;
 }
 
-.arena-turn-badge {
-  font-size: 0.82rem;
-  font-weight: 800;
-  color: #f8fafc;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 0.3rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-/* Phase Tracker Bar */
-.arena-phase-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 0.25rem 0.45rem;
-  border-radius: 999px;
-  border: 1px solid var(--arena-border);
-}
-
-.arena-phase-step {
+.arena-subtitle {
   font-size: 0.7rem;
+  color: #a855f7;
   font-weight: 700;
-  padding: 0.22rem 0.6rem;
-  border-radius: 999px;
-  color: var(--arena-text-muted);
-  transition: all 0.25s ease;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.arena-phase-step.active {
-  background: var(--arena-accent-gradient);
-  color: white;
-  box-shadow: 0 0 14px rgba(168, 85, 247, 0.6);
-  transform: scale(1.06);
+  display: block;
+  white-space: nowrap;
 }
 
 /* Control Buttons */
@@ -154,21 +124,23 @@
   display: flex;
   align-items: center;
   gap: 0.45rem;
+  flex-shrink: 0;
 }
 
 .arena-btn {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--arena-border);
   color: var(--arena-text);
-  padding: 0.42rem 0.85rem;
+  padding: 0.4rem 0.8rem;
   border-radius: 8px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .arena-btn:hover {
@@ -202,6 +174,138 @@
 }
 
 /* ============================================================================
+ * DEDICATED HIGH-VISIBILITY TURN PROGRESSION & PHASE RIBBON
+ * ============================================================================
+ */
+.arena-turn-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 1.25rem;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 27, 75, 0.95) 50%, rgba(15, 23, 42, 0.98) 100%);
+  border-bottom: 1px solid rgba(168, 85, 247, 0.35);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  z-index: 19;
+  flex-shrink: 0;
+  min-height: 46px;
+  box-sizing: border-box;
+}
+
+.turn-status-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+
+.turn-badge-pill {
+  font-size: 0.84rem;
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(135deg, #7c3aed, #db2777);
+  padding: 0.28rem 0.8rem;
+  border-radius: 999px;
+  box-shadow: 0 0 14px rgba(124, 58, 237, 0.55);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.turn-active-player-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.28rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  white-space: nowrap;
+}
+
+.active-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+  animation: pulse-dot 1.8s infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.75); }
+}
+
+/* Phase Tracker Bar */
+.arena-phase-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(0, 0, 0, 0.65);
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.arena-phase-sep {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 800;
+  user-select: none;
+}
+
+.arena-phase-step {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.22rem 0.65rem;
+  border-radius: 999px;
+  color: var(--arena-text-muted);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.arena-phase-step.active {
+  background: var(--arena-accent-gradient);
+  color: white;
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.85);
+  transform: scale(1.06);
+  font-weight: 900;
+}
+
+.arena-phase-step.past {
+  color: rgba(148, 163, 184, 0.5);
+}
+
+.phase-detail-chip {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #c084fc;
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  padding: 0.28rem 0.8rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ============================================================================
  * MAIN THEATER LAYOUT
  * ============================================================================
  */
@@ -212,8 +316,8 @@
   overflow: hidden;
   position: relative;
   min-height: 0;
-  height: calc(100vh - 65px);
-  height: calc(100dvh - 65px);
+  height: calc(100vh - 105px);
+  height: calc(100dvh - 105px);
 }
 
 .arena-battlefield-canvas {
