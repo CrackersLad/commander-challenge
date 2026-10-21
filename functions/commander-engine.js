@@ -92,8 +92,15 @@
     // ============================================================================
 
     function parseManaCost(manaCost) {
-        if (!manaCost || typeof manaCost !== 'string') return { cmc: 0, colors: [], symbols: [] };
-        const symbols = manaCost.match(/\{[^}]+\}/g) || [];
+        if (!manaCost || typeof manaCost !== 'string' || manaCost.toLowerCase() === 'no cost') return { cmc: 0, colors: [], symbols: [] };
+        
+        // Handle both curly-brace format {2}{U}{B} and Forge space-separated format "2 U B"
+        let symbols = manaCost.match(/\{[^}]+\}/g);
+        if (!symbols || symbols.length === 0) {
+            const rawTokens = manaCost.trim().split(/\s+/);
+            symbols = rawTokens.filter(Boolean).map(t => t.startsWith('{') ? t : `{${t}}`);
+        }
+
         let cmc = 0;
         const colorSet = new Set();
 
@@ -113,11 +120,385 @@
                     if (['W', 'U', 'B', 'R', 'G'].includes(part)) colorSet.add(part);
                 });
             } else if (inner === 'X') {
-                // Variable mana
+                // Variable mana (treated as 0 outside the stack)
             }
         });
 
         return { cmc, colors: Array.from(colorSet), symbols };
+    }
+
+    // ============================================================================
+    // FORGE TOKEN DEFINITIONS & HELPER FACTORY
+    // ============================================================================
+    const FORGE_TOKEN_DEFINITIONS = {
+        'b_2_2_zombie_decayed': {
+            name: 'Zombie Token',
+            typeLine: 'Creature — Zombie',
+            power: 2,
+            toughness: 2,
+            manaCost: '{0}',
+            keywords: ['decayed'],
+            colors: ['B']
+        },
+        'b_2_2_zombie': {
+            name: 'Zombie Token',
+            typeLine: 'Creature — Zombie',
+            power: 2,
+            toughness: 2,
+            manaCost: '{0}',
+            keywords: [],
+            colors: ['B']
+        },
+        'g_1_1_elf_warrior': {
+            name: 'Elf Warrior Token',
+            typeLine: 'Creature — Elf Warrior',
+            power: 1,
+            toughness: 1,
+            manaCost: '{0}',
+            keywords: [],
+            colors: ['G']
+        },
+        'c_a_treasure_sac': {
+            name: 'Treasure Token',
+            typeLine: 'Artifact — Treasure',
+            power: 0,
+            toughness: 0,
+            manaCost: '{0}',
+            isArtifact: true,
+            isCreature: false,
+            isLand: false,
+            oracleText: '{T}, Sacrifice this artifact: Add one mana of any color.',
+            colors: []
+        },
+        'c_a_gold_sac': {
+            name: 'Gold Token',
+            typeLine: 'Artifact — Gold',
+            power: 0,
+            toughness: 0,
+            manaCost: '{0}',
+            isArtifact: true,
+            isCreature: false,
+            isLand: false,
+            oracleText: 'Sacrifice this artifact: Add one mana of any color.',
+            colors: []
+        },
+        'r_6_6_dragon_flying': {
+            name: 'Dragon Token',
+            typeLine: 'Creature — Dragon',
+            power: 6,
+            toughness: 6,
+            manaCost: '{0}',
+            keywords: ['flying'],
+            colors: ['R']
+        },
+        'r_4_4_dragon_flying': {
+            name: 'Dragon Token',
+            typeLine: 'Creature — Dragon',
+            power: 4,
+            toughness: 4,
+            manaCost: '{0}',
+            keywords: ['flying'],
+            colors: ['R']
+        },
+        'brg_3_3_cat_dragon_flying': {
+            name: 'Cat Dragon Token',
+            typeLine: 'Creature — Cat Dragon',
+            power: 3,
+            toughness: 3,
+            manaCost: '{0}',
+            keywords: ['flying'],
+            colors: ['B', 'R', 'G']
+        },
+        'b_1_1_rat': {
+            name: 'Rat Token',
+            typeLine: 'Creature — Rat',
+            power: 1,
+            toughness: 1,
+            manaCost: '{0}',
+            keywords: [],
+            colors: ['B']
+        },
+        'c_1_1_a_thopter_flying': {
+            name: 'Thopter Token',
+            typeLine: 'Artifact Creature — Thopter',
+            power: 1,
+            toughness: 1,
+            manaCost: '{0}',
+            keywords: ['flying'],
+            isArtifact: true,
+            colors: []
+        },
+        'g_7_7_elemental_trample': {
+            name: 'Elemental Token',
+            typeLine: 'Creature — Elemental',
+            power: 7,
+            toughness: 7,
+            manaCost: '{0}',
+            keywords: ['trample'],
+            colors: ['G']
+        },
+        'u_x_x_zombie': {
+            name: 'Zombie Token',
+            typeLine: 'Creature — Zombie',
+            power: 2,
+            toughness: 2,
+            manaCost: '{0}',
+            keywords: [],
+            colors: ['U']
+        }
+    };
+
+    function parseForgeParams(str) {
+        const params = {};
+        if (!str) return params;
+        const parts = str.split('|');
+        parts.forEach(part => {
+            const dollarIdx = part.indexOf('$');
+            if (dollarIdx !== -1) {
+                const key = part.slice(0, dollarIdx).trim();
+                const val = part.slice(dollarIdx + 1).trim();
+                params[key] = val;
+            }
+        });
+        return params;
+    }
+
+    function createForgeToken(tokenScript, ownerId, createCardInstanceFn) {
+        const cleanKey = (tokenScript || '').split(/[\r\n|\\]/)[0].trim();
+        const def = FORGE_TOKEN_DEFINITIONS[cleanKey] || {
+            name: 'Creature Token',
+            typeLine: 'Creature — Token',
+            power: 1,
+            toughness: 1,
+            manaCost: '{0}',
+            keywords: [],
+            colors: []
+        };
+        const inst = createCardInstanceFn ? createCardInstanceFn({
+            name: def.name,
+            typeLine: def.typeLine,
+            power: def.power,
+            toughness: def.toughness,
+            manaCost: def.manaCost,
+            oracleText: def.oracleText || '',
+            isArtifact: def.isArtifact,
+            isCreature: def.isCreature !== false
+        }, ownerId) : { ...def, id: `tok_${Math.random().toString(36).substr(2, 9)}`, ownerId };
+        inst.isToken = true;
+        if (!inst.keywords) inst.keywords = new Set();
+        (def.keywords || []).forEach(k => inst.keywords.add(k));
+        return inst;
+    }
+
+    function matchesSingleForgeFilter(card, singleFilter, controller, sourceCard = null, game = null, eventData = {}) {
+        if (!singleFilter || singleFilter === 'Any' || singleFilter === 'Card') return true;
+        if (singleFilter === 'Player') return card && card.isPlayer;
+        if (singleFilter === 'Opponent' || singleFilter === 'Player.Opponent') return card && card.isPlayer && card.id !== controller.id;
+
+        if (!card) return false;
+
+        const tokens = singleFilter.split(/[.+]/).map(t => t.trim()).filter(Boolean);
+        const cardNameLower = (card.name || '').toLowerCase();
+        const typeLineLower = (card.typeLine || '').toLowerCase();
+        const subtypes = card.subtypes || new Set();
+
+        for (const token of tokens) {
+            if (token === 'Self' || token === 'Card.Self') {
+                if (!sourceCard || card.id !== sourceCard.id) return false;
+            } else if (token === 'Other' || token === 'StrictlyOther') {
+                if (sourceCard && card.id === sourceCard.id) return false;
+            } else if (token === 'YouCtrl' || token === 'YouOwn') {
+                if (card.ownerId !== controller.id) return false;
+            } else if (token === 'OppCtrl' || token === 'YouDontCtrl' || token === 'OppOwn') {
+                if (card.ownerId === controller.id) return false;
+            } else if (token === '!token') {
+                if (card.isToken) return false;
+            } else if (token === 'token') {
+                if (!card.isToken) return false;
+            } else if (token === 'withoutDecayed') {
+                if (card.keywords && card.keywords.has('decayed')) return false;
+            } else if (token === 'withDecayed') {
+                if (!card.keywords || !card.keywords.has('decayed')) return false;
+            } else if (token === 'withFlying') {
+                if (!card.keywords || !card.keywords.has('flying')) return false;
+            } else if (token === 'withoutFlying') {
+                if (card.keywords && card.keywords.has('flying')) return false;
+            } else if (token === 'wasCastFromExile') {
+                if (!card.castFromExile) return false;
+            } else if (token === 'nonLand') {
+                if (card.isLand) return false;
+            } else if (token === 'nonZombie') {
+                if (cardNameLower.includes('zombie') || subtypes.has('zombie') || typeLineLower.includes('zombie')) return false;
+            } else if (token === 'nonElf') {
+                if (cardNameLower.includes('elf') || subtypes.has('elf') || typeLineLower.includes('elf')) return false;
+            } else if (token === 'nonDragon') {
+                if (cardNameLower.includes('dragon') || subtypes.has('dragon') || typeLineLower.includes('dragon')) return false;
+            } else if (token === 'Creature') {
+                if (!card.isCreature) return false;
+            } else if (token === 'Land') {
+                if (!card.isLand) return false;
+            } else if (token === 'Artifact') {
+                if (!card.isArtifact) return false;
+            } else if (token === 'Enchantment') {
+                if (!card.isEnchantment) return false;
+            } else if (token === 'Permanent') {
+                if (card.isInstant || card.isSorcery) return false;
+            } else if (token === 'Zombie') {
+                if (!cardNameLower.includes('zombie') && !subtypes.has('zombie') && !typeLineLower.includes('zombie')) return false;
+            } else if (token === 'Elf') {
+                if (!cardNameLower.includes('elf') && !subtypes.has('elf') && !typeLineLower.includes('elf')) return false;
+            } else if (token === 'Dragon') {
+                if (!cardNameLower.includes('dragon') && !subtypes.has('dragon') && !typeLineLower.includes('dragon')) return false;
+            } else if (token === 'Rat') {
+                if (!cardNameLower.includes('rat') && !subtypes.has('rat') && !typeLineLower.includes('rat')) return false;
+            } else if (token === 'powerGE6') {
+                if ((card.power || 0) < 6) return false;
+            } else if (token === 'powerGE3') {
+                if ((card.power || 0) < 3) return false;
+            }
+        }
+        return true;
+    }
+
+    function matchesForgeFilter(card, filterStr, controller, sourceCard = null, game = null, eventData = {}) {
+        if (!filterStr) return true;
+        const alternatives = filterStr.split(',').map(a => a.trim()).filter(Boolean);
+        return alternatives.some(alt => matchesSingleForgeFilter(card, alt, controller, sourceCard, game, eventData));
+    }
+
+    function executeForgeTrigger(triggerStr, sourceCard, controller, game = null, eventData = {}) {
+        const logs = [];
+        if (!triggerStr || !sourceCard || !controller) return logs;
+        const params = parseForgeParams(triggerStr);
+        if (!params.Execute || !sourceCard.forgeSVars) return logs;
+
+        const effectStr = sourceCard.forgeSVars[params.Execute];
+        if (!effectStr) return logs;
+        const effectParams = parseForgeParams(effectStr);
+
+        // A. Token creation effect (e.g. Wilhelt Decayed Zombie, Prosper Treasure, Lathril Elf Warrior)
+        if (effectParams.DB === 'Token' || effectParams.AB === 'Token' || effectParams.SP === 'Token') {
+            let amount = 1;
+            if (effectParams.TokenAmount === 'X') {
+                const xFormula = sourceCard.forgeSVars['X'] || '';
+                if (xFormula.includes('DamageAmount')) {
+                    amount = eventData.damage || 1;
+                } else if (xFormula.includes('TargetCount') || xFormula.includes('TriggeredCard')) {
+                    amount = eventData.count || 1;
+                } else {
+                    amount = parseInt(xFormula, 10) || 1;
+                }
+            } else if (effectParams.TokenAmount) {
+                amount = parseInt(effectParams.TokenAmount, 10) || 1;
+            }
+
+            const scriptKey = effectParams.TokenScript || 'b_2_2_zombie';
+            for (let i = 0; i < amount; i++) {
+                const tok = createForgeToken(scriptKey, controller.id, createCardInstance);
+                if (tok) {
+                    tok.summoningSick = !tok.keywords.has('haste');
+                    controller.battlefield.push(tok);
+                }
+            }
+            const tokenReadable = scriptKey.replace(/^[a-z]+_\d+_\d+_/, '').replace(/_/g, ' ');
+            logs.push({
+                type: 'TOKEN_CREATED',
+                playerId: controller.id,
+                playerName: controller.name,
+                card: sourceCard,
+                message: `✨ **${sourceCard.name}** trigger: Created ${amount > 1 ? `**${amount}** ` : 'a '}${tokenReadable} token!`
+            });
+        }
+
+        // B. Card Draw effect (with optional sacrifice cost e.g. Wilhelt)
+        else if (effectParams.DB === 'Draw' || effectParams.AB === 'Draw' || effectParams.SP === 'Draw') {
+            let numCards = parseInt(effectParams.NumCards, 10) || 1;
+            // Check sacrifice cost e.g. Cost$ Sac<1/Zombie>
+            if (effectParams.Cost && effectParams.Cost.includes('Sac<')) {
+                const sacTypeMatch = effectParams.Cost.match(/Sac<\d+\/([^>]+)>/);
+                const sacSubtype = sacTypeMatch ? sacTypeMatch[1].toLowerCase() : 'creature';
+                // Prioritize sacrificing decayed tokens or lowest power non-source creatures
+                const candidates = controller.battlefield.filter(c => c.id !== sourceCard.id && (c.subtypes?.has(sacSubtype) || c.name.toLowerCase().includes(sacSubtype) || c.typeLine?.toLowerCase().includes(sacSubtype)));
+                if (candidates.length > 0) {
+                    candidates.sort((a, b) => {
+                        const aDecayed = a.keywords?.has('decayed') ? -1 : 1;
+                        const bDecayed = b.keywords?.has('decayed') ? -1 : 1;
+                        if (aDecayed !== bDecayed) return aDecayed - bDecayed;
+                        return (a.power || 0) - (b.power || 0);
+                    });
+                    const sac = candidates[0];
+                    controller.sendToGraveyardOrCommandZone(sac, game);
+                    logs.push({
+                        type: 'SACRIFICE',
+                        message: `💀 **${sourceCard.name}** sacrificed **${sac.name}**.`
+                    });
+                } else {
+                    return logs; // cannot pay sacrifice cost
+                }
+            }
+            const drawn = controller.draw(numCards);
+            logs.push({
+                type: 'TRIGGER',
+                playerId: controller.id,
+                playerName: controller.name,
+                card: sourceCard,
+                message: `📜 **${sourceCard.name}** trigger: ${controller.name} drew **${drawn.length}** card(s)!`
+            });
+        }
+
+        // C. Dig / Exile effect (e.g. Prosper Mystic Arcanum)
+        else if (effectParams.DB === 'Dig' || effectParams.AB === 'Dig') {
+            const digNum = parseInt(effectParams.DigNum, 10) || 1;
+            for (let i = 0; i < digNum; i++) {
+                if (controller.library.length > 0) {
+                    const exiled = controller.library.shift();
+                    exiled.castFromExile = true; // Flags card so casting it triggers Pact Boon!
+                    controller.exile.push(exiled);
+                    logs.push({
+                        type: 'EXILE',
+                        playerId: controller.id,
+                        playerName: controller.name,
+                        card: sourceCard,
+                        message: `🔮 **${sourceCard.name}** trigger: Exiled **${exiled.name}** from library (may play from exile)!`
+                    });
+                }
+            }
+        }
+
+        // D. Gain / Lose Life effects
+        else if (effectParams.DB === 'LoseLife' || effectParams.AB === 'LoseLife') {
+            const amount = parseInt(effectParams.LifeAmount, 10) || 1;
+            if (effectParams.Defined === 'Player.Opponent' || effectParams.Defined === 'Player.Opponent+Each' || effectParams.Defined === 'EachOpponent') {
+                game?.players?.filter(p => p.id !== controller.id && p.isAlive).forEach(opp => {
+                    opp.life -= amount;
+                    if (opp.life <= 0) opp.eliminate(`Reduced to 0 life by ${sourceCard.name}`);
+                });
+                logs.push({
+                    type: 'TRIGGER',
+                    message: `⚡ **${sourceCard.name}**: Each opponent lost **${amount}** life!`
+                });
+            } else {
+                controller.life -= amount;
+            }
+        }
+        else if (effectParams.DB === 'GainLife' || effectParams.AB === 'GainLife') {
+            const amount = parseInt(effectParams.LifeAmount, 10) || 1;
+            controller.life += amount;
+            logs.push({
+                type: 'TRIGGER',
+                message: `💚 **${sourceCard.name}**: ${controller.name} gained **${amount}** life!`
+            });
+        }
+
+        // Chain sub-ability if present (e.g. SubAbility$ DBEffect or DBGainLife)
+        if (effectParams.SubAbility && sourceCard.forgeSVars[effectParams.SubAbility]) {
+            const subStr = sourceCard.forgeSVars[effectParams.SubAbility];
+            const dummyTrig = `Execute$ ${effectParams.SubAbility}`;
+            const subLogs = executeForgeTrigger(dummyTrig, sourceCard, controller, game, eventData);
+            if (subLogs && subLogs.length > 0) logs.push(...subLogs);
+        }
+
+        return logs;
     }
 
     function extractKeywords(oracleText, typeLine = '') {
@@ -198,7 +579,22 @@
     function createCardInstance(rawCard, ownerId) {
         const name = (rawCard.name || 'Unnamed Card').trim();
         const nameLower = name.toLowerCase();
-        // Check if cached metadata is available when rawCard lacks data
+
+        // 1. Check Card-Forge Script Database first (Primary source of truth)
+        let forgeScript = null;
+        if (typeof window !== 'undefined' && window.__FORGE_SCRIPTS__) {
+            forgeScript = window.__FORGE_SCRIPTS__[nameLower];
+        } else if (typeof global !== 'undefined' && global.__FORGE_SCRIPTS__) {
+            forgeScript = global.__FORGE_SCRIPTS__[nameLower];
+        } else if (typeof require !== 'undefined') {
+            try {
+                const fsData = require('./forge-card-scripts.json');
+                if (typeof global !== 'undefined') global.__FORGE_SCRIPTS__ = fsData;
+                forgeScript = fsData[nameLower];
+            } catch(e) {}
+        }
+
+        // 2. Check Scryfall metadata as secondary
         let cachedMeta = null;
         if (typeof window !== 'undefined' && window.__MTG_CARD_CACHE__) {
             cachedMeta = window.__MTG_CARD_CACHE__[nameLower];
@@ -206,15 +602,43 @@
             cachedMeta = global.__MTG_CARD_CACHE__[nameLower];
         }
 
-        const typeLine = (rawCard.typeLine || rawCard.type || (cachedMeta ? cachedMeta.typeLine : '') || '').trim();
+        // Extract metadata from Forge raw text if available
+        let forgeTypes = '';
+        let forgeMana = '';
+        let forgePT = '';
+        let forgeOracle = '';
+        if (forgeScript && forgeScript.raw) {
+            const tm = forgeScript.raw.match(/Types:([^\n\r]+)/);
+            if (tm) forgeTypes = tm[1].trim();
+            const mm = forgeScript.raw.match(/ManaCost:([^\n\r]+)/);
+            if (mm) forgeMana = mm[1].trim();
+            const pm = forgeScript.raw.match(/PT:([^\n\r]+)/);
+            if (pm) forgePT = pm[1].trim();
+            const om = forgeScript.raw.match(/Oracle:([^\n\r]+)/);
+            if (om) forgeOracle = om[1].trim();
+        }
+
+        const typeLine = (rawCard.typeLine || rawCard.type || forgeTypes || (cachedMeta ? cachedMeta.typeLine : '') || '').trim();
         const typeLower = typeLine.toLowerCase();
-        const oracleText = (rawCard.oracleText || rawCard.oracle_text || rawCard.text || (cachedMeta ? cachedMeta.oracleText : '') || '').trim();
-        const manaCostStr = rawCard.manaCost || rawCard.mana_cost || (cachedMeta ? cachedMeta.manaCost : '') || '';
+        const oracleText = (rawCard.oracleText || rawCard.oracle_text || rawCard.text || forgeOracle || (cachedMeta ? cachedMeta.oracleText : '') || '').trim();
+        
+        let manaCostStr = rawCard.manaCost || rawCard.mana_cost || forgeMana || (cachedMeta ? cachedMeta.manaCost : '') || '';
+        // If manaCostStr is e.g. "2 U B", format with curly braces
+        if (manaCostStr && !manaCostStr.includes('{') && manaCostStr.toLowerCase() !== 'no cost') {
+            manaCostStr = manaCostStr.trim().split(/\s+/).map(t => `{${t}}`).join('');
+        }
         const parsedCost = parseManaCost(manaCostStr);
         if (rawCard.cmc !== undefined) parsedCost.cmc = rawCard.cmc;
         else if (cachedMeta && cachedMeta.cmc !== undefined) parsedCost.cmc = cachedMeta.cmc;
 
         const keywords = extractKeywords(oracleText, typeLine);
+        // Add Forge keywords
+        if (forgeScript && forgeScript.keywords && Array.isArray(forgeScript.keywords)) {
+            forgeScript.keywords.forEach(kw => {
+                const kwClean = kw.toLowerCase().split(':')[0].trim();
+                keywords.add(kwClean);
+            });
+        }
 
         // Power & Toughness
         let power = 0;
@@ -222,6 +646,10 @@
         if (rawCard.power !== undefined && rawCard.toughness !== undefined) {
             power = parseInt(rawCard.power, 10) || 0;
             toughness = parseInt(rawCard.toughness, 10) || 0;
+        } else if (forgePT) {
+            const parts = forgePT.split('/');
+            power = parseInt(parts[0], 10) || 0;
+            toughness = parseInt(parts[1], 10) || 0;
         } else if (cachedMeta && cachedMeta.power !== undefined && cachedMeta.toughness !== undefined) {
             power = parseInt(cachedMeta.power, 10) || 0;
             toughness = parseInt(cachedMeta.toughness, 10) || 0;
@@ -312,7 +740,13 @@
             tapped: false,
             summoningSick: true,
             counters: {},
-            attacksThisTurn: false
+            attacksThisTurn: false,
+            // Card-Forge Scripts & Triggers
+            forgeScript: forgeScript || null,
+            forgeTriggers: forgeScript ? (forgeScript.triggers || []) : [],
+            forgeAbilities: forgeScript ? (forgeScript.abilities || []) : [],
+            forgeStatic: forgeScript ? (forgeScript.static || []) : [],
+            forgeSVars: forgeScript ? (forgeScript.svars || {}) : {}
         };
     }
 
@@ -690,16 +1124,24 @@
             const subtypes = card.subtypes || new Set();
 
             this.battlefield.forEach(other => {
-                if (other.id === card.id || !other.isCreature) return;
-                // Elf anthems
-                if (other.name.includes('Elvish Archdruid') && subtypes.has('elf')) p += 1;
-                // Zombie anthems
-                if ((other.name.includes('Lord of the Accursed') || other.name.includes('Death Baron')) && subtypes.has('zombie')) p += 1;
-                // Generic anthems
-                if (other.oracleText && /other .* creatures you control get \+1\/\+1/i.test(other.oracleText)) {
-                    subtypes.forEach(st => {
-                        if (new RegExp(st, 'i').test(other.oracleText)) p += 1;
+                if (other.id === card.id) return;
+
+                // 1. Check Forge static continuous anthems
+                if (other.forgeStatic && Array.isArray(other.forgeStatic)) {
+                    other.forgeStatic.forEach(staticLine => {
+                        const params = parseForgeParams(staticLine);
+                        if (params.Mode === 'Continuous' && params.AddPower) {
+                            if (matchesForgeFilter(card, params.Affected, this, other)) {
+                                p += parseInt(params.AddPower, 10) || 0;
+                            }
+                        }
                     });
+                }
+
+                // 2. Fallbacks
+                if (other.isCreature) {
+                    if (other.name.includes('Elvish Archdruid') && subtypes.has('elf')) p += 1;
+                    if ((other.name.includes('Lord of the Accursed') || other.name.includes('Death Baron')) && subtypes.has('zombie')) p += 1;
                 }
             });
             return Math.max(0, p);
@@ -711,33 +1153,52 @@
             const subtypes = card.subtypes || new Set();
 
             this.battlefield.forEach(other => {
-                if (other.id === card.id || !other.isCreature) return;
-                if (other.name.includes('Elvish Archdruid') && subtypes.has('elf')) t += 1;
-                if ((other.name.includes('Lord of the Accursed') || other.name.includes('Death Baron')) && subtypes.has('zombie')) t += 1;
+                if (other.id === card.id) return;
+
+                // 1. Check Forge static continuous anthems
+                if (other.forgeStatic && Array.isArray(other.forgeStatic)) {
+                    other.forgeStatic.forEach(staticLine => {
+                        const params = parseForgeParams(staticLine);
+                        if (params.Mode === 'Continuous' && params.AddToughness) {
+                            if (matchesForgeFilter(card, params.Affected, this, other)) {
+                                t += parseInt(params.AddToughness, 10) || 0;
+                            }
+                        }
+                    });
+                }
+
+                // 2. Fallbacks
+                if (other.isCreature) {
+                    if (other.name.includes('Elvish Archdruid') && subtypes.has('elf')) t += 1;
+                    if ((other.name.includes('Lord of the Accursed') || other.name.includes('Death Baron')) && subtypes.has('zombie')) t += 1;
+                }
             });
             return Math.max(1, t);
         }
 
         getCommander() {
-            // Rule 903.9a: If commander ever ended up in graveyard or exile, redirect to Command Zone
+            // MTG Rule 903.9a Safety Sweep: If commander ever ended up in graveyard or exile, redirect to Command Zone
             if (this.commanderCard) {
-                const inGraveIdx = this.graveyard.findIndex(c => c.id === this.commanderCard.id || c.name === this.commanderCard.name);
+                const cmdrNameLower = this.commanderCard.name.trim().toLowerCase();
+                const inGraveIdx = this.graveyard.findIndex(c => c.id === this.commanderCard.id || c.name.trim().toLowerCase() === cmdrNameLower);
                 if (inGraveIdx !== -1) {
                     const c = this.graveyard.splice(inGraveIdx, 1)[0];
                     c.tapped = false;
                     c.damageReceived = 0;
                     c.counters = {};
-                    if (!this.commandZone.some(x => x.id === c.id || x.name === c.name)) {
+                    c.isCommander = true;
+                    if (!this.commandZone.some(x => x.id === c.id || x.name.trim().toLowerCase() === cmdrNameLower)) {
                         this.commandZone.push(c);
                     }
                 }
-                const inExileIdx = this.exile.findIndex(c => c.id === this.commanderCard.id || c.name === this.commanderCard.name);
+                const inExileIdx = this.exile.findIndex(c => c.id === this.commanderCard.id || c.name.trim().toLowerCase() === cmdrNameLower);
                 if (inExileIdx !== -1) {
                     const c = this.exile.splice(inExileIdx, 1)[0];
                     c.tapped = false;
                     c.damageReceived = 0;
                     c.counters = {};
-                    if (!this.commandZone.some(x => x.id === c.id || x.name === c.name)) {
+                    c.isCommander = true;
+                    if (!this.commandZone.some(x => x.id === c.id || x.name.trim().toLowerCase() === cmdrNameLower)) {
                         this.commandZone.push(c);
                     }
                 }
@@ -748,13 +1209,16 @@
         isCommanderInCommandZone() {
             const cmdr = this.getCommander();
             if (!cmdr) return false;
-            return this.commandZone.some(c => c.id === cmdr.id || c.name === cmdr.name);
+            if (this.isCommanderOnBattlefield()) return false;
+            const cmdrNameLower = cmdr.name.trim().toLowerCase();
+            return this.commandZone.some(c => c.id === cmdr.id || c.name.trim().toLowerCase() === cmdrNameLower || c.isCommander);
         }
 
         isCommanderOnBattlefield() {
             const cmdr = this.getCommander();
             if (!cmdr) return false;
-            return this.battlefield.some(c => c.id === cmdr.id || c.name === cmdr.name);
+            const cmdrNameLower = cmdr.name.trim().toLowerCase();
+            return this.battlefield.some(c => c.id === cmdr.id || c.name.trim().toLowerCase() === cmdrNameLower);
         }
 
         canPlayLand(game = null) {
@@ -788,16 +1252,25 @@
             land.tapped = false;
             this.battlefield.push(land);
             this.landPlayedThisTurn = true;
+
+            const logs = [{
+                type: 'LAND',
+                playerId: this.id,
+                playerName: this.name,
+                card: land,
+                message: `🏞️ **${this.name}** played land **${land.name}**.`
+            }];
+
+            if (game && game.triggerSpellCast) {
+                const landTrigs = game.triggerSpellCast(land, this);
+                if (landTrigs && landTrigs.length > 0) logs.push(...landTrigs);
+            }
+
             return {
                 success: true,
                 card: land,
-                log: {
-                    type: 'LAND',
-                    playerId: this.id,
-                    playerName: this.name,
-                    card: land,
-                    message: `🏞️ **${this.name}** played land **${land.name}**.`
-                }
+                logs,
+                log: logs[0]
             };
         }
 
@@ -883,6 +1356,17 @@
             const card = this.hand[idx];
             if (card.isLand) return this.playLand(cardId, game);
 
+            const isInstantOrFlash = card.isInstant || (card.keywords && card.keywords.has('flash'));
+            if (game && !isInstantOrFlash) {
+                const active = game.getActivePlayer();
+                if (!active || active.id !== this.id) {
+                    return { success: false, message: `**${card.name}** cannot be cast on an opponent's turn (Only Instants and Flash spells).` };
+                }
+                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2) {
+                    return { success: false, message: `**${card.name}** can only be cast during your Main phase (MTG Rule 307.1).` };
+                }
+            }
+
             const cost = this.getCardCost(card, game);
             const available = this.getAvailableMana().total;
             if (available < cost) {
@@ -937,6 +1421,12 @@
                 if (game && game.triggerETB) {
                     const etbLogs = game.triggerETB(card, this);
                     if (etbLogs && etbLogs.length > 0) logs.push(...etbLogs);
+                }
+
+                // Run SpellCast triggers (e.g. Prosper Pact Boon from exile, Diregraf Colossus)
+                if (game && game.triggerSpellCast) {
+                    const castTrigs = game.triggerSpellCast(card, this);
+                    if (castTrigs && castTrigs.length > 0) logs.push(...castTrigs);
                 }
             } else if (card.isSorcery || card.isInstant) {
                 this.graveyard.push(card);
@@ -1142,6 +1632,7 @@
         canCastCommander(game = null) {
             const cmdr = this.getCommander();
             if (!cmdr) return false;
+            if (this.isCommanderOnBattlefield()) return false;
             if (!this.isCommanderInCommandZone()) return false;
             if (game) {
                 const active = game.getActivePlayer();
@@ -1155,7 +1646,7 @@
         castCommander(game = null) {
             const cmdr = this.getCommander();
             if (!cmdr) return { success: false, message: "No Commander assigned to deck." };
-            if (!this.isCommanderInCommandZone()) {
+            if (this.isCommanderOnBattlefield()) {
                 return { success: false, message: `**${cmdr.name}** is already on the battlefield!` };
             }
             if (game) {
@@ -1180,6 +1671,10 @@
                 if (counterRes.countered) {
                     this.tapMana(totalCost);
                     this.commanderTax += 2;
+                    this.commanderCastCount += 1;
+                    if (!this.commandZone.some(c => c.id === cmdr.id)) {
+                        this.commandZone.push(cmdr);
+                    }
                     return {
                         success: true,
                         card: cmdr,
@@ -1202,10 +1697,12 @@
             }
 
             this.tapMana(totalCost);
-            this.commandZone = this.commandZone.filter(c => c.id !== cmdr.id);
+            const cmdrNameLower = cmdr.name.trim().toLowerCase();
+            this.commandZone = this.commandZone.filter(c => c.id !== cmdr.id && c.name.trim().toLowerCase() !== cmdrNameLower);
             cmdr.tapped = false;
             cmdr.summoningSick = !cmdr.keywords.has('haste');
             cmdr.damageReceived = 0;
+            cmdr.isCommander = true;
             this.battlefield.push(cmdr);
             this.commanderTax += 2;
             this.commanderCastCount += 1;
@@ -1223,6 +1720,11 @@
                 if (etbLogs && etbLogs.length > 0) logs.push(...etbLogs);
             }
 
+            if (game && game.triggerSpellCast) {
+                const castLogs = game.triggerSpellCast(cmdr, this);
+                if (castLogs && castLogs.length > 0) logs.push(...castLogs);
+            }
+
             return {
                 success: true,
                 card: cmdr,
@@ -1232,21 +1734,34 @@
 
         sendToGraveyardOrCommandZone(card, game = null) {
             if (!card) return;
-            this.battlefield = this.battlefield.filter(c => c.id !== card.id);
-            const isCmdr = card.isCommander || (this.commanderCard && (card.id === this.commanderCard.id || card.name === this.commanderCard.name));
+            const cmdrName = (this.commanderCard ? this.commanderCard.name : '').trim().toLowerCase();
+            const cardName = (card.name || '').trim().toLowerCase();
+            const isCmdr = Boolean(card.isCommander || (this.commanderCard && (card.id === this.commanderCard.id || cardName === cmdrName)));
+
+            // Remove from battlefield completely
+            this.battlefield = this.battlefield.filter(c => c.id !== card.id && (!isCmdr || c.name.trim().toLowerCase() !== cardName));
+
             if (isCmdr) {
-                // Rule 903.9a: Move commander back to command zone
+                // MTG Commander Rule 903.9a: Move Commander directly back to Command Zone
+                card.isCommander = true;
                 card.tapped = false;
                 card.summoningSick = true;
                 card.damageReceived = 0;
                 card.counters = {};
                 card.attacksThisTurn = false;
-                if (!this.commandZone.some(c => c.id === card.id || c.name === card.name)) {
+                if (!this.commanderCard) this.commanderCard = card;
+
+                // Ensure no duplicate in graveyard or exile
+                this.graveyard = this.graveyard.filter(c => c.id !== card.id && c.name.trim().toLowerCase() !== cardName);
+                this.exile = this.exile.filter(c => c.id !== card.id && c.name.trim().toLowerCase() !== cardName);
+
+                if (!this.commandZone.some(c => c.id === card.id || c.name.trim().toLowerCase() === cardName)) {
                     this.commandZone.push(card);
                 }
             } else {
                 this.graveyard.push(card);
             }
+
             if (game && game.processDeathTriggers) {
                 game.processDeathTriggers(card, this);
             }
@@ -1876,7 +2391,11 @@
                     break;
 
                 case PHASES.UPKEEP:
-                    // Upkeep triggers
+                    // Evaluate Upkeep triggers (Dreadhorde Invasion amass, Phyrexian Arena draw, etc.)
+                    {
+                        const upkeepTrigs = this.triggerPhase(PHASES.UPKEEP, activePlayer);
+                        if (upkeepTrigs.length > 0) phaseLogs.push(...upkeepTrigs);
+                    }
                     break;
 
                 case PHASES.DRAW:
@@ -1926,6 +2445,20 @@
                     this._pendingCombat = null;
                     break;
 
+                case PHASES.COMBAT_END:
+                    // Rule 702.147: Sacrifice attacking creatures with Decayed
+                    {
+                        const decayedAttackers = activePlayer.battlefield.filter(c => c.attacksThisTurn && c.keywords && c.keywords.has('decayed'));
+                        decayedAttackers.forEach(d => {
+                            activePlayer.sendToGraveyardOrCommandZone(d, this);
+                            phaseLogs.push({
+                                type: 'DECAYED',
+                                message: `💀 **${d.name}** crumbled away at end of combat (Decayed).`
+                            });
+                        });
+                    }
+                    break;
+
                 case PHASES.MAIN_2:
                     if (activePlayer.isAI) {
                         const postCombatLogs = CommanderBotAI.takeMainPhaseActions(this, activePlayer);
@@ -1934,32 +2467,10 @@
                     break;
 
                 case PHASES.END_STEP:
-                    // 1. Prosper, Tome-Bound: Exile top card of library
-                    if (activePlayer.battlefield.some(c => c.name.includes('Prosper'))) {
-                        if (activePlayer.library.length > 0) {
-                            const exiled = activePlayer.library.shift();
-                            activePlayer.exile.push(exiled);
-                            phaseLogs.push({
-                                type: 'TRIGGER',
-                                message: `🔮 **Prosper, Tome-Bound** trigger: exiled **${exiled.name}** from library!`
-                            });
-                        }
-                    }
-                    // 2. Wilhelt, the Rotcleaver: Sacrifice a zombie to draw
-                    if (activePlayer.battlefield.some(c => c.name.includes('Wilhelt'))) {
-                        const nonWilheltZombies = activePlayer.battlefield.filter(c => c.isCreature && c.subtypes && c.subtypes.has('zombie') && !c.name.includes('Wilhelt'));
-                        if (nonWilheltZombies.length > 0) {
-                            const sac = nonWilheltZombies[0];
-                            activePlayer.battlefield = activePlayer.battlefield.filter(c => c.id !== sac.id);
-                            activePlayer.graveyard.push(sac);
-                            const drawn = activePlayer.draw(1);
-                            phaseLogs.push({
-                                type: 'SACRIFICE',
-                                message: `🧟 **Wilhelt** sacrificed **${sac.name}** to draw a card!`
-                            });
-                            const deathLogs = this.processDeathTriggers(sac, activePlayer);
-                            phaseLogs.push(...deathLogs);
-                        }
+                    // Run all Card-Forge End of Turn triggers (Wilhelt sac/draw, Prosper exile top card, etc.)
+                    {
+                        const endTrigs = this.triggerPhase(PHASES.END_STEP, activePlayer);
+                        if (endTrigs.length > 0) phaseLogs.push(...endTrigs);
                     }
                     break;
 
@@ -2108,11 +2619,33 @@
 
         processDeathTriggers(card, controller) {
             const logs = [];
-            if (!card || !controller) return logs;
-            const subtypes = card.subtypes || new Set();
+            if (!card || !controller || !this.players) return logs;
+            const executedSourceIds = new Set();
 
-            // 1. Undead Augur: Whenever Undead Augur or another Zombie dies, draw 1 and lose 1 life
-            const augurs = controller.battlefield.filter(c => c.name.includes('Undead Augur'));
+            // 1. Universal Forge Death Triggers (ChangesZone Battlefield -> Graveyard)
+            this.players.forEach(p => {
+                p.battlefield.forEach(source => {
+                    if (source.forgeTriggers && Array.isArray(source.forgeTriggers)) {
+                        source.forgeTriggers.forEach(trigStr => {
+                            const params = parseForgeParams(trigStr);
+                            if (params.Mode === 'ChangesZone' && params.Origin === 'Battlefield' && params.Destination === 'Graveyard') {
+                                if (matchesForgeFilter(card, params.ValidCard, p, source, this)) {
+                                    const trigLogs = executeForgeTrigger(trigStr, source, p, this, { dyingCard: card });
+                                    if (trigLogs.length > 0) {
+                                        logs.push(...trigLogs);
+                                        executedSourceIds.add(source.id);
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
+            });
+
+            // 2. Specific Fallback Handlers
+            const subtypes = card.subtypes || new Set();
+            // Undead Augur
+            const augurs = controller.battlefield.filter(c => c.name.includes('Undead Augur') && !executedSourceIds.has(c.id));
             if (augurs.length > 0 && (card.name.includes('Undead Augur') || subtypes.has('zombie'))) {
                 controller.draw(1);
                 controller.life -= 1;
@@ -2122,26 +2655,9 @@
                 });
             }
 
-            // 2. Wilhelt, the Rotcleaver: Whenever another Zombie dies, create a 2/2 Zombie token
-            const wilhelts = controller.battlefield.filter(c => c.name.includes('Wilhelt'));
-            if (wilhelts.length > 0 && card.id !== wilhelts[0].id && subtypes.has('zombie')) {
-                const zombieToken = createCardInstance({
-                    name: 'Zombie Token',
-                    typeLine: 'Creature — Zombie',
-                    power: 2,
-                    toughness: 2,
-                    manaCost: '{0}'
-                }, controller.id);
-                controller.battlefield.push(zombieToken);
-                logs.push({
-                    type: 'TOKEN_CREATED',
-                    message: `🧟 **Wilhelt, the Rotcleaver** trigger: ${controller.name} created a 2/2 Zombie token from **${card.name}**'s death!`
-                });
-            }
-
-            // 3. Mayhem Devil: Whenever a player sacrifices or creature dies, deal 1 damage
+            // Mayhem Devil
             this.players.forEach(p => {
-                const devils = p.battlefield.filter(c => c.name.includes('Mayhem Devil'));
+                const devils = p.battlefield.filter(c => c.name.includes('Mayhem Devil') && !executedSourceIds.has(c.id));
                 if (devils.length > 0) {
                     const opponent = this.players.find(opp => opp.id !== p.id && opp.isAlive);
                     if (opponent) {
@@ -2154,9 +2670,9 @@
                 }
             });
 
-            // 4. Marionette Master: When artifact dies, opponent loses life equal to Marionette Master's power
+            // Marionette Master
             if (card.isArtifact || (card.typeLine && card.typeLine.toLowerCase().includes('artifact'))) {
-                const masters = controller.battlefield.filter(c => c.name.includes('Marionette Master'));
+                const masters = controller.battlefield.filter(c => c.name.includes('Marionette Master') && !executedSourceIds.has(c.id));
                 masters.forEach(mm => {
                     const pwr = controller.getEffectivePower(mm) || 1;
                     const opponents = this.players.filter(opp => opp.id !== controller.id && opp.isAlive);
@@ -2169,6 +2685,63 @@
                     });
                 });
             }
+
+            if (logs.length > 0) {
+                this.turnLogs.push(...logs);
+                this.history.push(...logs);
+            }
+            return logs;
+        }
+
+        triggerPhase(phaseName, activePlayer) {
+            const logs = [];
+            if (!activePlayer || !this.players) return logs;
+
+            const forgePhaseName = phaseName === PHASES.UPKEEP ? 'Upkeep' : (phaseName === PHASES.END_STEP ? 'End of Turn' : phaseName);
+
+            this.players.forEach(p => {
+                p.battlefield.forEach(source => {
+                    if (source.forgeTriggers && Array.isArray(source.forgeTriggers)) {
+                        source.forgeTriggers.forEach(trigStr => {
+                            const params = parseForgeParams(trigStr);
+                            if (params.Mode === 'Phase' && params.Phase === forgePhaseName) {
+                                if (params.ValidPlayer === 'You' && p.id !== activePlayer.id) return;
+                                const trigLogs = executeForgeTrigger(trigStr, source, p, this);
+                                if (trigLogs.length > 0) logs.push(...trigLogs);
+                            }
+                        });
+                    }
+                });
+            });
+
+            if (logs.length > 0) {
+                this.turnLogs.push(...logs);
+                this.history.push(...logs);
+            }
+            return logs;
+        }
+
+        triggerSpellCast(card, caster) {
+            const logs = [];
+            if (!card || !caster || !this.players) return logs;
+
+            this.players.forEach(p => {
+                p.battlefield.forEach(source => {
+                    if (source.forgeTriggers && Array.isArray(source.forgeTriggers)) {
+                        source.forgeTriggers.forEach(trigStr => {
+                            const params = parseForgeParams(trigStr);
+                            const isMatchMode = params.Mode === 'SpellCast' || (card.isLand && params.Mode === 'LandPlayed');
+                            if (isMatchMode) {
+                                if (params.ValidActivatingPlayer === 'You' && p.id !== caster.id) return;
+                                if (matchesForgeFilter(card, params.ValidCard, p, source, this)) {
+                                    const trigLogs = executeForgeTrigger(trigStr, source, p, this, { castCard: card });
+                                    if (trigLogs.length > 0) logs.push(...trigLogs);
+                                }
+                            }
+                        });
+                    }
+                });
+            });
 
             if (logs.length > 0) {
                 this.turnLogs.push(...logs);

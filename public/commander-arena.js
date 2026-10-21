@@ -3508,6 +3508,8 @@
                         </div>
                     `;
                 }).join('');
+            } else {
+                supportsHtml = `<span style="font-size: 0.65rem; color: var(--arena-text-muted); padding: 0.15rem 0.3rem;">No artifacts/enchantments</span>`;
             }
 
             return `
@@ -3547,17 +3549,16 @@
                         </div>
                         <!-- Lands Shelf -->
                         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.66rem; color: var(--arena-text-muted); font-weight: 700; padding: 0.1rem 0.2rem;">
-                            <span>🏞️ Opponent Lands (${lands.length})</span>
+                            <span>🏞️ Lands (${lands.length})</span>
                             <span>💎 Support (${supports.length}) • 📚 ${opp.library.length}</span>
                         </div>
                         <div class="opponent-lands-shelf">
                             ${landsHtml}
                         </div>
                         <!-- Support Permanents Line (Artifacts, Rocks, Enchantments) -->
-                        ${supports.length > 0 ? `
                         <div class="opponent-support-shelf">
                             ${supportsHtml}
-                        </div>` : ''}
+                        </div>
                     </div>
                 </div>
             `;
