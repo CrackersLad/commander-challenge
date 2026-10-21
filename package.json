@@ -7,7 +7,8 @@
     "deploy": "node deploy.js",
     "deploy:major": "node deploy.js --major",
     "sync-precons": "node scripts/sync-precons.js",
-    "test:journey": "node test_user_journeys.mjs"
+    "test:journey": "node test_user_journeys.mjs",
+    "test:forge": "node test_forge_arena_full.js"
   },
   "devDependencies": {
     "puppeteer-core": "^25.12.0"

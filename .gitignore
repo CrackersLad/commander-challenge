@@ -18,3 +18,7 @@ Thumbs.db
 SSH Keys/
 *.key
 *.pem
+
+# Scratch & test outputs
+scratch_*.png
+test_*.png

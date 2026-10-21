@@ -3950,7 +3950,7 @@
     // USER ACTIONS & INTERACTIVE CONTROLS
     // ============================================================================
 
-    window.playCardFromHand = function (cardId) {
+    window.playCardFromHand = async function (cardId) {
         if (!currentGame) return;
         const player = currentGame.players[0];
         const activePlayer = currentGame.getActivePlayer();
@@ -4012,17 +4012,22 @@
             }, 650);
         }
 
-        const res = player.castCard(cardId, currentGame);
-        if (!res.success) {
+        let res = null;
+        if (currentGame.playCard) {
+            res = await currentGame.playCard(cardId);
+        } else {
+            res = player.castCard(cardId, currentGame);
+        }
+        if (res && !res.success) {
             alert(res.message);
             return;
         }
 
-        appendArenaLogs(res.logs);
+        if (res && res.logs) appendArenaLogs(res.logs);
         updateArenaDOM();
     };
 
-    window.castPlayerCommander = function () {
+    window.castPlayerCommander = async function () {
         if (!currentGame) return;
         const player = currentGame.players[0];
         const activePlayer = currentGame.getActivePlayer();
@@ -4068,36 +4073,53 @@
             }, 750);
         }
 
-        const res = player.castCommander(currentGame);
-        if (!res.success) {
+        let res = null;
+        if (currentGame.castCommander) {
+            res = await currentGame.castCommander();
+        } else {
+            res = player.castCommander(currentGame);
+        }
+        if (res && !res.success) {
             alert(res.message);
             return;
         }
 
-        appendArenaLogs(res.logs);
+        if (res && res.logs) appendArenaLogs(res.logs);
         updateArenaDOM();
     };
 
-    window.toggleLandTap = function (cardId) {
+    window.toggleLandTap = async function (cardId) {
         if (!currentGame) return;
-        const player = currentGame.players[0];
-        player.toggleTapPermanent(cardId);
+        if (currentGame.toggleTapPermanent) {
+            await currentGame.toggleTapPermanent(cardId);
+        } else {
+            const player = currentGame.players[0];
+            player.toggleTapPermanent(cardId);
+        }
         updateArenaDOM();
     };
 
-    window.untapAllMyLands = function () {
+    window.untapAllMyLands = async function () {
         if (!currentGame) return;
-        const player = currentGame.players[0];
-        player.battlefield.forEach(c => {
-            if (c.isLand || c.isManaRock) c.tapped = false;
-        });
+        if (currentGame.untapAllLands) {
+            await currentGame.untapAllLands();
+        } else {
+            const player = currentGame.players[0];
+            player.battlefield.forEach(c => {
+                if (c.isLand || c.isManaRock) c.tapped = false;
+            });
+        }
         updateArenaDOM();
     };
 
-    window.adjustPlayerLife = function (delta) {
+    window.adjustPlayerLife = async function (delta) {
         if (!currentGame) return;
-        const player = currentGame.players[0];
-        player.life += delta;
+        if (currentGame.adjustPlayerLife) {
+            await currentGame.adjustPlayerLife(delta);
+        } else {
+            const player = currentGame.players[0];
+            player.life += delta;
+        }
         updateArenaDOM();
     };
 
@@ -4118,7 +4140,7 @@
         updateArenaDOM();
     };
 
-    window.handleMainActionClick = function () {
+    window.handleMainActionClick = async function () {
         if (!currentGame) return;
         const activePlayer = currentGame.getActivePlayer();
         const player = currentGame.players[0];
@@ -4133,16 +4155,19 @@
                     targetPlayerId: targetOpp ? targetOpp.id : null
                 }));
 
-                const res = currentGame.declareHumanAttacks(attacks);
+                let res = null;
+                if (currentGame.declareHumanAttacks) {
+                    res = await currentGame.declareHumanAttacks(attacks);
+                }
                 selectedAttackerIds.clear();
-                appendArenaLogs(res.logs);
-                currentGame.stepPhase(); // Move to damage
+                if (res && res.logs) appendArenaLogs(res.logs);
+                await currentGame.stepPhase(); // Move to damage
                 updateArenaDOM();
                 return;
             }
         }
 
-        window.stepArenaPhase();
+        await window.stepArenaPhase();
     };
 
     // ============================================================================
@@ -4428,7 +4453,7 @@
             if (icon) icon.textContent = '⏸️';
             if (txt) txt.textContent = 'Pause';
 
-            autoPlayTimer = setInterval(() => {
+            autoPlayTimer = setInterval(async () => {
                 if (!currentGame || currentGame.isGameOver) {
                     window.toggleArenaPlayPause();
                     return;
@@ -4440,9 +4465,9 @@
                     return;
                 }
 
-                const result = currentGame.stepPhase();
+                const result = await currentGame.stepPhase();
                 updateArenaDOM();
-                if (result.logs && result.logs.length > 0) {
+                if (result && result.logs && result.logs.length > 0) {
                     appendArenaLogs(result.logs);
                 }
             }, playSpeedMs);
@@ -4457,24 +4482,24 @@
         }
     };
 
-    window.stepArenaPhase = function () {
+    window.stepArenaPhase = async function () {
         if (!currentGame || currentGame.isGameOver) return;
-        const result = currentGame.stepPhase();
+        const result = await currentGame.stepPhase();
         updateArenaDOM();
-        if (result.logs && result.logs.length > 0) {
+        if (result && result.logs && result.logs.length > 0) {
             appendArenaLogs(result.logs);
         }
     };
 
-    window.simulateArenaInstant = function () {
+    window.simulateArenaInstant = async function () {
         if (!currentGame || currentGame.isGameOver) return;
         if (autoPlayTimer) clearInterval(autoPlayTimer);
         isPaused = true;
         window.closeMulliganModal();
 
-        const result = currentGame.runMatchSimulation();
+        const result = await currentGame.runMatchSimulation();
         updateArenaDOM();
-        appendArenaLogs(result.logs);
+        if (result && result.logs) appendArenaLogs(result.logs);
     };
 
     window.clearArenaLog = function () {
@@ -4572,7 +4597,7 @@
         if (overlay) overlay.style.display = 'none';
     };
 
-    window.applyArenaSetupAndStart = function (customDeck = null) {
+    window.applyArenaSetupAndStart = async function (customDeck = null) {
         window.closeArenaSetup();
         if (autoPlayTimer) clearInterval(autoPlayTimer);
         isPaused = true;
@@ -4633,27 +4658,32 @@
             });
         }
 
-        const engine = window.MtgCommanderEngine;
-        if (!engine) {
-            console.error("MtgCommanderEngine not loaded yet.");
-            return;
-        }
-
-        currentGame = new engine.CommanderGame({
-            players: selectedDecks.map((d, idx) => ({
-                id: `p_${idx + 1}`,
-                name: idx === 0 ? (d.commander ? `${d.commander} (You)` : 'You') : (d.commander ? `${d.commander}` : `Opponent ${idx}`),
-                deck: (d && (d.cards || d.commander)) ? { commander: d.commander, cards: d.cards || [] } : d,
-                isAI: idx !== 0,
-                avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(d.commander || d.name)}`
-            })),
-            maxTurns: 35
-        });
-
         window.clearArenaLog();
         appendArenaLogs([{
             type: 'GAME_INIT',
-            message: `🚀 **Live 4-Player Tabletop Initialized!** You are commanding **${selectedDecks[0].commander || selectedDecks[0].name}** against 3 bot opponents.`
+            message: `🚀 **Launching Official Card-Forge WebAssembly Engine...** Commanding **${selectedDecks[0].commander || selectedDecks[0].name}** against 3 bot opponents.`
+        }]);
+
+        if (window.ForgeArena) {
+            try {
+                currentGame = await window.ForgeArena.startMatch(selectedDecks);
+                window.currentGame = currentGame;
+            } catch (err) {
+                console.error("Card-Forge Engine launch error:", err);
+                appendArenaLogs([{
+                    type: 'ERROR',
+                    message: `❌ Failed to launch Card-Forge WebAssembly Engine: ${err.message}`
+                }]);
+                return;
+            }
+        } else {
+            console.error("ForgeArena adapter not loaded.");
+            return;
+        }
+
+        appendArenaLogs([{
+            type: 'MATCH_START',
+            message: `✨ **Card-Forge Engine Active!** Comprehensive MTG Rules & 33,600+ cards loaded.`
         }]);
 
         updateArenaDOM();
