@@ -407,6 +407,174 @@
             this.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
         }
 
+        canPlayLand() {
+            return !this.landPlayedThisTurn && this.hand.some(c => c.isLand);
+        }
+
+        playLand(cardId) {
+            if (this.landPlayedThisTurn) {
+                return { success: false, message: "You have already played a land this turn." };
+            }
+            const idx = this.hand.findIndex(c => c.id === cardId && c.isLand);
+            if (idx === -1) {
+                return { success: false, message: "Land not found in hand." };
+            }
+            const land = this.hand.splice(idx, 1)[0];
+            land.tapped = false;
+            this.battlefield.push(land);
+            this.landPlayedThisTurn = true;
+            return {
+                success: true,
+                card: land,
+                log: {
+                    type: 'LAND',
+                    playerId: this.id,
+                    playerName: this.name,
+                    card: land,
+                    message: `🏞️ **${this.name}** played land **${land.name}**.`
+                }
+            };
+        }
+
+        canCastCard(card) {
+            if (!card) return false;
+            if (card.isLand) return this.canPlayLand();
+            return this.getAvailableMana().total >= (card.cmc || 0);
+        }
+
+        castCard(cardId, game, targetPermanentId = null) {
+            const idx = this.hand.findIndex(c => c.id === cardId);
+            if (idx === -1) return { success: false, message: "Card not in hand." };
+            const card = this.hand[idx];
+            if (card.isLand) return this.playLand(cardId);
+
+            const available = this.getAvailableMana().total;
+            if (available < (card.cmc || 0)) {
+                return { success: false, message: `Not enough mana. Need ${card.cmc}, have ${available}.` };
+            }
+
+            this.tapMana(card.cmc || 0);
+            this.hand.splice(idx, 1);
+
+            const logs = [{
+                type: 'SPELL_CAST',
+                playerId: this.id,
+                playerName: this.name,
+                card,
+                message: `⚡ **${this.name}** cast **${card.name}** (${card.typeLine}).`
+            }];
+
+            if (card.isCreature || card.isArtifact || card.isEnchantment || card.isPlaneswalker) {
+                card.tapped = false;
+                card.summoningSick = !card.keywords.has('haste');
+                this.battlefield.push(card);
+            } else if (card.isSorcery || card.isInstant) {
+                this.graveyard.push(card);
+                if (card.isRampSpell) {
+                    const basic = this.library.find(c => c.isLand);
+                    if (basic) {
+                        this.library = this.library.filter(c => c.id !== basic.id);
+                        basic.tapped = true;
+                        this.battlefield.push(basic);
+                        logs.push({
+                            type: 'RAMP',
+                            playerId: this.id,
+                            playerName: this.name,
+                            card: basic,
+                            message: `🌱 **${this.name}** put **${basic.name}** onto the battlefield tapped.`
+                        });
+                    }
+                } else if (card.isDrawSpell) {
+                    const drawn = this.draw(2);
+                    logs.push({
+                        type: 'DRAW',
+                        playerId: this.id,
+                        playerName: this.name,
+                        message: `📜 **${this.name}** drew ${drawn.length} cards.`
+                    });
+                } else if (card.isBoardWipe) {
+                    if (game && game.players) {
+                        game.players.forEach(p => {
+                            p.battlefield.filter(c => c.isCreature).forEach(c => {
+                                p.battlefield = p.battlefield.filter(x => x.id !== c.id);
+                                if (c.isCommander) p.commandZone.push(c);
+                                else p.graveyard.push(c);
+                            });
+                        });
+                    }
+                    logs.push({
+                        type: 'BOARD_WIPE',
+                        playerId: this.id,
+                        playerName: this.name,
+                        message: `💥 **${this.name}** wiped the board with **${card.name}**! All creatures destroyed.`
+                    });
+                } else if (card.isRemoval && targetPermanentId && game && game.players) {
+                    for (const opp of game.players.filter(p => p.id !== this.id && p.isAlive)) {
+                        const tgt = opp.battlefield.find(c => c.id === targetPermanentId);
+                        if (tgt) {
+                            opp.battlefield = opp.battlefield.filter(c => c.id !== tgt.id);
+                            if (tgt.isCommander) opp.commandZone.push(tgt);
+                            else opp.graveyard.push(tgt);
+                            logs.push({
+                                type: 'REMOVAL',
+                                playerId: this.id,
+                                playerName: this.name,
+                                message: `🎯 **${this.name}** destroyed **${tgt.name}** (${opp.name}) with **${card.name}**!`
+                            });
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return { success: true, card, logs };
+        }
+
+        canCastCommander() {
+            const cmdr = this.getCommander();
+            if (!cmdr) return false;
+            const cost = (cmdr.cmc || 0) + this.commanderTax;
+            return this.getAvailableMana().total >= cost;
+        }
+
+        castCommander(game) {
+            const cmdr = this.getCommander();
+            if (!cmdr) return { success: false, message: "Commander not in Command Zone." };
+            const totalCost = (cmdr.cmc || 0) + this.commanderTax;
+            const available = this.getAvailableMana().total;
+            if (available < totalCost) {
+                return { success: false, message: `Need ${totalCost} mana (Tax: {${this.commanderTax}}), have ${available}.` };
+            }
+
+            this.tapMana(totalCost);
+            this.commandZone = this.commandZone.filter(c => c.id !== cmdr.id);
+            cmdr.tapped = false;
+            cmdr.summoningSick = !cmdr.keywords.has('haste');
+            this.battlefield.push(cmdr);
+            this.commanderTax += 2;
+
+            return {
+                success: true,
+                card: cmdr,
+                logs: [{
+                    type: 'COMMANDER_CAST',
+                    playerId: this.id,
+                    playerName: this.name,
+                    card: cmdr,
+                    message: `👑 **${this.name}** cast Commander **${cmdr.name}**! (Next tax: {${this.commanderTax}}).`
+                }]
+            };
+        }
+
+        toggleTapPermanent(cardId) {
+            const card = this.battlefield.find(c => c.id === cardId);
+            if (card) {
+                card.tapped = !card.tapped;
+                return true;
+            }
+            return false;
+        }
+
         getCommander() {
             return this.commandZone[0] || null;
         }
@@ -953,6 +1121,55 @@
                 winner: this.winner,
                 logs: phaseLogs
             };
+        }
+
+        declareHumanAttacks(attacks = []) {
+            if (this.currentPhase !== PHASES.DECLARE_ATTACKERS) {
+                return { success: false, message: "Can only declare attacks in Declare Attackers phase." };
+            }
+            const activePlayer = this.getActivePlayer();
+            const logs = [];
+            const attackingCards = [];
+            let targetPlayer = null;
+
+            attacks.forEach(atk => {
+                const card = activePlayer.battlefield.find(c => c.id === atk.attackerId && c.isCreature);
+                if (card && !card.tapped && !card.summoningSick) {
+                    if (!card.keywords.has('vigilance')) {
+                        card.tapped = true;
+                    }
+                    card.attacksThisTurn = true;
+                    attackingCards.push(card);
+                    if (!targetPlayer) {
+                        targetPlayer = this.players.find(p => p.id === atk.targetPlayerId && p.isAlive);
+                    }
+                }
+            });
+
+            if (attackingCards.length > 0 && targetPlayer) {
+                this._pendingCombat = {
+                    attackers: attackingCards,
+                    targetPlayer
+                };
+                logs.push({
+                    type: 'COMBAT_ATTACK',
+                    playerId: activePlayer.id,
+                    playerName: activePlayer.name,
+                    targetPlayerId: targetPlayer.id,
+                    targetPlayerName: targetPlayer.name,
+                    message: `⚔️ **${activePlayer.name}** declared attack with **${attackingCards.map(c => c.name).join(', ')}** against **${targetPlayer.name}**!`
+                });
+            } else {
+                this._pendingCombat = null;
+                logs.push({
+                    type: 'COMBAT_ATTACK',
+                    playerId: activePlayer.id,
+                    playerName: activePlayer.name,
+                    message: `⚔️ **${activePlayer.name}** passed combat without attacking.`
+                });
+            }
+
+            return { success: true, logs };
         }
 
         runMatchSimulation() {

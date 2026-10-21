@@ -1,49 +1,54 @@
 /**
  * ============================================================================
- * COMMANDER ARENA - STYLESHEET (Dark Glassmorphism Battlefield)
+ * COMMANDER ARENA - AUTHENTIC MTG TABLETOP STYLESHEET
  * ============================================================================
+ * High-fidelity glassmorphism dark playmat, authentic MTG card frames,
+ * Scryfall card imagery, 4-player pod seats, interactive hand tray,
+ * 90-degree tapped rotations, power/toughness badges, and priority stack.
  */
 
 :root {
-  --arena-bg: #0b0f17;
-  --arena-panel: rgba(18, 24, 38, 0.75);
-  --arena-panel-solid: #121826;
-  --arena-border: rgba(255, 255, 255, 0.08);
-  --arena-border-glow: rgba(168, 85, 247, 0.4);
+  --arena-bg: #070a10;
+  --arena-playmat: radial-gradient(circle at 50% 50%, #151e2b 0%, #080c14 100%);
+  --arena-panel: rgba(15, 23, 42, 0.85);
+  --arena-panel-solid: #0f172a;
+  --arena-border: rgba(255, 255, 255, 0.1);
+  --arena-border-glow: rgba(168, 85, 247, 0.5);
   --arena-accent: #a855f7;
   --arena-accent-gradient: linear-gradient(135deg, #8b5cf6, #d946ef);
   --arena-gold: #f59e0b;
+  --arena-gold-glow: 0 0 16px rgba(245, 158, 11, 0.7);
   --arena-green: #10b981;
   --arena-red: #ef4444;
-  --arena-blue: #3b82f6;
-  --arena-text: #f3f4f6;
-  --arena-text-muted: #9ca3af;
-  --arena-glow-box: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --arena-blue: #38bdf8;
+  --arena-text: #f8fafc;
+  --arena-text-muted: #94a3b8;
+  --arena-card-back: url('https://cards.scryfall.io/back.png');
 }
 
 .arena-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(5, 8, 15, 0.88);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(3, 7, 18, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   z-index: 10000;
   display: none;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: 0.5rem;
   overflow: hidden;
 }
 
 .arena-container {
   width: 100%;
-  max-width: 1440px;
-  height: 94vh;
-  max-height: 940px;
-  background: var(--arena-bg);
+  max-width: 1560px;
+  height: 98vh;
+  max-height: 980px;
+  background: var(--arena-playmat);
   border: 1px solid var(--arena-border);
   border-radius: 20px;
-  box-shadow: var(--arena-glow-box);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85), inset 0 0 120px rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -54,15 +59,15 @@
 
 /* Header */
 .arena-header {
-  padding: 0.85rem 1.4rem;
-  background: var(--arena-panel);
+  padding: 0.65rem 1.25rem;
+  background: rgba(15, 23, 42, 0.9);
   border-bottom: 1px solid var(--arena-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem;
   flex-wrap: wrap;
-  z-index: 10;
+  z-index: 20;
 }
 
 .arena-brand {
@@ -72,19 +77,17 @@
 }
 
 .arena-crown-badge {
-  background: rgba(168, 85, 247, 0.15);
-  border: 1px solid rgba(168, 85, 247, 0.35);
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.4);
   color: #c084fc;
-  font-size: 1.1rem;
-  padding: 0.3rem 0.6rem;
+  font-size: 1.15rem;
+  padding: 0.25rem 0.55rem;
   border-radius: 8px;
-  display: flex;
-  align-items: center;
-  box-shadow: 0 0 14px rgba(168, 85, 247, 0.2);
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.25);
 }
 
 .arena-title {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 800;
   background: linear-gradient(135deg, #fff, #c084fc);
   -webkit-background-clip: text;
@@ -94,30 +97,32 @@
 
 .arena-turn-badge {
   font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--arena-text-muted);
-  font-family: monospace;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 0.2rem 0.6rem;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 800;
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.3rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-/* Phase Tracker */
+/* Phase Tracker Bar */
 .arena-phase-bar {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 0.25rem 0.4rem;
+  gap: 0.25rem;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 0.25rem 0.45rem;
   border-radius: 999px;
   border: 1px solid var(--arena-border);
 }
 
 .arena-phase-step {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  padding: 0.2rem 0.55rem;
+  padding: 0.22rem 0.6rem;
   border-radius: 999px;
   color: var(--arena-text-muted);
   transition: all 0.25s ease;
@@ -128,24 +133,24 @@
 .arena-phase-step.active {
   background: var(--arena-accent-gradient);
   color: white;
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.5);
-  transform: scale(1.05);
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.6);
+  transform: scale(1.06);
 }
 
-/* Controls */
+/* Control Buttons */
 .arena-controls {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
 }
 
 .arena-btn {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--arena-border);
   color: var(--arena-text);
-  padding: 0.45rem 0.85rem;
+  padding: 0.42rem 0.85rem;
   border-radius: 8px;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
   display: inline-flex;
@@ -155,8 +160,8 @@
 }
 
 .arena-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.25);
   transform: translateY(-1px);
 }
 
@@ -164,197 +169,181 @@
   background: var(--arena-accent-gradient);
   color: white;
   border: none;
-  box-shadow: 0 4px 14px rgba(168, 85, 247, 0.35);
+  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.4);
 }
 
 .arena-btn-primary:hover {
-  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.55);
+  box-shadow: 0 4px 22px rgba(168, 85, 247, 0.65);
 }
 
-/* Arena Main Theater */
+.arena-btn-gold {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #000;
+  font-weight: 900;
+  border: none;
+  box-shadow: var(--arena-gold-glow);
+}
+
+.arena-btn-gold:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.9);
+}
+
+/* ============================================================================
+ * MAIN THEATER LAYOUT
+ * ============================================================================
+ */
 .arena-theater {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: 1fr 310px;
   overflow: hidden;
   position: relative;
 }
 
-/* Battlefield Grid */
 .arena-battlefield-canvas {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 1rem 1.25rem;
-  gap: 0.85rem;
+  padding: 0.75rem 1rem 0.5rem;
+  gap: 0.65rem;
   overflow-y: auto;
   position: relative;
+  background: radial-gradient(ellipse at 50% 60%, rgba(30, 41, 59, 0.3) 0%, transparent 70%);
 }
 
-/* Pod Player Seats */
-.arena-seats-top {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
+/* ============================================================================
+ * TOP ZONE: 3 OPPONENT BAYS
+ * ============================================================================
+ */
+.arena-opponents-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
 }
 
-.arena-seats-mid {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  position: relative;
-}
-
-.arena-seats-bottom {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-}
-
-/* Player Cockpit Card */
-.player-cockpit {
-  background: var(--arena-panel);
+.opponent-bay {
+  background: rgba(15, 23, 42, 0.75);
   border: 1px solid var(--arena-border);
   border-radius: 14px;
-  padding: 0.85rem;
-  width: 290px;
+  padding: 0.65rem;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.5rem;
   position: relative;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
-.player-cockpit.active-turn {
+.opponent-bay.active-turn {
   border-color: #c084fc;
-  box-shadow: 0 0 24px rgba(168, 85, 247, 0.3);
-  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.35);
+  background: rgba(24, 33, 56, 0.85);
 }
 
-.player-cockpit.eliminated {
-  opacity: 0.45;
-  filter: grayscale(0.85);
+.opponent-bay.eliminated {
+  opacity: 0.35;
+  filter: grayscale(0.9);
   border-color: rgba(239, 68, 68, 0.3);
 }
 
-.player-cockpit-header {
+.opponent-bay-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
 }
 
-.player-cockpit-info {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-}
-
-.player-cockpit-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 2px solid var(--arena-border);
-  background: #1f2937;
-}
-
-.player-cockpit-name {
-  font-weight: 800;
-  font-size: 0.92rem;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 140px;
-}
-
-/* Life Counter Dial */
-.player-life-box {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 0.25rem 0.55rem;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.player-life-val {
-  font-size: 1.15rem;
-  font-weight: 900;
-  font-family: monospace;
-  color: #10b981;
-}
-
-.player-life-val.danger {
-  color: #ef4444;
-  animation: pulseLife 1.5s infinite;
-}
-
-@keyframes pulseLife {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.08); }
-}
-
-/* Commander Pedestal */
-.commander-pedestal {
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(168, 85, 247, 0.25);
-  border-radius: 10px;
-  padding: 0.5rem 0.65rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.commander-pedestal-left {
+.opponent-bay-profile {
   display: flex;
   align-items: center;
   gap: 0.45rem;
   overflow: hidden;
 }
 
-.commander-crown-icon {
-  color: #f59e0b;
-  font-size: 0.95rem;
+.opponent-bay-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid var(--arena-border);
+  background: #1e293b;
 }
 
-.commander-pedestal-name {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #e2e8f0;
+.opponent-bay-name {
+  font-weight: 800;
+  font-size: 0.84rem;
+  color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 110px;
 }
 
-.commander-tax-chip {
-  background: rgba(168, 85, 247, 0.15);
-  border: 1px solid rgba(168, 85, 247, 0.35);
-  color: #c084fc;
-  font-size: 0.7rem;
-  font-weight: 800;
-  padding: 0.15rem 0.4rem;
+.opponent-life-chip {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.2rem 0.5rem;
   border-radius: 6px;
-  white-space: nowrap;
+  font-size: 0.95rem;
+  font-weight: 900;
+  font-family: monospace;
+  color: var(--arena-green);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
-/* Battlefield Shelf (Permanents) */
-.player-shelf {
+.opponent-life-chip.danger {
+  color: var(--arena-red);
+}
+
+/* Opponent Command Zone & Hand Fan */
+.opponent-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.3rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  color: var(--arena-text-muted);
+}
+
+.opponent-cmdr-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #f1f5f9;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.opponent-cmdr-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid var(--arena-gold);
+}
+
+/* Opponent Battlefield Miniatures */
+.opponent-battlefield {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  min-height: 80px;
 }
 
-.player-creatures-shelf {
+.opponent-creatures-shelf {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
-  min-height: 48px;
+  min-height: 52px;
   background: rgba(0, 0, 0, 0.25);
   border-radius: 8px;
   padding: 0.35rem;
@@ -362,105 +351,522 @@
   align-items: center;
 }
 
-.creature-mini-card {
-  background: #1e293b;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 6px;
-  padding: 0.25rem 0.45rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.76rem;
-  font-weight: 700;
-  color: #f1f5f9;
-  transition: all 0.2s ease;
-  user-select: none;
-}
-
-.creature-mini-card.cmdr {
-  border-color: #c084fc;
-  background: rgba(168, 85, 247, 0.2);
-}
-
-.creature-mini-card.tapped {
-  transform: rotate(18deg) scale(0.92);
-  opacity: 0.65;
-}
-
-.creature-pt-bubble {
-  background: #0f172a;
-  color: #38bdf8;
-  font-family: monospace;
-  font-size: 0.7rem;
-  font-weight: 800;
-  padding: 0.1rem 0.3rem;
-  border-radius: 4px;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-}
-
-/* Lands and Mana Rocks Counter */
-.player-resources-bar {
+.opponent-lands-shelf {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.74rem;
-  color: var(--arena-text-muted);
-  font-weight: 600;
-  padding: 0 0.2rem;
-}
-
-/* Center Arena Action Hub (The Stack & Combat Arena) */
-.arena-center-stage {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  pointer-events: none;
+  font-size: 0.72rem;
+  color: var(--arena-text-muted);
+  padding: 0 0.25rem;
+}
+
+/* ============================================================================
+ * CENTER STAGE: THE STACK & COMBAT CLASH
+ * ============================================================================
+ */
+.arena-center-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  position: relative;
+  z-index: 10;
 }
 
 .arena-stack-box {
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(168, 85, 247, 0.4);
-  box-shadow: 0 0 30px rgba(168, 85, 247, 0.35);
+  background: rgba(15, 23, 42, 0.95);
+  border: 1.5px solid var(--arena-accent);
+  box-shadow: 0 0 35px rgba(168, 85, 247, 0.45);
   border-radius: 12px;
-  padding: 0.65rem 1.1rem;
+  padding: 0.6rem 1.25rem;
   display: none;
   align-items: center;
-  gap: 0.6rem;
-  animation: stackFloat 0.3s ease;
-  pointer-events: auto;
+  gap: 0.85rem;
+  animation: stackPulse 0.3s ease;
 }
 
-@keyframes stackFloat {
-  0% { transform: scale(0.8); opacity: 0; }
+@keyframes stackPulse {
+  0% { transform: scale(0.85); opacity: 0; }
   100% { transform: scale(1); opacity: 1; }
+}
+
+.stack-card-thumb {
+  width: 36px;
+  height: 50px;
+  border-radius: 4px;
+  object-fit: cover;
+  border: 1px solid var(--arena-accent);
 }
 
 .stack-spell-name {
   font-weight: 800;
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   color: #fff;
 }
 
-/* Combat Clash Overlay */
-.combat-clash-box {
-  background: rgba(220, 38, 38, 0.15);
-  border: 1px solid rgba(220, 38, 38, 0.4);
-  box-shadow: 0 0 30px rgba(220, 38, 38, 0.25);
-  border-radius: 12px;
-  padding: 0.6rem 1rem;
-  display: none;
-  align-items: center;
+/* ============================================================================
+ * BOTTOM ZONE: YOUR INTERACTIVE BATTLEFIELD & HAND
+ * ============================================================================
+ */
+.arena-player-cockpit {
+  background: rgba(15, 23, 42, 0.88);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
   gap: 0.65rem;
-  pointer-events: auto;
+  position: relative;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  transition: all 0.3s ease;
 }
 
-/* Tactical Log Sidebar */
+.arena-player-cockpit.active-turn {
+  border-color: #38bdf8;
+  box-shadow: 0 0 30px rgba(56, 189, 248, 0.35);
+}
+
+.player-board-grid {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 1rem;
+}
+
+/* Your Command Zone Pedestal */
+.player-cmdr-pedestal {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1.5px solid rgba(245, 158, 11, 0.4);
+  border-radius: 12px;
+  padding: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  text-align: center;
+  position: relative;
+  box-shadow: inset 0 0 20px rgba(245, 158, 11, 0.1);
+}
+
+.player-cmdr-card-img {
+  width: 84px;
+  height: 118px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 2px solid var(--arena-gold);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.player-cmdr-card-img:hover {
+  transform: scale(1.05);
+}
+
+.cmdr-cast-cta {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.76rem;
+  font-weight: 800;
+  border-radius: 6px;
+  background: var(--arena-accent-gradient);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cmdr-cast-cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #334155;
+}
+
+.cmdr-cast-cta:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.6);
+}
+
+/* Your Battlefield Rows */
+.player-field-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.field-shelf-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--arena-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.player-creatures-shelf {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  min-height: 112px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 12px;
+  padding: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  align-items: center;
+}
+
+.player-lands-shelf {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  min-height: 64px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  padding: 0.4rem 0.6rem;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  align-items: center;
+}
+
+/* ============================================================================
+ * AUTHENTIC MTG CARD STYLING (Battlefield & Opponent Shelves)
+ * ============================================================================
+ */
+.mtg-card-frame {
+  width: 82px;
+  height: 115px;
+  background: #111827;
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  user-select: none;
+}
+
+.mtg-card-frame:hover {
+  transform: translateY(-4px) scale(1.05);
+  border-color: #38bdf8;
+  box-shadow: 0 8px 20px rgba(56, 189, 248, 0.4);
+  z-index: 15;
+}
+
+.mtg-card-frame.tapped {
+  transform: rotate(90deg) scale(0.92);
+  transform-origin: center center;
+  opacity: 0.72;
+  filter: brightness(0.85);
+  margin: 0 8px;
+}
+
+.mtg-card-frame.attacker-selected {
+  border-color: #ef4444;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.7);
+  transform: translateY(-6px) scale(1.06);
+}
+
+.mtg-card-header {
+  padding: 2px 4px;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.62rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mtg-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.mtg-card-cost {
+  color: #f59e0b;
+  font-family: monospace;
+}
+
+.mtg-card-art {
+  flex: 1;
+  width: 100%;
+  object-fit: cover;
+  background: #1f2937;
+}
+
+.mtg-card-pt-bubble {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background: #0f172a;
+  border: 1.5px solid #38bdf8;
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-family: monospace;
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: #38bdf8;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+.mtg-card-type-chip {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.75);
+  padding: 1px 3px;
+  border-radius: 3px;
+  color: #94a3b8;
+}
+
+.mtg-card-summoning-sick {
+  position: absolute;
+  top: 16px;
+  right: 3px;
+  font-size: 0.7rem;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 50%;
+  padding: 2px;
+}
+
+/* Compact Land/Rock Chip */
+.mtg-land-chip {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.mtg-land-chip:hover {
+  background: #334155;
+  border-color: #f59e0b;
+}
+
+.mtg-land-chip.tapped {
+  opacity: 0.5;
+  transform: rotate(8deg);
+  filter: grayscale(0.5);
+}
+
+/* ============================================================================
+ * BOTTOM HAND TRAY (MTG Arena style fanned cards)
+ * ============================================================================
+ */
+.arena-hand-tray-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 14px;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.arena-hand-tray {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: -14px;
+  min-height: 140px;
+  padding: 0.5rem 0;
+  overflow-x: auto;
+}
+
+.hand-card-wrapper {
+  margin: 0 -8px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  z-index: 5;
+}
+
+.hand-card-wrapper:hover {
+  transform: translateY(-28px) scale(1.22);
+  margin: 0 10px;
+  z-index: 40;
+}
+
+.hand-card {
+  width: 95px;
+  height: 133px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: #111827;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  cursor: pointer;
+}
+
+.hand-card.playable {
+  border-color: #f59e0b;
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.85);
+  animation: glowCard 1.8s infinite;
+}
+
+@keyframes glowCard {
+  0%, 100% { box-shadow: 0 0 14px rgba(245, 158, 11, 0.7); }
+  50% { box-shadow: 0 0 24px rgba(245, 158, 11, 0.95); }
+}
+
+.hand-card-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hand-card-play-tag {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  background: rgba(245, 158, 11, 0.95);
+  color: #000;
+  font-weight: 900;
+  font-size: 0.65rem;
+  text-align: center;
+  padding: 2px 0;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ============================================================================
+ * PLAYER TACTICAL HUD & ACTION BAR
+ * ============================================================================
+ */
+.arena-player-hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.player-life-dial {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 0.3rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.player-life-dial-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  transition: all 0.15s ease;
+}
+
+.player-life-dial-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.player-life-dial-val {
+  font-size: 1.4rem;
+  font-weight: 900;
+  font-family: monospace;
+  color: var(--arena-green);
+  min-width: 40px;
+  text-align: center;
+}
+
+.player-mana-pool-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 0.3rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.action-trigger-btn {
+  padding: 0.55rem 1.4rem;
+  font-size: 0.92rem;
+  font-weight: 900;
+  border-radius: 10px;
+  cursor: pointer;
+  border: none;
+  background: var(--arena-accent-gradient);
+  color: #fff;
+  box-shadow: 0 4px 18px rgba(168, 85, 247, 0.45);
+  transition: all 0.2s ease;
+}
+
+.action-trigger-btn:hover {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 6px 24px rgba(168, 85, 247, 0.65);
+}
+
+/* ============================================================================
+ * HIGH-RES CARD INSPECTOR (Hover Preview)
+ * ============================================================================
+ */
+.card-hover-inspector {
+  position: fixed;
+  bottom: 20px;
+  right: 330px;
+  width: 240px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85), 0 0 20px rgba(168, 85, 247, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  z-index: 9999;
+  pointer-events: none;
+  display: none;
+  animation: inspectorFade 0.2s ease;
+}
+
+@keyframes inspectorFade {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.card-hover-inspector img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ============================================================================
+ * SIDEBAR & COMBAT LOG
+ * ============================================================================
+ */
 .arena-sidebar {
   background: var(--arena-panel);
   border-left: 1px solid var(--arena-border);
@@ -471,7 +877,7 @@
 
 .arena-sidebar-header {
   padding: 0.75rem 1rem;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.35);
   border-bottom: 1px solid var(--arena-border);
   display: flex;
   align-items: center;
@@ -500,8 +906,8 @@
 
 .log-entry {
   padding: 0.45rem 0.65rem;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 8px;
   color: #cbd5e1;
   animation: logFadeIn 0.2s ease;
@@ -517,13 +923,18 @@
 }
 
 .log-entry.COMMANDER_CAST {
-  border-color: rgba(168, 85, 247, 0.3);
-  background: rgba(168, 85, 247, 0.08);
+  border-color: rgba(168, 85, 247, 0.35);
+  background: rgba(168, 85, 247, 0.1);
 }
 
-.log-entry.ATTACK_DECLARED {
-  border-color: rgba(239, 68, 68, 0.3);
-  background: rgba(239, 68, 68, 0.08);
+.log-entry.SPELL_CAST {
+  border-color: rgba(56, 189, 248, 0.3);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.log-entry.COMBAT_ATTACK {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .log-entry.GAME_OVER {
@@ -533,7 +944,10 @@
   color: #fef3c7;
 }
 
-/* Setup / Deck Selector Modal */
+/* ============================================================================
+ * POD SETUP MODAL OVERLAY
+ * ============================================================================
+ */
 .arena-setup-overlay {
   position: absolute;
   inset: 0;

@@ -1,9 +1,9 @@
 /**
  * ============================================================================
- * COMMANDER ARENA - CONTROLLER & UI PRESENTER
+ * COMMANDER ARENA - CONTROLLER & TABLETOP PRESENTER
  * ============================================================================
- * Coordinates the browser-native Commander rules engine, AI bots,
- * battlefield animations, and real-time multiplayer pods.
+ * Coordinates the browser-native Commander rules engine, live tabletop interactions,
+ * real MTG card art via Scryfall, 4-player pod seating, and priority management.
  */
 
 (function () {
@@ -11,10 +11,12 @@
 
     let currentGame = null;
     let autoPlayTimer = null;
-    let playSpeedMs = 600; // Normal speed
+    let playSpeedMs = 700;
     let isPaused = true;
+    let selectedAttackerIds = new Set();
+    let selectedOpponentTargetId = null;
 
-    // Preset Commander Decks for instant testing if user hasn't scanned decks yet
+    // High quality Commander precons with curated card lists
     const PRESET_DECKS = [
         {
             id: 'preset_wilhelt',
@@ -32,6 +34,7 @@
                 { name: 'Talisman of Dominance', manaCost: '{2}', typeLine: 'Artifact', oracleText: '{T}: Add {U} or {B}.' },
                 { name: 'Lord of the Accursed', manaCost: '{2}{B}', power: 2, toughness: 3, typeLine: 'Creature — Zombie' },
                 { name: 'Undead Augur', manaCost: '{B}{B}', power: 2, toughness: 2, typeLine: 'Creature — Zombie Wizard' },
+                { name: 'Zombie Master', manaCost: '{1}{B}{B}', power: 2, toughness: 3, typeLine: 'Creature — Zombie' },
                 ...Array(18).fill({ name: 'Swamp', typeLine: 'Basic Land — Swamp' }),
                 ...Array(17).fill({ name: 'Island', typeLine: 'Basic Land — Island' })
             ]
@@ -51,6 +54,7 @@
                 { name: 'Cultivate', manaCost: '{2}{G}', typeLine: 'Sorcery', oracleText: 'Search for lands.' },
                 { name: 'Reclamation Sage', manaCost: '{2}{G}', power: 2, toughness: 1, typeLine: 'Creature — Elf Shaman' },
                 { name: 'Timberwatch Elf', manaCost: '{2}{G}', power: 1, toughness: 2, typeLine: 'Creature — Elf' },
+                { name: 'Elvish Mystic', manaCost: '{G}', power: 1, toughness: 1, typeLine: 'Creature — Elf Druid' },
                 ...Array(18).fill({ name: 'Forest', typeLine: 'Basic Land — Forest' }),
                 ...Array(17).fill({ name: 'Swamp', typeLine: 'Basic Land — Swamp' })
             ]
@@ -63,16 +67,18 @@
                 { name: 'The Ur-Dragon', isCommander: true, power: 10, toughness: 10, manaCost: '{4}{W}{U}{B}{R}{G}', typeLine: 'Legendary Creature — Dragon Avatar', oracleText: 'Flying' },
                 { name: 'Sol Ring', manaCost: '{1}', typeLine: 'Artifact', oracleText: '{T}: Add {C}{C}.' },
                 { name: 'Arcane Signet', manaCost: '{2}', typeLine: 'Artifact', oracleText: '{T}: Add one mana of any color.' },
-                { name: 'Dragonlord Atarka', manaCost: '{5}{R}{G}', power: 8, toughness: 8, typeLine: 'Legendary Creature — Dragon', oracleText: 'Flying, Trample' },
+                { name: 'Dragonlord\'s Servant', manaCost: '{1}{R}', power: 1, toughness: 3, typeLine: 'Creature — Goblin Shaman' },
+                { name: 'Dragonspeaker Shaman', manaCost: '{1}{R}{R}', power: 2, toughness: 2, typeLine: 'Creature — Human Barbarian Shaman' },
+                { name: 'Atarka, World Render', manaCost: '{5}{R}{G}', power: 6, toughness: 4, typeLine: 'Legendary Creature — Dragon', oracleText: 'Flying, trample, double strike' },
                 { name: 'Scourge of Valkas', manaCost: '{2}{R}{R}{R}', power: 4, toughness: 4, typeLine: 'Creature — Dragon', oracleText: 'Flying' },
-                { name: 'Farseek', manaCost: '{1}{G}', typeLine: 'Sorcery', oracleText: 'Search for a land.' },
+                { name: 'Farseek', manaCost: '{1}{G}', typeLine: 'Sorcery', oracleText: 'Search for lands.' },
                 { name: 'Chaos Warp', manaCost: '{2}{R}', typeLine: 'Instant', oracleText: 'Shuffle target permanent.' },
-                { name: 'Crucible of Fire', manaCost: '{3}{R}', typeLine: 'Enchantment', oracleText: 'Dragon creatures you control get +3/+3.' },
-                ...Array(7).fill({ name: 'Mountain', typeLine: 'Basic Land — Mountain' }),
-                ...Array(7).fill({ name: 'Forest', typeLine: 'Basic Land — Forest' }),
+                { name: 'Utvara Hellkite', manaCost: '{6}{R}{R}', power: 6, toughness: 6, typeLine: 'Creature — Dragon', oracleText: 'Flying' },
+                ...Array(8).fill({ name: 'Mountain', typeLine: 'Basic Land — Mountain' }),
+                ...Array(8).fill({ name: 'Forest', typeLine: 'Basic Land — Forest' }),
+                ...Array(7).fill({ name: 'Swamp', typeLine: 'Basic Land — Swamp' }),
                 ...Array(7).fill({ name: 'Island', typeLine: 'Basic Land — Island' }),
-                ...Array(7).fill({ name: 'Plains', typeLine: 'Basic Land — Plains' }),
-                ...Array(7).fill({ name: 'Swamp', typeLine: 'Basic Land — Swamp' })
+                ...Array(7).fill({ name: 'Plains', typeLine: 'Basic Land — Plains' })
             ]
         },
         {
@@ -84,15 +90,27 @@
                 { name: 'Sol Ring', manaCost: '{1}', typeLine: 'Artifact', oracleText: '{T}: Add {C}{C}.' },
                 { name: 'Arcane Signet', manaCost: '{2}', typeLine: 'Artifact', oracleText: '{T}: Add one mana of any color.' },
                 { name: 'Mayhem Devil', manaCost: '{1}{B}{R}', power: 3, toughness: 3, typeLine: 'Creature — Devil' },
+                { name: 'Marionette Master', manaCost: '{4}{B}{B}', power: 1, toughness: 3, typeLine: 'Creature — Human Artificer' },
                 { name: 'Professional Face-Breaker', manaCost: '{2}{R}', power: 2, toughness: 3, typeLine: 'Creature — Human Warrior', oracleText: 'Menace' },
-                { name: 'Terminate', manaCost: '{B}{R}', typeLine: 'Instant', oracleText: 'Destroy target creature.' },
-                { name: 'Talisman of Indulgence', manaCost: '{2}', typeLine: 'Artifact', oracleText: '{T}: Add {B} or {R}.' },
+                { name: 'Bedevil', manaCost: '{B}{B}{R}', typeLine: 'Instant', oracleText: 'Destroy target artifact, creature, or planeswalker.' },
+                { name: 'Blasphemous Act', manaCost: '{8}{R}', typeLine: 'Sorcery', oracleText: 'Deals 13 damage to each creature.' },
                 { name: 'Jeska\'s Will', manaCost: '{2}{R}', typeLine: 'Sorcery', oracleText: 'Add {R} and exile cards.' },
+                { name: 'Deadly Dispute', manaCost: '{1}{B}', typeLine: 'Instant', oracleText: 'Draw two cards and create a Treasure.' },
                 ...Array(18).fill({ name: 'Mountain', typeLine: 'Basic Land — Mountain' }),
                 ...Array(17).fill({ name: 'Swamp', typeLine: 'Basic Land — Swamp' })
             ]
         }
     ];
+
+    function getCardArtCropUrl(cardName) {
+        if (!cardName) return 'https://cards.scryfall.io/back.png';
+        return `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}&format=image&version=art_crop`;
+    }
+
+    function getCardNormalUrl(cardName) {
+        if (!cardName) return 'https://cards.scryfall.io/back.png';
+        return `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}&format=image&version=normal`;
+    }
 
     function getAvailableDecks() {
         const list = [...PRESET_DECKS];
@@ -126,7 +144,7 @@
                         <div class="arena-crown-badge">👑</div>
                         <div>
                             <h2 class="arena-title">Commander Battle Arena</h2>
-                            <span style="font-size: 0.72rem; color: #a855f7; font-weight: 700;">Client-Native Forge Rules Engine • Zero Server Cost</span>
+                            <span style="font-size: 0.72rem; color: #a855f7; font-weight: 700;">Client-Native Forge Rules Engine • Live 4-Player Tabletop</span>
                         </div>
                     </div>
 
@@ -146,10 +164,10 @@
                     <div class="arena-controls">
                         <div class="arena-turn-badge" id="arenaTurnIndicator">Turn 1</div>
                         <button class="arena-btn" id="arenaBtnPlayPause" onclick="window.toggleArenaPlayPause()">
-                            <span id="arenaPlayIcon">▶️</span> <span id="arenaPlayText">Start</span>
+                            <span id="arenaPlayIcon">▶️</span> <span id="arenaPlayText">Auto-Bots</span>
                         </button>
                         <button class="arena-btn" id="arenaBtnStep" onclick="window.stepArenaPhase()">
-                            ⏭️ Step
+                            ⏭️ Next Action
                         </button>
                         <button class="arena-btn" onclick="window.simulateArenaInstant()">
                             ⚡ Instant Match
@@ -167,26 +185,22 @@
                 <div class="arena-theater">
                     <!-- Battlefield Canvas -->
                     <div class="arena-battlefield-canvas" id="arenaCanvas">
-                        <!-- Top Seats (Opponents 2 & 3) -->
-                        <div class="arena-seats-top" id="seatsTop"></div>
+                        <!-- Top Zone: 3 Opponent Pod Bays -->
+                        <div class="arena-opponents-row" id="arenaOpponentsRow"></div>
 
-                        <!-- Center Theater (The Stack & Combat Arena) -->
-                        <div class="arena-seats-mid">
-                            <div id="seatLeft"></div>
-                            <div class="arena-center-stage">
-                                <div class="arena-stack-box" id="arenaStackBox">
-                                    <span style="font-size: 1.1rem;">⚡</span>
-                                    <div>
-                                        <div style="font-size: 0.72rem; color: #c084fc; font-weight: 700; text-transform: uppercase;">The Stack</div>
-                                        <div class="stack-spell-name" id="stackSpellName">Casting Spell...</div>
-                                    </div>
+                        <!-- Center Stage: The Stack & Combat Announcement -->
+                        <div class="arena-center-stage">
+                            <div class="arena-stack-box" id="arenaStackBox">
+                                <img id="stackCardThumb" class="stack-card-thumb" src="" alt="Spell" />
+                                <div>
+                                    <div style="font-size: 0.68rem; color: #c084fc; font-weight: 800; text-transform: uppercase;">Resolving Spell on Stack</div>
+                                    <div class="stack-spell-name" id="stackSpellName">Casting Spell...</div>
                                 </div>
                             </div>
-                            <div id="seatRight"></div>
                         </div>
 
-                        <!-- Bottom Seat (Player 1 / Main View) -->
-                        <div class="arena-seats-bottom" id="seatsBottom"></div>
+                        <!-- Bottom Zone: Player Cockpit, Battlefield & Hand Tray -->
+                        <div id="arenaPlayerBottomBay"></div>
                     </div>
 
                     <!-- Tactical Combat Log Stream -->
@@ -203,6 +217,11 @@
                     </aside>
                 </div>
 
+                <!-- Floating High-Res Card Inspector -->
+                <div class="card-hover-inspector" id="cardHoverInspector">
+                    <img id="cardInspectorImg" src="" alt="Card Inspector" />
+                </div>
+
                 <!-- Pod Setup Modal Overlay -->
                 <div class="arena-setup-overlay" id="arenaSetupOverlay">
                     <div class="arena-setup-card">
@@ -213,24 +232,24 @@
                             <button class="arena-btn" onclick="window.closeArenaSetup()">✕</button>
                         </div>
                         <p style="font-size: 0.84rem; color: var(--arena-text-muted); margin: 0; line-height: 1.45;">
-                            Assign any of your scanned decks or curated Commander precons to each seat in the pod. All bots execute the reverse-engineered Forge combat & threat matrices.
+                            Choose your deck for Seat 1 (interactive live play) and assign decks for the 3 practice AI bots.
                         </p>
 
                         <div class="setup-seats-grid">
                             <div class="setup-seat-box">
-                                <span class="setup-seat-label">Seat 1 (Player / Main)</span>
+                                <span class="setup-seat-label">Seat 1 (You / Interactive)</span>
                                 <select class="setup-seat-select" id="seatSelect0"></select>
                             </div>
                             <div class="setup-seat-box">
-                                <span class="setup-seat-label">Seat 2 (Opponent 1)</span>
+                                <span class="setup-seat-label">Seat 2 (Bot Opponent 1)</span>
                                 <select class="setup-seat-select" id="seatSelect1"></select>
                             </div>
                             <div class="setup-seat-box">
-                                <span class="setup-seat-label">Seat 3 (Opponent 2)</span>
+                                <span class="setup-seat-label">Seat 3 (Bot Opponent 2)</span>
                                 <select class="setup-seat-select" id="seatSelect2"></select>
                             </div>
                             <div class="setup-seat-box">
-                                <span class="setup-seat-label">Seat 4 (Opponent 3)</span>
+                                <span class="setup-seat-label">Seat 4 (Bot Opponent 3)</span>
                                 <select class="setup-seat-select" id="seatSelect3"></select>
                             </div>
                         </div>
@@ -249,69 +268,298 @@
         document.body.appendChild(backdrop);
     }
 
-    function renderPlayerCockpit(player, isMainView = false) {
+    // ============================================================================
+    // HOVER CARD INSPECTOR
+    // ============================================================================
+    window.showCardInspector = function (cardName) {
+        if (!cardName) return;
+        const inspector = document.getElementById('cardHoverInspector');
+        const img = document.getElementById('cardInspectorImg');
+        if (inspector && img) {
+            img.src = getCardNormalUrl(cardName);
+            inspector.style.display = 'block';
+        }
+    };
+
+    window.hideCardInspector = function () {
+        const inspector = document.getElementById('cardHoverInspector');
+        if (inspector) {
+            inspector.style.display = 'none';
+        }
+    };
+
+    // ============================================================================
+    // RENDERING OPPONENTS (SEATS 2, 3, 4)
+    // ============================================================================
+    function renderOpponentsRow() {
+        if (!currentGame) return '';
+        const opponents = currentGame.players.slice(1); // Opponents 1, 2, 3
+        const activePlayer = currentGame.getActivePlayer();
+
+        return opponents.map((opp, idx) => {
+            const isTurn = activePlayer && activePlayer.id === opp.id && opp.isAlive;
+            const cmdr = opp.getCommander();
+            const cmdrName = cmdr ? cmdr.name : 'Unknown Commander';
+            const cmdrArt = getCardArtCropUrl(cmdrName);
+
+            const creatures = opp.battlefield.filter(c => c.isCreature);
+            const landsCount = opp.battlefield.filter(c => c.isLand).length;
+            const rocksCount = opp.battlefield.filter(c => c.isManaRock).length;
+
+            let creaturesHtml = '';
+            if (creatures.length === 0) {
+                creaturesHtml = `<div style="font-size: 0.7rem; color: var(--arena-text-muted); margin: auto;">Empty Battlefield</div>`;
+            } else {
+                creatures.forEach(c => {
+                    const tappedClass = c.tapped ? 'tapped' : '';
+                    creaturesHtml += `
+                        <div class="mtg-card-frame ${tappedClass}"
+                             onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                             onmouseleave="window.hideCardInspector()"
+                             title="${escapeHtml(c.name)} - ${c.typeLine}">
+                            <div class="mtg-card-header">
+                                <span class="mtg-card-name">${escapeHtml(c.name)}</span>
+                            </div>
+                            <img class="mtg-card-art" src="${getCardArtCropUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
+                            <span class="mtg-card-pt-bubble">${c.power}/${c.toughness}</span>
+                            ${c.summoningSick ? '<span class="mtg-card-summoning-sick" title="Summoning Sick">🌀</span>' : ''}
+                        </div>
+                    `;
+                });
+            }
+
+            return `
+                <div class="opponent-bay ${isTurn ? 'active-turn' : ''} ${!opp.isAlive ? 'eliminated' : ''}" id="oppBay_${opp.id}">
+                    <div class="opponent-bay-header">
+                        <div class="opponent-bay-profile">
+                            <img src="${opp.avatar}" class="opponent-bay-avatar" alt="${escapeHtml(opp.name)}" />
+                            <div>
+                                <div class="opponent-bay-name">${escapeHtml(opp.name)}</div>
+                                <div style="font-size: 0.65rem; color: var(--arena-text-muted);">Seat ${idx + 2} • Bot</div>
+                            </div>
+                        </div>
+                        <div class="opponent-life-chip ${opp.life <= 10 ? 'danger' : ''}">
+                            <span>❤️</span> <span>${opp.life}</span>
+                        </div>
+                    </div>
+
+                    <!-- Opponent Commander & Hand status -->
+                    <div class="opponent-meta-bar">
+                        <div class="opponent-cmdr-chip"
+                             onmouseenter="window.showCardInspector('${escapeHtml(cmdrName)}')"
+                             onmouseleave="window.hideCardInspector()">
+                            <img src="${cmdrArt}" class="opponent-cmdr-thumb" alt="Commander" />
+                            <span>${escapeHtml(cmdrName)}</span>
+                        </div>
+                        <div>
+                            <span>Tax: {${opp.commanderTax}}</span>
+                            <span style="margin-left: 0.4rem;">🃏 ${opp.hand.length}</span>
+                        </div>
+                    </div>
+
+                    <!-- Opponent Battlefield Shelf -->
+                    <div class="opponent-battlefield">
+                        <div class="opponent-creatures-shelf">
+                            ${creaturesHtml}
+                        </div>
+                        <div class="opponent-lands-shelf">
+                            <span>🏞️ Lands: ${landsCount}</span>
+                            <span>💎 Rocks: ${rocksCount}</span>
+                            <span>📚 Library: ${opp.library.length}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // ============================================================================
+    // RENDERING YOU (PLAYER 1 / SEAT 1 COCKPIT)
+    // ============================================================================
+    function renderPlayerCockpit() {
+        if (!currentGame) return '';
+        const player = currentGame.players[0]; // Player 1
+        const activePlayer = currentGame.getActivePlayer();
+        const isMyTurn = activePlayer && activePlayer.id === player.id && player.isAlive;
+        const currentPhase = currentGame.currentPhase;
+
         const cmdr = player.getCommander();
         const cmdrName = cmdr ? cmdr.name : 'Unknown Commander';
-        const isDead = !player.isAlive;
-        const isTurn = currentGame && currentGame.getActivePlayer()?.id === player.id && !isDead;
+        const cmdrArt = getCardArtCropUrl(cmdrName);
+        const cmdrCastCost = cmdr ? (cmdr.cmc || 0) + player.commanderTax : 0;
+        const canCastCmdr = isMyTurn && currentPhase.includes('MAIN') && player.canCastCommander();
 
+        // 1. Creatures on your battlefield
         const creatures = player.battlefield.filter(c => c.isCreature);
-        const lands = player.battlefield.filter(c => c.isLand).length;
-        const rocks = player.battlefield.filter(c => c.isManaRock).length;
-
         let creaturesHtml = '';
         if (creatures.length === 0) {
-            creaturesHtml = `<div style="font-size: 0.72rem; color: var(--arena-text-muted); margin: auto;">No creatures on battlefield</div>`;
+            creaturesHtml = `<div style="font-size: 0.78rem; color: var(--arena-text-muted); margin: auto;">No creatures summoned yet. Cast creatures from hand or command zone!</div>`;
         } else {
             creatures.forEach(c => {
-                const isCmdr = c.isCommander;
                 const tappedClass = c.tapped ? 'tapped' : '';
-                const cmdrClass = isCmdr ? 'cmdr' : '';
+                const isSelectedAtk = selectedAttackerIds.has(c.id);
+                const atkSelectedClass = isSelectedAtk ? 'attacker-selected' : '';
+                const canAttackThisTurn = isMyTurn && currentPhase === 'DECLARE_ATTACKERS' && !c.tapped && !c.summoningSick;
+
                 creaturesHtml += `
-                    <div class="creature-mini-card ${tappedClass} ${cmdrClass}" title="${escapeHtml(c.name)} - ${c.typeLine}">
-                        ${isCmdr ? '👑' : ''} <span>${escapeHtml(c.name.substring(0, 14))}</span>
-                        <span class="creature-pt-bubble">${c.power}/${c.toughness}</span>
+                    <div class="mtg-card-frame ${tappedClass} ${atkSelectedClass}"
+                         onclick="window.toggleAttackerSelection('${c.id}')"
+                         onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                         onmouseleave="window.hideCardInspector()"
+                         title="${escapeHtml(c.name)} - ${c.typeLine}">
+                        <div class="mtg-card-header">
+                            <span class="mtg-card-name">${c.isCommander ? '👑 ' : ''}${escapeHtml(c.name)}</span>
+                            <span class="mtg-card-cost">${c.manaCost || ''}</span>
+                        </div>
+                        <img class="mtg-card-art" src="${getCardArtCropUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
+                        <span class="mtg-card-pt-bubble">${c.power}/${c.toughness}</span>
+                        ${c.summoningSick ? '<span class="mtg-card-summoning-sick" title="Summoning Sickness">🌀</span>' : ''}
+                        ${canAttackThisTurn ? '<span style="position: absolute; top: 16px; left: 3px; font-size: 0.65rem; background: #ef4444; border-radius: 4px; padding: 1px 3px; font-weight: 900;">⚔️</span>' : ''}
                     </div>
                 `;
             });
         }
 
-        return `
-            <div class="player-cockpit ${isTurn ? 'active-turn' : ''} ${isDead ? 'eliminated' : ''}" id="cockpit_${player.id}">
-                <div class="player-cockpit-header">
-                    <div class="player-cockpit-info">
-                        <img src="${player.avatar}" class="player-cockpit-avatar" alt="Avatar" />
-                        <div>
-                            <div class="player-cockpit-name">${escapeHtml(player.name)}</div>
-                            <div style="font-size: 0.72rem; color: var(--arena-text-muted);">${player.isAI ? '🤖 Bot' : '👤 You'}</div>
+        // 2. Lands and Rocks on your battlefield
+        const landsAndRocks = player.battlefield.filter(c => c.isLand || c.isManaRock);
+        let landsHtml = '';
+        if (landsAndRocks.length === 0) {
+            landsHtml = `<div style="font-size: 0.74rem; color: var(--arena-text-muted);">Play lands from your hand below</div>`;
+        } else {
+            landsAndRocks.forEach(c => {
+                const tappedClass = c.tapped ? 'tapped' : '';
+                landsHtml += `
+                    <div class="mtg-land-chip ${tappedClass}"
+                         onclick="window.toggleLandTap('${c.id}')"
+                         onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                         onmouseleave="window.hideCardInspector()"
+                         title="Click to tap/untap for mana">
+                        <span>${c.isLand ? '🏞️' : '💎'}</span>
+                        <span>${escapeHtml(c.name)}</span>
+                    </div>
+                `;
+            });
+        }
+
+        // 3. Your Hand Cards (Fanned out bottom tray)
+        let handHtml = '';
+        if (player.hand.length === 0) {
+            handHtml = `<div style="font-size: 0.8rem; color: var(--arena-text-muted); margin: auto;">Your hand is currently empty</div>`;
+        } else {
+            player.hand.forEach(c => {
+                const isPlayable = isMyTurn && currentPhase.includes('MAIN') && player.canCastCard(c);
+                const isLand = c.isLand;
+                const tagText = isLand ? 'Play Land' : `Cast {${c.cmc}}`;
+
+                handHtml += `
+                    <div class="hand-card-wrapper" onclick="window.playCardFromHand('${c.id}')">
+                        <div class="hand-card ${isPlayable ? 'playable' : ''}"
+                             onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                             onmouseleave="window.hideCardInspector()">
+                            <img class="hand-card-art" src="${getCardNormalUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
+                            ${isPlayable ? `<div class="hand-card-play-tag">${tagText}</div>` : ''}
                         </div>
                     </div>
-                    <div class="player-life-box">
-                        <span style="font-size: 0.75rem; color: #ef4444;">❤️</span>
-                        <span class="player-life-val ${player.life <= 10 ? 'danger' : ''}">${player.life}</span>
+                `;
+            });
+        }
+
+        // 4. Action Trigger Button Label based on current Phase
+        let actionBtnText = 'Next Step ⏭️';
+        let actionBtnClass = 'action-trigger-btn';
+        if (isMyTurn) {
+            if (currentPhase === 'MAIN_1') {
+                actionBtnText = 'Go to Combat ⚔️';
+                actionBtnClass = 'action-trigger-btn arena-btn-gold';
+            } else if (currentPhase === 'DECLARE_ATTACKERS') {
+                actionBtnText = selectedAttackerIds.size > 0 ? `Attack (${selectedAttackerIds.size} Selected) 💥` : 'Pass Combat (No Attacks)';
+                actionBtnClass = 'action-trigger-btn';
+            } else if (currentPhase === 'MAIN_2') {
+                actionBtnText = 'End Turn ⏳';
+                actionBtnClass = 'action-trigger-btn arena-btn-gold';
+            }
+        } else {
+            actionBtnText = 'Advance Bot Action 🤖';
+        }
+
+        return `
+            <div class="arena-player-cockpit ${isMyTurn ? 'active-turn' : ''}" id="playerCockpit">
+                <div class="player-board-grid">
+                    <!-- Left: Command Zone Pedestal -->
+                    <div class="player-cmdr-pedestal">
+                        <div style="font-size: 0.75rem; font-weight: 800; color: #f59e0b;">👑 COMMAND ZONE</div>
+                        <img src="${cmdrArt}"
+                             class="player-cmdr-card-img"
+                             alt="Commander"
+                             onmouseenter="window.showCardInspector('${escapeHtml(cmdrName)}')"
+                             onmouseleave="window.hideCardInspector()" />
+                        <div style="font-size: 0.75rem; font-weight: 700; color: #e2e8f0;">${escapeHtml(cmdrName)}</div>
+                        <div style="font-size: 0.7rem; color: #c084fc; font-weight: 800;">Tax: {${player.commanderTax}} • Cost: {${cmdrCastCost}}</div>
+                        <button class="cmdr-cast-cta"
+                                onclick="window.castPlayerCommander()"
+                                ${!canCastCmdr ? 'disabled' : ''}>
+                            ${canCastCmdr ? `Cast Commander {${cmdrCastCost}}` : 'Cannot Cast'}
+                        </button>
+                    </div>
+
+                    <!-- Right: Your Battlefield Shelves -->
+                    <div class="player-field-rows">
+                        <!-- Creatures Shelf -->
+                        <div class="field-shelf-title">
+                            <span>⚔️ Creatures Line</span>
+                            <span style="font-weight: 400; font-size: 0.68rem; color: #94a3b8;">(${creatures.length} creatures)</span>
+                        </div>
+                        <div class="player-creatures-shelf">
+                            ${creaturesHtml}
+                        </div>
+
+                        <!-- Lands & Artifacts Shelf -->
+                        <div class="field-shelf-title">
+                            <span>🏞️ Mana & Support Line</span>
+                            <span style="font-weight: 400; font-size: 0.68rem; color: #94a3b8;">(Click to tap/untap)</span>
+                        </div>
+                        <div class="player-lands-shelf">
+                            ${landsHtml}
+                        </div>
                     </div>
                 </div>
 
-                <!-- Commander Pedestal -->
-                <div class="commander-pedestal">
-                    <div class="commander-pedestal-left">
-                        <span class="commander-crown-icon">👑</span>
-                        <div class="commander-pedestal-name" title="${escapeHtml(cmdrName)}">${escapeHtml(cmdrName)}</div>
+                <!-- Hand Tray fanned out at bottom -->
+                <div class="arena-hand-tray-container">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 0.5rem;">
+                        <span style="font-size: 0.74rem; font-weight: 800; color: var(--arena-text-muted); text-transform: uppercase;">
+                            🃏 Your Hand (${player.hand.length} cards)
+                        </span>
+                        <span style="font-size: 0.72rem; color: #a855f7;">Click any highlighted card to cast or play</span>
                     </div>
-                    <div class="commander-tax-chip">Tax: {${player.commanderTax}}</div>
+                    <div class="arena-hand-tray">
+                        ${handHtml}
+                    </div>
                 </div>
 
-                <!-- Battlefield Shelf -->
-                <div class="player-shelf">
-                    <div class="player-creatures-shelf">
-                        ${creaturesHtml}
+                <!-- Tactical Action HUD -->
+                <div class="arena-player-hud">
+                    <!-- Life Dial with Manual Adjusters -->
+                    <div class="player-life-dial">
+                        <button class="player-life-dial-btn" onclick="window.adjustPlayerLife(-1)">−</button>
+                        <span style="font-size: 0.85rem; color: #ef4444;">❤️</span>
+                        <span class="player-life-dial-val">${player.life}</span>
+                        <button class="player-life-dial-btn" onclick="window.adjustPlayerLife(1)">+</button>
                     </div>
-                    <div class="player-resources-bar">
-                        <span>🏞️ Lands: ${lands}</span>
-                        <span>💎 Rocks: ${rocks}</span>
-                        <span>🃏 Hand: ${player.hand.length}</span>
-                        <span>📚 Library: ${player.library.length}</span>
+
+                    <!-- Available Mana Display -->
+                    <div class="player-mana-pool-bar">
+                        <span>💎 Mana Available:</span>
+                        <span style="color: #38bdf8;">${player.getAvailableMana().total}</span>
+                        <button class="arena-btn" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; margin-left: 0.4rem;" onclick="window.untapAllMyLands()">
+                            ⚡ Untap All
+                        </button>
                     </div>
+
+                    <!-- Primary Phase Action Button -->
+                    <button class="${actionBtnClass}" onclick="window.handleMainActionClick()">
+                        ${actionBtnText}
+                    </button>
                 </div>
             </div>
         `;
@@ -320,32 +568,23 @@
     function updateArenaDOM() {
         if (!currentGame) return;
 
-        // Render seats
-        const seatsTopEl = document.getElementById('seatsTop');
-        const seatLeftEl = document.getElementById('seatLeft');
-        const seatRightEl = document.getElementById('seatRight');
-        const seatsBottomEl = document.getElementById('seatsBottom');
+        // Render Opponents
+        const oppRow = document.getElementById('arenaOpponentsRow');
+        if (oppRow) {
+            oppRow.innerHTML = renderOpponentsRow();
+        }
 
-        const p = currentGame.players;
-
-        if (p.length >= 1 && seatsBottomEl) {
-            seatsBottomEl.innerHTML = renderPlayerCockpit(p[0], true);
-        }
-        if (p.length >= 2 && seatLeftEl) {
-            seatLeftEl.innerHTML = renderPlayerCockpit(p[1]);
-        }
-        if (p.length >= 3 && seatsTopEl) {
-            seatsTopEl.innerHTML = renderPlayerCockpit(p[2]);
-        }
-        if (p.length >= 4 && seatRightEl) {
-            seatRightEl.innerHTML = renderPlayerCockpit(p[3]);
+        // Render Player 1 Cockpit
+        const bottomBay = document.getElementById('arenaPlayerBottomBay');
+        if (bottomBay) {
+            bottomBay.innerHTML = renderPlayerCockpit();
         }
 
         // Update Turn Indicator
         const turnInd = document.getElementById('arenaTurnIndicator');
         if (turnInd) {
             const activeP = currentGame.getActivePlayer();
-            turnInd.textContent = `Turn ${currentGame.turn} • ${activeP ? activeP.name : 'Match'}`;
+            turnInd.innerHTML = `<strong>Turn ${currentGame.turn}</strong> • <span style="color: #a855f7;">${activeP ? activeP.name : ''}</span>`;
         }
 
         // Update Phase Steps
@@ -391,7 +630,134 @@
     }
 
     // ============================================================================
-    // ARENA CONTROLS & LIFECYCLE
+    // USER ACTIONS & INTERACTIVE CONTROLS
+    // ============================================================================
+
+    window.playCardFromHand = function (cardId) {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        const activePlayer = currentGame.getActivePlayer();
+
+        if (activePlayer.id !== player.id) {
+            alert("It is not your turn to play spells!");
+            return;
+        }
+
+        const card = player.hand.find(c => c.id === cardId);
+        if (!card) return;
+
+        // Visual stack popup animation
+        const stackBox = document.getElementById('arenaStackBox');
+        const stackThumb = document.getElementById('stackCardThumb');
+        const stackName = document.getElementById('stackSpellName');
+        if (stackBox && stackThumb && stackName) {
+            stackThumb.src = getCardArtCropUrl(card.name);
+            stackName.textContent = card.name;
+            stackBox.style.display = 'flex';
+            setTimeout(() => {
+                if (stackBox) stackBox.style.display = 'none';
+            }, 650);
+        }
+
+        const res = player.castCard(cardId, currentGame);
+        if (!res.success) {
+            alert(res.message);
+            return;
+        }
+
+        appendArenaLogs(res.logs);
+        updateArenaDOM();
+    };
+
+    window.castPlayerCommander = function () {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        const activePlayer = currentGame.getActivePlayer();
+
+        if (activePlayer.id !== player.id) {
+            alert("You can only cast your Commander during your turn!");
+            return;
+        }
+
+        const res = player.castCommander(currentGame);
+        if (!res.success) {
+            alert(res.message);
+            return;
+        }
+
+        appendArenaLogs(res.logs);
+        updateArenaDOM();
+    };
+
+    window.toggleLandTap = function (cardId) {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        player.toggleTapPermanent(cardId);
+        updateArenaDOM();
+    };
+
+    window.untapAllMyLands = function () {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        player.battlefield.forEach(c => {
+            if (c.isLand || c.isManaRock) c.tapped = false;
+        });
+        updateArenaDOM();
+    };
+
+    window.adjustPlayerLife = function (delta) {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        player.life += delta;
+        updateArenaDOM();
+    };
+
+    window.toggleAttackerSelection = function (cardId) {
+        if (!currentGame) return;
+        const activePlayer = currentGame.getActivePlayer();
+        const player = currentGame.players[0];
+
+        if (activePlayer.id !== player.id || currentGame.currentPhase !== 'DECLARE_ATTACKERS') {
+            return;
+        }
+
+        if (selectedAttackerIds.has(cardId)) {
+            selectedAttackerIds.delete(cardId);
+        } else {
+            selectedAttackerIds.add(cardId);
+        }
+        updateArenaDOM();
+    };
+
+    window.handleMainActionClick = function () {
+        if (!currentGame) return;
+        const activePlayer = currentGame.getActivePlayer();
+        const player = currentGame.players[0];
+
+        if (activePlayer.id === player.id) {
+            if (currentGame.currentPhase === 'DECLARE_ATTACKERS') {
+                // Confirm attacks
+                const opps = currentGame.players.slice(1).filter(p => p.isAlive);
+                const targetOpp = opps[0]; // Primary target
+                const attacks = Array.from(selectedAttackerIds).map(id => ({
+                    attackerId: id,
+                    targetPlayerId: targetOpp ? targetOpp.id : null
+                }));
+
+                const res = currentGame.declareHumanAttacks(attacks);
+                selectedAttackerIds.clear();
+                appendArenaLogs(res.logs);
+                currentGame.stepPhase(); // Move to damage
+                updateArenaDOM();
+                return;
+            }
+        }
+
+        window.stepArenaPhase();
+    };
+
+    // ============================================================================
+    // SIMULATION & STEPPING LIFECYCLE
     // ============================================================================
 
     window.openCommanderArena = function (customDeck = null) {
@@ -430,6 +796,13 @@
                     window.toggleArenaPlayPause();
                     return;
                 }
+                const activeP = currentGame.getActivePlayer();
+                // If it is human player's main phase or declare attackers, pause to let them act!
+                if (!activeP.isAI && (currentGame.currentPhase.includes('MAIN') || currentGame.currentPhase === 'DECLARE_ATTACKERS')) {
+                    window.toggleArenaPlayPause();
+                    return;
+                }
+
                 const result = currentGame.stepPhase();
                 updateArenaDOM();
                 if (result.logs && result.logs.length > 0) {
@@ -443,7 +816,7 @@
                 autoPlayTimer = null;
             }
             if (icon) icon.textContent = '▶️';
-            if (txt) txt.textContent = 'Play';
+            if (txt) txt.textContent = 'Auto-Bots';
         }
     };
 
@@ -502,6 +875,7 @@
         window.closeArenaSetup();
         if (autoPlayTimer) clearInterval(autoPlayTimer);
         isPaused = true;
+        selectedAttackerIds.clear();
 
         const decks = getAvailableDecks();
         const selectedDecks = [];
@@ -539,7 +913,6 @@
             }
         }
 
-        // Initialize MtgCommanderEngine Game
         const engine = window.MtgCommanderEngine;
         if (!engine) {
             console.error("MtgCommanderEngine not loaded yet.");
@@ -549,18 +922,18 @@
         currentGame = new engine.CommanderGame({
             players: selectedDecks.map((d, idx) => ({
                 id: `p_${idx + 1}`,
-                name: idx === 0 ? (d.commander ? `${d.commander} (You)` : 'Seat 1') : (d.commander ? `${d.commander}` : `Opponent ${idx}`),
+                name: idx === 0 ? (d.commander ? `${d.commander} (You)` : 'You') : (d.commander ? `${d.commander}` : `Opponent ${idx}`),
                 deck: d.cards || d,
                 isAI: idx !== 0,
                 avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(d.commander || d.name)}`
             })),
-            maxTurns: 30
+            maxTurns: 35
         });
 
         window.clearArenaLog();
         appendArenaLogs([{
             type: 'GAME_INIT',
-            message: `🚀 **4-Player Commander Match Initialized!** Pod: ${selectedDecks.map(d => d.commander || d.name).join(' vs ')}.`
+            message: `🚀 **Live 4-Player Tabletop Initialized!** You are commanding **${selectedDecks[0].commander || selectedDecks[0].name}** against 3 bot opponents.`
         }]);
 
         updateArenaDOM();
