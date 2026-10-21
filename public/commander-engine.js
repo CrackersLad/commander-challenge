@@ -223,11 +223,21 @@
         const isCounterspell = /counter\s+target\s+spell/i.test(oracleText);
         const isTokenProducer = /create\s+.*token/i.test(oracleText);
 
+        // Subtypes extraction (e.g. Zombie, Elf, Dragon, Goblin)
+        const subtypes = new Set();
+        if (typeLine.includes('—') || typeLine.includes('-')) {
+            const afterDash = typeLine.split(/[—-]/)[1] || '';
+            afterDash.trim().split(/\s+/).forEach(st => {
+                if (st) subtypes.add(st.toLowerCase());
+            });
+        }
+
         return {
             id: `card_${Math.random().toString(36).substr(2, 9)}`,
             ownerId,
             name,
             typeLine,
+            subtypes,
             oracleText,
             manaCost: manaCostStr,
             cmc: parsedCost.cmc,
@@ -407,6 +417,40 @@
             this.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
         }
 
+        getEffectivePower(card) {
+            if (!card || !card.isCreature) return 0;
+            let p = card.basePower + (card.counters['+1/+1'] || 0);
+            const subtypes = card.subtypes || new Set();
+
+            this.battlefield.forEach(other => {
+                if (other.id === card.id || !other.isCreature) return;
+                // Elf anthems
+                if (other.name.includes('Elvish Archdruid') && subtypes.has('elf')) p += 1;
+                // Zombie anthems
+                if ((other.name.includes('Lord of the Accursed') || other.name.includes('Death Baron')) && subtypes.has('zombie')) p += 1;
+                // Generic anthems
+                if (other.oracleText && /other .* creatures you control get \+1\/\+1/i.test(other.oracleText)) {
+                    subtypes.forEach(st => {
+                        if (new RegExp(st, 'i').test(other.oracleText)) p += 1;
+                    });
+                }
+            });
+            return Math.max(0, p);
+        }
+
+        getEffectiveToughness(card) {
+            if (!card || !card.isCreature) return 0;
+            let t = card.baseToughness + (card.counters['+1/+1'] || 0);
+            const subtypes = card.subtypes || new Set();
+
+            this.battlefield.forEach(other => {
+                if (other.id === card.id || !other.isCreature) return;
+                if (other.name.includes('Elvish Archdruid') && subtypes.has('elf')) t += 1;
+                if ((other.name.includes('Lord of the Accursed') || other.name.includes('Death Baron')) && subtypes.has('zombie')) t += 1;
+            });
+            return Math.max(1, t);
+        }
+
         canPlayLand() {
             return !this.landPlayedThisTurn && this.hand.some(c => c.isLand);
         }
@@ -453,6 +497,34 @@
                 return { success: false, message: `Not enough mana. Need ${card.cmc}, have ${available}.` };
             }
 
+            // Check if opponents counter the spell
+            if (game && game.checkCounterspells) {
+                const counterRes = game.checkCounterspells(card, this);
+                if (counterRes.countered) {
+                    this.tapMana(card.cmc || 0);
+                    this.hand.splice(idx, 1);
+                    this.graveyard.push(card);
+                    return {
+                        success: true,
+                        card,
+                        countered: true,
+                        logs: [
+                            {
+                                type: 'SPELL_CAST',
+                                playerId: this.id,
+                                playerName: this.name,
+                                card,
+                                message: `⚡ **${this.name}** attempted to cast **${card.name}**...`
+                            },
+                            {
+                                type: 'COUNTERSPELL',
+                                message: `🚫 **${counterRes.opponent.name}** cast **${counterRes.counterCard.name}** and countered **${card.name}**!`
+                            }
+                        ]
+                    };
+                }
+            }
+
             this.tapMana(card.cmc || 0);
             this.hand.splice(idx, 1);
 
@@ -496,9 +568,17 @@
                     if (game && game.players) {
                         game.players.forEach(p => {
                             p.battlefield.filter(c => c.isCreature).forEach(c => {
+                                if (c.keywords.has('indestructible')) {
+                                    logs.push({
+                                        type: 'INDESTRUCTIBLE',
+                                        message: `🛡️ **${c.name}** (${p.name}) survived the wipe because it has Indestructible!`
+                                    });
+                                    return;
+                                }
                                 p.battlefield = p.battlefield.filter(x => x.id !== c.id);
                                 if (c.isCommander) p.commandZone.push(c);
                                 else p.graveyard.push(c);
+                                if (game.processDeathTriggers) game.processDeathTriggers(c, p);
                             });
                         });
                     }
@@ -506,12 +586,26 @@
                         type: 'BOARD_WIPE',
                         playerId: this.id,
                         playerName: this.name,
-                        message: `💥 **${this.name}** wiped the board with **${card.name}**! All creatures destroyed.`
+                        message: `💥 **${this.name}** wiped the board with **${card.name}**!`
                     });
                 } else if (card.isRemoval && targetPermanentId && game && game.players) {
                     for (const opp of game.players.filter(p => p.id !== this.id && p.isAlive)) {
                         const tgt = opp.battlefield.find(c => c.id === targetPermanentId);
                         if (tgt) {
+                            if (tgt.keywords && tgt.keywords.has('hexproof')) {
+                                logs.push({
+                                    type: 'FIZZLE',
+                                    message: `🛡️ **${card.name}** could not target **${tgt.name}** because it has Hexproof!`
+                                });
+                                break;
+                            }
+                            if (tgt.keywords && tgt.keywords.has('indestructible') && !/exile/i.test(card.oracleText)) {
+                                logs.push({
+                                    type: 'INDESTRUCTIBLE',
+                                    message: `🛡️ **${tgt.name}** is Indestructible and was not destroyed by **${card.name}**!`
+                                });
+                                break;
+                            }
                             opp.battlefield = opp.battlefield.filter(c => c.id !== tgt.id);
                             if (tgt.isCommander) opp.commandZone.push(tgt);
                             else opp.graveyard.push(tgt);
@@ -519,8 +613,9 @@
                                 type: 'REMOVAL',
                                 playerId: this.id,
                                 playerName: this.name,
-                                message: `🎯 **${this.name}** destroyed **${tgt.name}** (${opp.name}) with **${card.name}**!`
+                                message: `🎯 **${this.name}** removed **${tgt.name}** (${opp.name}) with **${card.name}**!`
                             });
+                            if (game.processDeathTriggers) game.processDeathTriggers(tgt, opp);
                             break;
                         }
                     }
@@ -544,6 +639,33 @@
             const available = this.getAvailableMana().total;
             if (available < totalCost) {
                 return { success: false, message: `Need ${totalCost} mana (Tax: {${this.commanderTax}}), have ${available}.` };
+            }
+
+            // Check if opponents counter the Commander
+            if (game && game.checkCounterspells) {
+                const counterRes = game.checkCounterspells(cmdr, this);
+                if (counterRes.countered) {
+                    this.tapMana(totalCost);
+                    this.commanderTax += 2;
+                    return {
+                        success: true,
+                        card: cmdr,
+                        countered: true,
+                        logs: [
+                            {
+                                type: 'COMMANDER_CAST',
+                                playerId: this.id,
+                                playerName: this.name,
+                                card: cmdr,
+                                message: `👑 **${this.name}** attempted to cast Commander **${cmdr.name}**...`
+                            },
+                            {
+                                type: 'COUNTERSPELL',
+                                message: `🚫 **${counterRes.opponent.name}** cast **${counterRes.counterCard.name}** and countered **${cmdr.name}**! (Redirected to Command Zone, Next Tax: {${this.commanderTax}}).`
+                            }
+                        ]
+                    };
+                }
             }
 
             this.tapMana(totalCost);
@@ -853,20 +975,28 @@
             const logs = [];
             if (!defendingPlayer || attackers.length === 0) return logs;
 
-            // Available blockers
+            // Available untapped blockers
             const blockers = defendingPlayer.battlefield.filter(c => c.isCreature && !c.tapped);
             let unblockedAttackers = [...attackers];
             const blockedPairs = [];
 
             // AI Defender assigns blockers:
-            // Prioritize blocking lethal threats or blocking with high-toughness creatures
             blockers.forEach(blocker => {
                 if (unblockedAttackers.length === 0) return;
 
-                // Match blocker against an attacker it can kill or absorb
+                // Match blocker against attacker respecting Menace, Flying, and Reach
                 const matchIdx = unblockedAttackers.findIndex(atk => {
-                    const flyingCheck = !atk.keywords.has('flying') || blocker.keywords.has('flying') || blocker.keywords.has('reach');
-                    return flyingCheck && (blocker.power >= atk.toughness || blocker.toughness > atk.power);
+                    if (atk.keywords.has('menace') && blockers.length < 2) return false;
+                    const canBlockFlying = !atk.keywords.has('flying') || blocker.keywords.has('flying') || blocker.keywords.has('reach');
+                    if (!canBlockFlying) return false;
+
+                    const atkPower = attackingPlayer.getEffectivePower(atk);
+                    const atkToughness = attackingPlayer.getEffectiveToughness(atk);
+                    const blkPower = defendingPlayer.getEffectivePower(blocker);
+                    const blkToughness = defendingPlayer.getEffectiveToughness(blocker);
+
+                    // Favor favorable trades or soaking damage
+                    return (blkPower >= atkToughness || blkToughness > atkPower || blocker.keywords.has('deathtouch') || blocker.keywords.has('indestructible'));
                 });
 
                 if (matchIdx !== -1) {
@@ -876,15 +1006,70 @@
                 }
             });
 
-            // 1. Resolve Blocked Combat
+            // 1. Resolve Blocked Combat with First Strike, Double Strike, Deathtouch, Lifelink, Indestructible & Trample
             blockedPairs.forEach(({ attacker, blocker }) => {
-                attacker.damageReceived += blocker.power;
-                blocker.damageReceived += attacker.power;
+                const atkPower = attackingPlayer.getEffectivePower(attacker);
+                const atkToughness = attackingPlayer.getEffectiveToughness(attacker);
+                const blkPower = defendingPlayer.getEffectivePower(blocker);
+                const blkToughness = defendingPlayer.getEffectiveToughness(blocker);
+
+                const atkHasFirstStrike = attacker.keywords.has('first strike') || attacker.keywords.has('double strike');
+                const blkHasFirstStrike = blocker.keywords.has('first strike') || blocker.keywords.has('double strike');
+                const atkHasDoubleStrike = attacker.keywords.has('double strike');
+                const blkHasDoubleStrike = blocker.keywords.has('double strike');
+
+                let atkDamageDealt = 0;
+                let blkDamageDealt = 0;
+                let trampleDmgToPlayer = 0;
+
+                // First Strike Damage Step
+                if (atkHasFirstStrike || blkHasFirstStrike) {
+                    if (atkHasFirstStrike) {
+                        const dmg = Math.min(atkPower, blkToughness);
+                        blocker.damageReceived += dmg;
+                        atkDamageDealt += dmg;
+                        if (attacker.keywords.has('lifelink')) attackingPlayer.life += dmg;
+
+                        if (attacker.keywords.has('trample') && atkPower > blkToughness) {
+                            trampleDmgToPlayer += (atkPower - blkToughness);
+                        }
+                    }
+                    if (blkHasFirstStrike) {
+                        const dmg = Math.min(blkPower, atkToughness);
+                        attacker.damageReceived += dmg;
+                        blkDamageDealt += dmg;
+                        if (blocker.keywords.has('lifelink')) defendingPlayer.life += dmg;
+                    }
+                }
+
+                // Check early deaths from First Strike
+                const blkDiesFirst = (blocker.damageReceived >= blkToughness || (attacker.keywords.has('deathtouch') && atkDamageDealt > 0)) && !blocker.keywords.has('indestructible');
+                const atkDiesFirst = (attacker.damageReceived >= atkToughness || (blocker.keywords.has('deathtouch') && blkDamageDealt > 0)) && !attacker.keywords.has('indestructible');
+
+                // Regular Damage Step
+                if (!blkDiesFirst && (!atkHasFirstStrike || atkHasDoubleStrike)) {
+                    const dmg = Math.min(atkPower, Math.max(0, blkToughness - blocker.damageReceived));
+                    blocker.damageReceived += dmg;
+                    atkDamageDealt += dmg;
+                    if (attacker.keywords.has('lifelink')) attackingPlayer.life += dmg;
+
+                    if (attacker.keywords.has('trample') && atkPower > blkToughness) {
+                        trampleDmgToPlayer += (atkPower - blkToughness);
+                    }
+                }
+
+                if (!atkDiesFirst && (!blkHasFirstStrike || blkHasDoubleStrike)) {
+                    const dmg = Math.min(blkPower, Math.max(0, atkToughness - attacker.damageReceived));
+                    attacker.damageReceived += dmg;
+                    blkDamageDealt += dmg;
+                    if (blocker.keywords.has('lifelink')) defendingPlayer.life += dmg;
+                }
+
+                // Final Lethality checks (Deathtouch & Indestructible)
+                const atkDies = (attacker.damageReceived >= atkToughness || (blocker.keywords.has('deathtouch') && blkDamageDealt > 0)) && !attacker.keywords.has('indestructible');
+                const blkDies = (blocker.damageReceived >= blkToughness || (attacker.keywords.has('deathtouch') && atkDamageDealt > 0)) && !blocker.keywords.has('indestructible');
 
                 let outcome = '';
-                const atkDies = attacker.damageReceived >= attacker.toughness && !attacker.keywords.has('indestructible');
-                const blkDies = blocker.damageReceived >= blocker.toughness && !blocker.keywords.has('indestructible');
-
                 if (atkDies && blkDies) outcome = 'both died in trade';
                 else if (atkDies) outcome = `${attacker.name} died`;
                 else if (blkDies) outcome = `${blocker.name} died`;
@@ -894,37 +1079,54 @@
                     type: 'COMBAT_TRADE',
                     attacker,
                     blocker,
-                    message: `🛡️ **${blocker.name}** (${blocker.power}/${blocker.toughness}) blocked **${attacker.name}** (${attacker.power}/${attacker.toughness}) ➔ ${outcome}.`
+                    message: `🛡️ **${blocker.name}** (${blkPower}/${blkToughness}) blocked **${attacker.name}** (${atkPower}/${atkToughness}) ➔ ${outcome}.${trampleDmgToPlayer > 0 ? ` 🌪️ **${trampleDmgToPlayer}** trample damage hit ${defendingPlayer.name}!` : ''}`
                 });
+
+                // Apply Trample damage to defending player
+                if (trampleDmgToPlayer > 0 && defendingPlayer.isAlive) {
+                    defendingPlayer.life -= trampleDmgToPlayer;
+                    if (attacker.keywords.has('lifelink')) attackingPlayer.life += trampleDmgToPlayer;
+                    if (attacker.isCommander) {
+                        const prev = defendingPlayer.commanderDamageReceived[attacker.ownerId] || 0;
+                        defendingPlayer.commanderDamageReceived[attacker.ownerId] = prev + trampleDmgToPlayer;
+                    }
+                }
 
                 if (atkDies) {
                     attackingPlayer.battlefield = attackingPlayer.battlefield.filter(c => c.id !== attacker.id);
                     if (attacker.isCommander) attackingPlayer.commandZone.push(attacker);
                     else attackingPlayer.graveyard.push(attacker);
+                    if (game && game.processDeathTriggers) game.processDeathTriggers(attacker, attackingPlayer);
                 }
 
                 if (blkDies) {
                     defendingPlayer.battlefield = defendingPlayer.battlefield.filter(c => c.id !== blocker.id);
                     if (blocker.isCommander) defendingPlayer.commandZone.push(blocker);
                     else defendingPlayer.graveyard.push(blocker);
+                    if (game && game.processDeathTriggers) game.processDeathTriggers(blocker, defendingPlayer);
                 }
             });
 
-            // 2. Resolve Unblocked Combat (Damage to Player)
+            // 2. Resolve Unblocked Combat (Damage to Player with Lifelink, Double Strike, Commander Damage)
             let totalPlayerDmg = 0;
             let cmdrDmg = 0;
 
             unblockedAttackers.forEach(atk => {
-                totalPlayerDmg += atk.power;
+                let atkPower = attackingPlayer.getEffectivePower(atk);
+                if (atk.keywords.has('double strike')) {
+                    atkPower *= 2; // Hits in first strike AND regular damage
+                }
+
+                totalPlayerDmg += atkPower;
                 if (atk.keywords.has('lifelink')) {
-                    attackingPlayer.life += atk.power;
+                    attackingPlayer.life += atkPower;
                 }
 
                 // Track Commander Damage (21 lethal threshold)
                 if (atk.isCommander) {
-                    cmdrDmg += atk.power;
+                    cmdrDmg += atkPower;
                     const prevCmdrDmg = defendingPlayer.commanderDamageReceived[atk.ownerId] || 0;
-                    defendingPlayer.commanderDamageReceived[atk.ownerId] = prevCmdrDmg + atk.power;
+                    defendingPlayer.commanderDamageReceived[atk.ownerId] = prevCmdrDmg + atkPower;
 
                     if (defendingPlayer.commanderDamageReceived[atk.ownerId] >= 21) {
                         defendingPlayer.eliminate(`Defeated by 21 Commander Damage from ${atk.name}!`);
@@ -949,8 +1151,8 @@
                 if (defendingPlayer.life <= 0) {
                     defendingPlayer.eliminate("Life total reduced to 0 or below.");
                     logs.push({
-                        type: 'PLAYER_LETHAL',
-                        message: `💀 **${defendingPlayer.name}**'s life hit 0 and has been ELIMINATED!`
+                        type: 'PLAYER_DEFEATED',
+                        message: `💀 **${defendingPlayer.name}** has been ELIMINATED from the pod!`
                     });
                 }
             }
@@ -1059,8 +1261,38 @@
                     }
                     break;
 
+                case PHASES.END_STEP:
+                    // 1. Prosper, Tome-Bound: Exile top card of library
+                    if (activePlayer.battlefield.some(c => c.name.includes('Prosper'))) {
+                        if (activePlayer.library.length > 0) {
+                            const exiled = activePlayer.library.shift();
+                            activePlayer.exile.push(exiled);
+                            phaseLogs.push({
+                                type: 'TRIGGER',
+                                message: `🔮 **Prosper, Tome-Bound** trigger: exiled **${exiled.name}** from library!`
+                            });
+                        }
+                    }
+                    // 2. Wilhelt, the Rotcleaver: Sacrifice a zombie to draw
+                    if (activePlayer.battlefield.some(c => c.name.includes('Wilhelt'))) {
+                        const nonWilheltZombies = activePlayer.battlefield.filter(c => c.isCreature && c.subtypes && c.subtypes.has('zombie') && !c.name.includes('Wilhelt'));
+                        if (nonWilheltZombies.length > 0) {
+                            const sac = nonWilheltZombies[0];
+                            activePlayer.battlefield = activePlayer.battlefield.filter(c => c.id !== sac.id);
+                            activePlayer.graveyard.push(sac);
+                            const drawn = activePlayer.draw(1);
+                            phaseLogs.push({
+                                type: 'SACRIFICE',
+                                message: `🧟 **Wilhelt** sacrificed **${sac.name}** to draw a card!`
+                            });
+                            const deathLogs = this.processDeathTriggers(sac, activePlayer);
+                            phaseLogs.push(...deathLogs);
+                        }
+                    }
+                    break;
+
                 case PHASES.CLEANUP:
-                    // Discard to hand size 7
+                    // Discard down to maximum hand size of 7
                     while (activePlayer.hand.length > 7) {
                         const discarded = activePlayer.hand.pop();
                         activePlayer.graveyard.push(discarded);
@@ -1170,6 +1402,86 @@
             }
 
             return { success: true, logs };
+        }
+
+        checkCounterspells(spellCard, caster) {
+            if (!spellCard) return { countered: false };
+            const opponents = this.players.filter(p => p.id !== caster.id && p.isAlive);
+            for (const opp of opponents) {
+                const counterIdx = opp.hand.findIndex(c => c.isCounterspell);
+                if (counterIdx !== -1) {
+                    const avail = opp.getAvailableMana();
+                    if (avail.total >= 2) {
+                        // AI counters commanders, board wipes, or big 4+ cmc threats
+                        if (spellCard.isCommander || spellCard.isBoardWipe || (spellCard.cmc || 0) >= 4) {
+                            const counterCard = opp.hand.splice(counterIdx, 1)[0];
+                            opp.tapMana(counterCard.cmc || 2);
+                            opp.graveyard.push(counterCard);
+                            return {
+                                countered: true,
+                                opponent: opp,
+                                counterCard
+                            };
+                        }
+                    }
+                }
+            }
+            return { countered: false };
+        }
+
+        processDeathTriggers(card, controller) {
+            const logs = [];
+            if (!card || !controller) return logs;
+            const subtypes = card.subtypes || new Set();
+
+            // 1. Undead Augur: Whenever Undead Augur or another Zombie dies, draw 1 and lose 1 life
+            const augurs = controller.battlefield.filter(c => c.name.includes('Undead Augur'));
+            if (augurs.length > 0 && (card.name.includes('Undead Augur') || subtypes.has('zombie'))) {
+                controller.draw(1);
+                controller.life -= 1;
+                logs.push({
+                    type: 'DEATH_TRIGGER',
+                    message: `💀 **Undead Augur** trigger: ${controller.name} drew a card and lost 1 life from **${card.name}**'s death.`
+                });
+            }
+
+            // 2. Wilhelt, the Rotcleaver: Whenever another Zombie dies, create a 2/2 Zombie token
+            const wilhelts = controller.battlefield.filter(c => c.name.includes('Wilhelt'));
+            if (wilhelts.length > 0 && card.id !== wilhelts[0].id && subtypes.has('zombie')) {
+                const zombieToken = createCardInstance({
+                    name: 'Zombie Token',
+                    typeLine: 'Creature — Zombie',
+                    power: 2,
+                    toughness: 2,
+                    manaCost: '{0}'
+                }, controller.id);
+                controller.battlefield.push(zombieToken);
+                logs.push({
+                    type: 'TOKEN_CREATED',
+                    message: `🧟 **Wilhelt, the Rotcleaver** trigger: ${controller.name} created a 2/2 Zombie token from **${card.name}**'s death!`
+                });
+            }
+
+            // 3. Mayhem Devil: Whenever a player sacrifices or creature dies, deal 1 damage
+            this.players.forEach(p => {
+                const devils = p.battlefield.filter(c => c.name.includes('Mayhem Devil'));
+                if (devils.length > 0) {
+                    const opponent = this.players.find(opp => opp.id !== p.id && opp.isAlive);
+                    if (opponent) {
+                        opponent.life -= 1;
+                        logs.push({
+                            type: 'TRIGGER',
+                            message: `😈 **Mayhem Devil** trigger: dealt 1 damage to ${opponent.name} from **${card.name}**'s death!`
+                        });
+                    }
+                }
+            });
+
+            if (logs.length > 0) {
+                this.turnLogs.push(...logs);
+                this.history.push(...logs);
+            }
+            return logs;
         }
 
         runMatchSimulation() {

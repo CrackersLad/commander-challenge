@@ -312,6 +312,8 @@
             } else {
                 creatures.forEach(c => {
                     const tappedClass = c.tapped ? 'tapped' : '';
+                    const effP = opp.getEffectivePower ? opp.getEffectivePower(c) : c.power;
+                    const effT = opp.getEffectiveToughness ? opp.getEffectiveToughness(c) : c.toughness;
                     creaturesHtml += `
                         <div class="mtg-card-frame ${tappedClass}"
                              onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
@@ -321,7 +323,7 @@
                                 <span class="mtg-card-name">${escapeHtml(c.name)}</span>
                             </div>
                             <img class="mtg-card-art" src="${getCardArtCropUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
-                            <span class="mtg-card-pt-bubble">${c.power}/${c.toughness}</span>
+                            <span class="mtg-card-pt-bubble">${effP}/${effT}</span>
                             ${c.summoningSick ? '<span class="mtg-card-summoning-sick" title="Summoning Sick">🌀</span>' : ''}
                         </div>
                     `;
@@ -400,6 +402,8 @@
                 const isSelectedAtk = selectedAttackerIds.has(c.id);
                 const atkSelectedClass = isSelectedAtk ? 'attacker-selected' : '';
                 const canAttackThisTurn = isMyTurn && currentPhase === 'DECLARE_ATTACKERS' && !c.tapped && !c.summoningSick;
+                const effP = player.getEffectivePower ? player.getEffectivePower(c) : c.power;
+                const effT = player.getEffectiveToughness ? player.getEffectiveToughness(c) : c.toughness;
 
                 creaturesHtml += `
                     <div class="mtg-card-frame ${tappedClass} ${atkSelectedClass}"
@@ -412,7 +416,7 @@
                             <span class="mtg-card-cost">${c.manaCost || ''}</span>
                         </div>
                         <img class="mtg-card-art" src="${getCardArtCropUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
-                        <span class="mtg-card-pt-bubble">${c.power}/${c.toughness}</span>
+                        <span class="mtg-card-pt-bubble">${effP}/${effT}</span>
                         ${c.summoningSick ? '<span class="mtg-card-summoning-sick" title="Summoning Sickness">🌀</span>' : ''}
                         ${canAttackThisTurn ? '<span style="position: absolute; top: 16px; left: 3px; font-size: 0.65rem; background: #ef4444; border-radius: 4px; padding: 1px 3px; font-weight: 900;">⚔️</span>' : ''}
                     </div>
