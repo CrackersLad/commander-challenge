@@ -72,6 +72,21 @@
         'snow-covered mountain', 'snow-covered forest', 'snow-covered wastes'
     ]);
 
+    const KNOWN_LAND_KEYWORDS = /\b(land|citadel|bivouac|sanctum|monastery|necropolis|outpost|orchard|guildgate|rot farm|hollow|elderhall|aqueduct|carnarium|chancery|basilica|boilerworks|garrison|turf|sanctuary|courtyard|growth chamber|estuary|catacombs|foothills|rainforest|grassland|floodplain|mire|barrens|crag|ridge|knoll|peak|moor|fens|marsh|swale|chasm|canyon|basin|shores|bluff|prairie|expanse|wilds|landscape|ancestry|tower|passage|bog|haven|crucible of the spirit dragon|ruins|springs|foundry|garden|fountain|stomping ground|steam vents|blood crypt|godless shrine|overgrown tomb|temple of|cavern of|hall of|cemetery|creek|falls|meadow|valley|coast|delta|strand|mesa|flats|tarn|heath|vistas|spire|quarry|port|harbor|taiga|tundra|savannah|scrubland|bayou|badlands|underground sea|volcanic island|tropical island|plateau|boseiju|otawara|eiganjo|sokenzan|takenuma|command beacon|homeward path|reliquary tower|path of ancestry|high market|phyrexian tower|arcane lighthouse|bojuka bog|nykthos|cabal coffers|cabal stronghold|urborg, tomb of yawgmoth|yavimaya, cradle of growth|gaea's cradle|serra's sanctum|tolarian academy|dark depths|thespian's stage|vesuva|mirrex|underdark rift|zhalfirin void|ancient tomb|strip mine|wasteland|ghost quarter|field of ruin|tectonic edge|temple of the false god)\b/i;
+
+    const NON_LAND_EXCEPTIONS = new Set([
+        'black market', 'black market connections', 'coastal piracy', 'blood artist', 'bloodline keeper',
+        'crypt ghast', 'grave titan', 'graveborn muse', 'gravecrawler', 'pool of vigorous growth',
+        'mind stone', 'fellwar stone', 'thought vessel', 'talisman of hierarchy', 'talisman of dominance',
+        'talisman of indulgence', 'talisman of impulse', 'talisman of unity', 'commander\'s sphere',
+        'sol ring', 'arcane signet', 'springleaf drum', 'burnished hart', 'solemn simulacrum',
+        'crucible of worlds', 'ramunap excavator', 'conduit of worlds', 'wayfarer\'s bauble',
+        'expedition map', 'sword of hearth and home', 'sword of the animist', 'dowsing dagger',
+        'path to exile', 'rampant growth', 'path to the world tree', 'monastery siege', 'palace siege',
+        'crucible of fire', 'harvest season', 'light up the stage', 'taigam, ojutai master',
+        'savage ventmaw', 'farhaven elf'
+    ]);
+
     // ============================================================================
     // 2. CARD PARSER & MECHANICS CLASSIFIER
     // ============================================================================
@@ -123,10 +138,10 @@
         return keywords;
     }
 
-    function parseDecklistText(text) {
-        if (!text || typeof text !== 'string') return { commander: null, cards: [] };
+    function parseDecklistText(text, explicitCommander = null) {
+        if (!text || typeof text !== 'string') return { commander: explicitCommander || null, cards: [] };
         const lines = text.split(/\r?\n/);
-        let commander = null;
+        let commander = explicitCommander ? String(explicitCommander).trim() : null;
         const cards = [];
         let inCommanderSection = false;
 
@@ -135,17 +150,15 @@
             if (!line) continue;
 
             // Check section headers
-            if (/^(?:commander|sideboard):?$/i.test(line)) {
+            if (/^\/\/\s*commander/i.test(line) || /^#\s*commander/i.test(line) || /^commander:?$/i.test(line)) {
                 inCommanderSection = true;
                 continue;
             }
-            if (/^(?:deck|mainboard|main|creatures|spells|lands):?$/i.test(line)) {
+            if (/^\/\/\s*(?:mainboard|deck|main|cards|creatures|spells|lands)/i.test(line) || /^#\s*(?:mainboard|deck)/i.test(line) || /^(?:mainboard|deck|main):?$/i.test(line)) {
                 inCommanderSection = false;
                 continue;
             }
             if (line.startsWith('#') || line.startsWith('//')) {
-                if (/commander/i.test(line)) inCommanderSection = true;
-                else inCommanderSection = false;
                 continue;
             }
 
@@ -159,6 +172,9 @@
                 cardName = match[2].trim();
             }
 
+            // Strip set codes like (MIC) 2 *F* or [FDC]
+            cardName = cardName.replace(/\s*\([A-Za-z0-9_-]+\).*$/, '').replace(/\s*\[[A-Za-z0-9_-]+\].*$/, '').trim();
+
             if (isCmdr && !commander) {
                 commander = cardName;
             }
@@ -168,6 +184,12 @@
                 quantity: qty,
                 isCommander: isCmdr
             });
+        }
+
+        // If no commander detected from headers, check if first card should be commander
+        if (!commander && cards.length > 0) {
+            commander = cards[0].name;
+            cards[0].isCommander = true;
         }
 
         return { commander, cards };
@@ -205,7 +227,13 @@
         }
 
         // Mechanics classification
-        const isLand = typeLower.includes('land') || BASIC_LANDS.has(name.toLowerCase());
+        const nameLower = name.toLowerCase();
+        const isLand = rawCard.isLand === true ||
+                       rawCard.category === 'Lands' ||
+                       rawCard.category === 'Land' ||
+                       typeLower.includes('land') ||
+                       BASIC_LANDS.has(nameLower) ||
+                       (!NON_LAND_EXCEPTIONS.has(nameLower) && KNOWN_LAND_KEYWORDS.test(nameLower));
         const isCreature = typeLower.includes('creature');
         const isArtifact = typeLower.includes('artifact');
         const isEnchantment = typeLower.includes('enchantment');
@@ -313,15 +341,43 @@
         }
 
         initDeck(deckList) {
-            const cards = Array.isArray(deckList) ? deckList : (deckList.cards || []);
-            const parsedList = [];
+            let cards = [];
+            let explicitCommander = null;
 
+            if (Array.isArray(deckList)) {
+                cards = deckList;
+            } else if (typeof deckList === 'string') {
+                const parsed = parseDecklistText(deckList);
+                cards = parsed.cards;
+                explicitCommander = parsed.commander;
+            } else if (deckList && typeof deckList === 'object') {
+                if (deckList.cards && Array.isArray(deckList.cards) && deckList.cards.length > 0) {
+                    cards = deckList.cards;
+                    explicitCommander = deckList.commander || null;
+                } else if (deckList.decklist || deckList.content) {
+                    const parsed = parseDecklistText(deckList.decklist || deckList.content, deckList.commander);
+                    cards = parsed.cards;
+                    explicitCommander = deckList.commander || parsed.commander;
+                } else {
+                    cards = deckList.cards || [];
+                    explicitCommander = deckList.commander || null;
+                }
+            }
+
+            const parsedList = [];
+            this.commandZone = [];
+
+            // 1. Process cards and isolate designated Commander
             cards.forEach(c => {
                 const qty = typeof c === 'string' ? 1 : (c.quantity || 1);
                 const rawObj = typeof c === 'string' ? { name: c } : c;
                 for (let i = 0; i < qty; i++) {
                     const inst = createCardInstance(rawObj, this.id);
-                    if (inst.isCommander && this.commandZone.length < 2) {
+                    const isNameMatch = explicitCommander && inst.name.toLowerCase() === explicitCommander.toLowerCase();
+                    const isMarkedCmdr = inst.isCommander || rawObj.isCommander || rawObj.category === 'Commander';
+
+                    if ((isNameMatch || isMarkedCmdr) && this.commandZone.length === 0) {
+                        inst.isCommander = true;
                         this.commandZone.push(inst);
                     } else {
                         parsedList.push(inst);
@@ -329,18 +385,100 @@
                 }
             });
 
-            // If no explicit commander was marked, choose first legendary creature from deck
+            // 2. Fallback: If no commander assigned yet, search parsedList for designated or legendary
             if (this.commandZone.length === 0) {
-                const legIdx = parsedList.findIndex(c => c.isCreature && c.typeLine.toLowerCase().includes('legendary'));
-                if (legIdx !== -1) {
-                    const cmdr = parsedList.splice(legIdx, 1)[0];
+                let cmdrIdx = -1;
+                if (explicitCommander) {
+                    cmdrIdx = parsedList.findIndex(c => c.name.toLowerCase() === explicitCommander.toLowerCase());
+                }
+                if (cmdrIdx === -1) {
+                    cmdrIdx = parsedList.findIndex(c => c.isCreature && c.typeLine.toLowerCase().includes('legendary'));
+                }
+                if (cmdrIdx === -1) {
+                    cmdrIdx = parsedList.findIndex(c => c.isCreature);
+                }
+                if (cmdrIdx === -1 && parsedList.length > 0) {
+                    cmdrIdx = 0;
+                }
+                if (cmdrIdx !== -1) {
+                    const cmdr = parsedList.splice(cmdrIdx, 1)[0];
                     cmdr.isCommander = true;
                     this.commandZone.push(cmdr);
                 }
             }
 
-            // Shuffle library
-            this.library = this.shuffle(parsedList);
+            // 3. STRICT PURGE: The Commander must NEVER be inside the 99-card library!
+            if (this.commandZone.length > 0) {
+                const cmdr = this.commandZone[0];
+                this.commanderCard = cmdr;
+                for (let i = parsedList.length - 1; i >= 0; i--) {
+                    if (parsedList[i].id === cmdr.id || parsedList[i].name.toLowerCase() === cmdr.name.toLowerCase() || parsedList[i].isCommander) {
+                        parsedList.splice(i, 1);
+                    }
+                }
+            }
+
+            // 4. GUARANTEE A BALANCED 99-CARD COMMANDER LIBRARY (~36 Lands, ~63 Spells)
+            // Fixes opening hands being flooded with 6-7 lands when decks are incomplete or skewed
+            if (parsedList.length < 99) {
+                const currentLands = parsedList.filter(c => c.isLand);
+                const currentSpells = parsedList.filter(c => !c.isLand);
+
+                // If lands are excessively stacked relative to library, balance lands down to 36
+                if (currentLands.length > 36 && parsedList.length < 90) {
+                    const trimmedLands = currentLands.slice(0, 36);
+                    parsedList.length = 0;
+                    parsedList.push(...currentSpells, ...trimmedLands);
+                }
+
+                // Determine deck colors for filling basics
+                const colorSet = new Set();
+                this.commandZone.forEach(cmdr => (cmdr.colors || []).forEach(col => colorSet.add(col)));
+                if (colorSet.size === 0) {
+                    parsedList.forEach(c => (c.colors || []).forEach(col => colorSet.add(col)));
+                }
+                if (colorSet.size === 0) colorSet.add('C');
+                const colorsArray = Array.from(colorSet);
+
+                // Staples pool for filling missing spell slots
+                const staplePool = [
+                    { name: 'Sol Ring', manaCost: '{1}', cmc: 1, typeLine: 'Artifact', isArtifact: true, isManaRock: true, oracleText: '{T}: Add {C}{C}.' },
+                    { name: 'Arcane Signet', manaCost: '{2}', cmc: 2, typeLine: 'Artifact', isArtifact: true, isManaRock: true, oracleText: '{T}: Add one mana of any color.' },
+                    { name: "Commander's Sphere", manaCost: '{3}', cmc: 3, typeLine: 'Artifact', isArtifact: true, isManaRock: true },
+                    { name: 'Mind Stone', manaCost: '{2}', cmc: 2, typeLine: 'Artifact', isArtifact: true, isManaRock: true },
+                    { name: 'Swiftfoot Boots', manaCost: '{2}', cmc: 2, typeLine: 'Artifact — Equipment', isArtifact: true, oracleText: 'Haste, hexproof' },
+                    { name: 'Lightning Greaves', manaCost: '{2}', cmc: 2, typeLine: 'Artifact — Equipment', isArtifact: true, oracleText: 'Haste, shroud' }
+                ];
+
+                let poolIdx = 0;
+                while (parsedList.length < 99) {
+                    const landsCountNow = parsedList.filter(c => c.isLand).length;
+                    if (landsCountNow < 36) {
+                        const col = colorsArray[landsCountNow % colorsArray.length];
+                        const landName = col === 'W' ? 'Plains' : col === 'U' ? 'Island' : col === 'B' ? 'Swamp' : col === 'R' ? 'Mountain' : col === 'G' ? 'Forest' : 'Wastes';
+                        parsedList.push(createCardInstance({ name: landName, typeLine: `Basic Land — ${landName}` }, this.id));
+                    } else if (poolIdx < staplePool.length && !parsedList.some(c => c.name === staplePool[poolIdx].name)) {
+                        parsedList.push(createCardInstance(staplePool[poolIdx], this.id));
+                        poolIdx++;
+                    } else {
+                        const baseSpell = currentSpells.length > 0 ? currentSpells[parsedList.length % currentSpells.length] : staplePool[0];
+                        parsedList.push(createCardInstance({ ...baseSpell, isCommander: false }, this.id));
+                    }
+                }
+            } else if (parsedList.length > 99) {
+                // If library has more than 99 cards, trim excess basic lands down to exactly 99
+                while (parsedList.length > 99) {
+                    const landIdx = parsedList.findIndex(c => c.isLand && parsedList.filter(x => x.isLand).length > 36);
+                    if (landIdx !== -1) {
+                        parsedList.splice(landIdx, 1);
+                    } else {
+                        parsedList.pop();
+                    }
+                }
+            }
+
+            // 5. Multi-Pass Fisher-Yates Random Shuffle
+            this.library = this.shuffle(this.shuffle(parsedList));
             this.commanderCard = this.commandZone[0] || null;
         }
 
