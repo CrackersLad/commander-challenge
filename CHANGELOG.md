@@ -4,6 +4,20 @@ All notable changes to the Commander Draft Challenge application are documented 
 
 ---
 
+## [v9.1] - Opening Hand & London Mulligan Engine Fix
+
+### 🃏 Full London Mulligan & Hand Refresh
+- **Opening Hand Shuffling & Redraw**:
+  - Fixed an issue where taking a mulligan in the Commander Arena failed to draw new cards and prompted discards from the original hand.
+  - Connected opening hand mulligans directly to the Card-Forge JVM engine via `ForgeWebBridge.takeMulligan()` and a robust client-side Fisher-Yates deck shuffle fallback.
+  - Taking a mulligan now shuffles the full 7-card hand back into the 99-card library and draws 7 brand new cards before prompting card bottoming.
+- **Rule 103.4c Multiplayer Free Mulligan & London Bottoming**:
+  - The 1st mulligan is 100% free with no cards returned to the bottom (Rule 103.4c).
+  - Subsequent mulligans properly calculate `mulliganCount - 1` cards to put onto the bottom of the library from the *newly drawn* 7 cards.
+  - Added interactive visual bottoming selection with confirmation, logging bottomed card names to the match log.
+
+---
+
 ## [v9.0] - Major Release: Activated Abilities & Colored Mana Engine
 
 ### ⚡ Card Activated Abilities

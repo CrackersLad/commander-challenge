@@ -5745,60 +5745,94 @@
         window.renderMulliganModal();
     };
 
-    window.takePlayerMulligan = function () {
-        if (!currentGame) return;
-        const player = currentGame.players[0];
-        // Human player draws fresh 7 cards; autoBottom = false so human can inspect and choose cards to bottom
-        const mullRes = player.takeMulligan([], false);
-        selectedBottomCardIds.clear();
+    let isMulliganInProgress = false;
+    window.takePlayerMulligan = async function () {
+        if (!currentGame || isMulliganInProgress) return;
+        isMulliganInProgress = true;
+        try {
+            const player = currentGame.players[0];
+            const mullBtns = document.querySelectorAll('.mulligan-actions-bar button');
+            mullBtns.forEach(b => { b.disabled = true; });
 
-        appendArenaLogs([mullRes.log]);
-        window.renderMulliganModal();
+            let mullRes = null;
+            if (player && typeof player.takeMulligan === 'function') {
+                mullRes = await player.takeMulligan([], false);
+            } else if (typeof currentGame.takeMulligan === 'function') {
+                mullRes = await currentGame.takeMulligan();
+            }
+            selectedBottomCardIds.clear();
+
+            if (mullRes && mullRes.log) {
+                appendArenaLogs([mullRes.log]);
+            }
+            window.renderMulliganModal();
+            updateArenaDOM();
+        } catch (err) {
+            console.error("takePlayerMulligan error:", err);
+            window.renderMulliganModal();
+        } finally {
+            isMulliganInProgress = false;
+        }
     };
 
-    window.keepPlayerOpeningHand = function () {
-        if (!currentGame) return;
-        const player = currentGame.players[0];
-        const mullCount = player.mulliganCount || 0;
-        const cardsToBottomCount = Math.max(0, mullCount - 1);
+    let isKeepingHand = false;
+    window.keepPlayerOpeningHand = async function () {
+        if (!currentGame || isKeepingHand) return;
+        isKeepingHand = true;
+        try {
+            const player = currentGame.players[0];
+            const mullCount = player.mulliganCount || 0;
+            const cardsToBottomCount = Math.max(0, mullCount - 1);
 
-        if (cardsToBottomCount > 0) {
-            if (selectedBottomCardIds.size !== cardsToBottomCount) {
-                alert(`Please select exactly ${cardsToBottomCount} card(s) to place on the bottom of your library.`);
-                return;
+            if (cardsToBottomCount > 0) {
+                if (selectedBottomCardIds.size !== cardsToBottomCount) {
+                    alert(`Please select exactly ${cardsToBottomCount} card(s) to place on the bottom of your library.`);
+                    isKeepingHand = false;
+                    return;
+                }
+                // Move chosen cards to bottom of library
+                const bottomIds = Array.from(selectedBottomCardIds);
+                let bottomed = [];
+                if (player && typeof player.bottomCards === 'function') {
+                    bottomed = await player.bottomCards(bottomIds);
+                } else if (typeof currentGame.bottomCards === 'function') {
+                    bottomed = await currentGame.bottomCards(bottomIds);
+                }
+                if (bottomed && bottomed.length > 0) {
+                    appendArenaLogs([{
+                        type: 'MULLIGAN_BOTTOM',
+                        message: `⬇️ **${player.name}** placed **${bottomed.map(c => c.name || c).join(', ')}** onto the bottom of the library.`
+                    }]);
+                }
             }
-            // Move chosen cards to bottom of library
-            const bottomed = player.bottomCards(Array.from(selectedBottomCardIds));
-            if (bottomed.length > 0) {
-                appendArenaLogs([{
-                    type: 'MULLIGAN_BOTTOM',
-                    message: `⬇️ **${player.name}** placed **${bottomed.map(c => c.name).join(', ')}** onto the bottom of the library.`
-                }]);
+
+            const keepRes = player && player.keepHand ? player.keepHand() : { log: { type: 'MULLIGAN_KEEP', message: `✅ **${player ? player.name : 'You'}** keeps opening hand!` } };
+            if (keepRes && keepRes.log) appendArenaLogs([keepRes.log]);
+
+            // Resolve AI bot opponents' mulligans according to Forge heuristics
+            const botLogs = currentGame.resolveBotMulligans ? currentGame.resolveBotMulligans() : [];
+            if (botLogs && botLogs.length > 0) {
+                appendArenaLogs(botLogs);
             }
+
+            appendArenaLogs([{
+                type: 'MATCH_START',
+                message: `⚔️ **All players have kept opening hands! Starting Turn 1.**`
+            }]);
+
+            // Advance to Turn 1 Pre-Combat Main Phase (MAIN_1)
+            currentGame.currentPhase = 'MAIN_1';
+            const p1 = currentGame.players[0];
+            if (p1 && p1.untapAll) p1.untapAll();
+            if (p1) p1.landPlayedThisTurn = false;
+
+            window.closeMulliganModal();
+            updateArenaDOM();
+        } catch (err) {
+            console.error("keepPlayerOpeningHand error:", err);
+        } finally {
+            isKeepingHand = false;
         }
-
-        const keepRes = player.keepHand();
-        appendArenaLogs([keepRes.log]);
-
-        // Resolve AI bot opponents' mulligans according to Forge heuristics
-        const botLogs = currentGame.resolveBotMulligans();
-        if (botLogs && botLogs.length > 0) {
-            appendArenaLogs(botLogs);
-        }
-
-        appendArenaLogs([{
-            type: 'MATCH_START',
-            message: `⚔️ **All players have kept opening hands! Starting Turn 1.**`
-        }]);
-
-        // Advance to Turn 1 Pre-Combat Main Phase (MAIN_1)
-        currentGame.currentPhase = 'MAIN_1';
-        const p1 = currentGame.players[0];
-        p1.untapAll();
-        p1.landPlayedThisTurn = false;
-
-        window.closeMulliganModal();
-        updateArenaDOM();
     };
 
     // ============================================================================

@@ -134,8 +134,9 @@
     }
 
     class ForgeArenaGame {
-        constructor(bridge, rawJson) {
+        constructor(bridge, rawJson, selectedDecks = []) {
             this.bridge = bridge;
+            this.selectedDecks = selectedDecks;
             this.turn = 1;
             this.currentPhase = 'MAIN_1';
             this.activePlayerIndex = 0;
@@ -184,9 +185,11 @@
             }
 
             // Sync players
+            const selfGame = this;
             if (Array.isArray(data.players)) {
                 this.players = data.players.map((pData, idx) => {
                     const existing = this.players[idx] || {};
+                    const deckInfo = (this.selectedDecks && this.selectedDecks[idx]) || {};
                     const p = {
                         id: `p_${idx + 1}`,
                         name: pData.name || (idx === 0 ? 'You' : `Opponent ${idx}`),
@@ -200,12 +203,28 @@
                         avatar: existing.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(pData.name || 'MTG')}`,
                         mulliganCount: existing.mulliganCount || 0,
                         landPlayedThisTurn: existing.landPlayedThisTurn || false,
+                        manaPool: existing.manaPool || { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
 
                         hand: (pData.hand || []).map(c => enrichCard(c)),
                         commandZone: (pData.commandZone || []).map(c => enrichCard(c, true)),
                         battlefield: (pData.battlefield || []).map(c => enrichCard(c)),
                         graveyard: (pData.graveyard || []).map(c => enrichCard(c)),
                         library: { length: pData.libraryCount || 53 },
+                        libraryCards: existing.libraryCards || (() => {
+                            if (!deckInfo.cards) return [];
+                            const handNames = new Set((pData.hand || []).map(c => (c.name || '').toLowerCase()));
+                            const lib = [];
+                            for (const c of deckInfo.cards) {
+                                const cName = typeof c === 'string' ? c : c.name;
+                                if (cName === deckInfo.commander) continue;
+                                if (handNames.has((cName || '').toLowerCase())) {
+                                    handNames.delete((cName || '').toLowerCase());
+                                } else {
+                                    lib.push(enrichCard(typeof c === 'string' ? { name: c } : c));
+                                }
+                            }
+                            return lib;
+                        })(),
 
                         // Player helper methods for Arena UI
                         getCommander() {
@@ -223,7 +242,11 @@
                         },
                         getAvailableMana() {
                             const untappedLands = this.battlefield.filter(c => (c.isLand || c.isArtifact) && !c.tapped).length;
-                            return { total: Math.max(untappedLands, 0) };
+                            let poolTotal = 0;
+                            if (this.manaPool) {
+                                ['W', 'U', 'B', 'R', 'G', 'C'].forEach(col => { poolTotal += (this.manaPool[col] || 0); });
+                            }
+                            return { total: Math.max(untappedLands + poolTotal, 0) };
                         },
                         getCardCost(card) {
                             return card.cmc !== undefined ? card.cmc : 0;
@@ -235,23 +258,14 @@
                             return card.toughness !== undefined ? card.toughness : 0;
                         },
                         untapAll() {
-                            this.battlefield.forEach(c => { c.tapped = false; });
+                            this.battlefield.forEach(c => { c.tapped = false; c.producedMana = null; c.paidLifeCost = null; });
+                            this.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
                         },
-                        takeMulligan(bottomCardIds = [], autoBottom = false) {
-                            this.mulliganCount++;
-                            return {
-                                success: true,
-                                log: {
-                                    type: 'MULLIGAN',
-                                    message: `🔄 **${this.name}** takes Mulligan #${this.mulliganCount}. Hand refreshed.`
-                                }
-                            };
+                        async takeMulligan(bottomCardIds = [], autoBottom = false) {
+                            return await selfGame.takeMulligan();
                         },
-                        bottomCards(cardIds = []) {
-                            const ids = new Set(cardIds);
-                            const bottomed = this.hand.filter(c => ids.has(c.id));
-                            this.hand = this.hand.filter(c => !ids.has(c.id));
-                            return bottomed;
+                        async bottomCards(cardIds = []) {
+                            return await selfGame.bottomCards(cardIds);
                         },
                         keepHand() {
                             return {
@@ -401,6 +415,129 @@
             }
         }
 
+        async takeMulligan() {
+            const p = this.players[0];
+            const prevMulliganCount = (p && p.mulliganCount) || 0;
+            const newMulliganCount = prevMulliganCount + 1;
+            if (p) {
+                p.mulliganCount = newMulliganCount;
+            }
+
+            let newHandDrawn = false;
+            try {
+                if (this.bridge && typeof this.bridge.takeMulligan === 'function') {
+                    const newJson = await this.bridge.takeMulligan();
+                    if (newJson) {
+                        this.updateFromRawJson(newJson);
+                        if (this.players[0]) {
+                            this.players[0].mulliganCount = newMulliganCount;
+                            if (this.players[0].hand && this.players[0].hand.length > 0) {
+                                newHandDrawn = true;
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("ForgeWebBridge.takeMulligan error, applying client fallback:", err);
+            }
+
+            // Fallback client-side mulligan if bridge is not available or didn't supply new cards
+            if (!newHandDrawn && p) {
+                p.mulliganCount = newMulliganCount;
+                if (!p.libraryCards || p.libraryCards.length < 7) {
+                    const deckInfo = (this.selectedDecks && this.selectedDecks[0]) || {};
+                    if (deckInfo.cards && deckInfo.cards.length > 0) {
+                        p.libraryCards = deckInfo.cards
+                            .filter(c => (typeof c === 'string' ? c : c.name) !== deckInfo.commander)
+                            .map(c => enrichCard(typeof c === 'string' ? { name: c } : c));
+                    }
+                }
+                if (p.libraryCards && p.libraryCards.length > 0) {
+                    // Put current hand back into library
+                    if (p.hand && p.hand.length > 0) {
+                        p.libraryCards.push(...p.hand);
+                    }
+                    // Shuffle library with Fisher-Yates
+                    for (let i = p.libraryCards.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [p.libraryCards[i], p.libraryCards[j]] = [p.libraryCards[j], p.libraryCards[i]];
+                    }
+                    // Draw fresh 7 cards
+                    p.hand = p.libraryCards.splice(0, 7);
+                    p.handCount = p.hand.length;
+                    p.libraryCount = p.libraryCards.length;
+                    this.logs.push({
+                        type: 'FORGE_EVENT',
+                        message: `Player took mulligan #${newMulliganCount}. Shuffled hand into library and drew 7 fresh cards.`
+                    });
+                }
+            }
+
+            const p1 = this.players[0];
+            const cardsToBottomCount = Math.max(0, newMulliganCount - 1);
+            const isFree = newMulliganCount === 1;
+
+            return {
+                success: true,
+                mulliganCount: newMulliganCount,
+                isFree,
+                cardsToBottomCount,
+                log: {
+                    type: 'MULLIGAN',
+                    playerId: p1 ? p1.id : 'p_1',
+                    playerName: p1 ? p1.name : 'You',
+                    message: isFree
+                        ? `🔄 **${p1 ? p1.name : 'You'}** took a **FREE Multiplayer Mulligan** (Drew 7 fresh cards).`
+                        : `🔄 **${p1 ? p1.name : 'You'}** took **Mulligan #${newMulliganCount}** (Drew 7 fresh cards; choose ${cardsToBottomCount} card(s) to place on bottom).`
+                }
+            };
+        }
+
+        async bottomCards(cardIds = []) {
+            const p = this.players[0];
+            if (!p) return [];
+            const bottomedCards = [];
+
+            try {
+                if (this.bridge && typeof this.bridge.bottomCards === 'function' && cardIds.length > 0) {
+                    const idsCsv = cardIds.join(',');
+                    const newJson = await this.bridge.bottomCards(idsCsv);
+                    if (newJson) {
+                        const currentMullCount = p.mulliganCount;
+                        this.updateFromRawJson(newJson);
+                        if (this.players[0]) {
+                            this.players[0].mulliganCount = currentMullCount;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("ForgeWebBridge.bottomCards error, applying client fallback:", err);
+            }
+
+            // Ensure client-side p.hand has selected cards removed if still present
+            if (p.hand && cardIds.length > 0) {
+                const idSet = new Set(cardIds.map(String));
+                const remainingHand = [];
+                for (const c of p.hand) {
+                    if (idSet.has(String(c.id))) {
+                        bottomedCards.push(c);
+                        if (p.libraryCards) {
+                            p.libraryCards.push(c);
+                        }
+                    } else {
+                        remainingHand.push(c);
+                    }
+                }
+                p.hand = remainingHand;
+                p.handCount = p.hand.length;
+                if (p.libraryCards) {
+                    p.libraryCount = p.libraryCards.length;
+                }
+            }
+
+            return bottomedCards;
+        }
+
         resolveBotMulligans() {
             return [
                 { type: 'MULLIGAN_KEEP', message: `🤖 **Opponent 1** evaluated opening hand: 3 lands, curve 2-4 -> **KEPT (7)**` },
@@ -485,7 +622,7 @@
             }
 
             hideLoadingBanner();
-            const game = new ForgeArenaGame(bridge, rawJson);
+            const game = new ForgeArenaGame(bridge, rawJson, selectedDecks);
             return game;
         }
     };
