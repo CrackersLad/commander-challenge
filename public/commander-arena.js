@@ -25,6 +25,454 @@
             .catch(() => {});
     } catch (e) {}
 
+    // Initialize Flagged Cards Database (non-blocking)
+    try {
+        fetch('forge-flagged-cards.json')
+            .then(r => r.json())
+            .then(data => { window.__FORGE_FLAGGED_CARDS__ = data; })
+            .catch(() => {});
+    } catch (e) {}
+
+    function getCardEngineIssue(cardName) {
+        if (!cardName || !window.__FORGE_FLAGGED_CARDS__) return null;
+        const cleanName = String(cardName).toLowerCase().trim()
+            .replace(/\s*\([A-Za-z0-9_-]+\).*$/, '')
+            .replace(/\s*\[[A-Za-z0-9_-]+\].*$/, '');
+        return window.__FORGE_FLAGGED_CARDS__[cleanName] || null;
+    }
+    window.getCardEngineIssue = getCardEngineIssue;
+
+    function getPermanentManaAbilities(card) {
+        if (!card) return null;
+        const name = (card.name || '').trim();
+        const oracle = (card.oracleText || '').trim();
+        const typeLine = (card.typeLine || '').toLowerCase();
+
+        // 1. Basic Lands
+        if (name === 'Plains' || (typeLine.includes('plains') && !typeLine.includes('swamp') && !typeLine.includes('island') && !typeLine.includes('mountain') && !typeLine.includes('forest') && !oracle)) {
+            return { isMulti: false, options: [{ colors: ['W'], cost: null, desc: 'Add {W}' }] };
+        }
+        if (name === 'Island' || (typeLine.includes('island') && !typeLine.includes('swamp') && !typeLine.includes('plains') && !typeLine.includes('mountain') && !typeLine.includes('forest') && !oracle)) {
+            return { isMulti: false, options: [{ colors: ['U'], cost: null, desc: 'Add {U}' }] };
+        }
+        if (name === 'Swamp' || (typeLine.includes('swamp') && !typeLine.includes('island') && !typeLine.includes('plains') && !typeLine.includes('mountain') && !typeLine.includes('forest') && !oracle)) {
+            return { isMulti: false, options: [{ colors: ['B'], cost: null, desc: 'Add {B}' }] };
+        }
+        if (name === 'Mountain' || (typeLine.includes('mountain') && !typeLine.includes('island') && !typeLine.includes('plains') && !typeLine.includes('swamp') && !typeLine.includes('forest') && !oracle)) {
+            return { isMulti: false, options: [{ colors: ['R'], cost: null, desc: 'Add {R}' }] };
+        }
+        if (name === 'Forest' || (typeLine.includes('forest') && !typeLine.includes('island') && !typeLine.includes('plains') && !typeLine.includes('swamp') && !typeLine.includes('mountain') && !oracle)) {
+            return { isMulti: false, options: [{ colors: ['G'], cost: null, desc: 'Add {G}' }] };
+        }
+        if (name === 'Wastes') {
+            return { isMulti: false, options: [{ colors: ['C'], cost: null, desc: 'Add {C}' }] };
+        }
+
+        // 2. Sol Ring
+        if (name === 'Sol Ring') {
+            return { isMulti: false, options: [{ colors: ['C', 'C'], cost: null, desc: 'Add {C}{C}' }] };
+        }
+
+        // 3. Command Tower, Exotic Orchard, Reflecting Pool, Mana Confluence, City of Brass, Forbidden Orchard
+        if (/Command Tower|Exotic Orchard|Reflecting Pool|Mana Confluence|Forbidden Orchard|Plaza of Heroes|Path of Ancestry/i.test(name)) {
+            return {
+                isMulti: true,
+                options: ['W', 'U', 'B', 'R', 'G'].map(c => ({
+                    colors: [c],
+                    cost: null,
+                    desc: `Add {${c}}`
+                }))
+            };
+        }
+        if (name === 'City of Brass') {
+            return {
+                isMulti: true,
+                options: ['W', 'U', 'B', 'R', 'G'].map(c => ({
+                    colors: [c],
+                    cost: { life: 1 },
+                    desc: `Add {${c}} (Costs 1 Life)`
+                }))
+            };
+        }
+
+        // 4. Arcane Signet / Commander's Sphere / Fellwar Stone
+        if (/Arcane Signet|Commander's Sphere|Fellwar Stone/i.test(name)) {
+            return {
+                isMulti: true,
+                options: ['W', 'U', 'B', 'R', 'G'].map(c => ({
+                    colors: [c],
+                    cost: null,
+                    desc: `Add {${c}}`
+                }))
+            };
+        }
+
+        // 5. Pain Lands & Talismans
+        const painMatch = oracle.match(/Add\s*\{C\}[\s\S]*?Add\s*\{([WUBRG])\}\s*or\s*\{([WUBRG])\}[\s\S]*?(?:deals 1 damage|pay 1 life)/i);
+        if (painMatch || /Talisman of/i.test(name) || /Caves of Koilos|Underground River|Sulfurous Springs|Battlefield Forge|Brushland|Llanowar Wastes|Karplusan Forest|Shivan Reef|Yavimaya Coast|Adarkar Wastes/i.test(name)) {
+            let c1 = 'U', c2 = 'B';
+            if (painMatch) {
+                c1 = painMatch[1].toUpperCase();
+                c2 = painMatch[2].toUpperCase();
+            } else {
+                const m = oracle.match(/\{([WUBRG])\}\s*or\s*\{([WUBRG])\}/i);
+                if (m) { c1 = m[1].toUpperCase(); c2 = m[2].toUpperCase(); }
+            }
+            return {
+                isMulti: true,
+                options: [
+                    { colors: ['C'], cost: null, desc: 'Add {C} (Colorless, No Life Cost)' },
+                    { colors: [c1], cost: { life: 1 }, desc: `Add {${c1}} (Costs 1 Life)` },
+                    { colors: [c2], cost: { life: 1 }, desc: `Add {${c2}} (Costs 1 Life)` }
+                ]
+            };
+        }
+
+        // 6. Filter Lands
+        const filterMatch = oracle.match(/\{1\},\s*\{T\}:\s*Add\s*\{([WUBRG])\}\{([WUBRG])\},\s*\{([WUBRG])\}\{([WUBRG])\},\s*or\s*\{([WUBRG])\}\{([WUBRG])\}/i);
+        if (filterMatch) {
+            return {
+                isMulti: true,
+                options: [
+                    { colors: ['C'], cost: null, desc: 'Add {C}' },
+                    { colors: [filterMatch[1], filterMatch[2]], cost: { mana: 1 }, desc: `Add {${filterMatch[1]}}{${filterMatch[2]}} (Pay {1})` },
+                    { colors: [filterMatch[3], filterMatch[4]], cost: { mana: 1 }, desc: `Add {${filterMatch[3]}}{${filterMatch[4]}} (Pay {1})` },
+                    { colors: [filterMatch[5], filterMatch[6]], cost: { mana: 1 }, desc: `Add {${filterMatch[5]}}{${filterMatch[6]}} (Pay {1})` }
+                ]
+            };
+        }
+
+        // 7. Signets (e.g. {1}, {T}: Add {U}{B})
+        const signetMatch = oracle.match(/\{1\},\s*\{T\}:\s*Add\s*\{([WUBRG])\}\{([WUBRG])\}/i);
+        if (signetMatch) {
+            return {
+                isMulti: false,
+                options: [
+                    { colors: [signetMatch[1], signetMatch[2]], cost: { mana: 1 }, desc: `Add {${signetMatch[1]}}{${signetMatch[2]}} (Pay {1})` }
+                ]
+            };
+        }
+
+        // 8. Dual Lands / Shock / Check / Fast / Bounce / Pathways
+        const dualMatch = oracle.match(/\{T\}:\s*Add\s*\{([WUBRGC])\}\s*or\s*\{([WUBRGC])\}/i);
+        if (dualMatch) {
+            const c1 = dualMatch[1].toUpperCase();
+            const c2 = dualMatch[2].toUpperCase();
+            return {
+                isMulti: true,
+                options: [
+                    { colors: [c1], cost: null, desc: `Add {${c1}}` },
+                    { colors: [c2], cost: null, desc: `Add {${c2}}` }
+                ]
+            };
+        }
+
+        // 9. Generic "Add one mana of any color"
+        if (/add one mana of any color/i.test(oracle) || /add one mana of any type/i.test(oracle)) {
+            return {
+                isMulti: true,
+                options: ['W', 'U', 'B', 'R', 'G'].map(c => ({
+                    colors: [c],
+                    cost: null,
+                    desc: `Add {${c}}`
+                }))
+            };
+        }
+
+        // 10. Fallback for Land / Mana Rock / Dork
+        if (card.isLand || card.isManaRock || typeLine.includes('land') || typeLine.includes('artifact')) {
+            if (Array.isArray(card.colors) && card.colors.length > 1) {
+                return {
+                    isMulti: true,
+                    options: card.colors.map(c => ({
+                        colors: [c],
+                        cost: null,
+                        desc: `Add {${c}}`
+                    }))
+                };
+            } else if (Array.isArray(card.colors) && card.colors.length === 1) {
+                return {
+                    isMulti: false,
+                    options: [{ colors: [card.colors[0]], cost: null, desc: `Add {${card.colors[0]}}` }]
+                };
+            }
+            return {
+                isMulti: false,
+                options: [{ colors: ['C'], cost: null, desc: 'Add {C}' }]
+            };
+        }
+
+        return null;
+    }
+    window.getPermanentManaAbilities = getPermanentManaAbilities;
+
+    function parseActivatedAbilities(card) {
+        if (!card) return [];
+        const abilities = [];
+        const oracle = card.oracleText || '';
+        const lines = oracle.replace(/\\n/g, '\n').split(/\r?\n/);
+
+        for (let rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line) continue;
+
+            // Planeswalker loyalty: "+1: ...", "-3: ...", "0: ..."
+            const loyaltyMatch = line.match(/^([+−\-]?\d+)\s*:\s*(.+)$/);
+            if (loyaltyMatch) {
+                const deltaStr = loyaltyMatch[1].replace('−', '-');
+                const delta = parseInt(deltaStr, 10);
+                abilities.push({
+                    type: 'LOYALTY',
+                    costText: loyaltyMatch[1],
+                    loyaltyDelta: delta,
+                    effectText: loyaltyMatch[2].trim(),
+                    requiresTap: false,
+                    requiresSacrifice: false,
+                    manaCostNum: 0,
+                    raw: line
+                });
+                continue;
+            }
+
+            // Standard activated ability: "[Cost] : [Effect]"
+            const colonIdx = line.indexOf(':');
+            if (colonIdx > 0) {
+                const costPart = line.substring(0, colonIdx).trim();
+                const effectPart = line.substring(colonIdx + 1).trim();
+
+                const hasTap = /\{T\}|tap/i.test(costPart);
+                const hasMana = /\{[0-9WUBRGCX]+\}/i.test(costPart);
+                const hasSac = /sacrifice/i.test(costPart);
+                const hasPay = /pay/i.test(costPart);
+                const hasCounter = /counter/i.test(costPart);
+                const isEquip = /^equip/i.test(costPart);
+
+                // Exclude pure single mana abilities like "{T}: Add {W}" so they don't clutter the non-mana ability popup
+                const isPureMana = hasTap && /^add\s+\{[WUBRGC]\}/i.test(effectPart);
+
+                if (!isPureMana && (hasTap || hasMana || hasSac || hasPay || hasCounter || isEquip || costPart.length < 50)) {
+                    let manaCostNum = 0;
+                    const manaMatches = costPart.match(/\{([0-9WUBRGC]+)\}/g);
+                    if (manaMatches) {
+                        manaMatches.forEach(m => {
+                            const val = m.replace(/[\{\}]/g, '');
+                            const n = parseInt(val, 10);
+                            manaCostNum += isNaN(n) ? 1 : n;
+                        });
+                    }
+
+                    abilities.push({
+                        type: isEquip ? 'EQUIP' : (hasTap ? 'TAP_ABILITY' : 'ACTIVATED'),
+                        costText: costPart,
+                        effectText: effectPart,
+                        requiresTap: hasTap,
+                        requiresSacrifice: hasSac,
+                        manaCostNum: manaCostNum,
+                        raw: line
+                    });
+                }
+            }
+        }
+
+        if (Array.isArray(card.abilities)) {
+            card.abilities.forEach(ab => {
+                if (ab && !abilities.some(x => x.costText === ab.cost && x.effectText === ab.effect)) {
+                    abilities.push({
+                        type: ab.type || 'ACTIVATED',
+                        costText: ab.cost || 'Cost',
+                        effectText: ab.effect || ab.text || '',
+                        requiresTap: !!ab.requiresTap,
+                        requiresSacrifice: !!ab.requiresSacrifice,
+                        manaCostNum: ab.manaCost || 0,
+                        raw: ab.text || `${ab.cost}: ${ab.effect}`
+                    });
+                }
+            });
+        }
+
+        return abilities;
+    }
+    window.parseActivatedAbilities = parseActivatedAbilities;
+
+    function parseDecklistText(text, explicitCommander = null) {
+        if (!text || typeof text !== 'string') return { commander: explicitCommander || null, cards: [] };
+        const lines = text.split(/\r?\n/);
+        let commander = explicitCommander ? String(explicitCommander).trim() : null;
+        const cards = [];
+        let inCommanderSection = false;
+
+        for (let line of lines) {
+            line = line.trim();
+            if (!line) continue;
+
+            if (/^\/\/\s*commander/i.test(line) || /^#\s*commander/i.test(line) || /^commander:?$/i.test(line)) {
+                inCommanderSection = true;
+                continue;
+            }
+            if (/^\/\/\s*(?:mainboard|deck|main|cards|creatures|spells|lands|maybeboard|sideboard)/i.test(line) || /^#\s*(?:mainboard|deck)/i.test(line) || /^(?:mainboard|deck|main):?$/i.test(line)) {
+                inCommanderSection = false;
+                continue;
+            }
+            if (line.startsWith('#') || line.startsWith('//')) {
+                continue;
+            }
+
+            const match = line.match(/^(\d+)x?\s+(.+?)(?:\s+\[CMDR\]|\s+\*CMDR\*|\s+\(CMDR\))?$/i);
+            let qty = 1;
+            let cardName = line;
+            let isCmdr = inCommanderSection || /\*CMDR\*|\[CMDR\]|\(CMDR\)/i.test(line);
+
+            if (match) {
+                qty = parseInt(match[1], 10);
+                cardName = match[2].trim();
+            }
+
+            cardName = cardName.replace(/\s*\([A-Za-z0-9_-]+\).*$/, '').replace(/\s*\[[A-Za-z0-9_-]+\].*$/, '').trim();
+
+            if (isCmdr && !commander) {
+                commander = cardName;
+            }
+
+            cards.push({
+                name: cardName,
+                quantity: qty,
+                isCommander: isCmdr
+            });
+        }
+
+        if (!commander && cards.length > 0) {
+            commander = cards[0].name;
+            cards[0].isCommander = true;
+        }
+
+        return { commander, cards };
+    }
+    window.parseDecklistText = parseDecklistText;
+
+    function checkDeckForEngineIssues(deck) {
+        if (!deck) return [];
+        if ((!deck.cards || deck.cards.length === 0) && deck.decklist) {
+            const parsed = parseDecklistText(deck.decklist, deck.commander);
+            deck.cards = parsed.cards;
+            if (parsed.commander && !deck.commander) deck.commander = parsed.commander;
+        }
+        if (!deck.cards || !Array.isArray(deck.cards)) return [];
+        if (!window.__FORGE_FLAGGED_CARDS__) return [];
+
+        const flagged = [];
+        const seen = new Set();
+        deck.cards.forEach(c => {
+            const name = (c && c.name) ? c.name : (typeof c === 'string' ? c : '');
+            if (!name) return;
+            const issue = getCardEngineIssue(name);
+            const lowerKey = name.toLowerCase().trim();
+            if (issue && !seen.has(lowerKey)) {
+                seen.add(lowerKey);
+                flagged.push({
+                    name: issue.name || name,
+                    category: issue.category,
+                    reason: issue.reason
+                });
+            }
+        });
+        return flagged;
+    }
+    window.checkDeckForEngineIssues = checkDeckForEngineIssues;
+
+    function parseRemoteDeckData(data, safeUrl) {
+        if (!data) throw new Error("No data returned from deck source.");
+        if (safeUrl.includes("archidekt.com")) {
+            const deckName = data.name || "Archidekt Commander Deck";
+            const rawCards = data.cards || [];
+            let commanderName = null;
+            const parsedCards = [];
+
+            rawCards.forEach(item => {
+                const c = item.card;
+                if (!c) return;
+                const name = c.oracleCard?.name || c.name;
+                if (!name) return;
+                const qty = parseInt(item.quantity || 1, 10);
+                const isCmdr = Array.isArray(item.categories) && item.categories.some(cat => ['commander', 'commanders'].includes(String(cat).toLowerCase()));
+                if (isCmdr && !commanderName) commanderName = name;
+                parsedCards.push({
+                    name: name,
+                    quantity: qty,
+                    manaCost: c.oracleCard?.manaCost || c.manaCost,
+                    cmc: c.oracleCard?.cmc || c.cmc,
+                    typeLine: c.oracleCard?.type || c.type,
+                    power: c.oracleCard?.power || c.power,
+                    toughness: c.oracleCard?.toughness || c.toughness,
+                    oracleText: c.oracleCard?.text || c.oracleCard?.oracleText || c.text || '',
+                    isCommander: isCmdr
+                });
+            });
+            if (!commanderName && parsedCards.length > 0) {
+                commanderName = parsedCards[0].name;
+                parsedCards[0].isCommander = true;
+            }
+            return {
+                id: 'custom_arch_' + Date.now(),
+                name: `🌟 ${deckName}`,
+                commander: commanderName,
+                cards: parsedCards,
+                group: 'custom'
+            };
+        } else if (safeUrl.includes("moxfield.com")) {
+            const deckName = data.name || "Moxfield Commander Deck";
+            let commanderName = null;
+            const parsedCards = [];
+
+            if (data.commanders) {
+                Object.values(data.commanders).forEach(item => {
+                    const c = item.card;
+                    const name = c ? c.name : item.name;
+                    if (!name) return;
+                    if (!commanderName) commanderName = name;
+                    parsedCards.push({
+                        name: name,
+                        quantity: parseInt(item.quantity || 1, 10),
+                        manaCost: c?.mana_cost || item.mana_cost,
+                        cmc: c?.cmc || item.cmc,
+                        typeLine: c?.type_line || item.type_line,
+                        power: c?.power,
+                        toughness: c?.toughness,
+                        oracleText: c?.oracle_text || '',
+                        isCommander: true
+                    });
+                });
+            }
+
+            if (data.mainboard) {
+                Object.values(data.mainboard).forEach(item => {
+                    const c = item.card;
+                    const name = c ? c.name : item.name;
+                    if (!name) return;
+                    parsedCards.push({
+                        name: name,
+                        quantity: parseInt(item.quantity || 1, 10),
+                        manaCost: c?.mana_cost || item.mana_cost,
+                        cmc: c?.cmc || item.cmc,
+                        typeLine: c?.type_line || item.type_line,
+                        power: c?.power,
+                        toughness: c?.toughness,
+                        oracleText: c?.oracle_text || '',
+                        isCommander: false
+                    });
+                });
+            }
+            return {
+                id: 'custom_mox_' + Date.now(),
+                name: `🌟 ${deckName}`,
+                commander: commanderName || (parsedCards[0] ? parsedCards[0].name : 'Commander'),
+                cards: parsedCards,
+                group: 'custom'
+            };
+        }
+        throw new Error("Unrecognized deck source format.");
+    }
+    window.parseRemoteDeckData = parseRemoteDeckData;
+
     // High quality Commander precons with curated card lists
     const PRESET_DECKS = [
         {
@@ -3256,29 +3704,295 @@
     }
 
     let userActiveCustomDeck = null;
+    let preconsLoaded = false;
+    let cachedPrecons = [];
+    let savedCustomDecks = [];
+
+    try {
+        const rawSaved = localStorage.getItem('arena_user_custom_decks');
+        if (rawSaved) {
+            const parsed = JSON.parse(rawSaved);
+            if (Array.isArray(parsed)) {
+                savedCustomDecks = parsed.map(d => ({ ...d, group: 'custom' }));
+            }
+        }
+    } catch (e) {}
+
+    function saveUserCustomDeck(deck) {
+        deck.group = 'custom';
+        savedCustomDecks = savedCustomDecks.filter(d => d.id !== deck.id && d.name !== deck.name);
+        savedCustomDecks.unshift(deck);
+        try {
+            localStorage.setItem('arena_user_custom_decks', JSON.stringify(savedCustomDecks.slice(0, 30)));
+        } catch (e) {}
+        userActiveCustomDeck = deck;
+        const searchInput = document.getElementById('arenaPreconSearchInput');
+        populateDeckSelects(searchInput ? searchInput.value : '');
+        const select0 = document.getElementById('seatSelect0');
+        if (select0) select0.value = deck.id;
+        window.updateSeat0Preview();
+    }
+    window.saveUserCustomDeck = saveUserCustomDeck;
+
+    async function loadCommanderPreconsOnDemand(forceFull = false) {
+        if (preconsLoaded && cachedPrecons.length > 0) return cachedPrecons;
+        const btn = document.getElementById('btnLoadAllPrecons');
+        if (btn) btn.textContent = '⏳ Loading Precons...';
+
+        try {
+            const resp = await fetch('commander-precons.json');
+            if (resp.ok) {
+                const data = await resp.json();
+                if (Array.isArray(data)) {
+                    cachedPrecons = data.map((p, idx) => ({
+                        id: `precon_${(p.code || 'cmd').toLowerCase()}_${idx}`,
+                        name: `📜 ${p.name} (${p.commander || 'Commander'})`,
+                        commander: p.commander || p.name,
+                        decklist: p.decklist,
+                        colors: p.colors || [],
+                        cards: null, // parsed on demand!
+                        group: 'precon'
+                    }));
+                    preconsLoaded = true;
+                    if (btn) btn.textContent = `✅ ${cachedPrecons.length} Precons Loaded`;
+                    const searchInput = document.getElementById('arenaPreconSearchInput');
+                    populateDeckSelects(searchInput ? searchInput.value : '');
+                }
+            }
+        } catch (err) {
+            console.warn("Could not load commander-precons.json:", err);
+            if (btn) btn.textContent = '❌ Failed to Load';
+        }
+        return cachedPrecons;
+    }
+    window.loadCommanderPreconsOnDemand = loadCommanderPreconsOnDemand;
 
     function getAvailableDecks() {
         const list = [];
         if (userActiveCustomDeck) {
-            list.push(userActiveCustomDeck);
+            list.push({ ...userActiveCustomDeck, group: 'custom' });
         }
+        savedCustomDecks.forEach(sd => {
+            if (!userActiveCustomDeck || userActiveCustomDeck.id !== sd.id) {
+                list.push({ ...sd, group: 'custom' });
+            }
+        });
         if (window.currentDecksData && Array.isArray(window.currentDecksData)) {
             window.currentDecksData.forEach(d => {
                 if (d && !d.error && d.cards && d.cards.length > 0) {
-                    if (!userActiveCustomDeck || (userActiveCustomDeck.id !== `scanned_${d.id}` && userActiveCustomDeck.id !== d.id)) {
+                    const id = `scanned_${d.id}`;
+                    if (!list.some(x => x.id === id)) {
                         list.push({
-                            id: `scanned_${d.id}`,
+                            id: id,
                             name: `⭐ ${d.name} (${d.commander || 'Commander'})`,
                             commander: d.commander || 'Commander',
-                            cards: d.cards
+                            cards: d.cards,
+                            group: 'custom'
                         });
                     }
                 }
             });
         }
-        PRESET_DECKS.forEach(pd => list.push(pd));
+        PRESET_DECKS.forEach(pd => list.push({ ...pd, group: 'preset' }));
+        cachedPrecons.forEach(pc => list.push(pc));
         return list;
     }
+
+    function populateDeckSelects(filterText = '') {
+        const filter = (filterText || '').toLowerCase().trim();
+        const decks = getAvailableDecks();
+        const customDecks = decks.filter(d => d.group === 'custom');
+        const presetDecks = decks.filter(d => d.group === 'preset');
+        const preconDecks = decks.filter(d => d.group === 'precon');
+
+        const matchesFilter = (d) => {
+            if (!filter) return true;
+            return (d.name && d.name.toLowerCase().includes(filter)) ||
+                   (d.commander && d.commander.toLowerCase().includes(filter));
+        };
+
+        const filteredCustom = customDecks.filter(matchesFilter);
+        const filteredPreset = presetDecks.filter(matchesFilter);
+        const filteredPrecon = preconDecks.filter(matchesFilter);
+
+        for (let i = 0; i < 4; i++) {
+            const select = document.getElementById(`seatSelect${i}`);
+            if (!select) continue;
+            const prevVal = select.value;
+            select.innerHTML = '';
+
+            if (filteredCustom.length > 0) {
+                const og = document.createElement('optgroup');
+                og.label = `🌟 Custom & Imported Decks (${filteredCustom.length})`;
+                filteredCustom.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.id;
+                    opt.textContent = d.name;
+                    og.appendChild(opt);
+                });
+                select.appendChild(og);
+            }
+
+            if (filteredPreset.length > 0) {
+                const og = document.createElement('optgroup');
+                og.label = `⚔️ Battle Presets (${filteredPreset.length})`;
+                filteredPreset.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.id;
+                    opt.textContent = d.name;
+                    og.appendChild(opt);
+                });
+                select.appendChild(og);
+            }
+
+            if (filteredPrecon.length > 0) {
+                const og = document.createElement('optgroup');
+                og.label = `📜 Official Precons (${filteredPrecon.length})`;
+                filteredPrecon.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.id;
+                    opt.textContent = d.name;
+                    og.appendChild(opt);
+                });
+                select.appendChild(og);
+            }
+
+            // Restore or default selection
+            if (i === 0) {
+                if (userActiveCustomDeck && select.querySelector(`option[value="${userActiveCustomDeck.id}"]`)) {
+                    select.value = userActiveCustomDeck.id;
+                } else if (prevVal && select.querySelector(`option[value="${prevVal}"]`)) {
+                    select.value = prevVal;
+                } else if (select.options.length > 0) {
+                    select.selectedIndex = 0;
+                }
+            } else {
+                const defaultBotIndex = i % PRESET_DECKS.length;
+                const defaultBotId = PRESET_DECKS[defaultBotIndex].id;
+                if (prevVal && prevVal !== (userActiveCustomDeck && userActiveCustomDeck.id) && select.querySelector(`option[value="${prevVal}"]`)) {
+                    select.value = prevVal;
+                } else if (select.querySelector(`option[value="${defaultBotId}"]`)) {
+                    select.value = defaultBotId;
+                } else if (select.options.length > 0) {
+                    select.selectedIndex = Math.min(i, select.options.length - 1);
+                }
+            }
+        }
+        window.updateSeat0Preview();
+    }
+    window.populateDeckSelects = populateDeckSelects;
+
+    window.filterDeckSelects = function (query) {
+        populateDeckSelects(query);
+    };
+
+    window.importCustomDeckFromInput = async function () {
+        const input = document.getElementById('arenaCustomDeckUrlInput');
+        const statusEl = document.getElementById('arenaDeckImportStatus');
+        const url = input ? input.value.trim() : '';
+        if (!url) {
+            if (statusEl) {
+                statusEl.textContent = '⚠️ Enter a URL';
+                statusEl.style.color = '#f87171';
+            }
+            return;
+        }
+
+        if (statusEl) {
+            statusEl.textContent = '⏳ Loading deck...';
+            statusEl.style.color = '#38bdf8';
+        }
+
+        try {
+            let safeUrl = url.startsWith('http') ? url : 'https://' + url;
+            let data = null;
+
+            // Try Firebase Cloud Function proxy first
+            if (typeof window.fetchDeckFromAPI === 'function') {
+                try {
+                    data = await window.fetchDeckFromAPI(safeUrl);
+                } catch (proxyErr) {
+                    console.warn("Proxy deck fetch failed, trying direct fallback:", proxyErr);
+                }
+            }
+
+            // Direct API fallbacks
+            if (!data) {
+                if (safeUrl.includes('archidekt.com')) {
+                    const m = safeUrl.match(/decks\/(\d+)/);
+                    if (!m) throw new Error("Could not find deck ID in Archidekt URL.");
+                    const res = await fetch(`https://archidekt.com/api/decks/${m[1]}/`);
+                    if (!res.ok) throw new Error(`Archidekt API error: ${res.status}`);
+                    data = await res.json();
+                } else if (safeUrl.includes('moxfield.com')) {
+                    const m = safeUrl.match(/decks\/([a-zA-Z0-9_-]+)/);
+                    if (!m) throw new Error("Could not find deck ID in Moxfield URL.");
+                    try {
+                        const res = await fetch(`https://api.moxfield.com/v2/decks/all/${m[1]}`);
+                        if (!res.ok) throw new Error(`Moxfield API error: ${res.status}`);
+                        data = await res.json();
+                    } catch (moxErr) {
+                        throw new Error("Moxfield blocked direct browser access (Cloudflare). Click '📋 Paste Text' to paste directly!");
+                    }
+                } else {
+                    throw new Error("Only Archidekt and Moxfield URLs are supported.");
+                }
+            }
+
+            const deckObj = parseRemoteDeckData(data, safeUrl);
+            saveUserCustomDeck(deckObj);
+            if (input) input.value = '';
+            if (statusEl) {
+                statusEl.textContent = `✅ Imported "${deckObj.commander || deckObj.name}"!`;
+                statusEl.style.color = '#4ade80';
+            }
+        } catch (err) {
+            console.error("Custom deck import failed:", err);
+            if (statusEl) {
+                statusEl.textContent = `❌ ${err.message || 'Import failed'}`;
+                statusEl.style.color = '#f87171';
+            }
+        }
+    };
+
+    window.openPasteDecklistModal = function () {
+        const modal = document.getElementById('arenaPasteModal');
+        if (modal) modal.style.display = 'flex';
+    };
+
+    window.closePasteDecklistModal = function () {
+        const modal = document.getElementById('arenaPasteModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.submitPastedDecklist = function () {
+        const textarea = document.getElementById('arenaPasteTextarea');
+        const text = textarea ? textarea.value.trim() : '';
+        if (!text) return;
+
+        const parsed = parseDecklistText(text);
+        if (!parsed || !parsed.cards || parsed.cards.length === 0) {
+            alert("No valid cards found in pasted text. Format like: 1 Sol Ring");
+            return;
+        }
+
+        const deckName = parsed.commander || 'Custom Commander Deck';
+        const deckObj = {
+            id: 'custom_paste_' + Date.now(),
+            name: `⭐ ${deckName}`,
+            commander: parsed.commander,
+            cards: parsed.cards
+        };
+
+        saveUserCustomDeck(deckObj);
+        window.closePasteDecklistModal();
+        if (textarea) textarea.value = '';
+        const statusEl = document.getElementById('arenaDeckImportStatus');
+        if (statusEl) {
+            statusEl.textContent = `✅ Imported "${deckObj.commander}" (${deckObj.cards.length} cards)`;
+            statusEl.style.color = '#4ade80';
+        }
+    };
 
     function initArenaModal() {
         if (document.getElementById('arenaModalBackdrop')) return;
@@ -3393,6 +4107,7 @@
                 <!-- Floating High-Res Card Inspector -->
                 <div class="card-hover-inspector" id="cardHoverInspector">
                     <img id="cardInspectorImg" src="" alt="Card Inspector" />
+                    <div id="cardInspectorNotice" style="display: none;"></div>
                 </div>
 
                 <!-- Pod Setup Modal Overlay -->
@@ -3405,8 +4120,33 @@
                             <button class="arena-btn" onclick="window.closeArenaSetup()">✕</button>
                         </div>
                         <p style="font-size: 0.86rem; color: var(--arena-text-muted); margin: 0; line-height: 1.45;">
-                            Choose the deck you want to pilot in <strong>Seat 1</strong> before drawing your opening hand. You can also customize your AI opponents or leave them on presets.
+                            Choose the deck you want to pilot in <strong>Seat 1</strong> before drawing your opening hand. You can also import custom decks from Archidekt/Moxfield or choose from 180+ precons.
                         </p>
+
+                        <!-- Custom Deck Importer Bar -->
+                        <div class="setup-import-box">
+                            <div style="font-size: 0.82rem; font-weight: 700; color: #93c5fd; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+                                <span style="display: flex; align-items: center; gap: 6px;">📥 Import Custom Deck (Moxfield / Archidekt / Text)</span>
+                                <span id="arenaDeckImportStatus" style="font-size: 0.76rem; font-weight: 600;"></span>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="arenaCustomDeckUrlInput" placeholder="Paste Archidekt or Moxfield deck URL..." style="flex: 1; min-width: 0; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 7px 12px; color: #fff; font-size: 0.82rem;" onkeydown="if(event.key==='Enter') window.importCustomDeckFromInput()" />
+                                <button class="arena-btn arena-btn-gold" onclick="window.importCustomDeckFromInput()" style="white-space: nowrap; font-size: 0.8rem; padding: 6px 12px;">
+                                    📥 Load URL
+                                </button>
+                                <button class="arena-btn" onclick="window.openPasteDecklistModal()" style="white-space: nowrap; font-size: 0.8rem; padding: 6px 12px;">
+                                    📋 Paste Text
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Precons & Decks Search Bar -->
+                        <div class="setup-precon-bar">
+                            <input type="text" class="setup-precon-input" id="arenaPreconSearchInput" placeholder="🔍 Filter decks & 180+ precons by name or commander..." oninput="window.filterDeckSelects(this.value)" />
+                            <button class="arena-btn" id="btnLoadAllPrecons" onclick="window.loadCommanderPreconsOnDemand(true)" style="white-space: nowrap; font-size: 0.78rem; padding: 6px 10px;">
+                                📜 Load All 182 Precons
+                            </button>
+                        </div>
 
                         <div class="setup-seats-grid">
                             <div class="setup-seat-box seat-1-featured">
@@ -3416,6 +4156,7 @@
                                     <div style="flex: 1; min-width: 0;">
                                         <select class="setup-seat-select" id="seatSelect0" onchange="window.updateSeat0Preview()"></select>
                                         <div id="seat0CmdrDetails" style="font-size: 0.78rem; color: #cbd5e1; margin-top: 0.3rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Loading Commander...</div>
+                                        <div id="seat0FlaggedWarnings" style="display: none; margin-top: 6px;"></div>
                                     </div>
                                 </div>
                             </div>
@@ -3442,6 +4183,74 @@
                     </div>
                 </div>
 
+                <!-- Paste Decklist Text Modal Overlay -->
+                <div class="arena-paste-modal" id="arenaPasteModal" style="display: none;">
+                    <div class="arena-paste-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h3 style="margin: 0; color: #fff; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+                                <span>📋</span> Paste Custom Commander Decklist
+                            </h3>
+                            <button class="arena-btn" onclick="window.closePasteDecklistModal()">✕</button>
+                        </div>
+                        <p style="font-size: 0.82rem; color: #94a3b8; line-height: 1.45; margin: 0 0 10px 0;">
+                            Paste any MTG decklist from Moxfield, Archidekt, MTG Arena, or MTGO (e.g. <code>1 Sol Ring</code> or with <code>// Commander</code> header).
+                        </p>
+                        <textarea id="arenaPasteTextarea" rows="12" placeholder="// Commander&#10;1 Giada, Font of Hope&#10;&#10;// Mainboard&#10;1 Sol Ring&#10;1 Swords to Plowshares..." style="width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 10px; color: #f8fafc; font-family: monospace; font-size: 0.82rem; resize: vertical;"></textarea>
+                        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px;">
+                            <button class="arena-btn" onclick="window.closePasteDecklistModal()">Cancel</button>
+                            <button class="arena-btn arena-btn-gold" onclick="window.submitPastedDecklist()">Import Deck</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mana Color Choice Modal Overlay -->
+                <div class="arena-mana-choice-modal" id="arenaManaChoiceModal" style="display: none;">
+                    <div class="arena-mana-choice-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 1.25rem;">💎</span>
+                                <div>
+                                    <h3 id="manaChoiceCardName" style="margin: 0; color: #fff; font-size: 1.05rem; font-weight: 800;">Tap for Mana</h3>
+                                    <div id="manaChoiceCardSub" style="font-size: 0.72rem; color: #94a3b8;">Choose which mana color to produce</div>
+                                </div>
+                            </div>
+                            <button class="arena-btn" onclick="window.closeManaChoiceModal()">✕</button>
+                        </div>
+                        <div id="manaChoiceOptionsList" class="mana-choice-grid"></div>
+                        <div style="display: flex; justify-content: flex-end; margin-top: 14px;">
+                            <button class="arena-btn" onclick="window.closeManaChoiceModal()">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Activated Ability Modal Overlay -->
+                <div class="arena-ability-modal" id="arenaCardAbilityModal" style="display: none;">
+                    <div class="arena-ability-card">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                <img id="abilityCardThumb" class="setup-seat-thumb" src="" alt="Card Art" style="width: 52px; height: 52px; border-radius: 8px; border: 1px solid #475569;" />
+                                <div>
+                                    <h3 id="abilityCardName" style="margin: 0; color: #fff; font-size: 1.15rem; font-weight: 800;">Card Name</h3>
+                                    <div id="abilityCardTypeLine" style="font-size: 0.76rem; color: #c084fc; font-weight: 700; margin-top: 2px;">Type Line</div>
+                                    <div id="abilityCardStatus" style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Untapped</div>
+                                </div>
+                            </div>
+                            <button class="arena-btn" onclick="window.closeCardAbilityModal()">✕</button>
+                        </div>
+
+                        <div style="font-size: 0.8rem; font-weight: 700; color: #f59e0b; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                            <span>⚡</span> Available Activated Abilities:
+                        </div>
+
+                        <div id="abilityOptionsList" class="ability-options-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto;">
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+                            <button class="arena-btn" onclick="window.closeCardAbilityModal()">Close</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Opening Hand & Mulligan Modal Overlay -->
                 <div class="arena-mulligan-overlay" id="arenaMulliganOverlay"></div>
             </div>
@@ -3457,8 +4266,28 @@
         if (!cardName) return;
         const inspector = document.getElementById('cardHoverInspector');
         const img = document.getElementById('cardInspectorImg');
+        const notice = document.getElementById('cardInspectorNotice');
         if (inspector && img) {
             img.src = getCardNormalUrl(cardName);
+            if (notice) {
+                const issue = getCardEngineIssue(cardName);
+                if (issue) {
+                    notice.innerHTML = `
+                        <div style="background: rgba(220, 38, 38, 0.95); backdrop-filter: blur(8px); border-top: 2px solid #ef4444; padding: 7px 9px; color: #fff; font-size: 0.75rem; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">
+                            <div style="font-weight: 800; display: flex; align-items: center; gap: 4px; color: #fef08a;">
+                                <span>⚠️</span> Engine Flag: ${escapeHtml(issue.category)}
+                            </div>
+                            <div style="margin-top: 2px; font-weight: 500; font-size: 0.72rem; line-height: 1.3; color: #f8fafc;">
+                                ${escapeHtml(issue.reason)}
+                            </div>
+                        </div>
+                    `;
+                    notice.style.display = 'block';
+                } else {
+                    notice.style.display = 'none';
+                    notice.innerHTML = '';
+                }
+            }
             inspector.style.display = 'block';
         }
     };
@@ -3496,6 +4325,8 @@
                     const tappedClass = c.tapped ? 'tapped' : '';
                     const effP = opp.getEffectivePower ? opp.getEffectivePower(c) : c.power;
                     const effT = opp.getEffectiveToughness ? opp.getEffectiveToughness(c) : c.toughness;
+                    const cIssue = getCardEngineIssue(c.name);
+                    const cFlag = cIssue ? `<span class="card-engine-flag" title="⚠️ Engine Notice: [${escapeHtml(cIssue.category)}] ${escapeHtml(cIssue.reason)}">⚠️</span>` : '';
                     creaturesHtml += `
                         <div class="mtg-card-frame ${tappedClass}"
                              onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
@@ -3506,6 +4337,7 @@
                             </div>
                             <img class="mtg-card-art" src="${getCardArtCropUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
                             <span class="mtg-card-pt-bubble">${effP}/${effT}</span>
+                            ${cFlag}
                             ${c.summoningSick ? '<span class="mtg-card-summoning-sick" title="Summoning Sick">🌀</span>' : ''}
                         </div>
                     `;
@@ -3570,6 +4402,7 @@
                              onmouseleave="window.hideCardInspector()">
                             <img src="${cmdrArt}" class="opponent-cmdr-thumb" alt="Commander" />
                             <span>${escapeHtml(cmdrName)}</span>
+                            ${getCardEngineIssue(cmdrName) ? `<span title="⚠️ Engine Notice: [${escapeHtml(getCardEngineIssue(cmdrName).category)}] ${escapeHtml(getCardEngineIssue(cmdrName).reason)}" style="color: #ef4444; font-size: 0.72rem; margin-left: 3px;">⚠️</span>` : ''}
                         </div>
                         <div>
                             <span>Tax: {${opp.commanderTax}}</span>
@@ -3620,6 +4453,9 @@
         const isCmdrOnField = player.isCommanderOnBattlefield();
         const canCastCmdr = isMyTurn && currentPhase.includes('MAIN') && isCmdrInZone && (availableMana >= cmdrCastCost);
 
+        const pool = player.manaPool || { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        const totalFloating = (pool.W || 0) + (pool.U || 0) + (pool.B || 0) + (pool.R || 0) + (pool.G || 0) + (pool.C || 0);
+
         // 1. Creatures on your battlefield
         const creatures = player.battlefield.filter(c => c.isCreature);
         let creaturesHtml = '';
@@ -3633,21 +4469,29 @@
                 const canAttackThisTurn = isMyTurn && currentPhase === 'DECLARE_ATTACKERS' && !c.tapped && !c.summoningSick;
                 const effP = player.getEffectivePower ? player.getEffectivePower(c) : c.power;
                 const effT = player.getEffectiveToughness ? player.getEffectiveToughness(c) : c.toughness;
+                const cIssue = getCardEngineIssue(c.name);
+                const cFlag = cIssue ? `<span class="card-engine-flag" title="⚠️ Engine Notice: [${escapeHtml(cIssue.category)}] ${escapeHtml(cIssue.reason)}">⚠️</span>` : '';
+                const abils = parseActivatedAbilities(c);
+                const abilityBadge = abils.length > 0
+                    ? `<button class="card-ability-badge" onclick="event.stopPropagation(); window.openCardAbilityModal('${c.id}')" title="⚡ Activate Ability (${abils.length})">⚡</button>`
+                    : '';
 
                 creaturesHtml += `
                     <div class="mtg-card-frame ${tappedClass} ${atkSelectedClass}"
-                         onclick="window.toggleAttackerSelection('${c.id}')"
+                         onclick="window.handleCreatureClick('${c.id}')"
                          onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
                          onmouseleave="window.hideCardInspector()"
-                         title="${escapeHtml(c.name)} - ${c.typeLine}">
+                         title="${escapeHtml(c.name)} - ${c.typeLine}${abils.length > 0 ? ' (Click to activate ability)' : ''}">
                         <div class="mtg-card-header">
                             <span class="mtg-card-name">${c.isCommander ? '👑 ' : ''}${escapeHtml(c.name)}</span>
                             <span class="mtg-card-cost">${c.manaCost || ''}</span>
                         </div>
                         <img class="mtg-card-art" src="${getCardArtCropUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
                         <span class="mtg-card-pt-bubble">${effP}/${effT}</span>
+                        ${cFlag}
                         ${c.summoningSick ? '<span class="mtg-card-summoning-sick" title="Summoning Sickness">🌀</span>' : ''}
                         ${canAttackThisTurn ? '<span style="position: absolute; top: 16px; left: 3px; font-size: 0.65rem; background: #ef4444; border-radius: 4px; padding: 1px 3px; font-weight: 900;">⚔️</span>' : ''}
+                        ${abilityBadge}
                     </div>
                 `;
             });
@@ -3662,14 +4506,27 @@
             landsAndSupports.forEach(c => {
                 const tappedClass = c.tapped ? 'tapped' : '';
                 const icon = c.isLand ? '🏞️' : (c.isPlaneswalker ? '🔮' : (c.isEnchantment ? '✨' : '💎'));
+                const suppIssue = getCardEngineIssue(c.name);
+                const suppFlag = suppIssue ? `<span title="⚠️ Engine Notice: [${escapeHtml(suppIssue.category)}] ${escapeHtml(suppIssue.reason)}" style="color: #ef4444; font-size: 0.72rem; margin-left: auto;">⚠️</span>` : '';
+                const nonManaAbils = parseActivatedAbilities(c);
+                const abilBadge = nonManaAbils.length > 0
+                    ? `<button class="chip-ability-badge" onclick="event.stopPropagation(); window.openCardAbilityModal('${c.id}')" title="⚡ Activate Ability">⚡</button>`
+                    : '';
+                const manaBadge = (c.tapped && c.producedMana && c.producedMana.length > 0)
+                    ? `<span class="chip-mana-preview">${c.producedMana.map(col => `<span class="mana-pip mana-pip-${col.toLowerCase()}" style="width:16px;height:16px;font-size:0.6rem;">${col}</span>`).join('')}</span>`
+                    : '';
+
                 landsHtml += `
                     <div class="mtg-land-chip ${tappedClass}"
-                         onclick="window.toggleLandTap('${c.id}')"
+                         onclick="window.handlePermanentClick('${c.id}')"
                          onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
                          onmouseleave="window.hideCardInspector()"
                          title="${c.isLand || c.isManaRock ? 'Click to tap/untap for mana' : escapeHtml(c.name)}">
                         <span>${icon}</span>
                         <span>${escapeHtml(c.name)}</span>
+                        ${manaBadge}
+                        ${abilBadge}
+                        ${suppFlag}
                     </div>
                 `;
             });
@@ -3705,12 +4562,16 @@
                     cardClasses.push('need-mana');
                 }
 
+                const cardIssue = getCardEngineIssue(c.name);
+                const cardFlag = cardIssue ? `<span class="card-engine-flag" title="⚠️ Engine Notice: [${escapeHtml(cardIssue.category)}] ${escapeHtml(cardIssue.reason)}">⚠️</span>` : '';
+
                 handHtml += `
                     <div class="hand-card-wrapper" onclick="window.playCardFromHand('${c.id}')">
                         <div class="${cardClasses.join(' ')}"
                              onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
                              onmouseleave="window.hideCardInspector()">
                             <img class="hand-card-art" src="${getCardNormalUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
+                            ${cardFlag}
                             <div class="${isPlayable ? 'hand-card-play-tag' : 'hand-card-cost-tag'}">${tagText}</div>
                         </div>
                     </div>
@@ -3722,13 +4583,13 @@
         let actionBtnText = 'Next Step ⏭️';
         let actionBtnClass = 'action-trigger-btn';
         if (isMyTurn) {
-            if (currentPhase === 'MAIN_1') {
+            if (currentPhase === 'MAIN_1' || currentPhase === 'MAIN1') {
                 actionBtnText = 'Go to Combat ⚔️';
                 actionBtnClass = 'action-trigger-btn arena-btn-gold';
-            } else if (currentPhase === 'DECLARE_ATTACKERS') {
+            } else if (currentPhase === 'DECLARE_ATTACKERS' || currentPhase === 'COMBAT_DECLARE_ATTACKERS') {
                 actionBtnText = selectedAttackerIds.size > 0 ? `Attack (${selectedAttackerIds.size} Selected) 💥` : 'Pass Combat (No Attacks)';
                 actionBtnClass = 'action-trigger-btn';
-            } else if (currentPhase === 'MAIN_2') {
+            } else if (currentPhase === 'MAIN_2' || currentPhase === 'MAIN2') {
                 actionBtnText = 'End Turn ⏳';
                 actionBtnClass = 'action-trigger-btn arena-btn-gold';
             }
@@ -3806,13 +4667,49 @@
                         <button class="player-life-dial-btn" onclick="window.adjustPlayerLife(1)">+</button>
                     </div>
 
-                    <!-- Available Mana Display -->
-                    <div class="player-mana-pool-bar">
-                        <span>💎 Mana:</span>
-                        <span style="color: #38bdf8; font-weight: 800;">${player.getAvailableMana().total}</span>
-                        <button class="arena-btn" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; margin-left: 0.4rem;" onclick="window.untapAllMyLands()">
+                    <!-- Live Colored Mana Pool Display -->
+                    <div class="player-mana-pool-bar" title="Live Colored Mana Pool & Available Mana">
+                        <div style="display: flex; align-items: center; gap: 4px; font-weight: 800; font-size: 0.78rem;">
+                            <span>💎 Pool:</span>
+                        </div>
+                        <div class="mana-pool-counter-group">
+                            <span class="mana-counter-pill ${pool.W > 0 ? 'has-mana' : ''}" title="White Mana: ${pool.W || 0}">
+                                <span class="mana-pip mana-pip-w" style="width:17px;height:17px;font-size:0.62rem;">W</span>
+                                <span>${pool.W || 0}</span>
+                            </span>
+                            <span class="mana-counter-pill ${pool.U > 0 ? 'has-mana' : ''}" title="Blue Mana: ${pool.U || 0}">
+                                <span class="mana-pip mana-pip-u" style="width:17px;height:17px;font-size:0.62rem;">U</span>
+                                <span>${pool.U || 0}</span>
+                            </span>
+                            <span class="mana-counter-pill ${pool.B > 0 ? 'has-mana' : ''}" title="Black Mana: ${pool.B || 0}">
+                                <span class="mana-pip mana-pip-b" style="width:17px;height:17px;font-size:0.62rem;">B</span>
+                                <span>${pool.B || 0}</span>
+                            </span>
+                            <span class="mana-counter-pill ${pool.R > 0 ? 'has-mana' : ''}" title="Red Mana: ${pool.R || 0}">
+                                <span class="mana-pip mana-pip-r" style="width:17px;height:17px;font-size:0.62rem;">R</span>
+                                <span>${pool.R || 0}</span>
+                            </span>
+                            <span class="mana-counter-pill ${pool.G > 0 ? 'has-mana' : ''}" title="Green Mana: ${pool.G || 0}">
+                                <span class="mana-pip mana-pip-g" style="width:17px;height:17px;font-size:0.62rem;">G</span>
+                                <span>${pool.G || 0}</span>
+                            </span>
+                            <span class="mana-counter-pill ${pool.C > 0 ? 'has-mana' : ''}" title="Colorless Mana: ${pool.C || 0}">
+                                <span class="mana-pip mana-pip-c" style="width:17px;height:17px;font-size:0.62rem;">C</span>
+                                <span>${pool.C || 0}</span>
+                            </span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px; margin-left: 6px; font-size: 0.76rem;">
+                            <span style="color: #94a3b8;">Total:</span>
+                            <span style="color: #38bdf8; font-weight: 900; font-size: 0.88rem;">${availableMana}</span>
+                        </div>
+                        <button class="arena-btn" style="padding: 0.2rem 0.5rem; font-size: 0.68rem; margin-left: 0.25rem;" onclick="window.untapAllMyLands()" title="Untap all lands and reset pool">
                             ⚡ Untap All
                         </button>
+                        ${totalFloating > 0 ? `
+                            <button class="arena-btn" style="padding: 0.2rem 0.45rem; font-size: 0.68rem;" onclick="window.clearManaPool()" title="Empty floating mana pool">
+                                🧹 Empty
+                            </button>
+                        ` : ''}
                     </div>
 
                     <!-- Tactical Turn & Phase Pill in Cockpit -->
@@ -3871,13 +4768,18 @@
             'UPKEEP': 'Upkeep Step',
             'DRAW': 'Draw Step',
             'MAIN_1': 'Pre-Combat Main Phase',
+            'MAIN1': 'Pre-Combat Main Phase',
             'COMBAT_BEGIN': 'Beginning of Combat',
             'DECLARE_ATTACKERS': 'Declare Attackers Step',
+            'COMBAT_DECLARE_ATTACKERS': 'Declare Attackers Step',
             'DECLARE_BLOCKERS': 'Declare Blockers Step',
+            'COMBAT_DECLARE_BLOCKERS': 'Declare Blockers Step',
             'COMBAT_DAMAGE': 'Combat Damage Step',
             'COMBAT_END': 'End of Combat',
             'MAIN_2': 'Post-Combat Main Phase',
+            'MAIN2': 'Post-Combat Main Phase',
             'END_STEP': 'End Step',
+            'END_OF_TURN': 'End Step',
             'CLEANUP': 'Cleanup Step'
         };
 
@@ -3893,10 +4795,10 @@
         if (currentPhase === 'UNTAP') activeRibbonCategory = 'UNTAP';
         else if (currentPhase === 'UPKEEP') activeRibbonCategory = 'UPKEEP';
         else if (currentPhase === 'DRAW') activeRibbonCategory = 'DRAW';
-        else if (currentPhase === 'MAIN_1') activeRibbonCategory = 'MAIN_1';
+        else if (currentPhase === 'MAIN_1' || currentPhase === 'MAIN1') activeRibbonCategory = 'MAIN_1';
         else if (currentPhase.includes('COMBAT') || currentPhase.includes('ATTACK') || currentPhase.includes('BLOCK')) activeRibbonCategory = 'COMBAT';
-        else if (currentPhase === 'MAIN_2') activeRibbonCategory = 'MAIN_2';
-        else if (currentPhase === 'END_STEP' || currentPhase === 'CLEANUP') activeRibbonCategory = 'END_STEP';
+        else if (currentPhase === 'MAIN_2' || currentPhase === 'MAIN2') activeRibbonCategory = 'MAIN_2';
+        else if (currentPhase === 'END_STEP' || currentPhase === 'END_OF_TURN' || currentPhase === 'CLEANUP') activeRibbonCategory = 'END_STEP';
 
         const phaseSequence = ['UNTAP', 'UPKEEP', 'DRAW', 'MAIN_1', 'COMBAT', 'MAIN_2', 'END_STEP'];
         const currentCatIdx = phaseSequence.indexOf(activeRibbonCategory);
@@ -3959,6 +4861,7 @@
         if (!card) return;
 
         const isInstantOrFlash = card.isInstant || (card.keywords && card.keywords.has('flash'));
+        const isMainPhase = currentGame.currentPhase === 'MAIN_1' || currentGame.currentPhase === 'MAIN_2' || currentGame.currentPhase === 'MAIN1' || currentGame.currentPhase === 'MAIN2';
 
         // Rule checks
         if (card.isLand) {
@@ -3966,7 +4869,7 @@
                 alert("You can only play lands during your own turn!");
                 return;
             }
-            if (currentGame.currentPhase !== 'MAIN_1' && currentGame.currentPhase !== 'MAIN_2') {
+            if (!isMainPhase) {
                 alert("Lands can only be played during your Main phase (MTG Rule 305.1).");
                 return;
             }
@@ -3979,7 +4882,7 @@
                 alert(`You can only cast Instants or cards with Flash on an opponent's turn! (${card.name} is a ${card.typeLine}).`);
                 return;
             }
-            if (currentGame.currentPhase !== 'MAIN_1' && currentGame.currentPhase !== 'MAIN_2') {
+            if (!isMainPhase) {
                 alert("Sorceries and permanent spells can only be cast during your Main phase (MTG Rule 307.1).");
                 return;
             }
@@ -4048,7 +4951,8 @@
             return;
         }
 
-        if (currentGame.currentPhase !== 'MAIN_1' && currentGame.currentPhase !== 'MAIN_2') {
+        const isMainPhase = currentGame.currentPhase === 'MAIN_1' || currentGame.currentPhase === 'MAIN_2' || currentGame.currentPhase === 'MAIN1' || currentGame.currentPhase === 'MAIN2';
+        if (!isMainPhase) {
             alert("Commanders can only be cast during a Main phase (MTG Rule 305.1 / 903.8).");
             return;
         }
@@ -4088,27 +4992,503 @@
         updateArenaDOM();
     };
 
-    window.toggleLandTap = async function (cardId) {
-        if (!currentGame) return;
-        if (currentGame.toggleTapPermanent) {
-            await currentGame.toggleTapPermanent(cardId);
-        } else {
-            const player = currentGame.players[0];
-            player.toggleTapPermanent(cardId);
+    // ============================================================================
+    // ACTIVATED ABILITIES & MANA SELECTION SYSTEM
+    // ============================================================================
+    let currentManaChoiceCard = null;
+    let currentManaChoiceOptions = [];
+
+    window.openManaChoiceModal = function (card, manaInfo) {
+        currentManaChoiceCard = card;
+        currentManaChoiceOptions = manaInfo.options;
+
+        const modal = document.getElementById('arenaManaChoiceModal');
+        const nameEl = document.getElementById('manaChoiceCardName');
+        const subEl = document.getElementById('manaChoiceCardSub');
+        const listEl = document.getElementById('manaChoiceOptionsList');
+
+        if (!modal || !listEl) return;
+
+        if (nameEl) nameEl.textContent = `Tap ${card.name} for Mana`;
+        if (subEl) subEl.textContent = manaInfo.options.length > 1
+            ? 'Choose which mana color or option you would like to produce:'
+            : 'Confirm tapping this permanent:';
+
+        listEl.innerHTML = currentManaChoiceOptions.map((opt, idx) => {
+            const colorClass = opt.colors && opt.colors.length === 1 ? opt.colors[0].toLowerCase() : (opt.colors && opt.colors.length > 1 ? 'multi' : 'c');
+            let costBadge = '';
+            if (opt.cost) {
+                if (opt.cost.life) costBadge = `<span class="mana-choice-cost-badge">Pay ${opt.cost.life} Life</span>`;
+                if (opt.cost.mana) costBadge = `<span class="mana-choice-cost-badge">Pay {${opt.cost.mana}} Mana</span>`;
+            }
+            const pipsHtml = (opt.colors || []).map(col => `<span class="mana-pip mana-pip-${col.toLowerCase()}">${col}</span>`).join('');
+
+            return `
+                <button class="mana-choice-btn ${colorClass}" onclick="window.applyManaOption(${idx})">
+                    <div class="mana-pip-row">
+                        ${pipsHtml}
+                    </div>
+                    <div class="mana-choice-desc">${escapeHtml(opt.desc)}</div>
+                    ${costBadge}
+                </button>
+            `;
+        }).join('');
+
+        modal.style.display = 'flex';
+    };
+
+    window.closeManaChoiceModal = function () {
+        const modal = document.getElementById('arenaManaChoiceModal');
+        if (modal) modal.style.display = 'none';
+        currentManaChoiceCard = null;
+        currentManaChoiceOptions = [];
+    };
+
+    window.applyManaOption = function (optionIndex) {
+        if (!currentGame || !currentManaChoiceCard || !currentManaChoiceOptions[optionIndex]) {
+            window.closeManaChoiceModal();
+            return;
         }
+
+        const player = currentGame.players[0];
+        const card = currentManaChoiceCard;
+        const option = currentManaChoiceOptions[optionIndex];
+
+        // 1. Verify and deduct costs
+        if (option.cost) {
+            if (option.cost.life) {
+                if (player.life <= option.cost.life) {
+                    alert(`Cannot pay ${option.cost.life} life! You only have ${player.life} life.`);
+                    return;
+                }
+                player.life -= option.cost.life;
+                card.paidLifeCost = (card.paidLifeCost || 0) + option.cost.life;
+                appendArenaLogs([{
+                    type: 'LIFE_PAID',
+                    message: `💔 **${player.name}** paid **${option.cost.life} life** to tap **${card.name}**.`
+                }]);
+            }
+            if (option.cost.mana) {
+                const avail = player.getAvailableMana().total;
+                if (avail < option.cost.mana) {
+                    alert(`Cannot pay {${option.cost.mana}} mana activation cost! You have ${avail} mana.`);
+                    return;
+                }
+                player.tapMana(option.cost.mana);
+                appendArenaLogs([{
+                    type: 'MANA_PAID',
+                    message: `💎 **${player.name}** paid **{${option.cost.mana}} mana** to filter with **${card.name}**.`
+                }]);
+            }
+        }
+
+        // 2. Tap card and add mana
+        card.tapped = true;
+        card.producedMana = [...option.colors];
+
+        if (!player.manaPool) {
+            player.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        }
+        option.colors.forEach(col => {
+            player.manaPool[col] = (player.manaPool[col] || 0) + 1;
+        });
+
+        window.closeManaChoiceModal();
+
+        const pipsStr = option.colors.map(c => `{${c}}`).join('');
+        appendArenaLogs([{
+            type: 'MANA_TAPPED',
+            message: `💎 **${player.name}** tapped **${card.name}** and added **${pipsStr}** to mana pool.`
+        }]);
+
+        updateArenaDOM();
+    };
+
+    let currentAbilityCard = null;
+    let currentCardAbilities = [];
+
+    window.openCardAbilityModal = function (cardId) {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        const card = player.battlefield.find(c => c.id === cardId);
+        if (!card) return;
+
+        currentAbilityCard = card;
+        const abilities = parseActivatedAbilities(card);
+        currentCardAbilities = abilities;
+
+        const modal = document.getElementById('arenaCardAbilityModal');
+        const thumb = document.getElementById('abilityCardThumb');
+        const nameEl = document.getElementById('abilityCardName');
+        const typeEl = document.getElementById('abilityCardTypeLine');
+        const statusEl = document.getElementById('abilityCardStatus');
+        const listEl = document.getElementById('abilityOptionsList');
+
+        if (!modal || !listEl) return;
+
+        if (thumb) thumb.src = getCardArtCropUrl(card.name);
+        if (nameEl) nameEl.textContent = card.name;
+        if (typeEl) typeEl.textContent = card.typeLine || 'Permanent';
+        if (statusEl) {
+            let statusText = card.tapped ? '🔴 Tapped' : '🟢 Untapped';
+            if (card.summoningSick && card.isCreature) statusText += ' • 🌀 Summoning Sick';
+            if (card.loyalty !== undefined) statusText += ` • 🛡️ Loyalty: ${card.loyalty}`;
+            statusEl.textContent = statusText;
+        }
+
+        if (abilities.length === 0) {
+            listEl.innerHTML = `
+                <div style="font-size: 0.85rem; color: #94a3b8; padding: 12px; text-align: center; background: rgba(0,0,0,0.25); border-radius: 8px;">
+                    This permanent has no explicit activated abilities.
+                </div>
+            `;
+        } else {
+            const availMana = player.getAvailableMana().total;
+            listEl.innerHTML = abilities.map((ab, idx) => {
+                let badgeClass = 'activated';
+                let typeLabel = 'Activated';
+                if (ab.type === 'LOYALTY') {
+                    badgeClass = 'loyalty';
+                    typeLabel = `Loyalty ${ab.costText}`;
+                } else if (ab.type === 'EQUIP') {
+                    badgeClass = 'equip';
+                    typeLabel = 'Equip';
+                } else if (ab.requiresTap) {
+                    badgeClass = 'tap';
+                    typeLabel = '{T} Tap Ability';
+                }
+
+                // Check if currently payable / usable
+                let canPay = true;
+                let disabledReason = '';
+
+                if (ab.requiresTap && card.tapped) {
+                    canPay = false;
+                    disabledReason = 'Card is tapped';
+                }
+                if (ab.requiresTap && card.isCreature && card.summoningSick && (!card.keywords || !card.keywords.has('haste'))) {
+                    canPay = false;
+                    disabledReason = 'Summoning sick';
+                }
+                if (ab.manaCostNum > 0 && availMana < ab.manaCostNum) {
+                    canPay = false;
+                    disabledReason = `Need {${ab.manaCostNum}} mana (Have {${availMana}})`;
+                }
+                if (ab.type === 'LOYALTY' && ab.loyaltyDelta < 0) {
+                    const curLoyalty = card.loyalty !== undefined ? card.loyalty : 0;
+                    if (curLoyalty + ab.loyaltyDelta < 0) {
+                        canPay = false;
+                        disabledReason = `Not enough loyalty counters`;
+                    }
+                }
+
+                return `
+                    <div class="ability-option-row">
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                <span class="ability-cost-tag ${badgeClass}">${typeLabel}: ${escapeHtml(ab.costText)}</span>
+                                ${disabledReason ? `<span style="font-size: 0.68rem; color: #ef4444; font-weight: 700;">⚠️ ${disabledReason}</span>` : ''}
+                            </div>
+                            <div class="ability-effect-text">${escapeHtml(ab.effectText || ab.raw)}</div>
+                        </div>
+                        <button class="arena-btn ${canPay ? 'arena-btn-gold' : ''}"
+                                style="white-space: nowrap; font-size: 0.78rem; padding: 6px 12px; align-self: center;"
+                                ${canPay ? '' : 'disabled style="opacity: 0.5; cursor: not-allowed;"'}
+                                onclick="window.executeCardAbility(${idx})">
+                            ⚡ Activate
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        modal.style.display = 'flex';
+    };
+
+    window.closeCardAbilityModal = function () {
+        const modal = document.getElementById('arenaCardAbilityModal');
+        if (modal) modal.style.display = 'none';
+        currentAbilityCard = null;
+        currentCardAbilities = [];
+    };
+
+    window.executeCardAbility = function (abilityIndex) {
+        if (!currentGame || !currentAbilityCard || !currentCardAbilities[abilityIndex]) {
+            window.closeCardAbilityModal();
+            return;
+        }
+
+        const player = currentGame.players[0];
+        const card = currentAbilityCard;
+        const ab = currentCardAbilities[abilityIndex];
+
+        // 1. Validate requirements
+        if (ab.requiresTap && card.tapped) {
+            alert(`**${card.name}** is already tapped!`);
+            return;
+        }
+        if (ab.requiresTap && card.isCreature && card.summoningSick && (!card.keywords || !card.keywords.has('haste'))) {
+            alert(`**${card.name}** has summoning sickness and cannot tap to activate abilities this turn!`);
+            return;
+        }
+        if (ab.manaCostNum > 0) {
+            const avail = player.getAvailableMana().total;
+            if (avail < ab.manaCostNum) {
+                alert(`Not enough mana to activate this ability. Need {${ab.manaCostNum}}, have {${avail}}.`);
+                return;
+            }
+            player.tapMana(ab.manaCostNum);
+        }
+
+        // 2. Pay costs
+        if (ab.requiresTap) {
+            card.tapped = true;
+        }
+        if (ab.type === 'LOYALTY' && ab.loyaltyDelta !== undefined) {
+            card.loyalty = (card.loyalty !== undefined ? card.loyalty : 4) + ab.loyaltyDelta;
+        }
+
+        // 3. Resolve common activated effects
+        const effectLower = (ab.effectText || '').toLowerCase();
+        const logs = [];
+
+        logs.push({
+            type: 'ABILITY_ACTIVATED',
+            message: `⚡ **${player.name}** activated ability of **${card.name}** [${ab.costText}]: *${ab.effectText}*`
+        });
+
+        // Effect A: Card Draw (e.g. "Draw a card", "Draw two cards", "Draw 3 cards")
+        const drawMatch = effectLower.match(/draw\s+(\d+|a|two|three)\s+card/i);
+        if (drawMatch) {
+            let num = 1;
+            if (drawMatch[1] === 'two' || drawMatch[1] === '2') num = 2;
+            else if (drawMatch[1] === 'three' || drawMatch[1] === '3') num = 3;
+            else if (!isNaN(parseInt(drawMatch[1], 10))) num = parseInt(drawMatch[1], 10);
+
+            const drawn = player.draw(num);
+            logs.push({
+                type: 'DRAW',
+                message: `📜 **${player.name}** drew **${drawn.length}** card(s).`
+            });
+        }
+
+        // Effect B: Life gain / loss
+        const lifeGainMatch = effectLower.match(/gain\s+(\d+)\s+life/i);
+        if (lifeGainMatch) {
+            const lifeAmt = parseInt(lifeGainMatch[1], 10) || 1;
+            player.life += lifeAmt;
+            logs.push({
+                type: 'LIFE_GAIN',
+                message: `❤️ **${player.name}** gained **${lifeAmt}** life (Total: ${player.life}).`
+            });
+        }
+        const lifeDrainMatch = effectLower.match(/each opponent loses\s+(\d+)\s+life/i);
+        if (lifeDrainMatch) {
+            const drainAmt = parseInt(lifeDrainMatch[1], 10) || 1;
+            currentGame.players.slice(1).forEach(opp => {
+                if (opp.isAlive) opp.life = Math.max(0, opp.life - drainAmt);
+            });
+            logs.push({
+                type: 'DAMAGE',
+                message: `💥 Each opponent lost **${drainAmt}** life!`
+            });
+        }
+
+        // Effect C: +1/+1 counters
+        if (effectLower.includes('+1/+1 counter')) {
+            if (!card.counters) card.counters = {};
+            card.counters['+1/+1'] = (card.counters['+1/+1'] || 0) + 1;
+            logs.push({
+                type: 'COUNTER',
+                message: `✨ Placed a +1/+1 counter on **${card.name}** (Total: ${card.counters['+1/+1']}).`
+            });
+        }
+
+        // Effect D: Create tokens
+        if (effectLower.includes('create') && effectLower.includes('token')) {
+            let tokName = 'Creature Token';
+            let tokP = 1, tokT = 1;
+            let tokColors = ['G'];
+            if (effectLower.includes('zombie')) { tokName = 'Zombie Token'; tokP = 2; tokT = 2; tokColors = ['B']; }
+            else if (effectLower.includes('soldier')) { tokName = 'Soldier Token'; tokP = 1; tokT = 1; tokColors = ['W']; }
+            else if (effectLower.includes('goblin')) { tokName = 'Goblin Token'; tokP = 1; tokT = 1; tokColors = ['R']; }
+            else if (effectLower.includes('saproling')) { tokName = 'Saproling Token'; tokP = 1; tokT = 1; tokColors = ['G']; }
+            else if (effectLower.includes('treasure')) { tokName = 'Treasure Token'; tokP = 0; tokT = 0; tokColors = []; }
+
+            const tok = {
+                id: `tok_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                name: tokName,
+                isCreature: !effectLower.includes('treasure'),
+                isArtifact: effectLower.includes('treasure'),
+                isToken: true,
+                power: tokP,
+                toughness: tokT,
+                basePower: tokP,
+                baseToughness: tokT,
+                manaCost: '{0}',
+                typeLine: effectLower.includes('treasure') ? 'Artifact — Treasure' : `Creature — ${tokName}`,
+                colors: tokColors,
+                keywords: new Set(),
+                counters: {},
+                tapped: false,
+                summoningSick: !effectLower.includes('treasure')
+            };
+            player.battlefield.push(tok);
+            logs.push({
+                type: 'TOKEN_CREATED',
+                message: `🪙 **${player.name}** created a **${tokName}**!`
+            });
+        }
+
+        // Effect E: Sacrifice self
+        if (ab.requiresSacrifice || /sacrifice\s+(?:this|it|self)/i.test(ab.costText) || ab.costText.toLowerCase().includes(`sacrifice ${card.name.toLowerCase()}`)) {
+            const bIdx = player.battlefield.findIndex(c => c.id === card.id);
+            if (bIdx !== -1) {
+                player.battlefield.splice(bIdx, 1);
+                player.graveyard.push(card);
+                logs.push({
+                    type: 'SACRIFICE',
+                    message: `⚰️ **${card.name}** was sacrificed as part of its activation cost.`
+                });
+            }
+        }
+
+        // Planeswalker loyalty death check
+        if (card.isPlaneswalker && card.loyalty !== undefined && card.loyalty <= 0) {
+            const pIdx = player.battlefield.findIndex(c => c.id === card.id);
+            if (pIdx !== -1) {
+                player.battlefield.splice(pIdx, 1);
+                player.graveyard.push(card);
+                logs.push({
+                    type: 'PLANESWALKER_DIED',
+                    message: `☠️ **${card.name}** ran out of loyalty counters and was placed into the graveyard.`
+                });
+            }
+        }
+
+        window.closeCardAbilityModal();
+        appendArenaLogs(logs);
+        updateArenaDOM();
+    };
+
+    window.handleCreatureClick = function (cardId) {
+        if (!currentGame) return;
+        const currentPhase = currentGame.currentPhase;
+        if (currentPhase === 'DECLARE_ATTACKERS' || currentPhase === 'COMBAT_DECLARE_ATTACKERS') {
+            window.toggleAttackerSelection(cardId);
+            return;
+        }
+
+        const player = currentGame.players[0];
+        const card = player.battlefield.find(c => c.id === cardId);
+        if (!card) return;
+
+        const abils = parseActivatedAbilities(card);
+        if (abils.length > 0) {
+            window.openCardAbilityModal(cardId);
+        } else {
+            window.toggleAttackerSelection(cardId);
+        }
+    };
+
+    window.handlePermanentClick = async function (cardId) {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        const card = player.battlefield.find(c => c.id === cardId);
+        if (!card) return;
+
+        // Untap if already tapped
+        if (card.tapped) {
+            card.tapped = false;
+            if (card.producedMana && player.manaPool) {
+                card.producedMana.forEach(col => {
+                    if (player.manaPool[col] && player.manaPool[col] > 0) {
+                        player.manaPool[col] -= 1;
+                    }
+                });
+                card.producedMana = null;
+            }
+            card.paidLifeCost = null;
+
+            appendArenaLogs([{
+                type: 'UNTAP_PERMANENT',
+                message: `↩️ **${player.name}** untapped **${card.name}**.`
+            }]);
+            updateArenaDOM();
+            return;
+        }
+
+        // Tap for mana if mana producer
+        const manaInfo = getPermanentManaAbilities(card);
+        if (manaInfo) {
+            const hasCost = manaInfo.options.some(o => o.cost);
+            if (manaInfo.isMulti || hasCost || manaInfo.options.length > 1) {
+                window.openManaChoiceModal(card, manaInfo);
+                return;
+            }
+
+            // Single option
+            const option = manaInfo.options[0];
+            card.tapped = true;
+            card.producedMana = [...option.colors];
+
+            if (!player.manaPool) {
+                player.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+            }
+            option.colors.forEach(col => {
+                player.manaPool[col] = (player.manaPool[col] || 0) + 1;
+            });
+
+            const pipsStr = option.colors.map(c => `{${c}}`).join('');
+            appendArenaLogs([{
+                type: 'MANA_TAPPED',
+                message: `💎 **${player.name}** tapped **${card.name}** and added **${pipsStr}** to mana pool.`
+            }]);
+            updateArenaDOM();
+            return;
+        }
+
+        // Check if has activated abilities (e.g. Planeswalker, Artifact utility)
+        const abilities = parseActivatedAbilities(card);
+        if (abilities.length > 0) {
+            window.openCardAbilityModal(cardId);
+            return;
+        }
+
+        // Fallback toggle tap
+        card.tapped = !card.tapped;
+        updateArenaDOM();
+    };
+
+    window.toggleLandTap = window.handlePermanentClick;
+
+    window.clearManaPool = function () {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        player.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        appendArenaLogs([{
+            type: 'MANA_EMPTIED',
+            message: `🧹 **${player.name}** emptied their mana pool.`
+        }]);
         updateArenaDOM();
     };
 
     window.untapAllMyLands = async function () {
         if (!currentGame) return;
-        if (currentGame.untapAllLands) {
-            await currentGame.untapAllLands();
-        } else {
-            const player = currentGame.players[0];
-            player.battlefield.forEach(c => {
-                if (c.isLand || c.isManaRock) c.tapped = false;
-            });
-        }
+        const player = currentGame.players[0];
+        player.battlefield.forEach(c => {
+            if (c.isLand || c.isManaRock || c.producedMana) {
+                c.tapped = false;
+                c.producedMana = null;
+                c.paidLifeCost = null;
+            }
+        });
+        player.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+
+        appendArenaLogs([{
+            type: 'UNTAP_ALL',
+            message: `⚡ **${player.name}** untapped all lands and reset mana pool.`
+        }]);
         updateArenaDOM();
     };
 
@@ -4511,13 +5891,46 @@
         const select0 = document.getElementById('seatSelect0');
         const thumb = document.getElementById('seat0CmdrThumb');
         const details = document.getElementById('seat0CmdrDetails');
+        const warningsEl = document.getElementById('seat0FlaggedWarnings');
         if (!select0) return;
         const decks = getAvailableDecks();
         const chosen = decks.find(d => d.id === select0.value) || decks[0];
         if (chosen) {
+            // Parse cards on demand if needed
+            if ((!chosen.cards || chosen.cards.length === 0) && chosen.decklist) {
+                const parsed = parseDecklistText(chosen.decklist, chosen.commander);
+                chosen.cards = parsed.cards;
+                chosen.commander = parsed.commander || chosen.commander;
+            }
+
             const cmdrName = chosen.commander || chosen.name;
             if (thumb) thumb.src = getCardArtCropUrl(cmdrName);
-            if (details) details.textContent = `Commander: ${cmdrName}`;
+            const cardCount = chosen.cards ? chosen.cards.length : (chosen.cardCount || 100);
+            if (details) details.textContent = `Commander: ${cmdrName} (${cardCount} cards)`;
+
+            // Check for flagged cards in this deck
+            const flagged = checkDeckForEngineIssues(chosen);
+            if (warningsEl) {
+                if (flagged && flagged.length > 0) {
+                    warningsEl.style.display = 'block';
+                    warningsEl.innerHTML = `
+                        <div style="background: rgba(239, 68, 68, 0.16); border: 1px solid rgba(239, 68, 68, 0.45); border-radius: 8px; padding: 7px 10px; margin-top: 6px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="const l = document.getElementById('flaggedCardListSeat0'); if(l) l.style.display = l.style.display === 'none' ? 'block' : 'none';">
+                                <span style="color: #fca5a5; font-weight: 800; font-size: 0.78rem; display: flex; align-items: center; gap: 5px;">
+                                    <span>⚠️</span> ${flagged.length} card${flagged.length > 1 ? 's' : ''} with engine notices
+                                </span>
+                                <span style="color: #94a3b8; font-size: 0.72rem; text-decoration: underline;">toggle list ▾</span>
+                            </div>
+                            <div id="flaggedCardListSeat0" style="display: none; margin-top: 6px; max-height: 110px; overflow-y: auto; font-size: 0.73rem; color: #f1f5f9; scrollbar-width: thin;">
+                                ${flagged.map(f => `<div style="padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.06);"><strong>${escapeHtml(f.name)}</strong>: <span style="color: #fde047; font-weight: 700;">[${escapeHtml(f.category)}]</span> <span style="color: #cbd5e1;">${escapeHtml(f.reason)}</span></div>`).join('')}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    warningsEl.style.display = 'none';
+                    warningsEl.innerHTML = '';
+                }
+            }
         }
     };
 
@@ -4528,9 +5941,8 @@
 
         if (customDeck) {
             let deckObj = customDeck;
-            const engine = window.MtgCommanderEngine;
             if (typeof customDeck === 'string') {
-                const parsed = engine ? engine.parseDecklistText(customDeck) : { commander: null, cards: [] };
+                const parsed = parseDecklistText(customDeck);
                 deckObj = {
                     id: 'custom_deck_active',
                     name: `⭐ ${parsed.commander || 'Custom Deck'}`,
@@ -4538,7 +5950,7 @@
                     cards: parsed.cards
                 };
             } else if (customDeck.content && (!customDeck.cards || customDeck.cards.length === 0)) {
-                const parsed = engine ? engine.parseDecklistText(customDeck.content) : { commander: null, cards: [] };
+                const parsed = parseDecklistText(customDeck.content);
                 deckObj = {
                     id: customDeck.id ? `custom_${customDeck.id}` : 'custom_deck_active',
                     name: `⭐ ${customDeck.name || parsed.commander || 'Custom Deck'}`,
@@ -4557,38 +5969,11 @@
         }
 
         const overlay = document.getElementById('arenaSetupOverlay');
-        const decks = getAvailableDecks();
+        populateDeckSelects();
 
-        for (let i = 0; i < 4; i++) {
-            const select = document.getElementById(`seatSelect${i}`);
-            if (select) {
-                const prevVal = select.value;
-                select.innerHTML = '';
-                decks.forEach((d, idx) => {
-                    const opt = document.createElement('option');
-                    opt.value = d.id;
-                    opt.textContent = d.name;
-                    if (i === 0) {
-                        if (userActiveCustomDeck && d.id === userActiveCustomDeck.id) {
-                            opt.selected = true;
-                        } else if (!userActiveCustomDeck && (prevVal ? d.id === prevVal : idx === 0)) {
-                            opt.selected = true;
-                        }
-                    } else {
-                        const defaultBotIndex = i % PRESET_DECKS.length;
-                        const defaultBotId = PRESET_DECKS[defaultBotIndex].id;
-                        if (prevVal && prevVal !== (userActiveCustomDeck && userActiveCustomDeck.id)) {
-                            opt.selected = (d.id === prevVal);
-                        } else {
-                            opt.selected = (d.id === defaultBotId);
-                        }
-                    }
-                    select.appendChild(opt);
-                });
-            }
-        }
+        // Load 180+ precons on demand in background without blocking
+        loadCommanderPreconsOnDemand();
 
-        window.updateSeat0Preview();
         if (overlay) overlay.style.display = 'flex';
     };
 
@@ -4608,9 +5993,8 @@
 
         if (customDeck) {
             let deckObj = customDeck;
-            const engine = window.MtgCommanderEngine;
             if (typeof customDeck === 'string') {
-                const parsed = engine ? engine.parseDecklistText(customDeck) : { commander: null, cards: [] };
+                const parsed = parseDecklistText(customDeck);
                 deckObj = {
                     id: 'custom_deck_user',
                     name: parsed.commander || 'Custom Deck',
@@ -4618,7 +6002,7 @@
                     cards: parsed.cards
                 };
             } else if (customDeck.content && (!customDeck.cards || customDeck.cards.length === 0)) {
-                const parsed = engine ? engine.parseDecklistText(customDeck.content) : { commander: null, cards: [] };
+                const parsed = parseDecklistText(customDeck.content);
                 deckObj = {
                     id: 'custom_deck_user',
                     name: customDeck.name || parsed.commander || 'Custom Deck',
@@ -4635,6 +6019,12 @@
                 const select = document.getElementById(`seatSelect${i}`);
                 const chosenId = select ? select.value : null;
                 const d = decks.find(x => x.id === chosenId) || PRESET_DECKS[i % PRESET_DECKS.length];
+                // Check if precon with decklist needs on-demand parsing
+                if ((!d.cards || d.cards.length === 0) && d.decklist) {
+                    const parsed = parseDecklistText(d.decklist, d.commander);
+                    d.cards = parsed.cards;
+                    d.commander = parsed.commander || d.commander;
+                }
                 selectedDecks.push(d);
             }
         }
@@ -4663,6 +6053,15 @@
             type: 'GAME_INIT',
             message: `🚀 **Launching Official Card-Forge WebAssembly Engine...** Commanding **${selectedDecks[0].commander || selectedDecks[0].name}** against 3 bot opponents.`
         }]);
+
+        // Check player deck for engine issues and log if present
+        const playerIssues = checkDeckForEngineIssues(selectedDecks[0]);
+        if (playerIssues.length > 0) {
+            appendArenaLogs([{
+                type: 'WARNING',
+                message: `⚠️ **Engine Notice**: Your deck contains **${playerIssues.length} card(s)** with engine notes: ${playerIssues.slice(0, 5).map(f => `\`${f.name}\` (${f.category})`).join(', ')}${playerIssues.length > 5 ? ` and ${playerIssues.length - 5} more` : ''}.`
+            }]);
+        }
 
         if (window.ForgeArena) {
             try {

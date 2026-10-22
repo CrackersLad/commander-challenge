@@ -166,7 +166,11 @@
             }
 
             this.turn = data.turn || this.turn;
-            this.currentPhase = data.phase || this.currentPhase;
+            let normPhase = data.phase || this.currentPhase;
+            if (normPhase === 'MAIN1') normPhase = 'MAIN_1';
+            else if (normPhase === 'MAIN2') normPhase = 'MAIN_2';
+            else if (normPhase === 'END_OF_TURN') normPhase = 'END_STEP';
+            this.currentPhase = normPhase;
             this.activePlayerIndex = (typeof data.activePlayerIndex === 'number') ? data.activePlayerIndex : 0;
             this.isGameOver = !!data.isGameOver;
 

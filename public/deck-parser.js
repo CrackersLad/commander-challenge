@@ -1,4 +1,4 @@
-import { functions } from './firebase-setup.js?v=8.25';
+import { functions } from './firebase-setup.js?v=9.0';
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
 // Official Game Changers for Moxfield fallback (excluding casual staples like Sol Ring)
@@ -190,6 +190,9 @@ export async function fetchDeckFromAPI(deckUrl) {
     } catch (error) {
         throw new Error(error.message || "Failed to call pricing function.");
     }
+}
+if (typeof window !== 'undefined') {
+    window.fetchDeckFromAPI = fetchDeckFromAPI;
 }
 
 export async function fetchDeckPriceLocal(deckUrl, currency, includeCommander, selectedCommanderName, options = {}) {

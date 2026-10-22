@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=8.25';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=8.25';
-import { getArchives } from './data-service.js?v=8.25';
-import { initDeckActionsModule } from './deck-actions.js?v=8.25';
-import { initRoomActionsModule } from './room-actions.js?v=8.25';
-import { initPlayerViewModule } from './player-view.js?v=8.25';
-import { initAdminModule } from './admin.js?v=8.25';
-import { initCalendarModule } from './calendar.js?v=8.25';
-import { initAuthModule } from './auth.js?v=8.25';
-import { initHubModule } from './hub.js?v=8.25';
-import { initProfileModule } from './profile.js?v=8.25';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=8.25';
-import { initWarRoom, openWarRoom } from './war-room.js?v=8.25';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=8.25';
-import { initBoosterDraftModule } from './booster-draft.js?v=8.25';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=8.25';
+import { db, auth, functions } from './firebase-setup.js?v=9.0';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=9.0';
+import { getArchives } from './data-service.js?v=9.0';
+import { initDeckActionsModule } from './deck-actions.js?v=9.0';
+import { initRoomActionsModule } from './room-actions.js?v=9.0';
+import { initPlayerViewModule } from './player-view.js?v=9.0';
+import { initAdminModule } from './admin.js?v=9.0';
+import { initCalendarModule } from './calendar.js?v=9.0';
+import { initAuthModule } from './auth.js?v=9.0';
+import { initHubModule } from './hub.js?v=9.0';
+import { initProfileModule } from './profile.js?v=9.0';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=9.0';
+import { initWarRoom, openWarRoom } from './war-room.js?v=9.0';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=9.0';
+import { initBoosterDraftModule } from './booster-draft.js?v=9.0';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=9.0';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -589,6 +589,22 @@ window.openPlaytesterLaunchModal = () => {
 
 window.closePlaytesterLaunchModal = () => {
     const modal = document.getElementById('playtesterLaunchModal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.style.display = 'none', 250);
+    }
+};
+
+window.openChangelogModal = () => {
+    const modal = document.getElementById('changelogModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('show'), 10);
+    }
+};
+
+window.closeChangelogModal = () => {
+    const modal = document.getElementById('changelogModal');
     if (modal) {
         modal.classList.remove('show');
         setTimeout(() => modal.style.display = 'none', 250);
@@ -2352,7 +2368,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=8.25').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=9.0').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

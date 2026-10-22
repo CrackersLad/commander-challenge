@@ -1060,6 +1060,16 @@
             let total = 0;
             const colors = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
 
+            // 1. Add floating mana in player's manaPool
+            if (this.manaPool) {
+                ['W', 'U', 'B', 'R', 'G', 'C'].forEach(col => {
+                    const amt = this.manaPool[col] || 0;
+                    total += amt;
+                    colors[col] = (colors[col] || 0) + amt;
+                });
+            }
+
+            // 2. Add untapped mana sources from battlefield
             this.battlefield.forEach(c => {
                 if (!c.tapped) {
                     if (c.isLand) {
@@ -1085,14 +1095,31 @@
         }
 
         tapMana(amount = 1) {
+            let needed = amount;
+
+            // 1. Consume from floating manaPool first
+            if (this.manaPool) {
+                for (const col of ['C', 'W', 'U', 'B', 'R', 'G']) {
+                    if (needed <= 0) break;
+                    const availableInPool = this.manaPool[col] || 0;
+                    if (availableInPool > 0) {
+                        const spend = Math.min(needed, availableInPool);
+                        this.manaPool[col] -= spend;
+                        needed -= spend;
+                    }
+                }
+            }
+
+            if (needed <= 0) return amount;
+
+            // 2. Tap remaining untapped mana sources
             let tapped = 0;
-            // Prefer basic lands, then mana rocks, then dorks
             const sortedManaSources = this.battlefield
                 .filter(c => !c.tapped && (c.isLand || c.isManaRock || c.name.includes('Elves') || c.name.includes('Sol Ring') || c.name.includes('Signet') || c.name.includes('Talisman') || c.name.includes('Archdruid') || c.name.includes('Marwyn')))
                 .sort((a, b) => (a.isLand ? -1 : 1));
 
             for (const card of sortedManaSources) {
-                if (tapped >= amount) break;
+                if (tapped >= needed) break;
                 card.tapped = true;
                 if (card.name.includes('Sol Ring')) tapped += 2;
                 else if (card.name.includes('Elvish Archdruid')) {
@@ -1104,7 +1131,7 @@
                     tapped += 1;
                 }
             }
-            return tapped;
+            return (amount - needed) + tapped;
         }
 
         untapAll() {
@@ -1113,6 +1140,8 @@
                 c.summoningSick = false;
                 c.damageReceived = 0;
                 c.attacksThisTurn = false;
+                c.producedMana = null;
+                c.paidLifeCost = null;
             });
             this.landPlayedThisTurn = false;
             this.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
@@ -1226,7 +1255,7 @@
             if (game) {
                 const active = game.getActivePlayer();
                 if (!active || active.id !== this.id) return false;
-                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2) return false;
+                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2 && game.currentPhase !== 'MAIN1' && game.currentPhase !== 'MAIN2') return false;
             }
             return this.hand.some(c => c.isLand);
         }
@@ -1237,7 +1266,7 @@
                 if (!active || active.id !== this.id) {
                     return { success: false, message: "You can only play lands during your own turn!" };
                 }
-                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2) {
+                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2 && game.currentPhase !== 'MAIN1' && game.currentPhase !== 'MAIN2') {
                     return { success: false, message: "Lands can only be played during your Main phase (MTG Rule 305.1)." };
                 }
             }
@@ -1320,7 +1349,7 @@
             if (game) {
                 const active = game.getActivePlayer();
                 if (!active || active.id !== this.id) return false;
-                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2) return false;
+                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2 && game.currentPhase !== 'MAIN1' && game.currentPhase !== 'MAIN2') return false;
             }
             return true;
         }
@@ -1362,7 +1391,7 @@
                 if (!active || active.id !== this.id) {
                     return { success: false, message: `**${card.name}** cannot be cast on an opponent's turn (Only Instants and Flash spells).` };
                 }
-                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2) {
+                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2 && game.currentPhase !== 'MAIN1' && game.currentPhase !== 'MAIN2') {
                     return { success: false, message: `**${card.name}** can only be cast during your Main phase (MTG Rule 307.1).` };
                 }
             }
@@ -1637,7 +1666,7 @@
             if (game) {
                 const active = game.getActivePlayer();
                 if (!active || active.id !== this.id) return false;
-                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2) return false;
+                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2 && game.currentPhase !== 'MAIN1' && game.currentPhase !== 'MAIN2') return false;
             }
             const cost = (cmdr.cmc || 0) + this.commanderTax;
             return this.getAvailableMana().total >= cost;
@@ -1654,7 +1683,7 @@
                 if (!active || active.id !== this.id) {
                     return { success: false, message: "You can only cast your Commander during your turn!" };
                 }
-                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2) {
+                if (game.currentPhase !== PHASES.MAIN_1 && game.currentPhase !== PHASES.MAIN_2 && game.currentPhase !== 'MAIN1' && game.currentPhase !== 'MAIN2') {
                     return { success: false, message: "Commanders can only be cast during a Main phase (MTG Rule 305.1 / 903.8)." };
                 }
             }

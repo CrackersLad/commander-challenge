@@ -1561,3 +1561,323 @@
 .mulligan-btn-mull:hover {
   background: rgba(245, 158, 11, 0.25) !important;
 }
+
+/* ============================================================================
+ * ENGINE ISSUE BADGES & CUSTOM DECK IMPORTER
+ * ============================================================================
+ */
+.card-engine-flag {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(220, 38, 38, 0.95);
+  color: #fef08a;
+  border: 1px solid #f87171;
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.7);
+  z-index: 15;
+  cursor: help;
+  animation: pulseFlag 2.5s infinite ease-in-out;
+}
+
+@keyframes pulseFlag {
+  0%, 100% { transform: scale(1); box-shadow: 0 2px 6px rgba(220, 38, 38, 0.5); }
+  50% { transform: scale(1.12); box-shadow: 0 2px 10px rgba(239, 68, 68, 0.9); }
+}
+
+.setup-import-box {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 10px;
+}
+
+.setup-precon-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.setup-precon-input {
+  flex: 1;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: #fff;
+  font-size: 0.82rem;
+}
+
+.setup-precon-input:focus {
+  outline: none;
+  border-color: #a855f7;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.3);
+}
+
+.arena-paste-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(10px);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.arena-paste-card {
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 560px;
+  padding: 22px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.85);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================================
+ * MANA COLOR CHOICE & ACTIVATED ABILITIES
+ * ============================================================================
+ */
+.arena-mana-choice-modal,
+.arena-ability-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.arena-mana-choice-card,
+.arena-ability-card {
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  width: 90%;
+  max-width: 520px;
+  padding: 20px;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.9), 0 0 25px rgba(168, 85, 247, 0.25);
+  display: flex;
+  flex-direction: column;
+}
+
+.mana-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.mana-choice-btn {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 10px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mana-choice-btn:hover {
+  background: rgba(51, 65, 85, 1);
+  border-color: #38bdf8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+}
+
+.ability-option-row {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s ease;
+}
+
+.ability-option-row:hover {
+  border-color: rgba(168, 85, 247, 0.5);
+}
+
+.ability-cost-tag {
+  background: rgba(168, 85, 247, 0.2);
+  border: 1px solid #c084fc;
+  color: #e9d5ff;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-family: monospace;
+  font-size: 0.78rem;
+  font-weight: 800;
+  display: inline-block;
+  align-self: flex-start;
+}
+
+.ability-effect-text {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.card-ability-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  cursor: pointer;
+  z-index: 12;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+  transition: all 0.15s ease;
+}
+
+.card-ability-badge:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.9);
+}
+
+.chip-ability-badge {
+  background: #f59e0b;
+  color: #000;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 900;
+  padding: 1px 4px;
+  margin-left: 6px;
+  cursor: pointer;
+}
+
+.mana-pip-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mana-pip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-weight: 900;
+  font-size: 0.75rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  user-select: none;
+}
+
+.mana-pip-w {
+  background: radial-gradient(circle at 35% 35%, #fffbeb, #fef3c7 70%, #d97706);
+  color: #78350f;
+  border: 1px solid #fde68a;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.mana-pip-u {
+  background: radial-gradient(circle at 35% 35%, #38bdf8, #0284c7 70%, #0369a1);
+  color: #ffffff;
+  border: 1px solid #7dd3fc;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+
+.mana-pip-b {
+  background: radial-gradient(circle at 35% 35%, #475569, #1e293b 70%, #0f172a);
+  color: #e2e8f0;
+  border: 1px solid #64748b;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+}
+
+.mana-pip-r {
+  background: radial-gradient(circle at 35% 35%, #f87171, #dc2626 70%, #991b1b);
+  color: #ffffff;
+  border: 1px solid #fca5a5;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+
+.mana-pip-g {
+  background: radial-gradient(circle at 35% 35%, #4ade80, #16a34a 70%, #166534);
+  color: #ffffff;
+  border: 1px solid #86efac;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+
+.mana-pip-c {
+  background: radial-gradient(circle at 35% 35%, #94a3b8, #64748b 70%, #475569);
+  color: #f8fafc;
+  border: 1px solid #cbd5e1;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+
+.mana-pool-counter-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mana-counter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  padding: 2px 7px 2px 3px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #94a3b8;
+  transition: all 0.2s ease;
+}
+
+.mana-counter-pill.has-mana {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+  transform: scale(1.05);
+}
+
+.mana-choice-cost-badge {
+  font-size: 0.72rem;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.chip-mana-preview {
+  margin-left: auto;
+  font-size: 0.65rem;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
