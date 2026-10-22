@@ -4,6 +4,18 @@ All notable changes to the Commander Draft Challenge application are documented 
 
 ---
 
+## [v10.1] - Post-Combat Main Phase 2 Synchronization & Strict Land Limit Enforcement (MTG Rule 305.2 & 505.4)
+
+### 🌿 Main Phase 2 Structure & Turn-Wide Land Play Limits (Rules 305.2 & 505.4)
+- **Comp Rules Section 505.4 Alignment**: Post-combat Main Phase (Main 2) runs identically to Main Phase 1. The active player retains priority to cast permanent spells (creatures, artifacts, enchantments, planeswalkers), sorceries, commanders from the Command Zone, and activate abilities.
+- **Strict Turn-Wide Land Limit (MTG Rule 305.2)**: A player can play only one land during their turn across all phases combined:
+  - If a land was played during Main Phase 1, no land can be played during Main Phase 2. Hand land cards display `Land Played` and any click attempt is rejected with MTG Rule 305.2.
+  - If no land was played in Main Phase 1, the player retains the right to play their single land of the turn during Main Phase 2. Once played, `landPlayedThisTurn` is set to `true` and prevents subsequent plays.
+- **Card-Forge & Engine Synchronization**: Verified and tested `p.getLandsPlayedThisTurn() >= p.getMaxLandPlays()` in `ForgeWebBridge.java`, `forge-adapter.js`, and `commander-engine.js` across both human and bot player actions.
+- **Keyword Safety**: Added safe type checks on `card.keywords` when verifying `haste` during spell casting in `commander-engine.js`.
+
+---
+
 ## [v10.0] - Combat Phase Multi-Targeting (Rule 802.1) & Planeswalker Combat Damage (Rule 508.1b / 120.3c)
 
 ### ⚔️ Combat Phase Rules Alignment & Multi-Target Declaration

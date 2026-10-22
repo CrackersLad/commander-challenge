@@ -1492,7 +1492,7 @@
 
             if (card.isCreature || card.isArtifact || card.isEnchantment || card.isPlaneswalker || card.isPermanent || (!card.isInstant && !card.isSorcery)) {
                 card.tapped = false;
-                card.summoningSick = !card.keywords.has('haste');
+                card.summoningSick = card.keywords && typeof card.keywords.has === 'function' ? !card.keywords.has('haste') : true;
                 this.battlefield.push(card);
 
                 // Run ETB triggers
