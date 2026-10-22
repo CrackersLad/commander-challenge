@@ -4,6 +4,18 @@ All notable changes to the Commander Draft Challenge application are documented 
 
 ---
 
+## [v9.6] - Official Pre-Game & London Mulligan Flow Alignment (Comp Rules 103)
+
+### 🃏 Pre-Game & London Mulligan Synchronization (MTG Rule 103)
+- **Comp Rules Section 103 Alignment**: Audited each step of pre-game procedures against the Magic Comprehensive Rules (Rule 103.1–103.7c).
+- **Starting Player & Commander Zone (Rule 103.1 & 903.6)**: Verified commanders are loaded face-up into the Command Zone before starting hands are drawn, and the chosen turn order (Random, You, or Opponents 1–3) seeds Forge's `setupFirstTurn`.
+- **Free Multiplayer Mulligan (Rule 103.4c)**: Enforces free first mulligan in multiplayer formats ($N=1$ keeps 7, 0 cards bottomed).
+- **London Mulligan Timing (Rule 103.5)**: Bottom-decking only occurs upon deciding to *keep* the hand, never mid-mulligan. If a player mulligans again, all 7 cards are reshuffled into the library without bottoming.
+- **Card-Forge Exact Bottom-Decking**: Refactored `bottomCards` in `ForgeWebBridge.java` to match cards sequentially without accidental duplicate bottoming, and updated `forge-adapter.js` to ingest raw JSON updates on `takeMulligan` and `bottomCards`.
+- **Multiplayer Turn 1 Draw (Rule 103.7c)**: Ensured starting player draws on their first turn in multiplayer format as required.
+
+---
+
 ## [v9.5] - Strict Untap Rules Enforcement (MTG Rule 502.2) & Illegal Tap Toggle Elimination
 
 ### 🔒 Strict Untap Rules Enforcement (MTG Rule 502.2)

@@ -594,7 +594,8 @@
 
             try {
                 if (this.bridge && typeof this.bridge.takeMulligan === 'function') {
-                    await this.bridge.takeMulligan();
+                    const newJson = await this.bridge.takeMulligan();
+                    this.updateFromRawJson(newJson);
                 }
             } catch (err) {
                 console.warn("ForgeWebBridge.takeMulligan error:", err);
@@ -663,7 +664,8 @@
             try {
                 if (this.bridge && typeof this.bridge.bottomCards === 'function' && cardIds.length > 0) {
                     const idsCsv = cardIds.join(',');
-                    await this.bridge.bottomCards(idsCsv);
+                    const newJson = await this.bridge.bottomCards(idsCsv);
+                    this.updateFromRawJson(newJson);
                 }
             } catch (err) {
                 console.warn("ForgeWebBridge.bottomCards error:", err);
