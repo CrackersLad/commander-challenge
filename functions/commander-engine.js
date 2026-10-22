@@ -2492,6 +2492,20 @@
                     break;
 
                 case PHASES.MAIN_1:
+                    // Rule 505.4: Turn-based action - Active player puts a lore counter on each Saga they control
+                    if (activePlayer && activePlayer.battlefield) {
+                        activePlayer.battlefield.forEach(c => {
+                            if (c.subtypes?.has('saga') || (c.typeLine && c.typeLine.toLowerCase().includes('saga'))) {
+                                c.counters = c.counters || {};
+                                c.counters['lore'] = (c.counters['lore'] || 0) + 1;
+                                phaseLogs.push({
+                                    type: 'TRIGGER',
+                                    card: c,
+                                    message: `📜 **${c.name}** gained chapter lore counter (${c.counters['lore']}).`
+                                });
+                            }
+                        });
+                    }
                     if (activePlayer.isAI) {
                         const mainLogs = CommanderBotAI.takeMainPhaseActions(this, activePlayer);
                         phaseLogs.push(...mainLogs);
