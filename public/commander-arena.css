@@ -848,6 +848,27 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
 }
 
+.mtg-card-pt-bubble.buffed {
+  border-color: #10b981;
+  color: #34d399;
+  background: rgba(6, 78, 59, 0.9);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+}
+
+.mtg-card-counter-badge {
+  position: absolute;
+  top: 16px;
+  right: 3px;
+  font-size: 0.62rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, #059669, #10b981);
+  color: #fff;
+  border-radius: 4px;
+  padding: 1px 4px;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+  z-index: 3;
+}
+
 .mtg-card-type-chip {
   position: absolute;
   bottom: 2px;
@@ -1286,6 +1307,64 @@
   border: 1.5px solid var(--arena-gold);
   background: #1e293b;
   flex-shrink: 0;
+}
+
+/* Turn Order Selector in Pod Setup */
+.setup-turn-order-box {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  transition: border-color 0.2s ease;
+}
+
+.turn-order-pills-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.turn-order-pill {
+  flex: 1 1 auto;
+  min-width: 110px;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #cbd5e1;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.turn-order-pill:hover {
+  background: rgba(51, 65, 85, 0.9);
+  border-color: rgba(168, 85, 247, 0.6);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.turn-order-pill.active {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.35), rgba(217, 70, 239, 0.25));
+  border-color: #c084fc;
+  color: #f8fafc;
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.4), inset 0 0 8px rgba(168, 85, 247, 0.2);
+}
+
+.turn-order-pill.active#turnOrder_0 {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.35), rgba(217, 119, 6, 0.25));
+  border-color: #f59e0b;
+  color: #fff;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.45);
 }
 
 /* ============================================================================

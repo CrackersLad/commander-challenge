@@ -44,6 +44,12 @@ const server = http.createServer((req, res) => {
   if (reqPath === '/' || reqPath === '') {
     reqPath = '/index.html';
   }
+
+  // Strip CheerpJ /app/ mount prefix if present
+  if (reqPath.startsWith('/app/')) {
+    reqPath = reqPath.substring(4);
+  }
+
   const rangeHeader = req.headers.range;
   console.log(`[HTTP ${req.method}] ${reqPath} ${rangeHeader ? '(Range: ' + rangeHeader + ')' : ''}`);
 
@@ -58,6 +64,30 @@ const server = http.createServer((req, res) => {
 
   fs.stat(filePath, (err, stats) => {
     if (err) {
+      // If CheerpJ requests an index.list that doesn't exist on disk, generate it dynamically from directory
+      if (path.basename(filePath) === 'index.list') {
+        const dirPath = path.dirname(filePath);
+        try {
+          if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
+            const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+            const listing = entries
+              .filter(e => e.name !== 'index.list')
+              .map(e => e.isDirectory() ? `${e.name}/` : e.name)
+              .join('\n') + '\n';
+            const buffer = Buffer.from(listing, 'utf-8');
+            res.writeHead(200, {
+              'Content-Type': 'text/plain; charset=utf-8',
+              'Content-Length': buffer.length,
+              'Accept-Ranges': 'bytes'
+            });
+            res.end(buffer);
+            return;
+          }
+        } catch (dErr) {
+          // Fall through to 404
+        }
+      }
+
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end(`404 Not Found: ${reqPath}`);
       return;
@@ -67,13 +97,30 @@ const server = http.createServer((req, res) => {
     let actualStats = stats;
 
     if (stats.isDirectory()) {
-      actualPath = path.join(filePath, 'index.list');
-      try {
-        actualStats = fs.statSync(actualPath);
-      } catch (e) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('404 Directory index.list Not Found');
-        return;
+      const explicitIndex = path.join(filePath, 'index.list');
+      if (fs.existsSync(explicitIndex)) {
+        actualPath = explicitIndex;
+        actualStats = fs.statSync(explicitIndex);
+      } else {
+        // Dynamically generate CheerpJ-compatible directory index.list
+        try {
+          const entries = fs.readdirSync(filePath, { withFileTypes: true });
+          const listing = entries
+            .map(e => e.isDirectory() ? `${e.name}/` : e.name)
+            .join('\n') + '\n';
+          const buffer = Buffer.from(listing, 'utf-8');
+          res.writeHead(200, {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Content-Length': buffer.length,
+            'Accept-Ranges': 'bytes'
+          });
+          res.end(buffer);
+          return;
+        } catch (dirErr) {
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end('500 Error listing directory: ' + dirErr.message);
+          return;
+        }
       }
     }
 

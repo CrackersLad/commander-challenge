@@ -1,5 +1,3 @@
-NonStackingKWList.txt
-TypeLists.txt
 achievement-images.txt
 altwin-achievements.txt
 booster-images.txt
@@ -24,6 +22,7 @@ net-decks-commander.txt
 net-decks-oathbreaker.txt
 net-decks-tinyleaders.txt
 net-decks.txt
+NonStackingKWList.txt
 planes-images.txt
 planeswalker-achievements.txt
 precon-images.txt
@@ -33,3 +32,4 @@ skinsList.txt
 special-card-achievements.txt
 token-images.txt
 tournamentpack-images.txt
+TypeLists.txt

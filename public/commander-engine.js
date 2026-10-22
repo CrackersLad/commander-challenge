@@ -2861,6 +2861,32 @@
                 }
             }
 
+            // 6. Nazgûl: When Nazgûl enters, the Ring tempts you. Whenever the Ring tempts you, put a +1/+1 counter on each Wraith you control.
+            if (card.name.toLowerCase().includes('nazg') || (card.oracleText && card.oracleText.includes('Ring tempts you'))) {
+                controller.ringTemptCount = (controller.ringTemptCount || 0) + 1;
+                logs.push({
+                    type: 'RING_TEMPTS',
+                    message: `💍 **The Ring Tempts ${controller.name}!** (Temptation Level: ${controller.ringTemptCount})`
+                });
+
+                // Put a +1/+1 counter on each Wraith you control
+                const wraiths = controller.battlefield.filter(c => 
+                    c.name.toLowerCase().includes('nazg') || 
+                    (c.subtypes && c.subtypes.has('wraith')) || 
+                    (c.typeLine && c.typeLine.toLowerCase().includes('wraith'))
+                );
+                wraiths.forEach(w => {
+                    if (!w.counters) w.counters = {};
+                    w.counters['+1/+1'] = (w.counters['+1/+1'] || 0) + 1;
+                    w.power = (w.power !== undefined ? w.power : 1) + 1;
+                    w.toughness = (w.toughness !== undefined ? w.toughness : 2) + 1;
+                    logs.push({
+                        type: 'COUNTER_ADDED',
+                        message: `💀 **${w.name}** gained a +1/+1 counter from the Ring tempt! (Now **${w.power}/${w.toughness}**)`
+                    });
+                });
+            }
+
             if (logs.length > 0) {
                 this.turnLogs.push(...logs);
                 this.history.push(...logs);

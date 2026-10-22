@@ -166,6 +166,8 @@
                 return;
             }
 
+            const prevTurn = this.turn;
+            const prevActive = this.activePlayerIndex;
             this.turn = data.turn || this.turn;
             let normPhase = data.phase || this.currentPhase;
             if (normPhase === 'MAIN1') normPhase = 'MAIN_1';
@@ -174,6 +176,8 @@
             this.currentPhase = normPhase;
             this.activePlayerIndex = (typeof data.activePlayerIndex === 'number') ? data.activePlayerIndex : 0;
             this.isGameOver = !!data.isGameOver;
+
+            const isNewTurnOrActive = (this.turn !== prevTurn) || (this.activePlayerIndex !== prevActive);
 
             if (Array.isArray(data.logs)) {
                 data.logs.forEach(msg => {
@@ -202,10 +206,21 @@
                         graveyardCount: pData.graveyardCount || (pData.graveyard ? pData.graveyard.length : 0),
                         avatar: existing.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(pData.name || 'MTG')}`,
                         mulliganCount: existing.mulliganCount || 0,
-                        landPlayedThisTurn: existing.landPlayedThisTurn || false,
-                        manaPool: existing.manaPool || { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                        landPlayedThisTurn: isNewTurnOrActive ? false : (existing.landPlayedThisTurn || false),
+                        manaPool: (isNewTurnOrActive && this.activePlayerIndex === idx) ? { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 } : (existing.manaPool || { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }),
 
-                        hand: (pData.hand || []).map(c => enrichCard(c)),
+                        hand: (() => {
+                            const newHand = (pData.hand || []).map(c => enrichCard(c));
+                            if (idx === 0 && existing.handLocked && existing.keptHandCards && existing.keptHandCards.length > 0) {
+                                // If engine drew cards, update keptHandCards
+                                if (newHand.length >= existing.keptHandCards.length) {
+                                    existing.keptHandCards = newHand;
+                                    return newHand;
+                                }
+                                return existing.keptHandCards;
+                            }
+                            return newHand;
+                        })(),
                         commandZone: (pData.commandZone || []).map(c => enrichCard(c, true)),
                         battlefield: (pData.battlefield || []).map(c => enrichCard(c)),
                         graveyard: (pData.graveyard || []).map(c => enrichCard(c)),
@@ -241,12 +256,24 @@
                             return this.battlefield.some(c => c.isCommander || c.name === this.getCommander()?.name);
                         },
                         getAvailableMana() {
-                            const untappedLands = this.battlefield.filter(c => (c.isLand || c.isArtifact) && !c.tapped).length;
                             let poolTotal = 0;
                             if (this.manaPool) {
                                 ['W', 'U', 'B', 'R', 'G', 'C'].forEach(col => { poolTotal += (this.manaPool[col] || 0); });
                             }
-                            return { total: Math.max(untappedLands + poolTotal, 0) };
+                            return { total: Math.max(poolTotal, 0) };
+                        },
+                        deductMana(cost) {
+                            if (!this.manaPool || cost <= 0) return;
+                            let remaining = cost;
+                            const colors = ['C', 'G', 'R', 'B', 'U', 'W'];
+                            for (const col of colors) {
+                                if (this.manaPool[col] > 0) {
+                                    const spend = Math.min(this.manaPool[col], remaining);
+                                    this.manaPool[col] -= spend;
+                                    remaining -= spend;
+                                    if (remaining <= 0) break;
+                                }
+                            }
                         },
                         getCardCost(card) {
                             return card.cmc !== undefined ? card.cmc : 0;
@@ -268,6 +295,8 @@
                             return await selfGame.bottomCards(cardIds);
                         },
                         keepHand() {
+                            this.handLocked = true;
+                            this.keptHandCards = [...(this.hand || [])];
                             return {
                                 success: true,
                                 log: {
@@ -348,10 +377,16 @@
 
         async playCard(cardId) {
             try {
+                const p = this.players[0];
+                const card = p && p.hand ? p.hand.find(c => String(c.id) === String(cardId)) : null;
+                const cost = card && !card.isLand ? (card.cmc || 0) : 0;
                 const numId = parseInt(cardId, 10);
                 const logsBefore = this.logs.length;
                 const newJson = await this.bridge.playCard(numId);
                 this.updateFromRawJson(newJson);
+                if (p && cost > 0 && typeof p.deductMana === 'function') {
+                    p.deductMana(cost);
+                }
                 return { success: true, logs: this.logs.slice(logsBefore) };
             } catch (e) {
                 console.error("playCard error:", e);
@@ -361,9 +396,15 @@
 
         async castCommander() {
             try {
+                const p = this.players[0];
+                const cmdr = p ? p.getCommander() : null;
+                const cost = cmdr ? ((cmdr.cmc || 0) + (p.commanderTax || 0)) : 0;
                 const logsBefore = this.logs.length;
                 const newJson = await this.bridge.castCommander();
                 this.updateFromRawJson(newJson);
+                if (p && cost > 0 && typeof p.deductMana === 'function') {
+                    p.deductMana(cost);
+                }
                 return { success: true, logs: this.logs.slice(logsBefore) };
             } catch (e) {
                 console.error("castCommander error:", e);
@@ -576,6 +617,7 @@
         c.isEnchantment = !!c.isEnchantment;
         c.isPlaneswalker = !!c.isPlaneswalker;
         c.isCommander = isCommandZone || !!c.isCommander;
+        c.counters = Array.isArray(cardData.counters) ? cardData.counters : [];
         c.typeLine = c.typeLine || (c.isCreature ? 'Creature' : c.isLand ? 'Land' : 'Spell');
         c.oracleText = c.oracleText || '';
         return c;
@@ -584,29 +626,29 @@
     // Public API exposed on window
     window.ForgeArena = {
         initEngine: initForgeEngine,
-        startMatch: async function (selectedDecks = []) {
+        startMatch: async function (selectedDecks = [], startingPlayerIndex = 0) {
             const bridge = await initForgeEngine();
             showLoadingBanner("Assembling 4-Player Commander Pod", "Shuffling libraries & drawing opening hands...");
 
             const p1 = selectedDecks[0] || {};
             const p1Name = p1.name || 'Wilhelt Zombies';
             const p1Cmdr = p1.commander || 'Wilhelt, the Rotcleaver';
-            const p1Cards = p1.cards ? p1.cards.map(c => typeof c === 'string' ? c : c.name) : [];
+            const p1Cards = p1.cards ? p1.cards.map(c => typeof c === 'string' ? c : c.name).filter(n => n !== p1Cmdr) : [];
 
             const p2 = selectedDecks[1] || {};
             const p2Name = p2.name || 'Elven Empire';
             const p2Cmdr = p2.commander || 'Lathril, Blade of the Elves';
-            const p2Cards = p2.cards ? p2.cards.map(c => typeof c === 'string' ? c : c.name) : [];
+            const p2Cards = p2.cards ? p2.cards.map(c => typeof c === 'string' ? c : c.name).filter(n => n !== p2Cmdr) : [];
 
             const p3 = selectedDecks[2] || {};
             const p3Name = p3.name || 'Reap the Tides';
             const p3Cmdr = p3.commander || 'Aesi, Tyrant of Gyre Strait';
-            const p3Cards = p3.cards ? p3.cards.map(c => typeof c === 'string' ? c : c.name) : [];
+            const p3Cards = p3.cards ? p3.cards.map(c => typeof c === 'string' ? c : c.name).filter(n => n !== p3Cmdr) : [];
 
             const p4 = selectedDecks[3] || {};
             const p4Name = p4.name || 'Planar Portal';
             const p4Cmdr = p4.commander || 'Prosper, Tome-Bound';
-            const p4Cards = p4.cards ? p4.cards.map(c => typeof c === 'string' ? c : c.name) : [];
+            const p4Cards = p4.cards ? p4.cards.map(c => typeof c === 'string' ? c : c.name).filter(n => n !== p4Cmdr) : [];
 
             let rawJson = null;
             try {
@@ -614,15 +656,27 @@
                     p1Name, p1Cmdr, p1Cards.join("\n"),
                     p2Name, p2Cmdr, p2Cards.join("\n"),
                     p3Name, p3Cmdr, p3Cards.join("\n"),
-                    p4Name, p4Cmdr, p4Cards.join("\n")
+                    p4Name, p4Cmdr, p4Cards.join("\n"),
+                    startingPlayerIndex
                 );
             } catch (err) {
-                console.warn("Falling back to standard startCommanderMatch:", err);
-                rawJson = await bridge.startCommanderMatch(p1Name, p1Cmdr, p1Cards.join("\n"));
+                console.warn("startCommanderMatchWithDecks with startingPlayerIndex failed, falling back:", err);
+                try {
+                    rawJson = await bridge.startCommanderMatchWithDecks(
+                        p1Name, p1Cmdr, p1Cards.join("\n"),
+                        p2Name, p2Cmdr, p2Cards.join("\n"),
+                        p3Name, p3Cmdr, p3Cards.join("\n"),
+                        p4Name, p4Cmdr, p4Cards.join("\n")
+                    );
+                } catch (err2) {
+                    console.warn("Falling back to standard startCommanderMatch:", err2);
+                    rawJson = await bridge.startCommanderMatch(p1Name, p1Cmdr, p1Cards.join("\n"));
+                }
             }
 
             hideLoadingBanner();
             const game = new ForgeArenaGame(bridge, rawJson, selectedDecks);
+            game.startingPlayerIndex = startingPlayerIndex;
             return game;
         }
     };

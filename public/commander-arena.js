@@ -4174,7 +4174,34 @@
                             </div>
                         </div>
 
-                        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem; align-items: center;">
+                        <!-- Turn Order / Starting Player Selector -->
+                        <div class="setup-turn-order-box" style="margin-top: 0.85rem; padding: 0.85rem 1rem; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 10px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <span style="font-weight: 800; font-size: 0.84rem; color: #f8fafc; display: flex; align-items: center; gap: 6px;">
+                                    <span>🎲</span> Starting Player (Turn Order)
+                                </span>
+                                <span style="font-size: 0.76rem; color: #94a3b8;">Choose who goes first or roll randomly</span>
+                            </div>
+                            <div class="turn-order-pills-row" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button type="button" class="turn-order-pill active" id="turnOrder_random" onclick="window.setStartingPlayerChoice('random')">
+                                    🎲 Random (High Roll)
+                                </button>
+                                <button type="button" class="turn-order-pill" id="turnOrder_0" onclick="window.setStartingPlayerChoice('0')">
+                                    👑 I Go First (Seat 1)
+                                </button>
+                                <button type="button" class="turn-order-pill" id="turnOrder_1" onclick="window.setStartingPlayerChoice('1')">
+                                    🤖 Opponent 1 (Seat 2)
+                                </button>
+                                <button type="button" class="turn-order-pill" id="turnOrder_2" onclick="window.setStartingPlayerChoice('2')">
+                                    🤖 Opponent 2 (Seat 3)
+                                </button>
+                                <button type="button" class="turn-order-pill" id="turnOrder_3" onclick="window.setStartingPlayerChoice('3')">
+                                    🤖 Opponent 3 (Seat 4)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.75rem; align-items: center;">
                             <button class="arena-btn" onclick="window.closeArenaSetup()">Close</button>
                             <button class="arena-btn arena-btn-gold" id="btnLaunchPodMatch" onclick="window.applyArenaSetupAndStart()" style="font-weight: 900; font-size: 0.95rem; padding: 0.6rem 1.4rem;">
                                 ⚔️ Select Deck & Draw Hand 🎴
@@ -4326,7 +4353,15 @@
                     const effP = opp.getEffectivePower ? opp.getEffectivePower(c) : c.power;
                     const effT = opp.getEffectiveToughness ? opp.getEffectiveToughness(c) : c.toughness;
                     const cIssue = getCardEngineIssue(c.name);
-                    const cFlag = cIssue ? `<span class="card-engine-flag" title="⚠️ Engine Notice: [${escapeHtml(cIssue.category)}] ${escapeHtml(cIssue.reason)}">⚠️</span>` : '';
+                    const ptCounters = Array.isArray(c.counters)
+                        ? c.counters.filter(cnt => cnt.type === 'P1P1' || cnt.type === '+1/+1').reduce((s, cnt) => s + (cnt.count || 1), 0)
+                        : (c.counters && c.counters['+1/+1'] ? c.counters['+1/+1'] : 0);
+                    const hasBuff = ptCounters > 0 || (Array.isArray(c.counters) && c.counters.length > 0);
+                    const ptBubbleClass = hasBuff ? 'mtg-card-pt-bubble buffed' : 'mtg-card-pt-bubble';
+                    const counterBadge = ptCounters > 0
+                        ? `<span class="mtg-card-counter-badge" title="${ptCounters}x +1/+1 Counter">+${ptCounters}</span>`
+                        : '';
+
                     creaturesHtml += `
                         <div class="mtg-card-frame ${tappedClass}"
                              onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
@@ -4336,7 +4371,8 @@
                                 <span class="mtg-card-name">${escapeHtml(c.name)}</span>
                             </div>
                             <img class="mtg-card-art" src="${getCardArtCropUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
-                            <span class="mtg-card-pt-bubble">${effP}/${effT}</span>
+                            <span class="${ptBubbleClass}">${effP}/${effT}</span>
+                            ${counterBadge}
                             ${cFlag}
                             ${c.summoningSick ? '<span class="mtg-card-summoning-sick" title="Summoning Sick">🌀</span>' : ''}
                         </div>
@@ -4476,6 +4512,15 @@
                     ? `<button class="card-ability-badge" onclick="event.stopPropagation(); window.openCardAbilityModal('${c.id}')" title="⚡ Activate Ability (${abils.length})">⚡</button>`
                     : '';
 
+                const ptCounters = Array.isArray(c.counters)
+                    ? c.counters.filter(cnt => cnt.type === 'P1P1' || cnt.type === '+1/+1').reduce((s, cnt) => s + (cnt.count || 1), 0)
+                    : (c.counters && c.counters['+1/+1'] ? c.counters['+1/+1'] : 0);
+                const hasBuff = ptCounters > 0 || (Array.isArray(c.counters) && c.counters.length > 0);
+                const ptBubbleClass = hasBuff ? 'mtg-card-pt-bubble buffed' : 'mtg-card-pt-bubble';
+                const counterBadge = ptCounters > 0
+                    ? `<span class="mtg-card-counter-badge" title="${ptCounters}x +1/+1 Counter">+${ptCounters}</span>`
+                    : '';
+
                 creaturesHtml += `
                     <div class="mtg-card-frame ${tappedClass} ${atkSelectedClass}"
                          onclick="window.handleCreatureClick('${c.id}')"
@@ -4487,7 +4532,8 @@
                             <span class="mtg-card-cost">${c.manaCost || ''}</span>
                         </div>
                         <img class="mtg-card-art" src="${getCardArtCropUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
-                        <span class="mtg-card-pt-bubble">${effP}/${effT}</span>
+                        <span class="${ptBubbleClass}">${effP}/${effT}</span>
+                        ${counterBadge}
                         ${cFlag}
                         ${c.summoningSick ? '<span class="mtg-card-summoning-sick" title="Summoning Sickness">🌀</span>' : ''}
                         ${canAttackThisTurn ? '<span style="position: absolute; top: 16px; left: 3px; font-size: 0.65rem; background: #ef4444; border-radius: 4px; padding: 1px 3px; font-weight: 900;">⚔️</span>' : ''}
@@ -4548,10 +4594,10 @@
                     tagText = isPlayable ? 'Play Land' : (player.landPlayedThisTurn ? 'Land Played' : 'Land');
                 } else if (isInstantOrFlash) {
                     isPlayable = availableMana >= cost;
-                    tagText = isPlayable ? (isMyTurn ? `Cast {${cost}}` : `⚡ Flash {${cost}}`) : `Need {${cost}} Mana`;
+                    tagText = isPlayable ? (isMyTurn ? `Cast {${cost}}` : `⚡ Flash {${cost}}`) : (cost > 0 ? `Need {${cost}} in Pool` : 'Cast {0}');
                 } else {
                     isPlayable = isMyTurn && currentPhase.includes('MAIN') && availableMana >= cost;
-                    tagText = isPlayable ? `Cast {${cost}}` : `Need {${cost}} Mana`;
+                    tagText = isPlayable ? `Cast {${cost}}` : (cost > 0 ? `Need {${cost}} in Pool` : 'Cast {0}');
                 }
 
                 const cardClasses = ['hand-card'];
@@ -4616,7 +4662,7 @@
                         ` : canCastCmdr ? `
                             <button class="cmdr-cast-cta ready" onclick="window.castPlayerCommander()">🚀 Cast Commander {${cmdrCastCost}}</button>
                         ` : (isCmdrInZone && availableMana < cmdrCastCost) ? `
-                            <button class="cmdr-cast-cta need-mana" onclick="window.castPlayerCommander()">Need {${cmdrCastCost}} Mana (Have {${availableMana}})</button>
+                            <button class="cmdr-cast-cta need-mana" onclick="window.castPlayerCommander()">Need {${cmdrCastCost}} in Pool (Have {${availableMana}})</button>
                         ` : `
                             <button class="cmdr-cast-cta" onclick="window.castPlayerCommander()" ${!isMyTurn ? 'disabled' : ''}>Cast Commander {${cmdrCastCost}}</button>
                         `}
@@ -4636,7 +4682,7 @@
                         <!-- Lands & Artifacts Shelf -->
                         <div class="field-shelf-title">
                             <span>🏞️ Mana & Support Line</span>
-                            <span style="font-weight: 400; font-size: 0.68rem; color: #94a3b8;">(Click to tap/untap)</span>
+                            <span style="font-weight: 400; font-size: 0.68rem; color: #94a3b8;">(Click to tap/untap for mana)</span>
                         </div>
                         <div class="player-lands-shelf">
                             ${landsHtml}
@@ -4650,7 +4696,7 @@
                         <span style="font-size: 0.74rem; font-weight: 800; color: var(--arena-text-muted); text-transform: uppercase;">
                             🃏 Your Hand (${player.hand.length} cards)
                         </span>
-                        <span style="font-size: 0.72rem; color: #a855f7;">Click any highlighted card to cast or play (Instants playable anytime)</span>
+                        <span style="font-size: 0.72rem; color: #a855f7;">Tap lands/rocks to float mana into pool, then click card to cast</span>
                     </div>
                     <div class="arena-hand-tray">
                         ${handHtml}
@@ -4668,9 +4714,9 @@
                     </div>
 
                     <!-- Live Colored Mana Pool Display -->
-                    <div class="player-mana-pool-bar" title="Live Colored Mana Pool & Available Mana">
+                    <div class="player-mana-pool-bar" title="Live Colored Mana Pool & Available Floating Mana">
                         <div style="display: flex; align-items: center; gap: 4px; font-weight: 800; font-size: 0.78rem;">
-                            <span>💎 Pool:</span>
+                            <span>💎 Floating Pool:</span>
                         </div>
                         <div class="mana-pool-counter-group">
                             <span class="mana-counter-pill ${pool.W > 0 ? 'has-mana' : ''}" title="White Mana: ${pool.W || 0}">
@@ -4892,7 +4938,7 @@
             const cost = player.getCardCost(card, currentGame);
             const available = player.getAvailableMana().total;
             if (available < cost) {
-                alert(`Cannot cast **${card.name}**: Need ${cost} mana (${card.manaCost || `{${cost}}`}), but you currently have only ${available} untapped mana available!\n\n💡 Tap your lands or mana rocks in the "Mana & Support Line" to produce mana first.`);
+                alert(`Cannot cast ${card.name}: Need {${cost}} mana in floating pool, but you currently have only {${available}}!\n\n💡 Tap your lands or mana rocks in the "Mana & Support Line" to produce mana first.`);
                 return;
             }
         }
@@ -4915,6 +4961,7 @@
             }, 650);
         }
 
+        const spellCost = !card.isLand ? player.getCardCost(card, currentGame) : 0;
         let res = null;
         if (currentGame.playCard) {
             res = await currentGame.playCard(cardId);
@@ -4924,6 +4971,10 @@
         if (res && !res.success) {
             alert(res.message);
             return;
+        }
+
+        if (spellCost > 0 && typeof player.deductMana === 'function') {
+            player.deductMana(spellCost);
         }
 
         if (res && res.logs) appendArenaLogs(res.logs);
@@ -4960,7 +5011,7 @@
         const totalCost = (cmdr.cmc || 0) + player.commanderTax;
         const available = player.getAvailableMana().total;
         if (available < totalCost) {
-            alert(`Need ${totalCost} mana to cast ${cmdr.name} (Base: {${cmdr.cmc || 0}}, Tax: {${player.commanderTax}}), but only have ${available} untapped mana available!`);
+            alert(`Need {${totalCost}} mana to cast ${cmdr.name} (Base: {${cmdr.cmc || 0}}, Tax: {${player.commanderTax}}), but you currently have only {${available}} floating mana in your pool!\n\n💡 Tap your lands or rocks first to add mana to your pool.`);
             return;
         }
 
@@ -4986,6 +5037,10 @@
         if (res && !res.success) {
             alert(res.message);
             return;
+        }
+
+        if (totalCost > 0 && typeof player.deductMana === 'function') {
+            player.deductMana(totalCost);
         }
 
         if (res && res.logs) appendArenaLogs(res.logs);
@@ -5566,13 +5621,6 @@
         selectedBottomCardIds.clear();
         const overlay = document.getElementById('arenaMulliganOverlay');
         if (overlay) overlay.style.display = 'none';
-        if (currentGame && currentGame.currentPhase === 'UNTAP') {
-            currentGame.currentPhase = 'MAIN_1';
-            const p1 = currentGame.players[0];
-            p1.untapAll();
-            p1.landPlayedThisTurn = false;
-            updateArenaDOM();
-        }
     };
 
     window.renderMulliganModal = function () {
@@ -5820,13 +5868,26 @@
                 message: `⚔️ **All players have kept opening hands! Starting Turn 1.**`
             }]);
 
-            // Advance to Turn 1 Pre-Combat Main Phase (MAIN_1)
-            currentGame.currentPhase = 'MAIN_1';
-            const p1 = currentGame.players[0];
-            if (p1 && p1.untapAll) p1.untapAll();
-            if (p1) p1.landPlayedThisTurn = false;
+            // Lock the kept hand so it persists and doesn't get reverted by raw JSON
+            if (player) {
+                player.handLocked = true;
+                player.keptHandCards = [...(player.hand || [])];
+            }
 
             window.closeMulliganModal();
+
+            // ADVANCE ENGINE: Step through UNTAP -> UPKEEP -> DRAW -> MAIN_1 so the starting player begins in MAIN_1!
+            let steps = 0;
+            while (currentGame.currentPhase !== 'MAIN_1' && currentGame.currentPhase !== 'MAIN1' && steps < 10) {
+                const stepRes = await currentGame.stepPhase();
+                steps++;
+                if (stepRes && stepRes.logs) appendArenaLogs(stepRes.logs);
+            }
+            const p1 = currentGame.players[0];
+            if (p1 && currentGame.activePlayerIndex === 0) {
+                p1.landPlayedThisTurn = false;
+            }
+
             updateArenaDOM();
         } catch (err) {
             console.error("keepPlayerOpeningHand error:", err);
@@ -6011,6 +6072,16 @@
         if (overlay) overlay.style.display = 'flex';
     };
 
+    window.selectedStartingPlayerChoice = 'random';
+    window.setStartingPlayerChoice = function (choice) {
+        window.selectedStartingPlayerChoice = choice;
+        document.querySelectorAll('.turn-order-pill').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeBtn = document.getElementById(`turnOrder_${choice}`);
+        if (activeBtn) activeBtn.classList.add('active');
+    };
+
     window.closeArenaSetup = function () {
         const overlay = document.getElementById('arenaSetupOverlay');
         if (overlay) overlay.style.display = 'none';
@@ -6088,6 +6159,39 @@
             message: `🚀 **Launching Official Card-Forge WebAssembly Engine...** Commanding **${selectedDecks[0].commander || selectedDecks[0].name}** against 3 bot opponents.`
         }]);
 
+        // Determine starting player (Turn Order)
+        let startingPlayerIndex = 0;
+        const startingChoice = window.selectedStartingPlayerChoice || 'random';
+        if (startingChoice === 'random') {
+            const rolls = [
+                { idx: 0, name: selectedDecks[0].commander || selectedDecks[0].name || 'You', roll: Math.floor(Math.random() * 20) + 1 },
+                { idx: 1, name: selectedDecks[1].commander || selectedDecks[1].name || 'Opponent 1', roll: Math.floor(Math.random() * 20) + 1 },
+                { idx: 2, name: selectedDecks[2].commander || selectedDecks[2].name || 'Opponent 2', roll: Math.floor(Math.random() * 20) + 1 },
+                { idx: 3, name: selectedDecks[3].commander || selectedDecks[3].name || 'Opponent 3', roll: Math.floor(Math.random() * 20) + 1 },
+            ];
+            // Handle any tie for top roll
+            let maxRoll = -1;
+            rolls.forEach(r => { if (r.roll > maxRoll) maxRoll = r.roll; });
+            const topTies = rolls.filter(r => r.roll === maxRoll);
+            if (topTies.length > 1) {
+                topTies[0].roll += 1;
+            }
+            rolls.sort((a, b) => b.roll - a.roll);
+            startingPlayerIndex = rolls[0].idx;
+            const rollsSummary = rolls.map(r => `${r.name}: **${r.roll}**`).join(' | ');
+            appendArenaLogs([{
+                type: 'DICE_ROLL',
+                message: `🎲 **Turn Order Roll-Off (d20)**: ${rollsSummary} ➔ **${rolls[0].name}** won the roll and takes the first turn!`
+            }]);
+        } else {
+            startingPlayerIndex = parseInt(startingChoice, 10) || 0;
+            const chosenStarter = selectedDecks[startingPlayerIndex].commander || selectedDecks[startingPlayerIndex].name || (startingPlayerIndex === 0 ? 'You' : `Seat ${startingPlayerIndex + 1}`);
+            appendArenaLogs([{
+                type: 'TURN_ORDER',
+                message: `👑 **Turn Order**: **${chosenStarter}** (Seat ${startingPlayerIndex + 1}) was selected to go first.`
+            }]);
+        }
+
         // Check player deck for engine issues and log if present
         const playerIssues = checkDeckForEngineIssues(selectedDecks[0]);
         if (playerIssues.length > 0) {
@@ -6099,7 +6203,7 @@
 
         if (window.ForgeArena) {
             try {
-                currentGame = await window.ForgeArena.startMatch(selectedDecks);
+                currentGame = await window.ForgeArena.startMatch(selectedDecks, startingPlayerIndex);
                 window.currentGame = currentGame;
             } catch (err) {
                 console.error("Card-Forge Engine launch error:", err);

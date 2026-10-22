@@ -4,6 +4,38 @@ All notable changes to the Commander Draft Challenge application are documented 
 
 ---
 
+## [v9.2] - Forge Playtester Turn Order, Mulligan Persistence, Phase Flow & Floating Mana Engine
+
+### 🔄 Mulligan Hand Persistence
+- Fixed match start resetting kept hands back to the initial pre-mulligan hand.
+- Kept hands are now locked via `player.handLocked` and synchronized with Card-Forge engine state.
+
+### 🎲 Customizable Turn Order & Starting Player
+- Added Turn Order selector in Pod Setup with 5 options:
+  - **Random (High Roll)**: Simulates a multiplayer d20 roll-off with tie-breakers and logs rolls.
+  - **I Go First (Seat 1)**: Player takes Turn 1.
+  - **Opponent 1 (Seat 2)** / **Opponent 2 (Seat 3)** / **Opponent 3 (Seat 4)**: Selected bot opponent takes Turn 1.
+- Updated `ForgeWebBridge.java` with overloaded `startCommanderMatchWithDecks` accepting starting player index to initialize Forge's `startFirstTurn()`.
+
+### ⏱️ Turn 1 Phase Sequencing & Single Land Drop Enforcement
+- Starting player now advances through `UNTAP` -> `UPKEEP` -> `DRAW` directly into `MAIN_1` when keeping their hand.
+- Eliminates turn 1 phase hopping that previously bounced from Main 1 to Draw and back to Main 1.
+- Enforces strict MTG Rule 305.2 (1 land drop per turn) with automatic reset when a player's turn begins.
+
+### 💎 Active Floating Mana Pool Requirement
+- Cards can no longer be cast merely because untapped lands sit on the battlefield.
+- Players must explicitly tap lands or mana rocks in the "Mana & Support Line" to float mana into their `player.manaPool` first.
+- Spells and commander casts validate and deduct floating mana upon casting, with guidance tooltips indicating mana required.
+
+### ⚡ Automatic ETB & Stack Trigger Resolution (e.g., Nazgûl & Ring Tempting)
+- Resolved an issue where cards entering the battlefield (such as **Nazgûl**) did not immediately trigger and resolve their enters-the-battlefield (ETB) and chain abilities (Ring Tempting +1/+1 counter placement).
+- Updated `ForgeWebBridge.java` to execute automated stack & trigger resolution loops (`resolveStackAndTriggers()`) upon playing lands, casting spells, and entering creatures.
+- Serialized card counters (`Multiset<CounterType>`) and power/toughness in Forge game state.
+- Enhanced Arena card frame with glowing `.buffed` power/toughness bubbles and `+X` counter badges.
+- Implemented fallback Nazgûl / Ring Tempting ETB mechanics in `commander-engine.js`.
+
+---
+
 ## [v9.1] - Opening Hand & London Mulligan Engine Fix
 
 ### 🃏 Full London Mulligan & Hand Refresh
