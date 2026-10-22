@@ -4,6 +4,27 @@ All notable changes to the Commander Draft Challenge application are documented 
 
 ---
 
+## [v10.3] - Comprehensive Trigger Coverage: ETBs, Actions, Abilities & Phase Changes (MTG Comp Rules 603)
+
+### ⚡ Universal Trigger Mechanics & Phase Synchronization (Rule 603 & 603.6)
+- **Phase Change Triggers (Rule 500 & 603)**:
+  - Added support for all Forge card script phase names: `BeginCombat` (Rule 507), `EndCombat` (Rule 511), `Main1` & `Main2` (Rule 505), alongside `Upkeep` (Rule 503) and `End of Turn` (Rule 513).
+  - Wired `triggerPhase` into `PHASES.COMBAT_BEGIN`, `PHASES.COMBAT_END`, and `PHASES.MAIN_1`/`PHASES.MAIN_2` in `stepPhase()`, handling comma-separated script phases like `Main1,Main2`.
+  - APNAP Ordering: Evaluates active player triggers first, followed by non-active players in turn order (Rule 603.3b).
+- **Universal Enters-the-Battlefield Triggers (Rule 603.6a & 603.6c)**:
+  - Universal evaluation loop for `Mode$ ChangesZone | Destination$ Battlefield`, checking both self-triggers on the entering card and all other permanents on the battlefield.
+  - **Landfall Support**: Land plays now invoke `triggerETB(land, player)` as well as `triggerSpellCast`, properly triggering card scripts on lands entering the battlefield.
+  - **Token ETB (Rule 111.6)**: Token creation in `executeForgeTrigger` now passes each created token through `triggerETB(tok, controller)`, triggering permanent/creature entry abilities (e.g. Dragon Tempest, Terror of the Peaks).
+- **Triggers from Actions (Attacks, Combat Damage, Deaths & Sacrifices)**:
+  - **Attack Triggers (Rule 508.1m)**: Implemented universal `Mode$ Attacks` trigger loop matching against Forge card scripts. Connected `triggerAttacks` directly to human attack declarations in `declareHumanAttacks`.
+  - **Combat Damage Triggers (Rule 510.3)**: Added universal evaluation for `Mode$ DamageDone`, `DamageDoneOnce`, and `DamageAll` with `CombatDamage$ True` when creatures deal combat damage to players.
+  - **Death & Sacrifice Triggers (Rule 603.6c & 701.17)**: Verified death triggers (`Mode$ ChangesZone | Origin$ Battlefield | Destination$ Graveyard`) and sacrifice actions.
+- **Card-Forge & Web Engine Synchronization**:
+  - Recompiled and bundled `ForgeWebBridge.java` into `patches.jar` with `resolveStackAndTriggers()` to ensure Forge resolves state-based effects and triggered abilities immediately following attack declarations.
+  - Synced engine between `public/commander-engine.js` and `functions/commander-engine.js`.
+
+---
+
 ## [v10.2] - Seamless Ending Phase: End Step & Cleanup Combined (MTG Rules 512, 513 & 514)
 
 ### 🧹 Unified Ending Phase Flow (Rules 512.1, 513.1 & 514)

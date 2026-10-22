@@ -398,6 +398,10 @@
                 if (tok) {
                     tok.summoningSick = !tok.keywords.has('haste');
                     controller.battlefield.push(tok);
+                    if (game && game.triggerETB) {
+                        const tokEtb = game.triggerETB(tok, controller);
+                        if (tokEtb && tokEtb.length > 0) logs.push(...tokEtb);
+                    }
                 }
             }
             const tokenReadable = scriptKey.replace(/^[a-z]+_\d+_\d+_/, '').replace(/_/g, ' ');
@@ -535,6 +539,61 @@
                     playerName: controller.name,
                     card: sourceCard,
                     message: `🧟 **${sourceCard.name}** amassed **${amount}** on **${army.name}** (${controller.getEffectivePower(army)}/${controller.getEffectiveToughness(army)})!`
+                });
+            }
+        }
+
+        // G. DealDamage / Damage effects (e.g. Scourge of Valkas, Dragon Tempest, Tectonic Giant)
+        else if (effectParams.DB === 'DealDamage' || effectParams.AB === 'DealDamage' || effectParams.DB === 'Damage' || effectParams.AB === 'Damage') {
+            let dmg = 1;
+            if (effectParams.NumDmg === 'NumDragons' || effectParams.NumDmg === 'X') {
+                const dragonsCount = controller.battlefield ? controller.battlefield.filter(c => c.name.toLowerCase().includes('dragon') || (c.subtypes && c.subtypes.has('dragon'))).length : 1;
+                dmg = dragonsCount || 1;
+            } else if (effectParams.NumDmg) {
+                dmg = parseInt(effectParams.NumDmg, 10) || 1;
+            }
+            const opponents = game?.players ? game.players.filter(p => p.id !== controller.id && p.isAlive) : [];
+            if (opponents.length > 0) {
+                const opp = opponents[0];
+                opp.life -= dmg;
+                logs.push({
+                    type: 'TRIGGER',
+                    card: sourceCard,
+                    message: `🔥 **${sourceCard.name}** trigger: Dealt **${dmg}** damage to ${opp.name}!`
+                });
+                if (opp.life <= 0) opp.eliminate(`Reduced to 0 life by ${sourceCard.name}`);
+            }
+        }
+
+        // H. Destroy effect (e.g. Reclamation Sage)
+        else if (effectParams.DB === 'Destroy' || effectParams.AB === 'Destroy') {
+            const opponents = game?.players ? game.players.filter(p => p.id !== controller.id && p.isAlive) : [];
+            for (const opp of opponents) {
+                const target = opp.battlefield ? opp.battlefield.find(c => (c.isArtifact || c.isEnchantment) && (!c.keywords || (!c.keywords.has('indestructible') && !c.keywords.has('hexproof')))) : null;
+                if (target) {
+                    opp.sendToGraveyardOrCommandZone(target, game);
+                    logs.push({
+                        type: 'TRIGGER',
+                        card: sourceCard,
+                        message: `💥 **${sourceCard.name}** trigger: Destroyed ${opp.name}'s **${target.name}**!`
+                    });
+                    break;
+                }
+            }
+        }
+
+        // I. Pump effects (e.g. Dragon Tempest haste, Atarka double strike)
+        else if (effectParams.DB === 'Pump' || effectParams.AB === 'Pump') {
+            const kw = (effectParams.KW || '').toLowerCase();
+            const target = eventData.castCard || eventData.enteringCard || sourceCard;
+            if (target && target.keywords && kw) {
+                kw.split('&').map(k => k.trim()).forEach(k => {
+                    target.keywords.add(k);
+                });
+                logs.push({
+                    type: 'TRIGGER',
+                    card: sourceCard,
+                    message: `⚡ **${sourceCard.name}** trigger: Granted **${kw}** to **${target.name}**!`
                 });
             }
         }
@@ -1376,6 +1435,10 @@
             if (game && game.triggerSpellCast) {
                 const landTrigs = game.triggerSpellCast(land, this);
                 if (landTrigs && landTrigs.length > 0) logs.push(...landTrigs);
+            }
+            if (game && game.triggerETB) {
+                const etbLogs = game.triggerETB(land, this);
+                if (etbLogs && etbLogs.length > 0) logs.push(...etbLogs);
             }
 
             return {
@@ -2567,6 +2630,10 @@
                     break;
 
                 case PHASES.MAIN_1:
+                    {
+                        const mainTrigs = this.triggerPhase(PHASES.MAIN_1, activePlayer);
+                        if (mainTrigs.length > 0) phaseLogs.push(...mainTrigs);
+                    }
                     // Rule 505.4: Turn-based action - Active player puts a lore counter on each Saga they control
                     if (activePlayer && activePlayer.battlefield) {
                         activePlayer.battlefield.forEach(c => {
@@ -2584,6 +2651,13 @@
                     if (activePlayer.isAI) {
                         const mainLogs = CommanderBotAI.takeMainPhaseActions(this, activePlayer);
                         phaseLogs.push(...mainLogs);
+                    }
+                    break;
+
+                case PHASES.COMBAT_BEGIN:
+                    {
+                        const beginTrigs = this.triggerPhase(PHASES.COMBAT_BEGIN, activePlayer);
+                        if (beginTrigs.length > 0) phaseLogs.push(...beginTrigs);
                     }
                     break;
 
@@ -2623,6 +2697,10 @@
                     break;
 
                 case PHASES.COMBAT_END:
+                    {
+                        const endCombatTrigs = this.triggerPhase(PHASES.COMBAT_END, activePlayer);
+                        if (endCombatTrigs.length > 0) phaseLogs.push(...endCombatTrigs);
+                    }
                     // Rule 702.147: Sacrifice attacking creatures with Decayed
                     {
                         const decayedAttackers = activePlayer.battlefield.filter(c => c.attacksThisTurn && c.keywords && c.keywords.has('decayed'));
@@ -2637,6 +2715,10 @@
                     break;
 
                 case PHASES.MAIN_2:
+                    {
+                        const main2Trigs = this.triggerPhase(PHASES.MAIN_2, activePlayer);
+                        if (main2Trigs.length > 0) phaseLogs.push(...main2Trigs);
+                    }
                     if (activePlayer.isAI) {
                         const postCombatLogs = CommanderBotAI.takeMainPhaseActions(this, activePlayer);
                         phaseLogs.push(...postCombatLogs);
@@ -2826,6 +2908,9 @@
                     attackers: declaredAttacks.map(d => d.attacker),
                     targetPlayer: declaredAttacks[0].targetPlayer
                 };
+
+                const atkTrigs = this.triggerAttacks(declaredAttacks.map(d => d.attacker), activePlayer, declaredAttacks[0].targetPlayer);
+                if (atkTrigs && atkTrigs.length > 0) logs.push(...atkTrigs);
             } else {
                 this._pendingCombat = null;
                 logs.push({
@@ -2944,7 +3029,13 @@
             const logs = [];
             if (!activePlayer || !this.players) return logs;
 
-            const forgePhaseName = phaseName === PHASES.UPKEEP ? 'Upkeep' : (phaseName === PHASES.END_STEP ? 'End of Turn' : phaseName);
+            let forgePhaseName = phaseName;
+            if (phaseName === PHASES.UPKEEP) forgePhaseName = 'Upkeep';
+            else if (phaseName === PHASES.END_STEP) forgePhaseName = 'End of Turn';
+            else if (phaseName === PHASES.COMBAT_BEGIN) forgePhaseName = 'BeginCombat';
+            else if (phaseName === PHASES.COMBAT_END) forgePhaseName = 'EndCombat';
+            else if (phaseName === PHASES.MAIN_1) forgePhaseName = 'Main1';
+            else if (phaseName === PHASES.MAIN_2) forgePhaseName = 'Main2';
 
             // APNAP order: Active Player first, then Non-Active Players in turn order (Rule 603.3b)
             const apIndex = this.players.findIndex(p => p.id === activePlayer.id);
@@ -2962,7 +3053,8 @@
                     if (source.forgeTriggers && Array.isArray(source.forgeTriggers)) {
                         source.forgeTriggers.forEach(trigStr => {
                             const params = parseForgeParams(trigStr);
-                            if (params.Mode === 'Phase' && params.Phase === forgePhaseName) {
+                            const phaseMatches = params.Phase && params.Phase.split(',').map(s => s.trim()).includes(forgePhaseName);
+                            if (params.Mode === 'Phase' && phaseMatches) {
                                 if (params.ValidPlayer === 'You' && p.id !== activePlayer.id) return;
                                 if (params.ValidPlayer === 'Opponent' && p.id === activePlayer.id) return;
                                 const trigLogs = executeForgeTrigger(trigStr, source, p, this);
@@ -3012,9 +3104,48 @@
         triggerETB(card, controller) {
             const logs = [];
             if (!card || !controller) return logs;
+            const executedSourceIds = new Set();
 
-            // 1. Reclamation Sage: Destroy target artifact or enchantment
-            if (card.name.includes('Reclamation Sage')) {
+            // 1. Universal Forge ETB Triggers (ChangesZone -> Battlefield)
+            this.players.forEach(p => {
+                // Check self trigger on the entering card
+                if (card.ownerId === p.id && card.forgeTriggers && Array.isArray(card.forgeTriggers)) {
+                    card.forgeTriggers.forEach(trigStr => {
+                        const params = parseForgeParams(trigStr);
+                        if (params.Mode === 'ChangesZone' && params.Destination === 'Battlefield') {
+                            if (matchesForgeFilter(card, params.ValidCard, p, card, this, { enteringCard: card })) {
+                                const trigLogs = executeForgeTrigger(trigStr, card, p, this, { enteringCard: card });
+                                if (trigLogs.length > 0) {
+                                    logs.push(...trigLogs);
+                                    executedSourceIds.add(card.id);
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Check other permanents already on the battlefield
+                p.battlefield.forEach(source => {
+                    if (source.id !== card.id && source.forgeTriggers && Array.isArray(source.forgeTriggers)) {
+                        source.forgeTriggers.forEach(trigStr => {
+                            const params = parseForgeParams(trigStr);
+                            if (params.Mode === 'ChangesZone' && params.Destination === 'Battlefield') {
+                                if (matchesForgeFilter(card, params.ValidCard, p, source, this, { enteringCard: card })) {
+                                    const trigLogs = executeForgeTrigger(trigStr, source, p, this, { enteringCard: card });
+                                    if (trigLogs.length > 0) {
+                                        logs.push(...trigLogs);
+                                        executedSourceIds.add(source.id);
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
+            });
+
+            // 2. Specific Fallback Handlers
+            // Reclamation Sage: Destroy target artifact or enchantment
+            if (card.name.includes('Reclamation Sage') && !executedSourceIds.has(card.id)) {
                 const opponents = this.players.filter(p => p.id !== controller.id && p.isAlive);
                 for (const opp of opponents) {
                     const target = opp.battlefield.find(c => (c.isArtifact || c.isEnchantment) && (!c.keywords || (!c.keywords.has('indestructible') && !c.keywords.has('hexproof'))));
@@ -3029,8 +3160,8 @@
                 }
             }
 
-            // 2. Scourge of Valkas: Deal X damage to target opponent (X = number of Dragons)
-            if (card.name.includes('Scourge of Valkas') || (card.subtypes && card.subtypes.has('dragon'))) {
+            // Scourge of Valkas: Deal X damage to target opponent (X = number of Dragons)
+            if ((card.name.includes('Scourge of Valkas') || (card.subtypes && card.subtypes.has('dragon'))) && !executedSourceIds.has(card.id)) {
                 const valkasCards = controller.battlefield.filter(c => c.name.includes('Scourge of Valkas'));
                 if (valkasCards.length > 0) {
                     const dragonsCount = controller.battlefield.filter(c => c.name.includes('Dragon') || (c.subtypes && c.subtypes.has('dragon'))).length;
@@ -3047,7 +3178,7 @@
                 }
             }
 
-            // 3. Diregraf Colossus: Enters with +1/+1 counters equal to number of Zombie cards in graveyard
+            // Diregraf Colossus: Enters with +1/+1 counters equal to number of Zombie cards in graveyard
             if (card.name.includes('Diregraf Colossus')) {
                 const zombiesInGrave = controller.graveyard.filter(c => c.name.includes('Zombie') || (c.subtypes && c.subtypes.has('zombie'))).length;
                 if (zombiesInGrave > 0) {
@@ -3059,9 +3190,9 @@
                 }
             }
 
-            // 4. Marwyn, the Nurturer: Whenever another Elf enters, put a +1/+1 counter on Marwyn
+            // Marwyn, the Nurturer: Whenever another Elf enters, put a +1/+1 counter on Marwyn
             if (card.subtypes && card.subtypes.has('elf')) {
-                const marwyns = controller.battlefield.filter(c => c.name.includes('Marwyn') && c.id !== card.id);
+                const marwyns = controller.battlefield.filter(c => c.name.includes('Marwyn') && c.id !== card.id && !executedSourceIds.has(c.id));
                 marwyns.forEach(m => {
                     m.counters['+1/+1'] = (m.counters['+1/+1'] || 0) + 1;
                     logs.push({
@@ -3071,7 +3202,7 @@
                 });
             }
 
-            // 5. Diregraf Colossus cast/ETB Zombie token:
+            // Diregraf Colossus cast/ETB Zombie token:
             if (card.subtypes && card.subtypes.has('zombie')) {
                 const colossi = controller.battlefield.filter(c => c.name.includes('Diregraf Colossus') && c.id !== card.id);
                 if (colossi.length > 0) {
@@ -3091,7 +3222,7 @@
                 }
             }
 
-            // 6. Nazgûl: When Nazgûl enters, the Ring tempts you. Whenever the Ring tempts you, put a +1/+1 counter on each Wraith you control.
+            // Nazgûl: When Nazgûl enters, the Ring tempts you. Whenever the Ring tempts you, put a +1/+1 counter on each Wraith you control.
             if (card.name.toLowerCase().includes('nazg') || (card.oracleText && card.oracleText.includes('Ring tempts you'))) {
                 controller.ringTemptCount = (controller.ringTemptCount || 0) + 1;
                 logs.push({
@@ -3127,9 +3258,33 @@
         triggerAttacks(attackers, attackerPlayer, targetPlayer) {
             const logs = [];
             if (!attackers || attackers.length === 0 || !attackerPlayer) return logs;
+            const executedSourceIds = new Set();
 
-            // 1. Atarka, World Render: Whenever a Dragon attacks, it gains double strike until end of combat
-            const hasAtarka = attackerPlayer.battlefield.some(c => c.name.includes('Atarka, World Render'));
+            // 1. Universal Forge Attack Triggers (Mode$ Attacks)
+            this.players.forEach(p => {
+                p.battlefield.forEach(source => {
+                    if (source.forgeTriggers && Array.isArray(source.forgeTriggers)) {
+                        source.forgeTriggers.forEach(trigStr => {
+                            const params = parseForgeParams(trigStr);
+                            if (params.Mode === 'Attacks') {
+                                attackers.forEach(atk => {
+                                    if (matchesForgeFilter(atk, params.ValidCard, p, source, this, { attacker: atk, targetPlayer })) {
+                                        const trigLogs = executeForgeTrigger(trigStr, source, p, this, { attacker: atk, targetPlayer });
+                                        if (trigLogs.length > 0) {
+                                            logs.push(...trigLogs);
+                                            executedSourceIds.add(source.id);
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            });
+
+            // 2. Specific Fallback Handlers
+            // Atarka, World Render: Whenever a Dragon attacks, it gains double strike until end of combat
+            const hasAtarka = attackerPlayer.battlefield.some(c => c.name.includes('Atarka, World Render') && !executedSourceIds.has(c.id));
             if (hasAtarka) {
                 attackers.forEach(atk => {
                     if (atk.name.includes('Dragon') || (atk.subtypes && atk.subtypes.has('dragon'))) {
@@ -3142,8 +3297,8 @@
                 });
             }
 
-            // 2. Utvara Hellkite: Whenever a Dragon attacks, create a 6/6 red Dragon creature token with flying
-            const hasUtvara = attackerPlayer.battlefield.some(c => c.name.includes('Utvara Hellkite'));
+            // Utvara Hellkite: Whenever a Dragon attacks, create a 6/6 red Dragon creature token with flying
+            const hasUtvara = attackerPlayer.battlefield.some(c => c.name.includes('Utvara Hellkite') && !executedSourceIds.has(c.id));
             if (hasUtvara) {
                 const attackingDragons = attackers.filter(atk => atk.name.includes('Dragon') || (atk.subtypes && atk.subtypes.has('dragon'))).length;
                 for (let i = 0; i < attackingDragons; i++) {
@@ -3165,13 +3320,12 @@
                 });
             }
 
-            // 3. The Ur-Dragon: Whenever one or more Dragons attack, draw that many cards, then put permanent from hand onto battlefield
+            // The Ur-Dragon: Whenever one or more Dragons attack, draw that many cards, then put permanent from hand onto battlefield
             const hasUrDragon = attackerPlayer.battlefield.some(c => c.name.includes('The Ur-Dragon'));
             if (hasUrDragon) {
                 const attackingDragons = attackers.filter(atk => atk.name.includes('Dragon') || (atk.subtypes && atk.subtypes.has('dragon'))).length;
                 if (attackingDragons > 0) {
                     const drawn = attackerPlayer.draw(attackingDragons);
-                    // Put a permanent card onto battlefield if in hand
                     const permIdx = attackerPlayer.hand.findIndex(c => c.isPermanent || c.isCreature || c.isLand || c.isArtifact || c.isEnchantment);
                     let droppedName = '';
                     if (permIdx !== -1) {
@@ -3198,9 +3352,33 @@
         triggerCombatDamage(attacker, attackerPlayer, defendingPlayer, damage) {
             const logs = [];
             if (!attacker || !attackerPlayer || damage <= 0) return logs;
+            const executedSourceIds = new Set();
 
-            // 1. Lathril, Blade of the Elves: Whenever Lathril deals combat damage to a player, create that many 1/1 green Elf Warrior tokens
-            if (attacker.name.includes('Lathril')) {
+            // 1. Universal Forge Damage Triggers (Mode$ DamageDone / DamageDoneOnce / DamageAll)
+            this.players.forEach(p => {
+                p.battlefield.forEach(source => {
+                    if (source.forgeTriggers && Array.isArray(source.forgeTriggers)) {
+                        source.forgeTriggers.forEach(trigStr => {
+                            const params = parseForgeParams(trigStr);
+                            if (params.Mode === 'DamageDone' || params.Mode === 'DamageDoneOnce' || params.Mode === 'DamageAll') {
+                                if (params.CombatDamage === 'True') {
+                                    if (matchesForgeFilter(attacker, params.ValidSource, p, source, this, { attacker, damage })) {
+                                        const trigLogs = executeForgeTrigger(trigStr, source, p, this, { attacker, damage, defendingPlayer });
+                                        if (trigLogs.length > 0) {
+                                            logs.push(...trigLogs);
+                                            executedSourceIds.add(source.id);
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
+            });
+
+            // 2. Specific Fallback Handlers
+            // Lathril, Blade of the Elves: Whenever Lathril deals combat damage to a player, create that many 1/1 green Elf Warrior tokens
+            if (attacker.name.includes('Lathril') && !executedSourceIds.has(attacker.id)) {
                 for (let i = 0; i < damage; i++) {
                     const elfToken = createCardInstance({
                         name: 'Elf Warrior Token',
@@ -3217,7 +3395,7 @@
                 });
             }
 
-            // 2. Professional Face-Breaker: Whenever one or more creatures deal combat damage to player, create a Treasure token
+            // Professional Face-Breaker: Whenever one or more creatures deal combat damage to player, create a Treasure token
             const hasFaceBreaker = attackerPlayer.battlefield.some(c => c.name.includes('Professional Face-Breaker'));
             if (hasFaceBreaker) {
                 const treasure = createCardInstance({
