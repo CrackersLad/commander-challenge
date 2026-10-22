@@ -210,11 +210,13 @@
                         manaPool: (isNewTurnOrActive && this.activePlayerIndex === idx) ? { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 } : (existing.manaPool || { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }),
 
                         hand: (() => {
-                            if (idx === 0 && existing.handLocked && existing.keptHandCards && existing.keptHandCards.length > 0) {
+                            if (pData.hand && Array.isArray(pData.hand)) {
+                                return pData.hand.map(c => enrichCard(c));
+                            }
+                            if (idx === 0 && existing.keptHandCards && existing.keptHandCards.length > 0) {
                                 return existing.keptHandCards;
                             }
-                            const newHand = (pData.hand || []).map(c => enrichCard(c));
-                            return newHand;
+                            return [];
                         })(),
                         commandZone: (pData.commandZone || []).map(c => enrichCard(c, true)),
                         battlefield: (pData.battlefield || []).map(c => enrichCard(c)),
@@ -374,17 +376,26 @@
                     this.currentPhase = nextPhase;
                 }
 
-                // If active player is Player 0 and passing through DRAW phase, execute turn draw
+                // If active player is Player 0 and passing through DRAW phase, handle turn draw (Rule 504.1)
                 const p1 = this.players[0];
                 if (p1 && this.activePlayerIndex === 0) {
                     const isDrawStep = this.currentPhase === 'DRAW' || prevPhase === 'DRAW' || (prevPhase === 'UPKEEP' && (this.currentPhase === 'MAIN_1' || this.currentPhase === 'MAIN1'));
                     if (isDrawStep && !this._turnDrewPlayer0) {
                         this._turnDrewPlayer0 = true;
-                        const drawn = typeof p1.draw === 'function' ? p1.draw(1) : [];
-                        if (drawn && drawn.length > 0) {
+                        if (!newJson) {
+                            // Fallback simulation mode without bridge
+                            const drawn = typeof p1.draw === 'function' ? p1.draw(1) : [];
+                            if (drawn && drawn.length > 0) {
+                                this.logs.push({
+                                    type: 'DRAW',
+                                    message: `📜 **${p1.name}** drew **${drawn[0].name}** for Turn ${this.turn}.`
+                                });
+                            }
+                        } else {
+                            // In Forge bridge mode, Forge engine already executed turn-based draw (Rule 504.1)
                             this.logs.push({
                                 type: 'DRAW',
-                                message: `📜 **${p1.name}** drew **${drawn[0].name}** for Turn ${this.turn}.`
+                                message: `📜 **${p1.name}** drew for Turn ${this.turn}.`
                             });
                         }
                     }
