@@ -490,6 +490,55 @@
             });
         }
 
+        // E. PutCounter effects (e.g. +1/+1 counters, lore counters, etc.)
+        else if (effectParams.DB === 'PutCounter' || effectParams.AB === 'PutCounter' || effectParams.SP === 'PutCounter') {
+            const rawType = effectParams.CounterType || 'P1P1';
+            const counterType = (rawType === 'P1P1' || rawType === '+1/+1') ? '+1/+1' : rawType;
+            let count = parseInt(effectParams.CounterNum, 10) || 1;
+            let targetCard = sourceCard;
+            if (effectParams.Defined === 'Self') {
+                targetCard = sourceCard;
+            } else if (effectParams.ValidTgts && controller.battlefield) {
+                targetCard = controller.battlefield.find(c => c.id === sourceCard.id) || controller.battlefield[0];
+            }
+            if (targetCard) {
+                targetCard.counters = targetCard.counters || {};
+                targetCard.counters[counterType] = (targetCard.counters[counterType] || 0) + count;
+                logs.push({
+                    type: 'TRIGGER',
+                    card: sourceCard,
+                    message: `🎯 **${sourceCard.name}** placed **${count}** ${counterType} counter(s) on **${targetCard.name}**!`
+                });
+            }
+        }
+
+        // F. Amass effects (e.g. Dreadhorde Invasion, Ring Temptation)
+        else if (effectParams.DB === 'Amass' || effectParams.AB === 'Amass') {
+            const amount = parseInt(effectParams.Amount, 10) || 1;
+            let army = controller.battlefield.find(c => c.subtypes?.has('army') || c.typeLine?.toLowerCase().includes('army'));
+            if (!army) {
+                army = createForgeToken('b_0_0_zombie_army', controller.id, createCardInstance);
+                if (army) {
+                    army.summoningSick = !army.keywords.has('haste');
+                    army.subtypes = army.subtypes || new Set();
+                    army.subtypes.add('zombie');
+                    army.subtypes.add('army');
+                    controller.battlefield.push(army);
+                }
+            }
+            if (army) {
+                army.counters = army.counters || {};
+                army.counters['+1/+1'] = (army.counters['+1/+1'] || 0) + amount;
+                logs.push({
+                    type: 'AMASS',
+                    playerId: controller.id,
+                    playerName: controller.name,
+                    card: sourceCard,
+                    message: `🧟 **${sourceCard.name}** amassed **${amount}** on **${army.name}** (${controller.getEffectivePower(army)}/${controller.getEffectiveToughness(army)})!`
+                });
+            }
+        }
+
         // Chain sub-ability if present (e.g. SubAbility$ DBEffect or DBGainLife)
         if (effectParams.SubAbility && sourceCard.forgeSVars[effectParams.SubAbility]) {
             const subStr = sourceCard.forgeSVars[effectParams.SubAbility];
@@ -2728,13 +2777,25 @@
 
             const forgePhaseName = phaseName === PHASES.UPKEEP ? 'Upkeep' : (phaseName === PHASES.END_STEP ? 'End of Turn' : phaseName);
 
-            this.players.forEach(p => {
+            // APNAP order: Active Player first, then Non-Active Players in turn order (Rule 603.3b)
+            const apIndex = this.players.findIndex(p => p.id === activePlayer.id);
+            const orderedPlayers = [];
+            if (apIndex >= 0) {
+                for (let i = 0; i < this.players.length; i++) {
+                    orderedPlayers.push(this.players[(apIndex + i) % this.players.length]);
+                }
+            } else {
+                orderedPlayers.push(...this.players);
+            }
+
+            orderedPlayers.forEach(p => {
                 p.battlefield.forEach(source => {
                     if (source.forgeTriggers && Array.isArray(source.forgeTriggers)) {
                         source.forgeTriggers.forEach(trigStr => {
                             const params = parseForgeParams(trigStr);
                             if (params.Mode === 'Phase' && params.Phase === forgePhaseName) {
                                 if (params.ValidPlayer === 'You' && p.id !== activePlayer.id) return;
+                                if (params.ValidPlayer === 'Opponent' && p.id === activePlayer.id) return;
                                 const trigLogs = executeForgeTrigger(trigStr, source, p, this);
                                 if (trigLogs.length > 0) logs.push(...trigLogs);
                             }

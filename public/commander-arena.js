@@ -4787,11 +4787,8 @@
                             <span style="color: #94a3b8;">Total:</span>
                             <span style="color: #38bdf8; font-weight: 900; font-size: 0.88rem;">${availableMana}</span>
                         </div>
-                        <button class="arena-btn" style="padding: 0.2rem 0.5rem; font-size: 0.68rem; margin-left: 0.25rem;" onclick="window.untapAllMyLands()" title="Untap all lands and reset pool">
-                            ⚡ Untap All
-                        </button>
                         ${totalFloating > 0 ? `
-                            <button class="arena-btn" style="padding: 0.2rem 0.45rem; font-size: 0.68rem;" onclick="window.clearManaPool()" title="Empty floating mana pool">
+                            <button class="arena-btn" style="padding: 0.2rem 0.45rem; font-size: 0.68rem; margin-left: 0.35rem;" onclick="window.clearManaPool()" title="Empty floating mana pool">
                                 🧹 Empty
                             </button>
                         ` : ''}
