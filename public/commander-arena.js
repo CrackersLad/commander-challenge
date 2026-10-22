@@ -4708,6 +4708,9 @@
             } else if (currentPhase === 'MAIN_2' || currentPhase === 'MAIN2') {
                 actionBtnText = 'End Turn ⏳';
                 actionBtnClass = 'action-trigger-btn arena-btn-gold';
+            } else if (currentPhase === 'END_STEP' || currentPhase === 'END_OF_TURN' || currentPhase === 'CLEANUP') {
+                actionBtnText = 'End Turn (Pass) ⏳';
+                actionBtnClass = 'action-trigger-btn arena-btn-gold';
             }
         } else {
             actionBtnText = 'Advance Bot Action 🤖';

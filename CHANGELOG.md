@@ -4,6 +4,19 @@ All notable changes to the Commander Draft Challenge application are documented 
 
 ---
 
+## [v10.2] - Seamless Ending Phase: End Step & Cleanup Combined (MTG Rules 512, 513 & 514)
+
+### 🧹 Unified Ending Phase Flow (Rules 512.1, 513.1 & 514)
+- **Comp Rules Section 512 Alignment**: Unified the End Step (Rule 513) and Cleanup Step (Rule 514) into one seamless execution to match authentic digital MTG flow (since players do not normally receive priority during cleanup per Rule 514.3).
+- **Rule 513.1 (End Step Triggers)**: All "at beginning of end step" triggers (e.g. Wilhelt zombie sacrifice/draw, Prosper top-card exile) fire and resolve.
+- **Rule 514.1 (Maximum Hand Size Discard)**: The active player discards down to their maximum hand size (7 cards). Discarded cards are placed into the owner's graveyard and logged with card names in the event stream.
+- **Rule 514.2 (Marked Damage Removal & Effect Expiration)**: All damage marked on creatures and permanents across the battlefield (`damageReceived`) is removed to 0, ensuring creatures heal before the next turn begins. Combat flags (`attacksThisTurn`, `blockedThisTurn`) reset.
+- **Rule 500.4 (Mana Pool Flush)**: All unspent floating mana in all players' mana pools empties.
+- **Instant Turn Hand-off**: Stepping the end step immediately executes cleanup and advances directly to the next player's Untap step without extra button clicks.
+- **Card-Forge Synchronization**: Recompiled `patches.jar` with explicit `PhaseType.CLEANUP` state handling in `ForgeWebBridge.java`.
+
+---
+
 ## [v10.1] - Post-Combat Main Phase 2 Synchronization & Strict Land Limit Enforcement (MTG Rule 305.2 & 505.4)
 
 ### 🌿 Main Phase 2 Structure & Turn-Wide Land Play Limits (Rules 305.2 & 505.4)

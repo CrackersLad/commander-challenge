@@ -1196,6 +1196,40 @@
             this.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
         }
 
+        cleanup(game = null) {
+            const logs = [];
+            // MTG Rule 514.1: Discard down to maximum hand size (normally 7)
+            const maxHandSize = this.maxHandSize || 7;
+            if (this.hand.length > maxHandSize) {
+                const discardedNames = [];
+                while (this.hand.length > maxHandSize) {
+                    const discarded = this.hand.pop();
+                    this.graveyard.push(discarded);
+                    discardedNames.push(discarded.name);
+                }
+                logs.push({
+                    type: 'DISCARD',
+                    playerId: this.id,
+                    playerName: this.name,
+                    message: `🗑️ **${this.name}** discarded down to ${maxHandSize} cards (${discardedNames.join(', ')}). (MTG Rule 514.1)`
+                });
+            }
+
+            // MTG Rule 514.2: Remove marked damage from permanents and expire until-end-of-turn effects
+            this.battlefield.forEach(c => {
+                c.damageReceived = 0;
+                c.attacksThisTurn = false;
+                c.blockedThisTurn = false;
+                c.producedMana = null;
+                c.paidLifeCost = null;
+            });
+
+            // MTG Rule 500.4: Empty unspent floating mana pool
+            this.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+
+            return logs;
+        }
+
         getEffectivePower(card) {
             if (!card || !card.isCreature) return 0;
             let p = card.basePower + (card.counters['+1/+1'] || 0);
@@ -2610,18 +2644,46 @@
                     break;
 
                 case PHASES.END_STEP:
-                    // Run all Card-Forge End of Turn triggers (Wilhelt sac/draw, Prosper exile top card, etc.)
+                    // MTG Rule 513.1: Run all beginning of end step triggers
                     {
                         const endTrigs = this.triggerPhase(PHASES.END_STEP, activePlayer);
                         if (endTrigs.length > 0) phaseLogs.push(...endTrigs);
                     }
+                    // MTG Rule 514: Seamlessly execute Cleanup Step in one (MTG Rule 514.3: Normally no priority during cleanup)
+                    {
+                        const cleanupLogs = activePlayer.cleanup(this);
+                        if (cleanupLogs.length > 0) phaseLogs.push(...cleanupLogs);
+
+                        // Clear marked damage and empty mana pools on all other players per Rule 514.2 & 500.4
+                        this.players.forEach(p => {
+                            if (p.id !== activePlayer.id) {
+                                p.battlefield.forEach(c => {
+                                    c.damageReceived = 0;
+                                    c.attacksThisTurn = false;
+                                    c.blockedThisTurn = false;
+                                });
+                                p.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+                            }
+                        });
+                    }
                     break;
 
                 case PHASES.CLEANUP:
-                    // Discard down to maximum hand size of 7
-                    while (activePlayer.hand.length > 7) {
-                        const discarded = activePlayer.hand.pop();
-                        activePlayer.graveyard.push(discarded);
+                    // Fallback for direct CLEANUP phase calls
+                    {
+                        const cleanupLogs = activePlayer.cleanup(this);
+                        if (cleanupLogs.length > 0) phaseLogs.push(...cleanupLogs);
+
+                        this.players.forEach(p => {
+                            if (p.id !== activePlayer.id) {
+                                p.battlefield.forEach(c => {
+                                    c.damageReceived = 0;
+                                    c.attacksThisTurn = false;
+                                    c.blockedThisTurn = false;
+                                });
+                                p.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+                            }
+                        });
                     }
                     break;
             }
@@ -2654,7 +2716,8 @@
             }
 
             // Advance phase or turn
-            if (nextPhase === PHASES.UNTAP) {
+            // When ending at END_STEP or CLEANUP, seamlessly pass turn to next player's UNTAP
+            if (this.currentPhase === PHASES.END_STEP || this.currentPhase === PHASES.CLEANUP || nextPhase === PHASES.CLEANUP || nextPhase === PHASES.UNTAP) {
                 // Pass turn to next alive player
                 let nextPlayerIdx = (this.activePlayerIndex + 1) % this.players.length;
                 while (!this.players[nextPlayerIdx].isAlive) {
