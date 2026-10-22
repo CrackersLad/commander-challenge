@@ -4411,6 +4411,7 @@
                     const effP = opp.getEffectivePower ? opp.getEffectivePower(c) : c.power;
                     const effT = opp.getEffectiveToughness ? opp.getEffectiveToughness(c) : c.toughness;
                     const cIssue = getCardEngineIssue(c.name);
+                    const cFlag = cIssue ? `<span class="card-engine-flag" title="⚠️ Engine Notice: [${escapeHtml(cIssue.category)}] ${escapeHtml(cIssue.reason)}">⚠️</span>` : '';
                     const ptCounters = Array.isArray(c.counters)
                         ? c.counters.filter(cnt => cnt.type === 'P1P1' || cnt.type === '+1/+1').reduce((s, cnt) => s + (cnt.count || 1), 0)
                         : (c.counters && c.counters['+1/+1'] ? c.counters['+1/+1'] : 0);
