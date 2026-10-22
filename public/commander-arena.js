@@ -14,6 +14,8 @@
     let playSpeedMs = 700;
     let isPaused = true;
     let selectedAttackerIds = new Set();
+    let attackerTargets = new Map(); // cardId -> { targetType: 'player'|'planeswalker', targetId, targetPlayerId, targetPlayerIndex, targetPlaneswalkerId, targetName }
+    let currentTargetingAttackerId = null;
     let selectedOpponentTargetId = null;
     let selectedBottomCardIds = new Set();
 
@@ -4278,6 +4280,31 @@
                     </div>
                 </div>
 
+                <!-- Declare Attacker Target Picker Modal Overlay (Rule 508.1b & 802.1) -->
+                <div class="arena-attack-modal" id="arenaAttackTargetModal" style="display: none;">
+                    <div class="arena-attack-card">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                <img id="attackTargetCardThumb" class="setup-seat-thumb" src="" alt="Card Art" style="width: 52px; height: 52px; border-radius: 8px; border: 1px solid #ef4444;" />
+                                <div>
+                                    <h3 id="attackTargetCardName" style="margin: 0; color: #fff; font-size: 1.15rem; font-weight: 800;">Card Name</h3>
+                                    <div id="attackTargetCardStats" style="font-size: 0.78rem; color: #ef4444; font-weight: 800; margin-top: 2px;">Power / Toughness</div>
+                                    <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">MTG Rule 508.1b &amp; 802.1: Choose Defending Player or Planeswalker</div>
+                                </div>
+                            </div>
+                            <button class="arena-btn" onclick="window.closeAttackTargetPicker()">✕</button>
+                        </div>
+
+                        <div id="attackTargetOptionsContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto;">
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                            <button class="arena-btn" id="attackRemoveTargetBtn" onclick="window.removeAttackerTarget()" style="background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #fca5a5;">❌ Do Not Attack</button>
+                            <button class="arena-btn" onclick="window.closeAttackTargetPicker()">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Opening Hand & Mulligan Modal Overlay -->
                 <div class="arena-mulligan-overlay" id="arenaMulliganOverlay"></div>
             </div>
@@ -4536,7 +4563,11 @@
             creatures.forEach(c => {
                 const tappedClass = c.tapped ? 'tapped' : '';
                 const isSelectedAtk = selectedAttackerIds.has(c.id);
+                const atkTarget = attackerTargets.get(c.id);
                 const atkSelectedClass = isSelectedAtk ? 'attacker-selected' : '';
+                const atkTargetBadge = isSelectedAtk && atkTarget
+                    ? `<span class="mtg-card-target-badge" title="Attacking ${escapeHtml(atkTarget.targetName)}">🎯 ${escapeHtml(atkTarget.targetName)}</span>`
+                    : (isSelectedAtk ? `<span class="mtg-card-target-badge" title="Attacking Opponent">🎯 Attacking</span>` : '');
                 const canAttackThisTurn = isMyTurn && currentPhase === 'DECLARE_ATTACKERS' && !c.tapped && !c.summoningSick;
                 const effP = player.getEffectivePower ? player.getEffectivePower(c) : c.power;
                 const effT = player.getEffectiveToughness ? player.getEffectiveToughness(c) : c.toughness;
@@ -4572,7 +4603,8 @@
                         ${counterBadge}
                         ${cFlag}
                         ${c.summoningSick ? '<span class="mtg-card-summoning-sick" title="Summoning Sickness">🌀</span>' : ''}
-                        ${canAttackThisTurn ? '<span style="position: absolute; top: 16px; left: 3px; font-size: 0.65rem; background: #ef4444; border-radius: 4px; padding: 1px 3px; font-weight: 900;">⚔️</span>' : ''}
+                        ${canAttackThisTurn && !isSelectedAtk ? '<span style="position: absolute; top: 16px; left: 3px; font-size: 0.65rem; background: #ef4444; border-radius: 4px; padding: 1px 3px; font-weight: 900;" title="Click to Declare Attack">⚔️</span>' : ''}
+                        ${atkTargetBadge}
                         ${abilityBadge}
                     </div>
                 `;
@@ -5521,7 +5553,7 @@
                 alert(`Cannot declare ${card.name} as an attacker: It is already tapped! (MTG Rule 508.1a)`);
                 return;
             }
-            window.toggleAttackerSelection(cardId);
+            window.openAttackTargetPicker(cardId);
             return;
         }
 
@@ -5654,21 +5686,144 @@
         updateArenaDOM();
     };
 
-    window.toggleAttackerSelection = function (cardId) {
+    window.openAttackTargetPicker = function (cardId) {
         if (!currentGame) return;
-        const activePlayer = currentGame.getActivePlayer();
         const player = currentGame.players[0];
+        const card = player.battlefield.find(c => String(c.id) === String(cardId));
+        if (!card) return;
 
-        if (activePlayer.id !== player.id || currentGame.currentPhase !== 'DECLARE_ATTACKERS') {
-            return;
+        currentTargetingAttackerId = cardId;
+        const modal = document.getElementById('arenaAttackTargetModal');
+        const nameEl = document.getElementById('attackTargetCardName');
+        const statsEl = document.getElementById('attackTargetCardStats');
+        const thumbEl = document.getElementById('attackTargetCardThumb');
+        const container = document.getElementById('attackTargetOptionsContainer');
+        const removeBtn = document.getElementById('attackRemoveTargetBtn');
+
+        if (!modal || !container) return;
+
+        if (nameEl) nameEl.textContent = card.name;
+        if (thumbEl) thumbEl.src = getCardArtCropUrl(card.name);
+        const effP = player.getEffectivePower ? player.getEffectivePower(card) : card.power;
+        const effT = player.getEffectiveToughness ? player.getEffectiveToughness(card) : card.toughness;
+        const kwList = card.keywords ? Array.from(card.keywords).join(', ') : '';
+        if (statsEl) statsEl.textContent = `⚔️ ${effP}/${effT}${kwList ? ' • ' + kwList : ''}`;
+
+        const isCurrentlyAttacking = selectedAttackerIds.has(cardId);
+        if (removeBtn) {
+            removeBtn.style.display = isCurrentlyAttacking ? 'inline-block' : 'none';
         }
 
-        if (selectedAttackerIds.has(cardId)) {
-            selectedAttackerIds.delete(cardId);
-        } else {
-            selectedAttackerIds.add(cardId);
+        const currentTarget = attackerTargets.get(cardId);
+
+        let html = '';
+
+        // Section 1: Defending Opponents (Rule 802.1)
+        html += `<div class="arena-target-section-title"><span>👑</span> Defending Opponents (Rule 802.1):</div>`;
+        const aliveOpponents = currentGame.players.slice(1).filter(p => p.isAlive);
+        aliveOpponents.forEach(opp => {
+            const oppIdx = currentGame.players.indexOf(opp);
+            const isSelected = currentTarget && currentTarget.targetType === 'player' && String(currentTarget.targetPlayerId) === String(opp.id);
+            html += `
+                <button class="arena-target-btn ${isSelected ? 'active-target' : ''}" onclick="window.selectAttackerTarget('player', '${opp.id}', ${oppIdx}, 0, '${escapeHtml(opp.name)}')">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.1rem;">🎯</span>
+                        <div style="text-align: left;">
+                            <div style="font-weight: 800; color: #fff;">${escapeHtml(opp.name)}</div>
+                            <div style="font-size: 0.72rem; color: #94a3b8;">Seat ${oppIdx + 1} • Hand: ${opp.hand ? opp.hand.length : 0} cards</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="font-size: 0.85rem; font-weight: 900; color: #22c55e;">❤️ ${opp.life}</span>
+                        ${isSelected ? '<span style="color: #ef4444; font-weight: 900;">✓ TARGETED</span>' : ''}
+                    </div>
+                </button>
+            `;
+        });
+
+        // Section 2: Defending Planeswalkers (Rule 508.1b)
+        const planeswalkers = [];
+        aliveOpponents.forEach(opp => {
+            const oppIdx = currentGame.players.indexOf(opp);
+            (opp.battlefield || []).forEach(c => {
+                if (c.isPlaneswalker || (c.typeLine && c.typeLine.toLowerCase().includes('planeswalker'))) {
+                    planeswalkers.push({ card: c, controller: opp, controllerIndex: oppIdx });
+                }
+            });
+        });
+
+        if (planeswalkers.length > 0) {
+            html += `<div class="arena-target-section-title" style="margin-top: 8px;"><span>🛡️</span> Defending Planeswalkers (Rule 508.1b):</div>`;
+            planeswalkers.forEach(pwInfo => {
+                const pw = pwInfo.card;
+                const ctrl = pwInfo.controller;
+                const ctrlIdx = pwInfo.controllerIndex;
+                const loyalty = Array.isArray(pw.counters)
+                    ? (pw.counters.find(cnt => cnt.type === 'LOYALTY' || cnt.type === 'loyalty')?.count || pw.loyalty || 0)
+                    : (pw.counters && pw.counters.LOYALTY ? pw.counters.LOYALTY : (pw.loyalty || 0));
+
+                const isSelected = currentTarget && currentTarget.targetType === 'planeswalker' && (String(currentTarget.targetPlaneswalkerId) === String(pw.id) || String(currentTarget.targetId) === String(pw.id));
+
+                html += `
+                    <button class="arena-target-btn ${isSelected ? 'active-target' : ''}" onclick="window.selectAttackerTarget('planeswalker', '${pw.id}', ${ctrlIdx}, '${pw.id}', '${escapeHtml(pw.name)}')">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.1rem;">🛡️</span>
+                            <div style="text-align: left;">
+                                <div style="font-weight: 800; color: #c084fc;">${escapeHtml(pw.name)}</div>
+                                <div style="font-size: 0.72rem; color: #94a3b8;">Controlled by ${escapeHtml(ctrl.name)}</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span style="font-size: 0.85rem; font-weight: 900; color: #f59e0b;">⚡ ${loyalty} Loyalty</span>
+                            ${isSelected ? '<span style="color: #ef4444; font-weight: 900;">✓ TARGETED</span>' : ''}
+                        </div>
+                    </button>
+                `;
+            });
         }
+
+        container.innerHTML = html;
+        modal.style.display = 'flex';
+    };
+
+    window.closeAttackTargetPicker = function () {
+        currentTargetingAttackerId = null;
+        const modal = document.getElementById('arenaAttackTargetModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.selectAttackerTarget = function (targetType, targetId, targetPlayerIndex, targetPlaneswalkerId, targetName) {
+        if (!currentTargetingAttackerId) return;
+        const cardId = currentTargetingAttackerId;
+        const targetPlayer = currentGame.players[targetPlayerIndex] || currentGame.players.find(p => p.id === targetId);
+
+        attackerTargets.set(cardId, {
+            cardId,
+            targetType,
+            targetId,
+            targetPlayerId: targetPlayer ? targetPlayer.id : null,
+            targetPlayerIndex: targetPlayerIndex,
+            targetPlaneswalkerId: targetType === 'planeswalker' ? targetPlaneswalkerId : 0,
+            targetName: targetType === 'planeswalker' ? `${targetName} (PW)` : targetName
+        });
+        selectedAttackerIds.add(cardId);
+
+        window.closeAttackTargetPicker();
         updateArenaDOM();
+    };
+
+    window.removeAttackerTarget = function () {
+        if (!currentTargetingAttackerId) return;
+        const cardId = currentTargetingAttackerId;
+        attackerTargets.delete(cardId);
+        selectedAttackerIds.delete(cardId);
+
+        window.closeAttackTargetPicker();
+        updateArenaDOM();
+    };
+
+    window.toggleAttackerSelection = function (cardId) {
+        window.openAttackTargetPicker(cardId);
     };
 
     window.handleMainActionClick = async function () {
@@ -5680,17 +5835,26 @@
             if (currentGame.currentPhase === 'DECLARE_ATTACKERS') {
                 // Confirm attacks
                 const opps = currentGame.players.slice(1).filter(p => p.isAlive);
-                const targetOpp = opps[0]; // Primary target
-                const attacks = Array.from(selectedAttackerIds).map(id => ({
-                    attackerId: id,
-                    targetPlayerId: targetOpp ? targetOpp.id : null
-                }));
+                const defaultOpp = opps[0];
+                const attacks = Array.from(selectedAttackerIds).map(id => {
+                    const tgt = attackerTargets.get(id);
+                    return {
+                        attackerId: id,
+                        targetType: tgt?.targetType || 'player',
+                        targetId: tgt?.targetId || (defaultOpp ? defaultOpp.id : null),
+                        targetPlayerId: tgt?.targetPlayerId || (defaultOpp ? defaultOpp.id : null),
+                        targetPlayerIndex: (tgt && typeof tgt.targetPlayerIndex === 'number') ? tgt.targetPlayerIndex : (defaultOpp ? currentGame.players.indexOf(defaultOpp) : 1),
+                        targetPlaneswalkerId: tgt?.targetPlaneswalkerId || 0,
+                        targetName: tgt?.targetName || (defaultOpp ? defaultOpp.name : 'Opponent')
+                    };
+                });
 
                 let res = null;
                 if (currentGame.declareHumanAttacks) {
                     res = await currentGame.declareHumanAttacks(attacks);
                 }
                 selectedAttackerIds.clear();
+                attackerTargets.clear();
                 if (res && res.logs) appendArenaLogs(res.logs);
                 await currentGame.stepPhase(); // Move to damage
                 updateArenaDOM();
@@ -6189,6 +6353,7 @@
         if (autoPlayTimer) clearInterval(autoPlayTimer);
         isPaused = true;
         selectedAttackerIds.clear();
+        attackerTargets.clear();
 
         const decks = getAvailableDecks();
         const selectedDecks = [];

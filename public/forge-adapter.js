@@ -550,9 +550,12 @@
                 const logsBefore = this.logs.length;
                 for (const atk of attacks) {
                     const cardId = parseInt(atk.attackerId, 10);
-                    const targetIdx = 1; // Primary opponent
-                    const newJson = await this.bridge.declareAttacks(cardId, targetIdx);
-                    this.updateFromRawJson(newJson);
+                    const targetIdx = (typeof atk.targetPlayerIndex === 'number' && atk.targetPlayerIndex > 0) ? atk.targetPlayerIndex : 1;
+                    const targetPwId = atk.targetPlaneswalkerId ? parseInt(atk.targetPlaneswalkerId, 10) : 0;
+                    if (this.bridge && typeof this.bridge.declareAttacks === 'function') {
+                        const newJson = await this.bridge.declareAttacks(cardId, targetIdx, targetPwId);
+                        this.updateFromRawJson(newJson);
+                    }
                 }
                 return { success: true, logs: this.logs.slice(logsBefore) };
             } catch (e) {

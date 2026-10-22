@@ -4,6 +4,19 @@ All notable changes to the Commander Draft Challenge application are documented 
 
 ---
 
+## [v10.0] - Combat Phase Multi-Targeting (Rule 802.1) & Planeswalker Combat Damage (Rule 508.1b / 120.3c)
+
+### ⚔️ Combat Phase Rules Alignment & Multi-Target Declaration
+- **Multiplayer Attack Selection (MTG Rule 802.1 & 802.2)**: In multiplayer Commander games, all opponents are defending players simultaneously. Eliminated previous hardcoded `opps[0]` fallback so players can declare distinct attackers attacking any alive opponent.
+- **Planeswalker Combat Targeting (MTG Rule 508.1b)**: The active player can declare individual attacking creatures to attack any defending planeswalker controlled by any opponent.
+- **Interactive Combat Target Picker Modal**: Clicking an eligible creature in `DECLARE_ATTACKERS` now opens a target selection modal displaying all alive opponents (with life totals and hand sizes) and all opposing planeswalkers (with loyalty counters and controller tags).
+- **Target Chip/Badge Display**: Each declared attacking creature on the battlefield now displays a red `🎯 [Target Name]` badge indicating exactly which player or planeswalker it is attacking.
+- **Loyalty Damage & Death (Rule 120.3c & 704.5i)**: Unblocked combat damage and trample damage dealt to planeswalkers removes loyalty counters. If loyalty reaches 0, the planeswalker is destroyed and moved to its owner's graveyard via state-based action.
+- **Vigilance & Attack Legality (Rule 508.1a & Keyword.VIGILANCE)**: Creatures without vigilance tap upon attack declaration; creatures with vigilance do not tap. Already-tapped creatures cannot be declared as attackers.
+- **Card-Forge Engine Synchronization**: Recompiled `ForgeWebBridge.java` and `patches.jar` with overloaded `declareAttacks(cardId, targetPlayerIndex, targetPlaneswalkerId)` to execute multi-target and planeswalker combat damage inside Forge's native engine.
+
+---
+
 ## [v9.6] - Official Pre-Game & London Mulligan Flow Alignment (Comp Rules 103)
 
 ### 🃏 Pre-Game & London Mulligan Synchronization (MTG Rule 103)

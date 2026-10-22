@@ -1946,15 +1946,92 @@
   margin-top: 4px;
 }
 
-.chip-mana-preview {
-  margin-left: auto;
-  font-size: 0.65rem;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 4px;
-  padding: 1px 5px;
+
+/* Declare Attackers Target Picker & Target Badges (MTG Rule 508.1b & 802.1) */
+.mtg-card-target-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  right: 2px;
+  background: rgba(220, 38, 38, 0.95);
+  color: #fff;
+  font-size: 0.58rem;
   font-weight: 800;
-  display: inline-flex;
+  text-align: center;
+  padding: 1px 3px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.arena-attack-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 10000;
+  display: flex;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
+  padding: 16px;
+}
+
+.arena-attack-card {
+  background: linear-gradient(145deg, #1e1e2f, #11111b);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(239, 68, 68, 0.2);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 520px;
+  padding: 20px;
+  color: #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.arena-target-section-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.arena-target-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.arena-target-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  transform: translateX(4px);
+}
+
+.arena-target-btn.active-target {
+  background: rgba(239, 68, 68, 0.35);
+  border-color: #ef4444;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
 }
 

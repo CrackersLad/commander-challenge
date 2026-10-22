@@ -2153,7 +2153,7 @@
             };
         }
 
-        static resolveCombatDamage(game, attackingPlayer, defendingPlayer, attackers) {
+        static resolveCombatDamage(game, attackingPlayer, defendingPlayer, attackers, targetPlaneswalker = null) {
             const logs = [];
             if (!defendingPlayer || attackers.length === 0) return logs;
 
@@ -2261,16 +2261,23 @@
                     type: 'COMBAT_TRADE',
                     attacker,
                     blocker,
-                    message: `🛡️ **${blocker.name}** (${blkPower}/${blkToughness}) blocked **${attacker.name}** (${atkPower}/${atkToughness}) ➔ ${outcome}.${trampleDmgToPlayer > 0 ? ` 🌪️ **${trampleDmgToPlayer}** trample damage hit ${defendingPlayer.name}!` : ''}`
+                    message: `🛡️ **${blocker.name}** (${blkPower}/${blkToughness}) blocked **${attacker.name}** (${atkPower}/${atkToughness}) ➔ ${outcome}.${trampleDmgToPlayer > 0 ? ` 🌪️ **${trampleDmgToPlayer}** trample damage hit ${targetPlaneswalker ? targetPlaneswalker.name : defendingPlayer.name}!` : ''}`
                 });
 
-                // Apply Trample damage to defending player
-                if (trampleDmgToPlayer > 0 && defendingPlayer.isAlive) {
-                    defendingPlayer.life -= trampleDmgToPlayer;
-                    if (attacker.keywords.has('lifelink')) attackingPlayer.life += trampleDmgToPlayer;
-                    if (attacker.isCommander) {
-                        const prev = defendingPlayer.commanderDamageReceived[attacker.ownerId] || 0;
-                        defendingPlayer.commanderDamageReceived[attacker.ownerId] = prev + trampleDmgToPlayer;
+                // Apply Trample damage to defending player or planeswalker
+                if (trampleDmgToPlayer > 0) {
+                    if (targetPlaneswalker) {
+                        targetPlaneswalker.counters = targetPlaneswalker.counters || {};
+                        let curLoyalty = targetPlaneswalker.counters['loyalty'] || targetPlaneswalker.loyalty || 4;
+                        targetPlaneswalker.loyalty = Math.max(0, curLoyalty - trampleDmgToPlayer);
+                        targetPlaneswalker.counters['loyalty'] = targetPlaneswalker.loyalty;
+                    } else if (defendingPlayer.isAlive) {
+                        defendingPlayer.life -= trampleDmgToPlayer;
+                        if (attacker.keywords.has('lifelink')) attackingPlayer.life += trampleDmgToPlayer;
+                        if (attacker.isCommander) {
+                            const prev = defendingPlayer.commanderDamageReceived[attacker.ownerId] || 0;
+                            defendingPlayer.commanderDamageReceived[attacker.ownerId] = prev + trampleDmgToPlayer;
+                        }
                     }
                 }
 
@@ -2283,58 +2290,92 @@
                 }
             });
 
-            // 2. Resolve Unblocked Combat (Damage to Player with Lifelink, Double Strike, Commander Damage)
-            let totalPlayerDmg = 0;
-            let cmdrDmg = 0;
+            // 2. Resolve Unblocked Combat (Damage to Player or Planeswalker)
+            if (targetPlaneswalker) {
+                let totalPwDmg = 0;
+                unblockedAttackers.forEach(atk => {
+                    let atkPower = attackingPlayer.getEffectivePower(atk);
+                    if (atk.keywords.has('double strike')) atkPower *= 2;
+                    totalPwDmg += atkPower;
+                    if (atk.keywords.has('lifelink')) attackingPlayer.life += atkPower;
+                });
 
-            unblockedAttackers.forEach(atk => {
-                let atkPower = attackingPlayer.getEffectivePower(atk);
-                if (atk.keywords.has('double strike')) {
-                    atkPower *= 2; // Hits in first strike AND regular damage
-                }
+                if (unblockedAttackers.length > 0 && totalPwDmg > 0) {
+                    targetPlaneswalker.counters = targetPlaneswalker.counters || {};
+                    let curLoyalty = targetPlaneswalker.counters['loyalty'] !== undefined
+                        ? targetPlaneswalker.counters['loyalty']
+                        : (targetPlaneswalker.loyalty || 4);
+                    let remaining = Math.max(0, curLoyalty - totalPwDmg);
+                    targetPlaneswalker.loyalty = remaining;
+                    targetPlaneswalker.counters['loyalty'] = remaining;
 
-                totalPlayerDmg += atkPower;
-                if (atk.keywords.has('lifelink')) {
-                    attackingPlayer.life += atkPower;
-                }
+                    logs.push({
+                        type: 'PLANESWALKER_DAMAGE',
+                        damage: totalPwDmg,
+                        remainingLoyalty: remaining,
+                        message: `💥 **${targetPlaneswalker.name}** took **${totalPwDmg}** combat damage (${remaining} loyalty remaining)!`
+                    });
 
-                if (game && game.triggerCombatDamage) {
-                    const trigLogs = game.triggerCombatDamage(atk, attackingPlayer, defendingPlayer, atkPower);
-                    if (trigLogs && trigLogs.length > 0) logs.push(...trigLogs);
-                }
-
-                // Track Commander Damage (21 lethal threshold)
-                if (atk.isCommander) {
-                    cmdrDmg += atkPower;
-                    const prevCmdrDmg = defendingPlayer.commanderDamageReceived[atk.ownerId] || 0;
-                    defendingPlayer.commanderDamageReceived[atk.ownerId] = prevCmdrDmg + atkPower;
-
-                    if (defendingPlayer.commanderDamageReceived[atk.ownerId] >= 21) {
-                        defendingPlayer.eliminate(`Defeated by 21 Commander Damage from ${atk.name}!`);
+                    if (remaining <= 0) {
+                        defendingPlayer.sendToGraveyardOrCommandZone(targetPlaneswalker, game);
                         logs.push({
-                            type: 'COMMANDER_LETHAL',
-                            message: `💀 **${defendingPlayer.name}** suffered 21+ Commander Damage from **${atk.name}** and has been ELIMINATED!`
+                            type: 'PLANESWALKER_DESTROYED',
+                            message: `💀 Planeswalker **${targetPlaneswalker.name}** lost all loyalty and was destroyed! (MTG Rule 704.5i)`
                         });
                     }
                 }
-            });
+            } else {
+                let totalPlayerDmg = 0;
+                let cmdrDmg = 0;
 
-            if (unblockedAttackers.length > 0 && totalPlayerDmg > 0 && defendingPlayer.isAlive) {
-                defendingPlayer.life -= totalPlayerDmg;
-                logs.push({
-                    type: 'PLAYER_DAMAGE',
-                    defendingPlayerName: defendingPlayer.name,
-                    damage: totalPlayerDmg,
-                    remainingLife: defendingPlayer.life,
-                    message: `🩸 **${defendingPlayer.name}** took **${totalPlayerDmg}** combat damage (Remaining Life: ${defendingPlayer.life})${cmdrDmg > 0 ? ` [${cmdrDmg} Commander Damage]` : ''}.`
+                unblockedAttackers.forEach(atk => {
+                    let atkPower = attackingPlayer.getEffectivePower(atk);
+                    if (atk.keywords.has('double strike')) {
+                        atkPower *= 2;
+                    }
+
+                    totalPlayerDmg += atkPower;
+                    if (atk.keywords.has('lifelink')) {
+                        attackingPlayer.life += atkPower;
+                    }
+
+                    if (game && game.triggerCombatDamage) {
+                        const trigLogs = game.triggerCombatDamage(atk, attackingPlayer, defendingPlayer, atkPower);
+                        if (trigLogs && trigLogs.length > 0) logs.push(...trigLogs);
+                    }
+
+                    if (atk.isCommander) {
+                        cmdrDmg += atkPower;
+                        const prevCmdrDmg = defendingPlayer.commanderDamageReceived[atk.ownerId] || 0;
+                        defendingPlayer.commanderDamageReceived[atk.ownerId] = prevCmdrDmg + atkPower;
+
+                        if (defendingPlayer.commanderDamageReceived[atk.ownerId] >= 21) {
+                            defendingPlayer.eliminate(`Defeated by 21 Commander Damage from ${atk.name}!`);
+                            logs.push({
+                                type: 'COMMANDER_LETHAL',
+                                message: `💀 **${defendingPlayer.name}** suffered 21+ Commander Damage from **${atk.name}** and has been ELIMINATED!`
+                            });
+                        }
+                    }
                 });
 
-                if (defendingPlayer.life <= 0) {
-                    defendingPlayer.eliminate("Life total reduced to 0 or below.");
+                if (unblockedAttackers.length > 0 && totalPlayerDmg > 0 && defendingPlayer.isAlive) {
+                    defendingPlayer.life -= totalPlayerDmg;
                     logs.push({
-                        type: 'PLAYER_DEFEATED',
-                        message: `💀 **${defendingPlayer.name}** has been ELIMINATED from the pod!`
+                        type: 'PLAYER_DAMAGE',
+                        defendingPlayerName: defendingPlayer.name,
+                        damage: totalPlayerDmg,
+                        remainingLife: defendingPlayer.life,
+                        message: `🩸 **${defendingPlayer.name}** took **${totalPlayerDmg}** combat damage (Remaining Life: ${defendingPlayer.life})${cmdrDmg > 0 ? ` [${cmdrDmg} Commander Damage]` : ''}.`
                     });
+
+                    if (defendingPlayer.life <= 0) {
+                        defendingPlayer.eliminate("Life total reduced to 0 or below.");
+                        logs.push({
+                            type: 'PLAYER_DEFEATED',
+                            message: `💀 **${defendingPlayer.name}** has been ELIMINATED from the pod!`
+                        });
+                    }
                 }
             }
 
@@ -2525,14 +2566,24 @@
                     break;
 
                 case PHASES.COMBAT_DAMAGE:
-                    if (this._pendingCombat && Array.isArray(this._pendingCombat.attackers) && this._pendingCombat.attackers.length > 0) {
-                        const damageLogs = CommanderBotAI.resolveCombatDamage(
-                            this,
-                            activePlayer,
-                            this._pendingCombat.targetPlayer,
-                            this._pendingCombat.attackers
+                    if (this._pendingCombat) {
+                        const attackGroups = this._pendingCombat.attackGroups || (
+                            this._pendingCombat.attackers && this._pendingCombat.targetPlayer
+                                ? [{ targetPlayer: this._pendingCombat.targetPlayer, targetPlaneswalker: this._pendingCombat.targetPlaneswalker || null, attackers: this._pendingCombat.attackers }]
+                                : []
                         );
-                        phaseLogs.push(...damageLogs);
+                        attackGroups.forEach(grp => {
+                            if (grp.targetPlayer && Array.isArray(grp.attackers) && grp.attackers.length > 0) {
+                                const damageLogs = CommanderBotAI.resolveCombatDamage(
+                                    this,
+                                    activePlayer,
+                                    grp.targetPlayer,
+                                    grp.attackers,
+                                    grp.targetPlaneswalker || null
+                                );
+                                phaseLogs.push(...damageLogs);
+                            }
+                        });
                     }
                     this._pendingCombat = null;
                     break;
@@ -2641,36 +2692,77 @@
             }
             const activePlayer = this.getActivePlayer();
             const logs = [];
-            const attackingCards = [];
-            let targetPlayer = null;
+            const declaredAttacks = [];
 
             attacks.forEach(atk => {
-                const card = activePlayer.battlefield.find(c => c.id === atk.attackerId && c.isCreature);
+                const card = activePlayer.battlefield.find(c => String(c.id) === String(atk.attackerId) && c.isCreature);
                 if (card && !card.tapped && !card.summoningSick) {
                     if (!card.keywords.has('vigilance')) {
                         card.tapped = true;
                     }
                     card.attacksThisTurn = true;
-                    attackingCards.push(card);
+
+                    // Resolve target
+                    let targetPlayer = null;
+                    let targetPlaneswalker = null;
+
+                    if (atk.targetType === 'planeswalker' || atk.targetPlaneswalkerId) {
+                        const pwId = atk.targetPlaneswalkerId || atk.targetId;
+                        for (const opp of this.players) {
+                            if (opp.id !== activePlayer.id && opp.isAlive) {
+                                const pw = opp.battlefield.find(c => String(c.id) === String(pwId) && (c.isPlaneswalker || (c.typeLine && c.typeLine.toLowerCase().includes('planeswalker'))));
+                                if (pw) {
+                                    targetPlaneswalker = pw;
+                                    targetPlayer = opp;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
                     if (!targetPlayer) {
-                        targetPlayer = this.players.find(p => p.id === atk.targetPlayerId && p.isAlive);
+                        targetPlayer = this.players.find(p => (String(p.id) === String(atk.targetPlayerId) || String(p.id) === String(atk.targetId)) && p.id !== activePlayer.id && p.isAlive);
+                    }
+                    if (!targetPlayer) {
+                        targetPlayer = this.players.find(p => p.id !== activePlayer.id && p.isAlive);
+                    }
+
+                    if (targetPlayer) {
+                        declaredAttacks.push({
+                            attacker: card,
+                            targetType: targetPlaneswalker ? 'planeswalker' : 'player',
+                            targetPlayer,
+                            targetPlaneswalker
+                        });
+                        logs.push({
+                            type: 'COMBAT_ATTACK',
+                            playerId: activePlayer.id,
+                            playerName: activePlayer.name,
+                            attacker: card,
+                            targetName: targetPlaneswalker ? `${targetPlaneswalker.name} (Planeswalker)` : targetPlayer.name,
+                            message: `⚔️ **${activePlayer.name}** declared **${card.name}** attacking **${targetPlaneswalker ? targetPlaneswalker.name + ' (Planeswalker)' : targetPlayer.name}**!`
+                        });
                     }
                 }
             });
 
-            if (attackingCards.length > 0 && targetPlayer) {
-                this._pendingCombat = {
-                    attackers: attackingCards,
-                    targetPlayer
-                };
-                logs.push({
-                    type: 'COMBAT_ATTACK',
-                    playerId: activePlayer.id,
-                    playerName: activePlayer.name,
-                    targetPlayerId: targetPlayer.id,
-                    targetPlayerName: targetPlayer.name,
-                    message: `⚔️ **${activePlayer.name}** declared attack with **${attackingCards.map(c => c.name).join(', ')}** against **${targetPlayer.name}**!`
+            if (declaredAttacks.length > 0) {
+                // Group by targetPlayer and targetPlaneswalker
+                const groups = [];
+                declaredAttacks.forEach(da => {
+                    let g = groups.find(grp => grp.targetPlayer.id === da.targetPlayer.id && grp.targetPlaneswalker?.id === da.targetPlaneswalker?.id);
+                    if (!g) {
+                        g = { targetPlayer: da.targetPlayer, targetPlaneswalker: da.targetPlaneswalker, attackers: [] };
+                        groups.push(g);
+                    }
+                    g.attackers.push(da.attacker);
                 });
+
+                this._pendingCombat = {
+                    attackGroups: groups,
+                    attackers: declaredAttacks.map(d => d.attacker),
+                    targetPlayer: declaredAttacks[0].targetPlayer
+                };
             } else {
                 this._pendingCombat = null;
                 logs.push({
