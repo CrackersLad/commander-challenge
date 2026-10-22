@@ -5012,6 +5012,13 @@
             return;
         }
 
+        if (card.isLand) {
+            player.landPlayedThisTurn = true;
+            if (currentGame && currentGame.players && currentGame.players[0]) {
+                currentGame.players[0].landPlayedThisTurn = true;
+            }
+        }
+
         if (spellCost > 0 && typeof player.deductMana === 'function') {
             player.deductMana(spellCost);
         }
@@ -5306,7 +5313,7 @@
         currentCardAbilities = [];
     };
 
-    window.executeCardAbility = function (abilityIndex) {
+    window.executeCardAbility = async function (abilityIndex) {
         if (!currentGame || !currentAbilityCard || !currentCardAbilities[abilityIndex]) {
             window.closeCardAbilityModal();
             return;
@@ -5331,137 +5338,177 @@
                 alert(`Not enough mana to activate this ability. Need {${ab.manaCostNum}}, have {${avail}}.`);
                 return;
             }
-            player.tapMana(ab.manaCostNum);
         }
 
-        // 2. Pay costs
-        if (ab.requiresTap) {
-            card.tapped = true;
-        }
-        if (ab.type === 'LOYALTY' && ab.loyaltyDelta !== undefined) {
-            card.loyalty = (card.loyalty !== undefined ? card.loyalty : 4) + ab.loyaltyDelta;
-        }
-
-        // 3. Resolve common activated effects
-        const effectLower = (ab.effectText || '').toLowerCase();
-        const logs = [];
-
-        logs.push({
-            type: 'ABILITY_ACTIVATED',
-            message: `⚡ **${player.name}** activated ability of **${card.name}** [${ab.costText}]: *${ab.effectText}*`
-        });
-
-        // Effect A: Card Draw (e.g. "Draw a card", "Draw two cards", "Draw 3 cards")
-        const drawMatch = effectLower.match(/draw\s+(\d+|a|two|three)\s+card/i);
-        if (drawMatch) {
-            let num = 1;
-            if (drawMatch[1] === 'two' || drawMatch[1] === '2') num = 2;
-            else if (drawMatch[1] === 'three' || drawMatch[1] === '3') num = 3;
-            else if (!isNaN(parseInt(drawMatch[1], 10))) num = parseInt(drawMatch[1], 10);
-
-            const drawn = player.draw(num);
-            logs.push({
-                type: 'DRAW',
-                message: `📜 **${player.name}** drew **${drawn.length}** card(s).`
-            });
-        }
-
-        // Effect B: Life gain / loss
-        const lifeGainMatch = effectLower.match(/gain\s+(\d+)\s+life/i);
-        if (lifeGainMatch) {
-            const lifeAmt = parseInt(lifeGainMatch[1], 10) || 1;
-            player.life += lifeAmt;
-            logs.push({
-                type: 'LIFE_GAIN',
-                message: `❤️ **${player.name}** gained **${lifeAmt}** life (Total: ${player.life}).`
-            });
-        }
-        const lifeDrainMatch = effectLower.match(/each opponent loses\s+(\d+)\s+life/i);
-        if (lifeDrainMatch) {
-            const drainAmt = parseInt(lifeDrainMatch[1], 10) || 1;
-            currentGame.players.slice(1).forEach(opp => {
-                if (opp.isAlive) opp.life = Math.max(0, opp.life - drainAmt);
-            });
-            logs.push({
-                type: 'DAMAGE',
-                message: `💥 Each opponent lost **${drainAmt}** life!`
-            });
-        }
-
-        // Effect C: +1/+1 counters
-        if (effectLower.includes('+1/+1 counter')) {
-            if (!card.counters) card.counters = {};
-            card.counters['+1/+1'] = (card.counters['+1/+1'] || 0) + 1;
-            logs.push({
-                type: 'COUNTER',
-                message: `✨ Placed a +1/+1 counter on **${card.name}** (Total: ${card.counters['+1/+1']}).`
-            });
-        }
-
-        // Effect D: Create tokens
-        if (effectLower.includes('create') && effectLower.includes('token')) {
-            let tokName = 'Creature Token';
-            let tokP = 1, tokT = 1;
-            let tokColors = ['G'];
-            if (effectLower.includes('zombie')) { tokName = 'Zombie Token'; tokP = 2; tokT = 2; tokColors = ['B']; }
-            else if (effectLower.includes('soldier')) { tokName = 'Soldier Token'; tokP = 1; tokT = 1; tokColors = ['W']; }
-            else if (effectLower.includes('goblin')) { tokName = 'Goblin Token'; tokP = 1; tokT = 1; tokColors = ['R']; }
-            else if (effectLower.includes('saproling')) { tokName = 'Saproling Token'; tokP = 1; tokT = 1; tokColors = ['G']; }
-            else if (effectLower.includes('treasure')) { tokName = 'Treasure Token'; tokP = 0; tokT = 0; tokColors = []; }
-
-            const tok = {
-                id: `tok_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-                name: tokName,
-                isCreature: !effectLower.includes('treasure'),
-                isArtifact: effectLower.includes('treasure'),
-                isToken: true,
-                power: tokP,
-                toughness: tokT,
-                basePower: tokP,
-                baseToughness: tokT,
-                manaCost: '{0}',
-                typeLine: effectLower.includes('treasure') ? 'Artifact — Treasure' : `Creature — ${tokName}`,
-                colors: tokColors,
-                keywords: new Set(),
-                counters: {},
-                tapped: false,
-                summoningSick: !effectLower.includes('treasure')
-            };
-            player.battlefield.push(tok);
-            logs.push({
-                type: 'TOKEN_CREATED',
-                message: `🪙 **${player.name}** created a **${tokName}**!`
-            });
-        }
-
-        // Effect E: Sacrifice self
-        if (ab.requiresSacrifice || /sacrifice\s+(?:this|it|self)/i.test(ab.costText) || ab.costText.toLowerCase().includes(`sacrifice ${card.name.toLowerCase()}`)) {
-            const bIdx = player.battlefield.findIndex(c => c.id === card.id);
-            if (bIdx !== -1) {
-                player.battlefield.splice(bIdx, 1);
-                player.graveyard.push(card);
-                logs.push({
-                    type: 'SACRIFICE',
-                    message: `⚰️ **${card.name}** was sacrificed as part of its activation cost.`
-                });
-            }
-        }
-
-        // Planeswalker loyalty death check
-        if (card.isPlaneswalker && card.loyalty !== undefined && card.loyalty <= 0) {
-            const pIdx = player.battlefield.findIndex(c => c.id === card.id);
-            if (pIdx !== -1) {
-                player.battlefield.splice(pIdx, 1);
-                player.graveyard.push(card);
-                logs.push({
-                    type: 'PLANESWALKER_DIED',
-                    message: `☠️ **${card.name}** ran out of loyalty counters and was placed into the graveyard.`
-                });
-            }
-        }
-
+        // Close modal immediately
         window.closeCardAbilityModal();
-        appendArenaLogs(logs);
+
+        // Visual stack popup animation (MTG Stack Resolution)
+        const stackBox = document.getElementById('arenaStackBox');
+        const stackThumb = document.getElementById('stackCardThumb');
+        const stackName = document.getElementById('stackSpellName');
+        if (stackBox && stackThumb && stackName) {
+            stackThumb.src = getCardArtCropUrl(card.name);
+            stackName.textContent = `⚡ Ability: ${card.name}`;
+            stackBox.style.display = 'flex';
+        }
+
+        // Delegate to Forge Engine if active
+        if (typeof currentGame.activateAbility === 'function') {
+            const res = await currentGame.activateAbility(card.id, abilityIndex);
+            if (res && res.logs && res.logs.length > 0) {
+                appendArenaLogs(res.logs);
+            }
+            if (ab.manaCostNum > 0 && typeof player.deductMana === 'function') {
+                player.deductMana(ab.manaCostNum);
+            }
+            if (ab.requiresTap) {
+                card.tapped = true;
+            }
+        } else {
+            // Local fallback simulation
+            if (ab.manaCostNum > 0) {
+                player.tapMana(ab.manaCostNum);
+            }
+            if (ab.requiresTap) {
+                card.tapped = true;
+            }
+            if (ab.type === 'LOYALTY' && ab.loyaltyDelta !== undefined) {
+                card.loyalty = (card.loyalty !== undefined ? card.loyalty : 4) + ab.loyaltyDelta;
+            }
+
+            const effectLower = (ab.effectText || '').toLowerCase();
+            const logs = [];
+
+            logs.push({
+                type: 'ABILITY_ACTIVATED',
+                message: `⚡ **${player.name}** activated ability of **${card.name}** [${ab.costText}]: *${ab.effectText}*`
+            });
+
+            // Effect A: Card Draw
+            const drawMatch = effectLower.match(/draw\s+(\d+|a|two|three)\s+card/i);
+            if (drawMatch) {
+                let num = 1;
+                if (drawMatch[1] === 'two' || drawMatch[1] === '2') num = 2;
+                else if (drawMatch[1] === 'three' || drawMatch[1] === '3') num = 3;
+                else if (!isNaN(parseInt(drawMatch[1], 10))) num = parseInt(drawMatch[1], 10);
+
+                const drawn = player.draw(num);
+                logs.push({
+                    type: 'DRAW',
+                    message: `📜 **${player.name}** drew **${drawn.length}** card(s).`
+                });
+            }
+
+            // Effect B: Life gain / loss
+            const lifeGainMatch = effectLower.match(/gain\s+(\d+)\s+life/i);
+            if (lifeGainMatch) {
+                const lifeAmt = parseInt(lifeGainMatch[1], 10) || 1;
+                player.life += lifeAmt;
+                logs.push({
+                    type: 'LIFE_GAIN',
+                    message: `❤️ **${player.name}** gained **${lifeAmt}** life (Total: ${player.life}).`
+                });
+            }
+            const lifeDrainMatch = effectLower.match(/each opponent loses\s+(\d+)\s+life/i);
+            if (lifeDrainMatch) {
+                const drainAmt = parseInt(lifeDrainMatch[1], 10) || 1;
+                currentGame.players.slice(1).forEach(opp => {
+                    if (opp.isAlive) opp.life = Math.max(0, opp.life - drainAmt);
+                });
+                logs.push({
+                    type: 'DAMAGE',
+                    message: `💥 Each opponent lost **${drainAmt}** life!`
+                });
+            }
+
+            // Effect C: +1/+1 counters
+            if (effectLower.includes('+1/+1 counter')) {
+                if (Array.isArray(card.counters)) {
+                    let entry = card.counters.find(c => c.type === '+1/+1' || c.type === 'P1P1');
+                    if (entry) entry.count = (entry.count || 0) + 1;
+                    else card.counters.push({ type: '+1/+1', count: 1 });
+                } else {
+                    if (!card.counters) card.counters = {};
+                    card.counters['+1/+1'] = (card.counters['+1/+1'] || 0) + 1;
+                }
+                card.power = (parseInt(card.power, 10) || 0) + 1;
+                card.toughness = (parseInt(card.toughness, 10) || 0) + 1;
+                logs.push({
+                    type: 'COUNTER',
+                    message: `✨ Placed a +1/+1 counter on **${card.name}**!`
+                });
+            }
+
+            // Effect D: Create tokens
+            if (effectLower.includes('create') && effectLower.includes('token')) {
+                let tokName = 'Creature Token';
+                let tokP = 1, tokT = 1;
+                let tokColors = ['G'];
+                if (effectLower.includes('zombie')) { tokName = 'Zombie Token'; tokP = 2; tokT = 2; tokColors = ['B']; }
+                else if (effectLower.includes('soldier')) { tokName = 'Soldier Token'; tokP = 1; tokT = 1; tokColors = ['W']; }
+                else if (effectLower.includes('goblin')) { tokName = 'Goblin Token'; tokP = 1; tokT = 1; tokColors = ['R']; }
+                else if (effectLower.includes('saproling')) { tokName = 'Saproling Token'; tokP = 1; tokT = 1; tokColors = ['G']; }
+                else if (effectLower.includes('treasure')) { tokName = 'Treasure Token'; tokP = 0; tokT = 0; tokColors = []; }
+
+                const tok = {
+                    id: `tok_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                    name: tokName,
+                    isCreature: !effectLower.includes('treasure'),
+                    isArtifact: effectLower.includes('treasure'),
+                    isToken: true,
+                    power: tokP,
+                    toughness: tokT,
+                    basePower: tokP,
+                    baseToughness: tokT,
+                    manaCost: '{0}',
+                    typeLine: effectLower.includes('treasure') ? 'Artifact — Treasure' : `Creature — ${tokName}`,
+                    colors: tokColors,
+                    keywords: new Set(),
+                    counters: [],
+                    tapped: false,
+                    summoningSick: !effectLower.includes('treasure')
+                };
+                player.battlefield.push(tok);
+                logs.push({
+                    type: 'TOKEN_CREATED',
+                    message: `🪙 **${player.name}** created a **${tokName}**!`
+                });
+            }
+
+            // Effect E: Sacrifice self
+            if (ab.requiresSacrifice || /sacrifice\s+(?:this|it|self)/i.test(ab.costText) || ab.costText.toLowerCase().includes(`sacrifice ${card.name.toLowerCase()}`)) {
+                const bIdx = player.battlefield.findIndex(c => c.id === card.id);
+                if (bIdx !== -1) {
+                    player.battlefield.splice(bIdx, 1);
+                    player.graveyard.push(card);
+                    logs.push({
+                        type: 'SACRIFICE',
+                        message: `⚰️ **${card.name}** was sacrificed as part of its activation cost.`
+                    });
+                }
+            }
+
+            // Planeswalker loyalty death check
+            if (card.isPlaneswalker && card.loyalty !== undefined && card.loyalty <= 0) {
+                const pIdx = player.battlefield.findIndex(c => c.id === card.id);
+                if (pIdx !== -1) {
+                    player.battlefield.splice(pIdx, 1);
+                    player.graveyard.push(card);
+                    logs.push({
+                        type: 'PLANESWALKER_DIED',
+                        message: `☠️ **${card.name}** ran out of loyalty counters and was placed into the graveyard.`
+                    });
+                }
+            }
+
+            appendArenaLogs(logs);
+        }
+
+        // Allow visual stack animation to be observed
+        await new Promise(resolve => setTimeout(resolve, 650));
+        if (stackBox) stackBox.style.display = 'none';
+
         updateArenaDOM();
     };
 

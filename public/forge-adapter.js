@@ -206,7 +206,7 @@
                         graveyardCount: pData.graveyardCount || (pData.graveyard ? pData.graveyard.length : 0),
                         avatar: existing.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(pData.name || 'MTG')}`,
                         mulliganCount: existing.mulliganCount || 0,
-                        landPlayedThisTurn: isNewTurnOrActive ? false : (existing.landPlayedThisTurn || false),
+                        landPlayedThisTurn: (pData.landsPlayedThisTurn !== undefined ? pData.landsPlayedThisTurn > 0 : (isNewTurnOrActive ? false : (existing.landPlayedThisTurn || false))),
                         manaPool: (isNewTurnOrActive && this.activePlayerIndex === idx) ? { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 } : (existing.manaPool || { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }),
 
                         hand: (() => {
@@ -433,6 +433,7 @@
                 const p = this.players[0];
                 const card = p && p.hand ? p.hand.find(c => String(c.id) === String(cardId)) : null;
                 const cost = card && !card.isLand ? (card.cmc || 0) : 0;
+                const isLand = card ? !!card.isLand : false;
                 const numId = parseInt(cardId, 10);
                 const logsBefore = this.logs.length;
                 try {
@@ -444,29 +445,45 @@
                     console.warn("bridge.playCard error:", eBridge);
                 }
 
-                // Strictly remove played card from hand and keptHandCards
-                if (p && card) {
-                    if (p.hand) {
-                        p.hand = p.hand.filter(c => String(c.id) !== String(cardId));
-                        p.handCount = p.hand.length;
+                // Strictly update active player after updateFromRawJson
+                const activePlayer = this.players[0];
+                if (activePlayer && card) {
+                    if (activePlayer.hand) {
+                        activePlayer.hand = activePlayer.hand.filter(c => String(c.id) !== String(cardId));
+                        activePlayer.handCount = activePlayer.hand.length;
                     }
-                    if (p.keptHandCards) {
-                        p.keptHandCards = p.keptHandCards.filter(c => String(c.id) !== String(cardId));
+                    if (activePlayer.keptHandCards) {
+                        activePlayer.keptHandCards = activePlayer.keptHandCards.filter(c => String(c.id) !== String(cardId));
                     }
-                    if (!p.battlefield.some(c => String(c.id) === String(cardId))) {
-                        p.battlefield.push(card);
+                    if (!activePlayer.battlefield.some(c => String(c.id) === String(cardId))) {
+                        activePlayer.battlefield.push(card);
                     }
-                    if (card.isLand) {
-                        p.landPlayedThisTurn = true;
+                    if (isLand) {
+                        activePlayer.landPlayedThisTurn = true;
                     }
-                    if (cost > 0 && typeof p.deductMana === 'function') {
-                        p.deductMana(cost);
+                    if (cost > 0 && typeof activePlayer.deductMana === 'function') {
+                        activePlayer.deductMana(cost);
                     }
                 }
 
                 return { success: true, logs: this.logs.slice(logsBefore) };
             } catch (e) {
                 console.error("playCard error:", e);
+                return { success: false, logs: [] };
+            }
+        }
+
+        async activateAbility(cardId, abilityIndex = 0) {
+            try {
+                const numId = parseInt(cardId, 10);
+                const logsBefore = this.logs.length;
+                if (this.bridge && typeof this.bridge.activateAbility === 'function' && !isNaN(numId)) {
+                    const newJson = await this.bridge.activateAbility(numId, abilityIndex);
+                    this.updateFromRawJson(newJson);
+                }
+                return { success: true, logs: this.logs.slice(logsBefore) };
+            } catch (e) {
+                console.error("activateAbility error:", e);
                 return { success: false, logs: [] };
             }
         }

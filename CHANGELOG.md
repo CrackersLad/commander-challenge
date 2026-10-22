@@ -4,6 +4,21 @@ All notable changes to the Commander Draft Challenge application are documented 
 
 ---
 
+## [v9.4] - Strict Land Drop Enforcement (Rule 305.2) & Forge Activated Abilities on MTG Stack
+
+### 🌲 Strict 1 Land Drop Per Turn Limit (MTG Rule 305.2)
+- Fixed multiple land drops occurring in Main phases by tracking and synchronizing `landPlayedThisTurn` across the UI, the adapter, and the Java Card-Forge engine.
+- `ForgeWebBridge.java` enforces `p.getLandsPlayedThisTurn() >= p.getMaxLandPlays()` and exports `landsPlayedThisTurn` in player state JSON.
+- `forge-adapter.js` and `commander-arena.js` prevent redundant land plays with user alerts and preserve state across match turns.
+
+### ⚡ Card-Forge Activated Abilities & Animated Visual Stack
+- Activated abilities now push onto the visual MTG Stack (`#arenaStackBox`) with card art, ability label, and cost/effect details before resolving.
+- Added `activateAbility(int cardId, int abilityIndex)` to `ForgeWebBridge.java` utilizing `forge.ai.ComputerUtil.playStack(chosen, p, currentGame)` and `currentGame.getStack().resolveStack()`.
+- Official rules engine executes costs (tapping, mana, counters, sacrifice), checks targeting requirements, and handles triggered responses.
+- Engine fallback mode now correctly updates power/toughness, counters array, tokens, life totals, and card draws.
+
+---
+
 ## [v9.3] - Mulligan Bottom-Decking Flow, Persistent Kept Hands & High-Res Hover Inspector
 
 ### 🔍 High-Res Hover Card Inspector Fixes
