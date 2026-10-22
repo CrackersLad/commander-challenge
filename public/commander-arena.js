@@ -4289,7 +4289,7 @@
     // ============================================================================
     // HOVER CARD INSPECTOR
     // ============================================================================
-    window.showCardInspector = function (cardName) {
+    window.showCardInspector = function (cardName, evt) {
         if (!cardName) return;
         const inspector = document.getElementById('cardHoverInspector');
         const img = document.getElementById('cardInspectorImg');
@@ -4315,6 +4315,37 @@
                     notice.innerHTML = '';
                 }
             }
+
+            // Dynamic Positioning relative to target or mouse cursor
+            const target = (evt && (evt.currentTarget || evt.target));
+            const width = 240;
+            const height = 336;
+            if (target && typeof target.getBoundingClientRect === 'function') {
+                const rect = target.getBoundingClientRect();
+                let top, left;
+                if (rect.bottom > window.innerHeight - 240) {
+                    top = Math.max(10, rect.top - height - 12);
+                } else {
+                    top = Math.min(window.innerHeight - height - 10, rect.bottom + 10);
+                }
+                left = rect.left + (rect.width / 2) - (width / 2);
+                left = Math.max(10, Math.min(window.innerWidth - width - 15, left));
+
+                inspector.style.top = `${Math.round(top)}px`;
+                inspector.style.left = `${Math.round(left)}px`;
+                inspector.style.bottom = 'auto';
+                inspector.style.right = 'auto';
+            } else if (evt && evt.clientX !== undefined) {
+                let top = evt.clientY - 340;
+                if (top < 10) top = evt.clientY + 20;
+                let left = evt.clientX - 120;
+                left = Math.max(10, Math.min(window.innerWidth - width - 15, left));
+                inspector.style.top = `${Math.round(top)}px`;
+                inspector.style.left = `${Math.round(left)}px`;
+                inspector.style.bottom = 'auto';
+                inspector.style.right = 'auto';
+            }
+
             inspector.style.display = 'block';
         }
     };
@@ -4364,7 +4395,8 @@
 
                     creaturesHtml += `
                         <div class="mtg-card-frame ${tappedClass}"
-                             onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                             data-card-name="${escapeHtml(c.name)}"
+                             onmouseenter="window.showCardInspector(this.getAttribute('data-card-name'), event)"
                              onmouseleave="window.hideCardInspector()"
                              title="${escapeHtml(c.name)} - ${c.typeLine}">
                             <div class="mtg-card-header">
@@ -4386,7 +4418,8 @@
             } else {
                 landsHtml = lands.map(c => `
                     <div class="opp-land-chip ${c.tapped ? 'tapped' : ''}"
-                         onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                         data-card-name="${escapeHtml(c.name)}"
+                         onmouseenter="window.showCardInspector(this.getAttribute('data-card-name'), event)"
                          onmouseleave="window.hideCardInspector()"
                          title="${escapeHtml(c.name)} (${c.tapped ? 'Tapped' : 'Untapped'})">
                         <span>🏞️</span>
@@ -4404,7 +4437,8 @@
                     else if (c.isArtifact) icon = '⚙️';
                     return `
                         <div class="opp-support-chip ${c.tapped ? 'tapped' : ''}"
-                             onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                             data-card-name="${escapeHtml(c.name)}"
+                             onmouseenter="window.showCardInspector(this.getAttribute('data-card-name'), event)"
                              onmouseleave="window.hideCardInspector()"
                              title="${escapeHtml(c.name)} - ${escapeHtml(c.typeLine || 'Support')} (${c.tapped ? 'Tapped' : 'Untapped'})">
                             <span>${icon}</span>
@@ -4434,7 +4468,8 @@
                     <!-- Opponent Commander & Hand status -->
                     <div class="opponent-meta-bar">
                         <div class="opponent-cmdr-chip"
-                             onmouseenter="window.showCardInspector('${escapeHtml(cmdrName)}')"
+                             data-card-name="${escapeHtml(cmdrName)}"
+                             onmouseenter="window.showCardInspector(this.getAttribute('data-card-name'), event)"
                              onmouseleave="window.hideCardInspector()">
                             <img src="${cmdrArt}" class="opponent-cmdr-thumb" alt="Commander" />
                             <span>${escapeHtml(cmdrName)}</span>
@@ -4524,7 +4559,8 @@
                 creaturesHtml += `
                     <div class="mtg-card-frame ${tappedClass} ${atkSelectedClass}"
                          onclick="window.handleCreatureClick('${c.id}')"
-                         onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                         data-card-name="${escapeHtml(c.name)}"
+                         onmouseenter="window.showCardInspector(this.getAttribute('data-card-name'), event)"
                          onmouseleave="window.hideCardInspector()"
                          title="${escapeHtml(c.name)} - ${c.typeLine}${abils.length > 0 ? ' (Click to activate ability)' : ''}">
                         <div class="mtg-card-header">
@@ -4565,7 +4601,8 @@
                 landsHtml += `
                     <div class="mtg-land-chip ${tappedClass}"
                          onclick="window.handlePermanentClick('${c.id}')"
-                         onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                         data-card-name="${escapeHtml(c.name)}"
+                         onmouseenter="window.showCardInspector(this.getAttribute('data-card-name'), event)"
                          onmouseleave="window.hideCardInspector()"
                          title="${c.isLand || c.isManaRock ? 'Click to tap/untap for mana' : escapeHtml(c.name)}">
                         <span>${icon}</span>
@@ -4612,10 +4649,11 @@
                 const cardFlag = cardIssue ? `<span class="card-engine-flag" title="⚠️ Engine Notice: [${escapeHtml(cardIssue.category)}] ${escapeHtml(cardIssue.reason)}">⚠️</span>` : '';
 
                 handHtml += `
-                    <div class="hand-card-wrapper" onclick="window.playCardFromHand('${c.id}')">
-                        <div class="${cardClasses.join(' ')}"
-                             onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
-                             onmouseleave="window.hideCardInspector()">
+                    <div class="hand-card-wrapper" onclick="window.playCardFromHand('${c.id}')"
+                         data-card-name="${escapeHtml(c.name)}"
+                         onmouseenter="window.showCardInspector(this.getAttribute('data-card-name'), event)"
+                         onmouseleave="window.hideCardInspector()">
+                        <div class="${cardClasses.join(' ')}">
                             <img class="hand-card-art" src="${getCardNormalUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
                             ${cardFlag}
                             <div class="${isPlayable ? 'hand-card-play-tag' : 'hand-card-cost-tag'}">${tagText}</div>
@@ -4652,7 +4690,8 @@
                         <img src="${cmdrArt}"
                              class="player-cmdr-card-img"
                              alt="Commander"
-                             onmouseenter="window.showCardInspector('${escapeHtml(cmdrName)}')"
+                             data-card-name="${escapeHtml(cmdrName)}"
+                             onmouseenter="window.showCardInspector(this.getAttribute('data-card-name'), event)"
                              onmouseleave="window.hideCardInspector()" />
                         <div style="font-size: 0.75rem; font-weight: 700; color: #e2e8f0;">${escapeHtml(cmdrName)}</div>
                         ${isCmdrOnField ? '<span class="cmdr-status-badge on-field">👑 On Battlefield</span>' : '<span class="cmdr-status-badge in-zone">👑 In Command Zone</span>'}
@@ -5683,7 +5722,8 @@
             cardsHtml += `
                 <div class="mulligan-card ${isSelectable ? 'selectable' : ''} ${isBottomSelected ? 'selected-bottom' : ''}"
                      onclick="${isSelectable ? `window.toggleMulliganBottomCard('${c.id}')` : ''}"
-                     onmouseenter="window.showCardInspector('${escapeHtml(c.name)}')"
+                     data-card-name="${escapeHtml(c.name)}"
+                     onmouseenter="window.showCardInspector(this.getAttribute('data-card-name'), event)"
                      onmouseleave="window.hideCardInspector()"
                      title="${escapeHtml(c.name)} - ${c.typeLine}">
                     <div class="mulligan-card-topbar">

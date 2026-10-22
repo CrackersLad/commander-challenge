@@ -4,6 +4,21 @@ All notable changes to the Commander Draft Challenge application are documented 
 
 ---
 
+## [v9.3] - Mulligan Bottom-Decking Flow, Persistent Kept Hands & High-Res Hover Inspector
+
+### 🔍 High-Res Hover Card Inspector Fixes
+- Fixed JavaScript syntax errors triggered by apostrophes in card names (e.g., `Commander's Sphere`, `Hero's Downfall`, `Alrund's Epiphany`) by refactoring inline attribute handlers to use `data-card-name` and standard DOM attribute retrieval.
+- Newly drawn cards, hand tray cards, and battlefield permanents can now be smoothly hovered to display high-resolution Scryfall art and engine notices.
+- Raised inspector layer to `z-index: 100005` with intelligent dynamic positioning relative to the card's viewport position so the preview never covers the hovered card or gets occluded by modals or the hand tray.
+
+### 🃏 Multiplayer London Mulligan & Bottom-Decking Rules
+- **Free First Mulligan (MTG Rule 103.4c)**: Hand is shuffled back into library, 7 fresh cards are drawn, and all 7 cards can be kept with 0 cards bottomed.
+- **Subsequent London Mulligans**: On Mulligan #2, 7 fresh cards are drawn and player selects 1 card to place on the bottom of the library (keeping 6); on Mulligan #3, player selects 2 cards (keeping 5), and so on.
+- **Fixed Hand Reversion Bug**: Eliminated raw JSON hand overwrites in `updateFromRawJson` so bottom-decked cards are strictly removed from hand and placed at the bottom of the library rather than reverting to the first drawn hand.
+- **Turn 1 Draw Step Accounting**: When the starting player advances to Turn 1 Main 1, the turn 1 draw (MTG Rule 103.7c) is cleanly drawn and logged as a distinct action (e.g., 6 kept cards + 1 drawn card = 7 cards in hand).
+
+---
+
 ## [v9.2] - Forge Playtester Turn Order, Mulligan Persistence, Phase Flow & Floating Mana Engine
 
 ### 🔄 Mulligan Hand Persistence

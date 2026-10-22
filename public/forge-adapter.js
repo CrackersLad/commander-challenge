@@ -210,15 +210,10 @@
                         manaPool: (isNewTurnOrActive && this.activePlayerIndex === idx) ? { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 } : (existing.manaPool || { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }),
 
                         hand: (() => {
-                            const newHand = (pData.hand || []).map(c => enrichCard(c));
                             if (idx === 0 && existing.handLocked && existing.keptHandCards && existing.keptHandCards.length > 0) {
-                                // If engine drew cards, update keptHandCards
-                                if (newHand.length >= existing.keptHandCards.length) {
-                                    existing.keptHandCards = newHand;
-                                    return newHand;
-                                }
                                 return existing.keptHandCards;
                             }
+                            const newHand = (pData.hand || []).map(c => enrichCard(c));
                             return newHand;
                         })(),
                         commandZone: (pData.commandZone || []).map(c => enrichCard(c, true)),
@@ -288,6 +283,24 @@
                             this.battlefield.forEach(c => { c.tapped = false; c.producedMana = null; c.paidLifeCost = null; });
                             this.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
                         },
+                        draw(count = 1) {
+                            const drawn = [];
+                            for (let i = 0; i < count; i++) {
+                                if (this.libraryCards && this.libraryCards.length > 0) {
+                                    const c = this.libraryCards.shift();
+                                    this.hand.push(c);
+                                    if (this.keptHandCards) {
+                                        this.keptHandCards.push(c);
+                                    }
+                                    drawn.push(c);
+                                }
+                            }
+                            this.handCount = this.hand.length;
+                            if (this.libraryCards) {
+                                this.libraryCount = this.libraryCards.length;
+                            }
+                            return drawn;
+                        },
                         async takeMulligan(bottomCardIds = [], autoBottom = false) {
                             return await selfGame.takeMulligan();
                         },
@@ -338,8 +351,48 @@
             this.isBusy = true;
             try {
                 const logsBefore = this.logs.length;
-                const newJson = await this.bridge.stepPhase();
-                this.updateFromRawJson(newJson);
+                const prevPhase = this.currentPhase;
+                const prevTurn = this.turn;
+                let newJson = null;
+                try {
+                    if (this.bridge && typeof this.bridge.stepPhase === 'function') {
+                        newJson = await this.bridge.stepPhase();
+                    }
+                } catch (e) {
+                    console.warn("bridge.stepPhase error, fallback advancing phase:", e);
+                }
+                if (newJson) {
+                    this.updateFromRawJson(newJson);
+                } else {
+                    const phases = ['UNTAP', 'UPKEEP', 'DRAW', 'MAIN_1', 'DECLARE_ATTACKERS', 'MAIN_2', 'END_STEP'];
+                    const curIdx = phases.indexOf(this.currentPhase);
+                    const nextPhase = phases[(curIdx + 1) % phases.length];
+                    if (nextPhase === 'UNTAP') {
+                        this.turn += 1;
+                        this.activePlayerIndex = (this.activePlayerIndex + 1) % this.players.length;
+                    }
+                    this.currentPhase = nextPhase;
+                }
+
+                // If active player is Player 0 and passing through DRAW phase, execute turn draw
+                const p1 = this.players[0];
+                if (p1 && this.activePlayerIndex === 0) {
+                    const isDrawStep = this.currentPhase === 'DRAW' || prevPhase === 'DRAW' || (prevPhase === 'UPKEEP' && (this.currentPhase === 'MAIN_1' || this.currentPhase === 'MAIN1'));
+                    if (isDrawStep && !this._turnDrewPlayer0) {
+                        this._turnDrewPlayer0 = true;
+                        const drawn = typeof p1.draw === 'function' ? p1.draw(1) : [];
+                        if (drawn && drawn.length > 0) {
+                            this.logs.push({
+                                type: 'DRAW',
+                                message: `📜 **${p1.name}** drew **${drawn[0].name}** for Turn ${this.turn}.`
+                            });
+                        }
+                    }
+                }
+                if (this.turn !== prevTurn) {
+                    this._turnDrewPlayer0 = false;
+                }
+
                 const newLogs = this.logs.slice(logsBefore);
                 return { success: true, logs: newLogs };
             } finally {
@@ -382,11 +435,35 @@
                 const cost = card && !card.isLand ? (card.cmc || 0) : 0;
                 const numId = parseInt(cardId, 10);
                 const logsBefore = this.logs.length;
-                const newJson = await this.bridge.playCard(numId);
-                this.updateFromRawJson(newJson);
-                if (p && cost > 0 && typeof p.deductMana === 'function') {
-                    p.deductMana(cost);
+                try {
+                    if (this.bridge && typeof this.bridge.playCard === 'function' && !isNaN(numId)) {
+                        const newJson = await this.bridge.playCard(numId);
+                        this.updateFromRawJson(newJson);
+                    }
+                } catch (eBridge) {
+                    console.warn("bridge.playCard error:", eBridge);
                 }
+
+                // Strictly remove played card from hand and keptHandCards
+                if (p && card) {
+                    if (p.hand) {
+                        p.hand = p.hand.filter(c => String(c.id) !== String(cardId));
+                        p.handCount = p.hand.length;
+                    }
+                    if (p.keptHandCards) {
+                        p.keptHandCards = p.keptHandCards.filter(c => String(c.id) !== String(cardId));
+                    }
+                    if (!p.battlefield.some(c => String(c.id) === String(cardId))) {
+                        p.battlefield.push(card);
+                    }
+                    if (card.isLand) {
+                        p.landPlayedThisTurn = true;
+                    }
+                    if (cost > 0 && typeof p.deductMana === 'function') {
+                        p.deductMana(cost);
+                    }
+                }
+
                 return { success: true, logs: this.logs.slice(logsBefore) };
             } catch (e) {
                 console.error("playCard error:", e);
@@ -460,31 +537,12 @@
             const p = this.players[0];
             const prevMulliganCount = (p && p.mulliganCount) || 0;
             const newMulliganCount = prevMulliganCount + 1;
+
             if (p) {
+                p.handLocked = false;
                 p.mulliganCount = newMulliganCount;
-            }
 
-            let newHandDrawn = false;
-            try {
-                if (this.bridge && typeof this.bridge.takeMulligan === 'function') {
-                    const newJson = await this.bridge.takeMulligan();
-                    if (newJson) {
-                        this.updateFromRawJson(newJson);
-                        if (this.players[0]) {
-                            this.players[0].mulliganCount = newMulliganCount;
-                            if (this.players[0].hand && this.players[0].hand.length > 0) {
-                                newHandDrawn = true;
-                            }
-                        }
-                    }
-                }
-            } catch (err) {
-                console.warn("ForgeWebBridge.takeMulligan error, applying client fallback:", err);
-            }
-
-            // Fallback client-side mulligan if bridge is not available or didn't supply new cards
-            if (!newHandDrawn && p) {
-                p.mulliganCount = newMulliganCount;
+                // Ensure library has cards to draw from
                 if (!p.libraryCards || p.libraryCards.length < 7) {
                     const deckInfo = (this.selectedDecks && this.selectedDecks[0]) || {};
                     if (deckInfo.cards && deckInfo.cards.length > 0) {
@@ -493,25 +551,36 @@
                             .map(c => enrichCard(typeof c === 'string' ? { name: c } : c));
                     }
                 }
-                if (p.libraryCards && p.libraryCards.length > 0) {
-                    // Put current hand back into library
-                    if (p.hand && p.hand.length > 0) {
-                        p.libraryCards.push(...p.hand);
-                    }
-                    // Shuffle library with Fisher-Yates
-                    for (let i = p.libraryCards.length - 1; i > 0; i--) {
-                        const j = Math.floor(Math.random() * (i + 1));
-                        [p.libraryCards[i], p.libraryCards[j]] = [p.libraryCards[j], p.libraryCards[i]];
-                    }
-                    // Draw fresh 7 cards
-                    p.hand = p.libraryCards.splice(0, 7);
-                    p.handCount = p.hand.length;
-                    p.libraryCount = p.libraryCards.length;
-                    this.logs.push({
-                        type: 'FORGE_EVENT',
-                        message: `Player took mulligan #${newMulliganCount}. Shuffled hand into library and drew 7 fresh cards.`
-                    });
+
+                // Put current hand back into library
+                if (p.hand && p.hand.length > 0) {
+                    p.libraryCards.push(...p.hand);
                 }
+
+                // Shuffle library completely with Fisher-Yates
+                for (let i = p.libraryCards.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [p.libraryCards[i], p.libraryCards[j]] = [p.libraryCards[j], p.libraryCards[i]];
+                }
+
+                // Draw fresh 7 cards
+                p.hand = p.libraryCards.splice(0, 7);
+                p.handCount = p.hand.length;
+                p.libraryCount = p.libraryCards.length;
+                p.keptHandCards = [...p.hand];
+
+                this.logs.push({
+                    type: 'FORGE_EVENT',
+                    message: `Player took mulligan #${newMulliganCount}. Shuffled hand into library and drew 7 fresh cards.`
+                });
+            }
+
+            try {
+                if (this.bridge && typeof this.bridge.takeMulligan === 'function') {
+                    await this.bridge.takeMulligan();
+                }
+            } catch (err) {
+                console.warn("ForgeWebBridge.takeMulligan error:", err);
             }
 
             const p1 = this.players[0];
@@ -536,44 +605,51 @@
 
         async bottomCards(cardIds = []) {
             const p = this.players[0];
-            if (!p) return [];
+            if (!p || !p.hand || cardIds.length === 0) return [];
             const bottomedCards = [];
+            const idSet = new Set(cardIds.map(String));
+
+            const remainingHand = [];
+            for (const c of p.hand) {
+                if (idSet.has(String(c.id))) {
+                    bottomedCards.push(c);
+                    if (p.libraryCards) {
+                        p.libraryCards.push(c); // Put on bottom of library
+                    }
+                } else {
+                    remainingHand.push(c);
+                }
+            }
+
+            // Fallback match by card name if ID matching was incomplete
+            if (bottomedCards.length < cardIds.length) {
+                for (const targetId of cardIds) {
+                    if (!bottomedCards.some(b => String(b.id) === String(targetId))) {
+                        const idx = remainingHand.findIndex(c => String(c.id) === String(targetId) || c.name === targetId);
+                        if (idx !== -1) {
+                            const [bCard] = remainingHand.splice(idx, 1);
+                            bottomedCards.push(bCard);
+                            if (p.libraryCards) p.libraryCards.push(bCard);
+                        }
+                    }
+                }
+            }
+
+            p.hand = remainingHand;
+            p.keptHandCards = [...remainingHand];
+            p.handCount = p.hand.length;
+            p.handLocked = true;
+            if (p.libraryCards) {
+                p.libraryCount = p.libraryCards.length;
+            }
 
             try {
                 if (this.bridge && typeof this.bridge.bottomCards === 'function' && cardIds.length > 0) {
                     const idsCsv = cardIds.join(',');
-                    const newJson = await this.bridge.bottomCards(idsCsv);
-                    if (newJson) {
-                        const currentMullCount = p.mulliganCount;
-                        this.updateFromRawJson(newJson);
-                        if (this.players[0]) {
-                            this.players[0].mulliganCount = currentMullCount;
-                        }
-                    }
+                    await this.bridge.bottomCards(idsCsv);
                 }
             } catch (err) {
-                console.warn("ForgeWebBridge.bottomCards error, applying client fallback:", err);
-            }
-
-            // Ensure client-side p.hand has selected cards removed if still present
-            if (p.hand && cardIds.length > 0) {
-                const idSet = new Set(cardIds.map(String));
-                const remainingHand = [];
-                for (const c of p.hand) {
-                    if (idSet.has(String(c.id))) {
-                        bottomedCards.push(c);
-                        if (p.libraryCards) {
-                            p.libraryCards.push(c);
-                        }
-                    } else {
-                        remainingHand.push(c);
-                    }
-                }
-                p.hand = remainingHand;
-                p.handCount = p.hand.length;
-                if (p.libraryCards) {
-                    p.libraryCount = p.libraryCards.length;
-                }
+                console.warn("ForgeWebBridge.bottomCards error:", err);
             }
 
             return bottomedCards;
