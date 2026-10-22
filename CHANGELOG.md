@@ -4,6 +4,17 @@ All notable changes to the Commander Draft Challenge application are documented 
 
 ---
 
+## [v9.5] - Strict Untap Rules Enforcement (MTG Rule 502.2) & Illegal Tap Toggle Elimination
+
+### 🔒 Strict Untap Rules Enforcement (MTG Rule 502.2)
+- Removed arbitrary click-to-untap behavior that previously allowed players to tap a permanent (or attack in combat) and freely untap it again by clicking it.
+- **Untap Step Only**: Permanents now strictly remain tapped until your next Untap Step (MTG Rule 502.2), unless untapped by a spell or card ability.
+- **Unspent Mana Undo**: Tapping a land or mana rock can only be undone if the generated mana is still currently unspent in `player.manaPool`. Once spent on a spell or ability, the permanent cannot be untapped.
+- **Illegal Tap Toggle Removal**: Eliminated arbitrary fallback `card.tapped = !card.tapped` so permanents without mana or activated abilities cannot be toggled on/off at will.
+- **Combat Attacker Validation (Rule 508.1a)**: Explicitly rejects declaring already-tapped creatures as attackers.
+
+---
+
 ## [v9.4] - Strict Land Drop Enforcement (Rule 305.2) & Forge Activated Abilities on MTG Stack
 
 ### 🌲 Strict 1 Land Drop Per Turn Limit (MTG Rule 305.2)

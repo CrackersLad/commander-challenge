@@ -4604,7 +4604,7 @@
                          data-card-name="${escapeHtml(c.name)}"
                          onmouseenter="window.showCardInspector(this.getAttribute('data-card-name'), event)"
                          onmouseleave="window.hideCardInspector()"
-                         title="${c.isLand || c.isManaRock ? 'Click to tap/untap for mana' : escapeHtml(c.name)}">
+                         title="${c.tapped ? `${escapeHtml(c.name)} (Tapped - Untaps during Untap Step)` : (c.isLand || c.isManaRock ? 'Click to tap for mana' : escapeHtml(c.name))}">
                         <span>${icon}</span>
                         <span>${escapeHtml(c.name)}</span>
                         ${manaBadge}
@@ -5515,19 +5515,27 @@
     window.handleCreatureClick = function (cardId) {
         if (!currentGame) return;
         const currentPhase = currentGame.currentPhase;
-        if (currentPhase === 'DECLARE_ATTACKERS' || currentPhase === 'COMBAT_DECLARE_ATTACKERS') {
-            window.toggleAttackerSelection(cardId);
-            return;
-        }
-
         const player = currentGame.players[0];
         const card = player.battlefield.find(c => c.id === cardId);
         if (!card) return;
+
+        if (currentPhase === 'DECLARE_ATTACKERS' || currentPhase === 'COMBAT_DECLARE_ATTACKERS') {
+            if (card.tapped && !selectedAttackerIds.has(cardId)) {
+                alert(`Cannot declare ${card.name} as an attacker: It is already tapped! (MTG Rule 508.1a)`);
+                return;
+            }
+            window.toggleAttackerSelection(cardId);
+            return;
+        }
 
         const abils = parseActivatedAbilities(card);
         if (abils.length > 0) {
             window.openCardAbilityModal(cardId);
         } else {
+            if (card.tapped) {
+                alert(`⚠️ ${card.name} is tapped. Permanents remain tapped until your next Untap Step (MTG Rule 502.2).`);
+                return;
+            }
             window.toggleAttackerSelection(cardId);
         }
     };
@@ -5538,24 +5546,30 @@
         const card = player.battlefield.find(c => c.id === cardId);
         if (!card) return;
 
-        // Untap if already tapped
+        // If already tapped, permanents CANNOT be arbitrarily untapped!
         if (card.tapped) {
-            card.tapped = false;
-            if (card.producedMana && player.manaPool) {
+            // Allow undoing floating mana only if this permanent produced mana that is currently still unspent in player.manaPool
+            const hasUnspentFloatingMana = card.producedMana && card.producedMana.length > 0 &&
+                player.manaPool && card.producedMana.every(col => (player.manaPool[col] || 0) > 0);
+
+            if (hasUnspentFloatingMana) {
+                card.tapped = false;
                 card.producedMana.forEach(col => {
-                    if (player.manaPool[col] && player.manaPool[col] > 0) {
-                        player.manaPool[col] -= 1;
-                    }
+                    player.manaPool[col] = Math.max(0, (player.manaPool[col] || 0) - 1);
                 });
                 card.producedMana = null;
-            }
-            card.paidLifeCost = null;
+                card.paidLifeCost = null;
 
-            appendArenaLogs([{
-                type: 'UNTAP_PERMANENT',
-                message: `↩️ **${player.name}** untapped **${card.name}**.`
-            }]);
-            updateArenaDOM();
+                appendArenaLogs([{
+                    type: 'MANA_UNDO',
+                    message: `↩️ **${player.name}** canceled unspent floating mana from **${card.name}**.`
+                }]);
+                updateArenaDOM();
+                return;
+            }
+
+            // Otherwise, strictly prevent untapping per MTG Rule 502.2
+            alert(`⚠️ **${card.name}** is tapped!\n\nIn Magic: The Gathering (Rule 502.2), permanents remain tapped until your next Untap Step, unless untapped by a spell or card ability.`);
             return;
         }
 
@@ -5596,9 +5610,8 @@
             return;
         }
 
-        // Fallback toggle tap
-        card.tapped = !card.tapped;
-        updateArenaDOM();
+        // If not a mana source and has no activated abilities, do not toggle tap
+        alert(`**${card.name}** does not have a tap ability.`);
     };
 
     window.toggleLandTap = window.handlePermanentClick;
