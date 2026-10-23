@@ -70,14 +70,17 @@
             var viewEl = document.getElementById('view-collection-hub');
             if (viewEl) viewEl.classList.add('active');
             window.scrollTo(0, 0);
+            if (!window.location.hash.startsWith('#view-collection')) {
+                window.history.pushState({ viewId: 'view-collection-hub' }, '', '#view-collection-hub');
+            }
             if (typeof window.switchTab === 'function') {
-                window.switchTab(tab);
+                window.switchTab(tab, true);
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=10.16">
-    <link rel="stylesheet" href="collection-hub.css?v=10.16">
-    <link rel="stylesheet" href="commander-arena.css?v=10.16">
+    <link rel="stylesheet" href="styles.css?v=10.17">
+    <link rel="stylesheet" href="collection-hub.css?v=10.17">
+    <link rel="stylesheet" href="commander-arena.css?v=10.17">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -2831,7 +2834,7 @@
         </div>
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy. Not approved or endorsed by Wizards of the Coast. Portions of materials used are property of Wizards of the Coast LLC. © Wizards of the Coast LLC.</p>
         <p class="footer-subtext">Card data, symbols, and high-resolution imagery provided by the <a href="https://scryfall.com" target="_blank" rel="noopener">Scryfall API</a> under Community Guidelines. Non-commercial community tool.</p>
-        <span id="appVersion" class="version-tag" onclick="window.openChangelogModal()" title="View Changelog">v10.16</span>
+        <span id="appVersion" class="version-tag" onclick="window.openChangelogModal()" title="View Changelog">v10.17</span>
     </footer>
 
     <!-- Feedback & Bug Report Modal -->
@@ -2982,14 +2985,14 @@
     </nav>
 
     <!-- Official MTG Lands Knowledge Base -->
-    <script src="./mtg-lands.js?v=10.16"></script>
+    <script src="./mtg-lands.js?v=10.17"></script>
     <!-- CheerpJ WebAssembly Runtime for Card-Forge Engine -->
     <script src="https://cjrtnc.leaningtech.com/4.3/loader.js"></script>
-    <script src="./forge-adapter.js?v=10.16"></script>
-    <script src="./forge-card-scripts.js?v=10.16"></script>
-    <script src="./commander-engine.js?v=10.16"></script>
-    <script src="./commander-arena.js?v=10.16"></script>
-    <script src="./collection-hub.js?v=10.16"></script>
-    <script type="module" src="./script.js?v=10.16"></script>
+    <script src="./forge-adapter.js?v=10.17"></script>
+    <script src="./forge-card-scripts.js?v=10.17"></script>
+    <script src="./commander-engine.js?v=10.17"></script>
+    <script src="./commander-arena.js?v=10.17"></script>
+    <script src="./collection-hub.js?v=10.17"></script>
+    <script type="module" src="./script.js?v=10.17"></script>
 </body>
 </html>

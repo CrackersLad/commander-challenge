@@ -658,7 +658,7 @@
         });
 
         // ==================== TAB SWITCHING LOGIC ====================
-        function switchTab(tab) {
+        function switchTab(tab, updateUrl = true) {
             const sections = {
                 deck: document.getElementById('deckSection'),
                 set: document.getElementById('setSection'),
@@ -693,9 +693,13 @@
                 renderBuildSection();
             }
 
-            const params = new URLSearchParams(window.location.search);
-            params.set('tab', tab);
-            window.history.replaceState({}, '', `${window.location.pathname}?${params}`);
+            const hubEl = document.getElementById('view-collection-hub');
+            const isHubActive = hubEl && hubEl.classList.contains('active');
+            if (updateUrl && isHubActive) {
+                const params = new URLSearchParams(window.location.search);
+                params.set('tab', tab);
+                window.history.replaceState({}, '', `${window.location.pathname}?${params}`);
+            }
             localStorage.setItem('archidekt_activeTab', tab);
         }
         window.switchTab = switchTab;
@@ -2315,7 +2319,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=10.16');
+                    const res = await fetch('./commander-precons.json?v=10.17');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2351,7 +2355,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=10.16');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=10.17');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -8425,9 +8429,12 @@
             document.getElementById('quickSets').style.display = 'none';
 
             localStorage.setItem('archidekt_selectedSetCode', setObj.code);
-            const params = new URLSearchParams(window.location.search);
-            params.set('setCode', setObj.code);
-            window.history.replaceState({}, '', `${window.location.pathname}?${params}`);
+            const hubEl = document.getElementById('view-collection-hub');
+            if (hubEl && hubEl.classList.contains('active')) {
+                const params = new URLSearchParams(window.location.search);
+                params.set('setCode', setObj.code);
+                window.history.replaceState({}, '', `${window.location.pathname}?${params}`);
+            }
         }
 
         function selectSetByCode(code) {
@@ -8454,9 +8461,13 @@
             document.getElementById('setSearchInput').focus();
 
             localStorage.removeItem('archidekt_selectedSetCode');
-            const params = new URLSearchParams(window.location.search);
-            params.delete('setCode');
-            window.history.replaceState({}, '', `${window.location.pathname}?${params}`);
+            const hubEl = document.getElementById('view-collection-hub');
+            if (hubEl && hubEl.classList.contains('active')) {
+                const params = new URLSearchParams(window.location.search);
+                params.delete('setCode');
+                const clean = params.toString();
+                window.history.replaceState({}, '', clean ? `${window.location.pathname}?${clean}` : window.location.pathname);
+            }
         }
 
         document.addEventListener('click', (e) => {
@@ -9302,10 +9313,11 @@
                 selectSetByCode(urlSetCode);
             }
 
-            switchTab(urlTab);
+            switchTab(urlTab, false);
 
-            // If a specific collection tab, hash, or trade link is requested, activate collection hub view
-            if (isTradeLink || params.get('tab') || window.location.hash.startsWith('#view-collection') || window.location.hash.startsWith('#collection') || window.location.hash.startsWith('#deck')) {
+            // Only switch view to collection hub if explicitly requested via trade link or hash
+            const hasCollectionHash = window.location.hash.startsWith('#view-collection') || window.location.hash.startsWith('#collection') || window.location.hash.startsWith('#deck');
+            if (isTradeLink || hasCollectionHash) {
                 if (typeof window.switchView === 'function') {
                     window.switchView('view-collection-hub', false);
                 } else {

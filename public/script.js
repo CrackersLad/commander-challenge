@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=10.16';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=10.16';
-import { getArchives } from './data-service.js?v=10.16';
-import { initDeckActionsModule } from './deck-actions.js?v=10.16';
-import { initRoomActionsModule } from './room-actions.js?v=10.16';
-import { initPlayerViewModule } from './player-view.js?v=10.16';
-import { initAdminModule } from './admin.js?v=10.16';
-import { initCalendarModule } from './calendar.js?v=10.16';
-import { initAuthModule } from './auth.js?v=10.16';
-import { initHubModule } from './hub.js?v=10.16';
-import { initProfileModule } from './profile.js?v=10.16';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=10.16';
-import { initWarRoom, openWarRoom } from './war-room.js?v=10.16';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=10.16';
-import { initBoosterDraftModule } from './booster-draft.js?v=10.16';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=10.16';
+import { db, auth, functions } from './firebase-setup.js?v=10.17';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=10.17';
+import { getArchives } from './data-service.js?v=10.17';
+import { initDeckActionsModule } from './deck-actions.js?v=10.17';
+import { initRoomActionsModule } from './room-actions.js?v=10.17';
+import { initPlayerViewModule } from './player-view.js?v=10.17';
+import { initAdminModule } from './admin.js?v=10.17';
+import { initCalendarModule } from './calendar.js?v=10.17';
+import { initAuthModule } from './auth.js?v=10.17';
+import { initHubModule } from './hub.js?v=10.17';
+import { initProfileModule } from './profile.js?v=10.17';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=10.17';
+import { initWarRoom, openWarRoom } from './war-room.js?v=10.17';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=10.17';
+import { initBoosterDraftModule } from './booster-draft.js?v=10.17';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=10.17';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -927,17 +927,32 @@ function handleRouteFromUrl(push = false) {
         switchView('view-booster-draft', push);
     } else if (hash === '#view-booster-simulator' || hash === '#booster-simulator') {
         switchView('view-booster-simulator', push);
-    } else if (hash === '#view-collection-hub' || hash.startsWith('#collection') || hash.startsWith('#deck') || hash.startsWith('#trade-') || tab) {
+    } else if (hash.startsWith('#t=') || hash.startsWith('#trade=') || params.get('t') || params.get('trade')) {
+        switchView('view-collection-hub', push);
+        if (typeof window.switchTab === 'function') {
+            window.switchTab('trade', false);
+        }
+    } else if (hash === '#view-collection-hub' || hash.startsWith('#collection') || hash.startsWith('#deck') || hash.startsWith('#trade-')) {
         switchView('view-collection-hub', push);
         if (tab && typeof window.switchTab === 'function') {
-            window.switchTab(tab);
+            window.switchTab(tab, true);
         } else if (hash.startsWith('#deck') && typeof window.switchTab === 'function') {
-            window.switchTab('deck');
+            window.switchTab('deck', true);
         } else if (hash.startsWith('#collection') && typeof window.switchTab === 'function') {
-            window.switchTab('collection');
+            window.switchTab('collection', true);
         }
-    } else if (hash === '#view-landing' || (!hash && !params.get('room'))) {
+    } else if (params.get('room')) {
+        // Room parameter handled elsewhere by room joining logic
+    } else {
+        // Default clean state is landing view
         switchView('view-landing', push);
+        // Clean up any stray collection tab or set parameters from address bar on landing
+        if (params.has('tab') || params.has('setCode')) {
+            params.delete('tab');
+            params.delete('setCode');
+            const cleanSearch = params.toString();
+            window.history.replaceState({}, '', cleanSearch ? `${window.location.pathname}?${cleanSearch}` : window.location.pathname);
+        }
     }
 }
 window.handleRouteFromUrl = handleRouteFromUrl;
@@ -2368,7 +2383,7 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=10.16').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=10.17').then(module => module.initDeckBuilderModule(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);
