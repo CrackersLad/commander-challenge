@@ -566,12 +566,21 @@
                     const curIdx = phases.indexOf(this.currentPhase);
                     const nextPhase = (curIdx !== -1) ? phases[(curIdx + 1) % phases.length] : 'MAIN_1';
                     if (nextPhase === 'UNTAP') {
-                        this.turn += 1;
-                        this.activePlayerIndex = (this.activePlayerIndex + 1) % this.players.length;
+                        let nextPlayerIdx = (this.activePlayerIndex + 1) % this.players.length;
+                        while (this.players[nextPlayerIdx] && !this.players[nextPlayerIdx].isAlive) {
+                            nextPlayerIdx = (nextPlayerIdx + 1) % this.players.length;
+                        }
+                        if (nextPlayerIdx <= this.activePlayerIndex) {
+                            this.turn += 1;
+                        }
+                        this.activePlayerIndex = nextPlayerIdx;
                         const nextPlayer = this.players[this.activePlayerIndex];
                         if (nextPlayer) {
                             nextPlayer.landPlayedThisTurn = false;
                             nextPlayer.landsPlayedCount = 0;
+                            nextPlayer._drewThisTurn = false;
+                            nextPlayer._actedMain1 = false;
+                            nextPlayer._attackedThisCombat = false;
                             if (typeof nextPlayer.untapAll === 'function') {
                                 nextPlayer.untapAll();
                             }
@@ -604,6 +613,69 @@
                     this._turnDrewPlayer0 = false;
                 }
 
+                // Handle bot actions if active player is AI
+                const activeP = this.getActivePlayer();
+                if (activeP && activeP.isAI) {
+                    if (this.currentPhase === 'DRAW' && !activeP._drewThisTurn) {
+                        activeP._drewThisTurn = true;
+                        const drawn = typeof activeP.draw === 'function' ? activeP.draw(1) : [];
+                        this.logs.push({
+                            type: 'DRAW',
+                            message: `📜 **${activeP.name}** drew for turn.`
+                        });
+                    } else if (this.currentPhase === 'MAIN_1' && !activeP._actedMain1) {
+                        activeP._actedMain1 = true;
+                        // Bot plays a land
+                        if (!activeP.landPlayedThisTurn && Array.isArray(activeP.hand)) {
+                            const landIdx = activeP.hand.findIndex(c => c.isLand || (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(c)));
+                            if (landIdx !== -1) {
+                                const landCard = activeP.hand.splice(landIdx, 1)[0];
+                                landCard.tapped = false;
+                                activeP.battlefield.push(landCard);
+                                activeP.landPlayedThisTurn = true;
+                                activeP.landsPlayedCount = 1;
+                                this.logs.push({
+                                    type: 'LAND_PLAY',
+                                    message: `🏞️ **${activeP.name}** played **${landCard.name}**.`
+                                });
+                            }
+                        }
+                        // Bot casts a spell if mana allows
+                        const availMana = activeP.battlefield.filter(c => c.isLand && !c.tapped).length;
+                        if (availMana > 0 && Array.isArray(activeP.hand)) {
+                            const castIdx = activeP.hand.findIndex(c => !c.isLand && (c.cmc || 0) <= availMana && (c.cmc || 0) > 0);
+                            if (castIdx !== -1) {
+                                const spell = activeP.hand.splice(castIdx, 1)[0];
+                                const cost = spell.cmc || 1;
+                                let tapped = 0;
+                                activeP.battlefield.forEach(c => {
+                                    if (c.isLand && !c.tapped && tapped < cost) {
+                                        c.tapped = true;
+                                        tapped++;
+                                    }
+                                });
+                                spell.tapped = false;
+                                spell.summoningSick = true;
+                                activeP.battlefield.push(spell);
+                                this.logs.push({
+                                    type: 'SPELL_CAST',
+                                    message: `🪄 **${activeP.name}** cast **${spell.name}** ({${cost}}).`
+                                });
+                            }
+                        }
+                    } else if (this.currentPhase === 'DECLARE_ATTACKERS' && !activeP._attackedThisCombat) {
+                        activeP._attackedThisCombat = true;
+                        const readyAttackers = activeP.battlefield.filter(c => c.isCreature && !c.tapped && !c.summoningSick);
+                        if (readyAttackers.length > 0) {
+                            readyAttackers.forEach(c => { c.tapped = true; });
+                            this.logs.push({
+                                type: 'ATTACK',
+                                message: `⚔️ **${activeP.name}** declared attack with **${readyAttackers.length}** creature(s)!`
+                            });
+                        }
+                    }
+                }
+
                 const newLogs = this.logs.slice(logsBefore);
                 return { success: true, logs: newLogs, currentPhase: this.currentPhase, activePlayer: this.getActivePlayer(), turn: this.turn };
             } finally {
@@ -630,8 +702,14 @@
                     this.updateFromRawJson(newJson);
                 }
                 if (this.turn === prevTurn && this.activePlayerIndex === prevActive) {
-                    this.turn += 1;
-                    this.activePlayerIndex = (this.activePlayerIndex + 1) % this.players.length;
+                    let nextPlayerIdx = (this.activePlayerIndex + 1) % this.players.length;
+                    while (this.players[nextPlayerIdx] && !this.players[nextPlayerIdx].isAlive) {
+                        nextPlayerIdx = (nextPlayerIdx + 1) % this.players.length;
+                    }
+                    if (nextPlayerIdx <= this.activePlayerIndex) {
+                        this.turn += 1;
+                    }
+                    this.activePlayerIndex = nextPlayerIdx;
                     this.currentPhase = 'MAIN_1';
                     const nextPlayer = this.players[this.activePlayerIndex];
                     if (nextPlayer) {

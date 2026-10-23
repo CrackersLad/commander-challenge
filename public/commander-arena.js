@@ -4856,7 +4856,7 @@
                 actionBtnClass = 'action-trigger-btn arena-btn-gold';
             }
         } else {
-            actionBtnText = 'Advance Bot Action 🤖';
+            actionBtnText = `Advance ${activePlayer ? activePlayer.name : 'Bot'} (${currentPhase.replace(/_/g, ' ')}) 🤖`;
         }
 
         return `
@@ -6493,19 +6493,27 @@
 
             window.closeMulliganModal();
 
-            // ADVANCE ENGINE: Step through UNTAP -> UPKEEP -> DRAW -> MAIN_1 so the starting player begins in MAIN_1!
-            let steps = 0;
-            while (currentGame.currentPhase !== 'MAIN_1' && currentGame.currentPhase !== 'MAIN1' && steps < 10) {
-                const stepRes = await currentGame.stepPhase();
-                steps++;
-                if (stepRes && stepRes.logs) appendArenaLogs(stepRes.logs);
-            }
-            if (currentGame.currentPhase === 'UNTAP' || currentGame.currentPhase === 'UPKEEP' || currentGame.currentPhase === 'DRAW') {
-                currentGame.currentPhase = 'MAIN_1';
-            }
-            const p1 = currentGame.players[0];
-            if (p1 && currentGame.activePlayerIndex === 0) {
-                p1.landPlayedThisTurn = false;
+            // Set up starting player's Turn 1 cleanly without premature while-loop phase skipping
+            const startIdx = typeof currentGame.startingPlayerIndex === 'number' ? currentGame.startingPlayerIndex : 0;
+            currentGame.activePlayerIndex = startIdx;
+            currentGame.turn = 1;
+            currentGame.currentPhase = 'MAIN_1';
+
+            const activeP = currentGame.getActivePlayer();
+            if (activeP) {
+                activeP.landPlayedThisTurn = false;
+                activeP.landsPlayedCount = 0;
+                // Starting player draws for Turn 1 in multiplayer Commander
+                if (typeof activeP.draw === 'function' && !currentGame._turnDrewPlayer0 && activeP.id === player.id) {
+                    currentGame._turnDrewPlayer0 = true;
+                    const drawn = activeP.draw(1);
+                    if (drawn && drawn.length > 0) {
+                        appendArenaLogs([{
+                            type: 'DRAW',
+                            message: `📜 **${activeP.name}** drew **${drawn[0].name}** for Turn 1.`
+                        }]);
+                    }
+                }
             }
 
             updateArenaDOM();
