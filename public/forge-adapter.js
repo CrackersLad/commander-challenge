@@ -744,25 +744,45 @@
             const bridge = await initForgeEngine();
             showLoadingBanner("Assembling 4-Player Commander Pod", "Shuffling libraries & drawing opening hands...");
 
+            const cleanDeckCards = (cards, cmdr) => {
+                if (!Array.isArray(cards)) return [];
+                const res = [];
+                const cmdrClean = (cmdr || '').toLowerCase().trim();
+                for (const c of cards) {
+                    let name = typeof c === 'string' ? c : (c && c.name ? c.name : '');
+                    if (!name) continue;
+                    name = name.replace(/^\d+x?\s+/, '').trim();
+                    name = name.replace(/\s*\([A-Za-z0-9_-]+\).*$/, '').replace(/\s*\[[A-Za-z0-9_-]+\].*$/, '').trim();
+                    name = name.replace(/\*[A-Za-z0-9_-]+\*/g, '').trim();
+                    if (!name || name.toLowerCase() === cmdrClean) continue;
+                    const qty = (c && typeof c.quantity === 'number') ? c.quantity : 1;
+                    const count = Math.max(1, Math.min(qty, 40));
+                    for (let q = 0; q < count; q++) {
+                        res.push(name);
+                    }
+                }
+                return res;
+            };
+
             const p1 = selectedDecks[0] || {};
             const p1Name = p1.name || 'Wilhelt Zombies';
             const p1Cmdr = p1.commander || 'Wilhelt, the Rotcleaver';
-            const p1Cards = p1.cards ? p1.cards.map(c => typeof c === 'string' ? c : c.name).filter(n => n !== p1Cmdr) : [];
+            const p1Cards = cleanDeckCards(p1.cards, p1Cmdr);
 
             const p2 = selectedDecks[1] || {};
             const p2Name = p2.name || 'Elven Empire';
             const p2Cmdr = p2.commander || 'Lathril, Blade of the Elves';
-            const p2Cards = p2.cards ? p2.cards.map(c => typeof c === 'string' ? c : c.name).filter(n => n !== p2Cmdr) : [];
+            const p2Cards = cleanDeckCards(p2.cards, p2Cmdr);
 
             const p3 = selectedDecks[2] || {};
             const p3Name = p3.name || 'Reap the Tides';
             const p3Cmdr = p3.commander || 'Aesi, Tyrant of Gyre Strait';
-            const p3Cards = p3.cards ? p3.cards.map(c => typeof c === 'string' ? c : c.name).filter(n => n !== p3Cmdr) : [];
+            const p3Cards = cleanDeckCards(p3.cards, p3Cmdr);
 
             const p4 = selectedDecks[3] || {};
             const p4Name = p4.name || 'Planar Portal';
             const p4Cmdr = p4.commander || 'Prosper, Tome-Bound';
-            const p4Cards = p4.cards ? p4.cards.map(c => typeof c === 'string' ? c : c.name).filter(n => n !== p4Cmdr) : [];
+            const p4Cards = cleanDeckCards(p4.cards, p4Cmdr);
 
             let rawJson = null;
             try {
