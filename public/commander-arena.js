@@ -5942,7 +5942,7 @@
     // OPENING HAND & MULLIGAN CONTROLLER (MTG Rule 103.4c)
     // ============================================================================
     window.openMulliganModal = function () {
-        if (!currentGame) return;
+        if (!currentGame || !currentGame.players || !currentGame.players[0]) return;
         selectedBottomCardIds.clear();
         const overlay = document.getElementById('arenaMulliganOverlay');
         if (!overlay) return;
@@ -5957,7 +5957,7 @@
     };
 
     window.renderMulliganModal = function () {
-        if (!currentGame) return;
+        if (!currentGame || !currentGame.players || !currentGame.players[0]) return;
         const overlay = document.getElementById('arenaMulliganOverlay');
         if (!overlay) return;
 
@@ -6550,6 +6550,15 @@
             }
         } else {
             console.error("ForgeArena adapter not loaded.");
+            return;
+        }
+
+        if (!currentGame || !currentGame.players || currentGame.players.length === 0) {
+            console.error("Card-Forge Engine returned no players or failed.");
+            appendArenaLogs([{
+                type: 'ERROR',
+                message: `❌ Failed to launch Card-Forge WebAssembly Engine. Check console for details.`
+            }]);
             return;
         }
 
