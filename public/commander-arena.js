@@ -4424,13 +4424,14 @@
     // RENDERING OPPONENTS (SEATS 2, 3, 4)
     // ============================================================================
     function renderOpponentsRow() {
-        if (!currentGame) return '';
+        if (!currentGame || !currentGame.players || currentGame.players.length === 0) return '';
         const opponents = currentGame.players.slice(1); // Opponents 1, 2, 3
-        const activePlayer = currentGame.getActivePlayer();
+        const activePlayer = currentGame.getActivePlayer ? currentGame.getActivePlayer() : null;
 
         return opponents.map((opp, idx) => {
+            if (!opp) return '';
             const isTurn = activePlayer && activePlayer.id === opp.id && opp.isAlive;
-            const cmdr = opp.getCommander();
+            const cmdr = opp.getCommander ? opp.getCommander() : null;
             const cmdrName = cmdr ? cmdr.name : 'Unknown Commander';
             const cmdrArt = getCardArtCropUrl(cmdrName);
 
@@ -4573,13 +4574,13 @@
     // RENDERING YOU (PLAYER 1 / SEAT 1 COCKPIT)
     // ============================================================================
     function renderPlayerCockpit() {
-        if (!currentGame) return '';
+        if (!currentGame || !currentGame.players || !currentGame.players[0]) return '';
         const player = currentGame.players[0]; // Player 1
-        const activePlayer = currentGame.getActivePlayer();
+        const activePlayer = currentGame.getActivePlayer ? currentGame.getActivePlayer() : null;
         const isMyTurn = activePlayer && activePlayer.id === player.id && player.isAlive;
-        const currentPhase = currentGame.currentPhase;
+        const currentPhase = currentGame.currentPhase || 'MAIN_1';
 
-        const cmdr = player.getCommander();
+        const cmdr = player.getCommander ? player.getCommander() : null;
         const cmdrName = cmdr ? cmdr.name : 'Unknown Commander';
         const cmdrArt = getCardArtCropUrl(cmdrName);
         const cmdrCastCost = cmdr ? (cmdr.cmc || 0) + player.commanderTax : 0;

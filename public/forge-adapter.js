@@ -162,7 +162,12 @@
             }
 
             if (!data || data.status === 'ERROR') {
-                console.error("Game error from Forge:", data ? data.message : "Unknown error");
+                const errMsg = data ? data.message : "Unknown error";
+                console.error("Game error from Forge:", errMsg);
+                this.logs.push({
+                    type: 'FORGE_EVENT',
+                    message: `⚠️ Engine Error: ${errMsg}`
+                });
                 return;
             }
 
