@@ -571,6 +571,7 @@
                         const nextPlayer = this.players[this.activePlayerIndex];
                         if (nextPlayer) {
                             nextPlayer.landPlayedThisTurn = false;
+                            nextPlayer.landsPlayedCount = 0;
                             if (typeof nextPlayer.untapAll === 'function') {
                                 nextPlayer.untapAll();
                             }
@@ -635,6 +636,7 @@
                     const nextPlayer = this.players[this.activePlayerIndex];
                     if (nextPlayer) {
                         nextPlayer.landPlayedThisTurn = false;
+                        nextPlayer.landsPlayedCount = 0;
                         if (typeof nextPlayer.untapAll === 'function') nextPlayer.untapAll();
                     }
                 }
@@ -653,8 +655,14 @@
             try {
                 const p = this.players[0];
                 const card = p && p.hand ? p.hand.find(c => String(c.id) === String(cardId) || c.name === String(cardId)) : null;
-                const cost = card && !card.isLand ? (card.cmc || 0) : 0;
-                const isLand = card ? !!card.isLand : false;
+                const isLand = card ? (card.isLand || (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(card))) : false;
+                if (isLand && card) {
+                    card.isLand = true;
+                    card.cmc = 0;
+                    card.manaCost = '';
+                    if (!card.typeLine || !card.typeLine.toLowerCase().includes('land')) card.typeLine = 'Land';
+                }
+                const cost = card && !isLand ? (card.cmc || 0) : 0;
                 const numId = parseInt(cardId, 10);
                 const logsBefore = this.logs.length;
                 try {
@@ -1014,13 +1022,23 @@
         }
 
         const tl = (c.typeLine || '').toLowerCase();
-        c.manaCost = c.manaCost || '';
-        c.cmc = c.cmc !== undefined ? c.cmc : 0;
+        const detectedLand = (typeof window !== 'undefined' && typeof window.isLandCard === 'function' ? window.isLandCard(c) : false) || tl.includes('land');
+        c.isLand = !!c.isLand || detectedLand;
+        if (c.isLand) {
+            c.manaCost = '';
+            c.cmc = 0;
+            if (!c.typeLine || !c.typeLine.toLowerCase().includes('land')) {
+                c.typeLine = 'Land';
+            }
+        } else {
+            c.manaCost = c.manaCost || '';
+            c.cmc = c.cmc !== undefined ? c.cmc : 0;
+        }
+
         c.power = c.power !== undefined ? c.power : 0;
         c.toughness = c.toughness !== undefined ? c.toughness : 0;
         c.tapped = !!c.tapped;
         c.summoningSick = !!c.summoningSick;
-        c.isLand = !!c.isLand || tl.includes('land');
         c.isCreature = !!c.isCreature || tl.includes('creature');
         c.isArtifact = !!c.isArtifact || tl.includes('artifact');
         c.isEnchantment = !!c.isEnchantment || tl.includes('enchantment');

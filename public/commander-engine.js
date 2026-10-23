@@ -779,6 +779,7 @@
 
         // Mechanics classification
         const isLand = rawCard.isLand === true ||
+                       (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(rawCard)) ||
                        rawCard.category === 'Lands' ||
                        rawCard.category === 'Land' ||
                        typeLower.includes('land') ||

@@ -182,7 +182,75 @@
         }
 
         // 10. Fallback for Land / Mana Rock / Dork
-        if (card.isLand || card.isManaRock || typeLine.includes('land') || typeLine.includes('artifact')) {
+        const isLand = card.isLand || (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(card)) || typeLine.includes('land');
+        if (isLand || card.isManaRock || typeLine.includes('artifact')) {
+            // Check land basic subtypes in typeLine (e.g. "Land — Island Swamp")
+            const basicSubtypes = [];
+            if (/plains/i.test(typeLine)) basicSubtypes.push('W');
+            if (/island/i.test(typeLine)) basicSubtypes.push('U');
+            if (/swamp/i.test(typeLine)) basicSubtypes.push('B');
+            if (/mountain/i.test(typeLine)) basicSubtypes.push('R');
+            if (/forest/i.test(typeLine)) basicSubtypes.push('G');
+
+            if (basicSubtypes.length > 1) {
+                return {
+                    isMulti: true,
+                    options: basicSubtypes.map(c => ({ colors: [c], cost: null, desc: `Add {${c}}` }))
+                };
+            } else if (basicSubtypes.length === 1) {
+                return {
+                    isMulti: false,
+                    options: [{ colors: [basicSubtypes[0]], cost: null, desc: `Add {${basicSubtypes[0]}}` }]
+                };
+            }
+
+            // Check known color guilds in land name or popular lands
+            const nLower = name.toLowerCase();
+            // Dimir U/B
+            if (/choked estuary|sunken hollow|drowned catacomb|darkwater catacombs|watery grave|fetid pools|temple of deceit|underground river|darkslick shores|shipwreck marsh|morphic pool|tainted isle|clearwater pathway/i.test(nLower)) {
+                return { isMulti: true, options: [{ colors: ['U'], cost: null, desc: 'Add {U}' }, { colors: ['B'], cost: null, desc: 'Add {B}' }] };
+            }
+            // Azorius W/U
+            if (/hallowed fountain|glacial fortress|port town|prairie stream|deserted beach|sea of clouds|temple of enlightenment|adarkar wastes|hengegate pathway|seachrome coast/i.test(nLower)) {
+                return { isMulti: true, options: [{ colors: ['W'], cost: null, desc: 'Add {W}' }, { colors: ['U'], cost: null, desc: 'Add {U}' }] };
+            }
+            // Rakdos B/R
+            if (/blood crypt|dragonskull summit|foreboding ruins|smoldering marsh|haunted ridge|luxury suite|temple of malice|sulfurous springs|blightstep pathway|blackcleave cliffs/i.test(nLower)) {
+                return { isMulti: true, options: [{ colors: ['B'], cost: null, desc: 'Add {B}' }, { colors: ['R'], cost: null, desc: 'Add {R}' }] };
+            }
+            // Gruul R/G
+            if (/stomping ground|rootbound crag|game trail|cinder glade|rockfall vale|spire garden|temple of abandon|karplusan forest|cragcrown pathway|copperline gorge/i.test(nLower)) {
+                return { isMulti: true, options: [{ colors: ['R'], cost: null, desc: 'Add {R}' }, { colors: ['G'], cost: null, desc: 'Add {G}' }] };
+            }
+            // Selesnya G/W
+            if (/temple garden|sunpetal grove|fortified village|canopy vista|overgrown farmland|bountiful promenade|temple of plenty|brushland|branchloft pathway/i.test(nLower)) {
+                return { isMulti: true, options: [{ colors: ['G'], cost: null, desc: 'Add {G}' }, { colors: ['W'], cost: null, desc: 'Add {W}' }] };
+            }
+            // Orzhov W/B
+            if (/godless shrine|isolated chapel|shineshadow snarl|concealed courtyard|shattered sanctuary|vault of champions|temple of silence|caves of koilos|brightclimb pathway/i.test(nLower)) {
+                return { isMulti: true, options: [{ colors: ['W'], cost: null, desc: 'Add {W}' }, { colors: ['B'], cost: null, desc: 'Add {B}' }] };
+            }
+            // Izzet U/R
+            if (/steam vents|sulfur falls|frostboil snarl|spirebluff canal|stormcarved coast|training center|temple of epiphany|shivan reef|riverglide pathway/i.test(nLower)) {
+                return { isMulti: true, options: [{ colors: ['U'], cost: null, desc: 'Add {U}' }, { colors: ['R'], cost: null, desc: 'Add {R}' }] };
+            }
+            // Golgari B/G
+            if (/overgrown tomb|woodland cemetery|necroblossom snarl|blooming marsh|deathcap glade|undergrowth stadium|temple of malady|llanowar wastes|darkbore pathway/i.test(nLower)) {
+                return { isMulti: true, options: [{ colors: ['B'], cost: null, desc: 'Add {B}' }, { colors: ['G'], cost: null, desc: 'Add {G}' }] };
+            }
+            // Boros R/W
+            if (/sacred foundry|clifftop retreat|furycalm snarl|inspiring vantage|sundown pass|spectator seating|temple of triumph|battlefield forge|needleverge pathway/i.test(nLower)) {
+                return { isMulti: true, options: [{ colors: ['R'], cost: null, desc: 'Add {R}' }, { colors: ['W'], cost: null, desc: 'Add {W}' }] };
+            }
+            // Simic G/U
+            if (/breeding pool|hinterland harbor|vineglimmer snarl|botanical sanctum|dreamroot cascade|rejuvenating springs|temple of mystery|yavimaya coast|barkchannel pathway/i.test(nLower)) {
+                return { isMulti: true, options: [{ colors: ['G'], cost: null, desc: 'Add {G}' }, { colors: ['U'], cost: null, desc: 'Add {U}' }] };
+            }
+            // Triomes & Any-Color
+            if (/triome|xander's lounge|ziatora's|raffine's tower|spara's|jetmir's|tower|orchard|haven|reflecting/i.test(nLower)) {
+                return { isMulti: true, options: ['W', 'U', 'B', 'R', 'G'].map(c => ({ colors: [c], cost: null, desc: `Add {${c}}` })) };
+            }
+
             if (Array.isArray(card.colors) && card.colors.length > 1) {
                 return {
                     isMulti: true,
@@ -371,10 +439,15 @@
                 commander = cardName;
             }
 
+            const isLand = typeof window !== 'undefined' && typeof window.isLandCard === 'function' ? window.isLandCard(cardName) : false;
             cards.push({
                 name: cardName,
                 quantity: qty,
-                isCommander: isCmdr
+                isCommander: isCmdr,
+                isLand: isLand,
+                typeLine: isLand ? 'Land' : undefined,
+                cmc: isLand ? 0 : undefined,
+                manaCost: isLand ? '' : undefined
             });
         }
 
@@ -4715,12 +4788,19 @@
             handHtml = `<div style="font-size: 0.8rem; color: var(--arena-text-muted); margin: auto;">Your hand is currently empty</div>`;
         } else {
             player.hand.forEach(c => {
-                const isInstantOrFlash = c.isInstant || (c.keywords && c.keywords.has('flash'));
-                const cost = player.getCardCost(c, currentGame);
+                const isLand = c.isLand || (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(c));
+                if (isLand) {
+                    c.isLand = true;
+                    if (!c.typeLine || !c.typeLine.toLowerCase().includes('land')) c.typeLine = 'Land';
+                    c.cmc = 0;
+                    c.manaCost = '';
+                }
+                const isInstantOrFlash = !isLand && (c.isInstant || (c.keywords && c.keywords.has('flash')));
+                const cost = isLand ? 0 : player.getCardCost(c, currentGame);
                 let isPlayable = false;
                 let tagText = '';
 
-                if (c.isLand) {
+                if (isLand) {
                     const hasPlayedLand = Boolean(player.landPlayedThisTurn) || Boolean(player.landsPlayedCount && player.landsPlayedCount >= 1);
                     isPlayable = isMyTurn && currentPhase.includes('MAIN') && !hasPlayedLand;
                     tagText = isPlayable ? 'Play Land' : (hasPlayedLand ? 'Land Played' : 'Land');
@@ -5040,11 +5120,19 @@
         const card = player.hand.find(c => c.id === cardId);
         if (!card) return;
 
-        const isInstantOrFlash = card.isInstant || (card.keywords && card.keywords.has('flash'));
+        const isLand = card.isLand || (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(card));
+        if (isLand) {
+            card.isLand = true;
+            if (!card.typeLine || !card.typeLine.toLowerCase().includes('land')) card.typeLine = 'Land';
+            card.cmc = 0;
+            card.manaCost = '';
+        }
+
+        const isInstantOrFlash = !isLand && (card.isInstant || (card.keywords && card.keywords.has('flash')));
         const isMainPhase = currentGame.currentPhase === 'MAIN_1' || currentGame.currentPhase === 'MAIN_2' || currentGame.currentPhase === 'MAIN1' || currentGame.currentPhase === 'MAIN2';
 
         // Rule checks
-        if (card.isLand) {
+        if (isLand) {
             const hasPlayedLand = Boolean(player.landPlayedThisTurn) || Boolean(player.landsPlayedCount && player.landsPlayedCount >= 1);
             if (activePlayer.id !== player.id) {
                 alert("You can only play lands during your own turn!");
@@ -5069,7 +5157,7 @@
             }
         }
 
-        if (!card.isLand) {
+        if (!isLand) {
             const cost = player.getCardCost(card, currentGame);
             const available = player.getAvailableMana().total;
             if (available < cost) {
@@ -5096,7 +5184,7 @@
             }, 650);
         }
 
-        const spellCost = !card.isLand ? player.getCardCost(card, currentGame) : 0;
+        const spellCost = !isLand ? player.getCardCost(card, currentGame) : 0;
         let res = null;
         if (currentGame.playCard) {
             res = await currentGame.playCard(cardId);
@@ -5108,7 +5196,7 @@
             return;
         }
 
-        if (card.isLand) {
+        if (isLand) {
             player.landPlayedThisTurn = true;
             player.landsPlayedCount = (player.landsPlayedCount || 0) + 1;
             if (currentGame && currentGame.players && currentGame.players[0]) {
@@ -6667,24 +6755,31 @@
             }
         }
 
-        // Enrich any custom or selected decks using window.__MTG_CARD_CACHE__
-        if (window.__MTG_CARD_CACHE__) {
-            selectedDecks.forEach(d => {
-                if (d && Array.isArray(d.cards)) {
-                    d.cards.forEach(c => {
+        // Enrich any custom or selected decks using window.isLandCard and window.__MTG_CARD_CACHE__
+        selectedDecks.forEach(d => {
+            if (d && Array.isArray(d.cards)) {
+                d.cards.forEach(c => {
+                    const isLand = (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(c)) || (c.typeLine || '').toLowerCase().includes('land');
+                    if (isLand) {
+                        c.isLand = true;
+                        if (!c.typeLine || !c.typeLine.toLowerCase().includes('land')) c.typeLine = 'Land';
+                        c.cmc = 0;
+                        c.manaCost = '';
+                    }
+                    if (window.__MTG_CARD_CACHE__) {
                         const cached = window.__MTG_CARD_CACHE__[c.name.toLowerCase()];
                         if (cached) {
-                            if (!c.manaCost) c.manaCost = cached.manaCost;
-                            if (c.cmc === undefined) c.cmc = cached.cmc;
+                            if (!c.manaCost && !isLand) c.manaCost = cached.manaCost;
+                            if (c.cmc === undefined && !isLand) c.cmc = cached.cmc;
                             if (!c.typeLine) c.typeLine = cached.typeLine;
                             if (c.power === undefined) c.power = cached.power;
                             if (c.toughness === undefined) c.toughness = cached.toughness;
                             if (!c.oracleText) c.oracleText = cached.oracleText;
                         }
-                    });
-                }
-            });
-        }
+                    }
+                });
+            }
+        });
 
         window.clearArenaLog();
         appendArenaLogs([{
