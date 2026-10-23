@@ -4316,6 +4316,30 @@
                     </div>
                 </div>
 
+                <!-- Fetch Land / Search Library Modal Overlay -->
+                <div class="arena-ability-modal" id="arenaFetchLandModal" style="display: none; z-index: 10005;">
+                    <div class="arena-ability-card" style="max-width: 520px; border: 1px solid rgba(56, 189, 248, 0.4); box-shadow: 0 20px 45px rgba(0,0,0,0.8), 0 0 30px rgba(56,189,248,0.25);">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                <img id="fetchLandThumb" class="setup-seat-thumb" src="" alt="Card Art" style="width: 52px; height: 52px; border-radius: 8px; border: 1px solid #38bdf8;" />
+                                <div>
+                                    <h3 id="fetchLandName" style="margin: 0; color: #fff; font-size: 1.15rem; font-weight: 800;">Crack Fetchland</h3>
+                                    <div style="font-size: 0.76rem; color: #38bdf8; font-weight: 700; margin-top: 2px;">Search Library for Basic Land</div>
+                                    <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Choose a basic land to put onto the battlefield tapped:</div>
+                                </div>
+                            </div>
+                            <button class="arena-btn" onclick="window.closeFetchLandModal()">✕</button>
+                        </div>
+
+                        <div id="fetchLandOptionsList" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px;">
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                            <button class="arena-btn" onclick="window.closeFetchLandModal()">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Declare Attacker Target Picker Modal Overlay (Rule 508.1b & 802.1) -->
                 <div class="arena-attack-modal" id="arenaAttackTargetModal" style="display: none;">
                     <div class="arena-attack-card">
@@ -4697,8 +4721,9 @@
                 let tagText = '';
 
                 if (c.isLand) {
-                    isPlayable = isMyTurn && currentPhase.includes('MAIN') && !player.landPlayedThisTurn;
-                    tagText = isPlayable ? 'Play Land' : (player.landPlayedThisTurn ? 'Land Played' : 'Land');
+                    const hasPlayedLand = Boolean(player.landPlayedThisTurn) || Boolean(player.landsPlayedCount && player.landsPlayedCount >= 1);
+                    isPlayable = isMyTurn && currentPhase.includes('MAIN') && !hasPlayedLand;
+                    tagText = isPlayable ? 'Play Land' : (hasPlayedLand ? 'Land Played' : 'Land');
                 } else if (isInstantOrFlash) {
                     isPlayable = availableMana >= cost;
                     tagText = isPlayable ? (isMyTurn ? `Cast {${cost}}` : `⚡ Flash {${cost}}`) : (cost > 0 ? `Need {${cost}} in Pool` : 'Cast {0}');
@@ -5020,6 +5045,7 @@
 
         // Rule checks
         if (card.isLand) {
+            const hasPlayedLand = Boolean(player.landPlayedThisTurn) || Boolean(player.landsPlayedCount && player.landsPlayedCount >= 1);
             if (activePlayer.id !== player.id) {
                 alert("You can only play lands during your own turn!");
                 return;
@@ -5028,7 +5054,7 @@
                 alert("Lands can only be played during your Main phase (MTG Rule 305.1).");
                 return;
             }
-            if (player.landPlayedThisTurn) {
+            if (hasPlayedLand) {
                 alert("You have already played a land this turn (MTG Rule 305.2).");
                 return;
             }
@@ -5084,8 +5110,10 @@
 
         if (card.isLand) {
             player.landPlayedThisTurn = true;
+            player.landsPlayedCount = (player.landsPlayedCount || 0) + 1;
             if (currentGame && currentGame.players && currentGame.players[0]) {
                 currentGame.players[0].landPlayedThisTurn = true;
+                currentGame.players[0].landsPlayedCount = (currentGame.players[0].landsPlayedCount || 0) + 1;
             }
         }
 
@@ -5413,6 +5441,18 @@
         // Close modal immediately
         window.closeCardAbilityModal();
 
+        // Check if this is a fetchland/search library ability (e.g. Terramorphic Expanse, Evolving Wilds, etc.)
+        const effectLower = (ab.effectText || '').toLowerCase();
+        const costLower = (ab.costText || '').toLowerCase();
+        const isFetchAbility = (ab.requiresSacrifice || costLower.includes('sacrifice')) &&
+            effectLower.includes('search your library') &&
+            (effectLower.includes('basic land') || effectLower.includes('land card'));
+
+        if (isFetchAbility) {
+            window.openFetchLandModal(card.id);
+            return;
+        }
+
         // Visual stack popup animation (MTG Stack Resolution)
         const stackBox = document.getElementById('arenaStackBox');
         const stackThumb = document.getElementById('stackCardThumb');
@@ -5705,8 +5745,18 @@
             return;
         }
 
-        // Check if has activated abilities (e.g. Planeswalker, Artifact utility)
+        // Check if has activated abilities (e.g. Planeswalker, Artifact utility, Fetchlands)
         const abilities = parseActivatedAbilities(card);
+        const nameLower = (card.name || '').toLowerCase();
+        const isFetchLand = nameLower.includes('terramorphic') || nameLower.includes('evolving wilds') ||
+            nameLower.includes('fabled passage') || nameLower.includes('prismatic vista') ||
+            abilities.some(ab => (ab.effectText || '').toLowerCase().includes('search your library') && (ab.requiresSacrifice || /sacrifice/i.test(ab.costText)));
+
+        if (isFetchLand) {
+            window.openFetchLandModal(cardId);
+            return;
+        }
+
         if (abilities.length > 0) {
             window.openCardAbilityModal(cardId);
             return;
@@ -5717,6 +5767,151 @@
     };
 
     window.toggleLandTap = window.handlePermanentClick;
+
+    let currentFetchCardId = null;
+
+    window.openFetchLandModal = function (cardId) {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        const card = player.battlefield.find(c => c.id === cardId || String(c.id) === String(cardId));
+        if (!card) return;
+
+        if (card.tapped) {
+            alert(`⚠️ **${card.name}** is already tapped and cannot be sacrificed right now!`);
+            return;
+        }
+
+        currentFetchCardId = card.id;
+
+        const modal = document.getElementById('arenaFetchLandModal');
+        const thumb = document.getElementById('fetchLandThumb');
+        const nameEl = document.getElementById('fetchLandName');
+        const list = document.getElementById('fetchLandOptionsList');
+        if (!modal || !list) return;
+
+        if (thumb) thumb.src = getCardArtCropUrl(card.name);
+        if (nameEl) nameEl.textContent = `⚡ Crack ${card.name}`;
+
+        // Count basic lands in player's library
+        const lib = player.libraryCards || [];
+        const counts = {
+            'Plains': 0,
+            'Island': 0,
+            'Swamp': 0,
+            'Mountain': 0,
+            'Forest': 0,
+            'Wastes': 0
+        };
+
+        lib.forEach(c => {
+            const n = (c && c.name ? c.name : '').toLowerCase();
+            if (n === 'plains') counts['Plains']++;
+            else if (n === 'island') counts['Island']++;
+            else if (n === 'swamp') counts['Swamp']++;
+            else if (n === 'mountain') counts['Mountain']++;
+            else if (n === 'forest') counts['Forest']++;
+            else if (n === 'wastes') counts['Wastes']++;
+        });
+
+        const landDefs = [
+            { name: 'Island', icon: '💧', color: '#0284c7', bg: 'rgba(2, 132, 199, 0.15)', border: 'rgba(56, 189, 248, 0.4)' },
+            { name: 'Swamp', icon: '💀', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.15)', border: 'rgba(192, 132, 252, 0.4)' },
+            { name: 'Plains', icon: '⚪', color: '#fef08a', bg: 'rgba(254, 240, 138, 0.12)', border: 'rgba(253, 224, 71, 0.4)' },
+            { name: 'Mountain', icon: '🔥', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)', border: 'rgba(248, 113, 113, 0.4)' },
+            { name: 'Forest', icon: '🌲', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.15)', border: 'rgba(74, 222, 128, 0.4)' },
+            { name: 'Wastes', icon: '⏳', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.15)', border: 'rgba(203, 213, 225, 0.4)' }
+        ];
+
+        // Sort so basics with cards available come first
+        landDefs.sort((a, b) => (counts[b.name] || 0) - (counts[a.name] || 0));
+
+        list.innerHTML = landDefs.map(l => {
+            const count = counts[l.name] || 0;
+            const badgeStyle = count > 0 ? 'background: rgba(34, 197, 94, 0.25); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.4);' : 'background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2);';
+            return `
+                <div onclick="window.confirmFetchLandChoice('${escapeHtml(card.id)}', '${l.name}')"
+                     style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: ${l.bg}; border: 1px solid ${l.border}; border-radius: 10px; cursor: pointer; transition: all 0.2s;"
+                     onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 15px rgba(0,0,0,0.4)';"
+                     onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 1.5rem;">${l.icon}</span>
+                        <div>
+                            <div style="font-weight: 800; font-size: 0.95rem; color: #fff;">${l.name}</div>
+                            <div style="font-size: 0.72rem; color: ${l.color}; font-weight: 600;">Basic Land</div>
+                        </div>
+                    </div>
+                    <span style="font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; ${badgeStyle}">
+                        ${count} left
+                    </span>
+                </div>
+            `;
+        }).join('');
+
+        modal.style.display = 'flex';
+    };
+
+    window.closeFetchLandModal = function () {
+        const modal = document.getElementById('arenaFetchLandModal');
+        if (modal) modal.style.display = 'none';
+        currentFetchCardId = null;
+    };
+
+    window.confirmFetchLandChoice = async function (cardId, chosenBasicName) {
+        window.closeFetchLandModal();
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        const card = player.battlefield.find(c => c.id === cardId || String(c.id) === String(cardId));
+        const fetchName = card ? card.name : 'Fetchland';
+
+        // Stack animation
+        const stackBox = document.getElementById('arenaStackBox');
+        const stackThumb = document.getElementById('stackCardThumb');
+        const stackName = document.getElementById('stackSpellName');
+        if (stackBox && stackThumb && stackName) {
+            stackThumb.src = getCardArtCropUrl(fetchName);
+            stackName.textContent = `⚡ Crack: ${fetchName} ➔ ${chosenBasicName}`;
+            stackBox.style.display = 'flex';
+            setTimeout(() => { if (stackBox) stackBox.style.display = 'none'; }, 650);
+        }
+
+        if (typeof currentGame.executeFetchLand === 'function') {
+            const res = await currentGame.executeFetchLand(cardId, chosenBasicName);
+            if (res && res.logs && res.logs.length > 0) {
+                appendArenaLogs(res.logs);
+            }
+        } else {
+            // Local fallback
+            if (card) {
+                const bIdx = player.battlefield.findIndex(c => c.id === card.id);
+                if (bIdx !== -1) {
+                    player.battlefield.splice(bIdx, 1);
+                    if (!player.graveyard) player.graveyard = [];
+                    player.graveyard.push(card);
+                }
+            }
+            const lib = player.libraryCards || [];
+            const idx = lib.findIndex(c => (c.name || '').toLowerCase() === chosenBasicName.toLowerCase());
+            let fetchedCard = null;
+            if (idx !== -1) {
+                fetchedCard = lib.splice(idx, 1)[0];
+            } else {
+                fetchedCard = {
+                    id: `c_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                    name: chosenBasicName,
+                    isLand: true,
+                    typeLine: `Basic Land — ${chosenBasicName}`
+                };
+            }
+            fetchedCard.tapped = true;
+            player.battlefield.push(fetchedCard);
+            appendArenaLogs([{
+                type: 'FETCH_LAND',
+                message: `⚡ **${player.name}** cracked **${fetchName}**, searched library for **${chosenBasicName}**, and put it onto the battlefield tapped.`
+            }]);
+        }
+
+        updateArenaDOM();
+    };
 
     window.clearManaPool = function () {
         if (!currentGame) return;

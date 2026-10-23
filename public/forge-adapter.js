@@ -388,7 +388,16 @@
                         graveyardCount: pData.graveyardCount || (pData.graveyard ? pData.graveyard.length : 0),
                         avatar: existing.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(pData.name || 'MTG')}`,
                         mulliganCount: existing.mulliganCount || 0,
-                        landPlayedThisTurn: (pData.landsPlayedThisTurn !== undefined ? pData.landsPlayedThisTurn > 0 : (isNewTurnOrActive ? false : (existing.landPlayedThisTurn || false))),
+                        landPlayedThisTurn: isNewTurnOrActive ? false : (
+                            (pData.landsPlayedThisTurn !== undefined && pData.landsPlayedThisTurn > 0) ||
+                            Boolean(existing.landPlayedThisTurn) ||
+                            Boolean(existing.landsPlayedCount && existing.landsPlayedCount > 0)
+                        ),
+                        landsPlayedCount: isNewTurnOrActive ? 0 : (
+                            (pData.landsPlayedThisTurn !== undefined && pData.landsPlayedThisTurn > 0)
+                                ? pData.landsPlayedThisTurn
+                                : (existing.landsPlayedCount || (existing.landPlayedThisTurn ? 1 : 0))
+                        ),
                         manaPool: (isNewTurnOrActive && this.activePlayerIndex === idx) ? { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 } : (existing.manaPool || { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }),
 
                         hand: (() => {
@@ -643,15 +652,20 @@
         async playCard(cardId) {
             try {
                 const p = this.players[0];
-                const card = p && p.hand ? p.hand.find(c => String(c.id) === String(cardId)) : null;
+                const card = p && p.hand ? p.hand.find(c => String(c.id) === String(cardId) || c.name === String(cardId)) : null;
                 const cost = card && !card.isLand ? (card.cmc || 0) : 0;
                 const isLand = card ? !!card.isLand : false;
                 const numId = parseInt(cardId, 10);
                 const logsBefore = this.logs.length;
                 try {
-                    if (this.bridge && typeof this.bridge.playCard === 'function' && !isNaN(numId)) {
-                        const newJson = await this.bridge.playCard(numId);
-                        this.updateFromRawJson(newJson);
+                    if (this.bridge && typeof this.bridge.playCard === 'function') {
+                        let newJson = null;
+                        if (!isNaN(numId)) {
+                            newJson = await this.bridge.playCard(numId);
+                        } else if (card && card.name) {
+                            newJson = await this.bridge.playCard(card.name);
+                        }
+                        if (newJson) this.updateFromRawJson(newJson);
                     }
                 } catch (eBridge) {
                     console.warn("bridge.playCard error:", eBridge);
@@ -661,17 +675,18 @@
                 const activePlayer = this.players[0];
                 if (activePlayer && card) {
                     if (activePlayer.hand) {
-                        activePlayer.hand = activePlayer.hand.filter(c => String(c.id) !== String(cardId));
+                        activePlayer.hand = activePlayer.hand.filter(c => String(c.id) !== String(card.id));
                         activePlayer.handCount = activePlayer.hand.length;
                     }
                     if (activePlayer.keptHandCards) {
-                        activePlayer.keptHandCards = activePlayer.keptHandCards.filter(c => String(c.id) !== String(cardId));
+                        activePlayer.keptHandCards = activePlayer.keptHandCards.filter(c => String(c.id) !== String(card.id));
                     }
-                    if (!activePlayer.battlefield.some(c => String(c.id) === String(cardId))) {
+                    if (!activePlayer.battlefield.some(c => String(c.id) === String(card.id))) {
                         activePlayer.battlefield.push(card);
                     }
                     if (isLand) {
                         activePlayer.landPlayedThisTurn = true;
+                        activePlayer.landsPlayedCount = (activePlayer.landsPlayedCount || 0) + 1;
                     }
                     if (cost > 0 && typeof activePlayer.deductMana === 'function') {
                         activePlayer.deductMana(cost);
@@ -696,6 +711,78 @@
                 return { success: true, logs: this.logs.slice(logsBefore) };
             } catch (e) {
                 console.error("activateAbility error:", e);
+                return { success: false, logs: [] };
+            }
+        }
+
+        async executeFetchLand(cardIdOrName, chosenLandName) {
+            try {
+                const logsBefore = this.logs.length;
+                const p = this.players[0];
+                const card = p && p.battlefield ? p.battlefield.find(c => String(c.id) === String(cardIdOrName) || c.name === String(cardIdOrName)) : null;
+                const numId = parseInt(cardIdOrName, 10);
+
+                if (this.bridge && typeof this.bridge.fetchLand === 'function') {
+                    try {
+                        let resJson = null;
+                        if (!isNaN(numId)) {
+                            resJson = await this.bridge.fetchLand(numId, chosenLandName);
+                        } else {
+                            resJson = await this.bridge.fetchLand(String(card ? card.name : cardIdOrName), chosenLandName);
+                        }
+                        if (resJson) this.updateFromRawJson(resJson);
+                    } catch (eBridge) {
+                        console.warn("bridge.fetchLand error:", eBridge);
+                    }
+                }
+
+                // Resilient local state sync
+                if (p) {
+                    if (p.battlefield) {
+                        const idx = p.battlefield.findIndex(c => String(c.id) === String(cardIdOrName) || (card && c.id === card.id));
+                        if (idx !== -1) {
+                            const [sacrificed] = p.battlefield.splice(idx, 1);
+                            if (!p.graveyard) p.graveyard = [];
+                            if (!p.graveyard.some(c => String(c.id) === String(sacrificed.id))) {
+                                p.graveyard.push(sacrificed);
+                            }
+                            p.graveyardCount = p.graveyard.length;
+                        }
+                    }
+
+                    const lib = p.libraryCards || [];
+                    const foundIdx = lib.findIndex(c => {
+                        const n = (c.name || '').toLowerCase();
+                        return n === chosenLandName.toLowerCase() || n.includes(chosenLandName.toLowerCase());
+                    });
+
+                    let fetchedLand = null;
+                    if (foundIdx !== -1) {
+                        fetchedLand = lib.splice(foundIdx, 1)[0];
+                    } else {
+                        fetchedLand = enrichCard({
+                            name: chosenLandName,
+                            isLand: true,
+                            typeLine: `Basic Land — ${chosenLandName}`
+                        });
+                    }
+
+                    if (fetchedLand) {
+                        const nameLower = (card ? card.name : '').toLowerCase();
+                        const isUntapped = nameLower.includes('prismatic vista') || (nameLower.includes('fabled passage') && p.battlefield.filter(c => c.isLand).length >= 3);
+                        fetchedLand.tapped = !isUntapped;
+                        fetchedLand.isLand = true;
+                        if (!p.battlefield.some(c => String(c.id) === String(fetchedLand.id))) {
+                            p.battlefield.push(fetchedLand);
+                        }
+                        p.libraryCount = lib.length;
+                    }
+                }
+
+                const newLogs = this.logs.slice(logsBefore);
+                return { success: true, logs: newLogs };
+            } catch (err) {
+                console.error("executeFetchLand error:", err);
                 return { success: false, logs: [] };
             }
         }
