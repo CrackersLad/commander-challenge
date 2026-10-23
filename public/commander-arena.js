@@ -292,6 +292,42 @@
             });
         }
 
+        // Fallback recognition for famous fetch lands if oracleText was missing/generic
+        if (abilities.length === 0 && card && card.name) {
+            const nameLower = card.name.toLowerCase();
+            if (nameLower.includes('fabled passage')) {
+                abilities.push({
+                    type: 'TAP_ABILITY',
+                    costText: '{T}, Sacrifice Fabled Passage',
+                    effectText: 'Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Then if you control four or more lands, untap that land.',
+                    requiresTap: true,
+                    requiresSacrifice: true,
+                    manaCostNum: 0,
+                    raw: '{T}, Sacrifice Fabled Passage: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Then if you control four or more lands, untap that land.'
+                });
+            } else if (nameLower.includes('evolving wilds') || nameLower.includes('terramorphic expanse')) {
+                abilities.push({
+                    type: 'TAP_ABILITY',
+                    costText: `{T}, Sacrifice ${card.name}`,
+                    effectText: 'Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.',
+                    requiresTap: true,
+                    requiresSacrifice: true,
+                    manaCostNum: 0,
+                    raw: `{T}, Sacrifice ${card.name}: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.`
+                });
+            } else if (nameLower.includes('prismatic vista')) {
+                abilities.push({
+                    type: 'TAP_ABILITY',
+                    costText: '{T}, Pay 1 life, Sacrifice Prismatic Vista',
+                    effectText: 'Search your library for a basic land card, put it onto the battlefield, then shuffle.',
+                    requiresTap: true,
+                    requiresSacrifice: true,
+                    manaCostNum: 0,
+                    raw: '{T}, Pay 1 life, Sacrifice Prismatic Vista: Search your library for a basic land card, put it onto the battlefield, then shuffle.'
+                });
+            }
+        }
+
         return abilities;
     }
     window.parseActivatedAbilities = parseActivatedAbilities;
@@ -4637,7 +4673,7 @@
                          data-card-name="${escapeHtml(c.name)}"
                          onmouseenter="window.showCardInspector(this.getAttribute('data-card-name'), event)"
                          onmouseleave="window.hideCardInspector()"
-                         title="${c.tapped ? `${escapeHtml(c.name)} (Tapped - Untaps during Untap Step)` : (c.isLand || c.isManaRock ? 'Click to tap for mana' : escapeHtml(c.name))}">
+                         title="${c.tapped ? `${escapeHtml(c.name)} (Tapped - Untaps during Untap Step)` : (nonManaAbils.length > 0 && !getPermanentManaAbilities(c) ? `Click to activate ${escapeHtml(c.name)} (${nonManaAbils[0].costText})` : (c.isLand || c.isManaRock ? 'Click to tap for mana' : escapeHtml(c.name)))}">
                         <span>${icon}</span>
                         <span>${escapeHtml(c.name)}</span>
                         ${manaBadge}
@@ -5522,7 +5558,39 @@
                 }
             }
 
-            // Planeswalker loyalty death check
+            // Effect F: Fetch Land (Search library for basic land card e.g. Fabled Passage, Evolving Wilds)
+            if (effectLower.includes('search your library') && (effectLower.includes('basic land') || effectLower.includes('land card'))) {
+                const lib = player.deck || player.library || [];
+                const basicLandIdx = lib.findIndex(c => {
+                    const n = (c.name || '').toLowerCase();
+                    const tl = (c.typeLine || '').toLowerCase();
+                    return /plains|island|swamp|mountain|forest|wastes/i.test(n) || (tl.includes('basic') && tl.includes('land'));
+                });
+
+                if (basicLandIdx !== -1) {
+                    const fetchedCard = lib.splice(basicLandIdx, 1)[0];
+                    const numLands = player.battlefield.filter(c => c.isLand).length;
+                    // Fabled Passage: If you control four or more lands, untap that land; else enters tapped
+                    const entersUntapped = effectLower.includes('four or more lands') && numLands >= 4;
+                    fetchedCard.tapped = !entersUntapped;
+                    fetchedCard.isLand = true;
+                    player.battlefield.push(fetchedCard);
+
+                    if (Array.isArray(lib)) {
+                        lib.sort(() => Math.random() - 0.5);
+                    }
+
+                    logs.push({
+                        type: 'FETCH_LAND',
+                        message: `🏞️ **${player.name}** searched library, put **${fetchedCard.name}** onto the battlefield (${fetchedCard.tapped ? 'tapped' : 'untapped'}) and shuffled.`
+                    });
+                } else {
+                    logs.push({
+                        type: 'INFO',
+                        message: `🔍 **${player.name}** searched library for a basic land, but none remained.`
+                    });
+                }
+            }
             if (card.isPlaneswalker && card.loyalty !== undefined && card.loyalty <= 0) {
                 const pIdx = player.battlefield.findIndex(c => c.id === card.id);
                 if (pIdx !== -1) {

@@ -2,9 +2,24 @@
 
 All notable changes to the Commander Draft Challenge application are documented in this file.
 
+## [v10.5] - Activated Ability & Fetch Land Fix (Fabled Passage, Evolving Wilds, Prismatic Vista)
+
+### 🏞️ Activated Tap Abilities on Lands & Permanents
+- **Forge Engine Ability Resolution (`ForgeWebBridge.java`)**:
+  - Fixed `activateAbility(cardId, abilityIndex)` to filter specifically for real activated abilities (`sa.isActivatedAbility() && !(sa instanceof LandAbility) && !sa.isSpell()`).
+  - Previously, Card-Forge land cards placed an internal `LandAbility` (with `canPlay() == false`) at index 0 of `getNonManaAbilities()`, causing activations of land abilities like *Fabled Passage* to fail silently.
+  - Activated search abilities now properly sacrifice the land, add the search effect to the stack, allow AI resolution of the basic land from the library, place it on the battlefield (tapped, or untapped if 4+ lands for Fabled Passage), and shuffle.
+- **Card Metadata & Ability Fallback Recognition (`commander-cards-cache.json` & `commander-arena.js`)**:
+  - Added *Fabled Passage*, *Evolving Wilds*, *Terramorphic Expanse*, *Prismatic Vista*, *Escape Tunnel*, and *Myriad Landscape* to `commander-cards-cache.json` with full Oracle text.
+  - Added resilient fallback parsing in `parseActivatedAbilities(card)` ensuring fetch lands are guaranteed to show their `{T}, Sacrifice: Search library...` button even if network cache has not populated.
+  - Added basic land search/fetch logic (Effect F) to local fallback simulation in `commander-arena.js`.
+  - Updated land chip tooltips and interaction states so activated ability lands clearly indicate their tap ability rather than generic mana tapping.
+
 ---
 
-## [v10.3] - Comprehensive Trigger Coverage: ETBs, Actions, Abilities & Phase Changes (MTG Comp Rules 603)
+## [v10.4] - Turn Tracker & Order Stabilization across All 4 Pod Seats
+
+
 
 ### ⚡ Universal Trigger Mechanics & Phase Synchronization (Rule 603 & 603.6)
 - **Phase Change Triggers (Rule 500 & 603)**:

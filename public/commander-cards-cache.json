@@ -577,7 +577,7 @@
     "manaCost": "",
     "cmc": 0,
     "typeLine": "Land",
-    "oracleText": "This land enters tapped.\n{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Search your library for up to two basic land cards that share a land type, put them onto the battlefield tapped, then shuffle.",
+    "oracleText": "Myriad Landscape enters tapped.\n{T}: Add {C}.\n{2}, {T}, Sacrifice Myriad Landscape: Search your library for up to two basic land cards that share a land type, put them onto the battlefield tapped, then shuffle.",
     "colors": []
   },
   "path of ancestry": {
@@ -3043,6 +3043,46 @@
     "cmc": 0,
     "typeLine": "Land",
     "oracleText": "{T}: Add {C}.\n{5}, {T}, Exile this land: Roll a d10. Put target artifact, creature, or planeswalker into its owner's library just beneath the top X cards of that library, where X is the result. Activate only as a sorcery.",
+    "colors": []
+  },
+  "fabled passage": {
+    "name": "Fabled Passage",
+    "manaCost": "",
+    "cmc": 0,
+    "typeLine": "Land",
+    "oracleText": "{T}, Sacrifice Fabled Passage: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Then if you control four or more lands, untap that land.",
+    "colors": []
+  },
+  "evolving wilds": {
+    "name": "Evolving Wilds",
+    "manaCost": "",
+    "cmc": 0,
+    "typeLine": "Land",
+    "oracleText": "{T}, Sacrifice Evolving Wilds: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+    "colors": []
+  },
+  "terramorphic expanse": {
+    "name": "Terramorphic Expanse",
+    "manaCost": "",
+    "cmc": 0,
+    "typeLine": "Land",
+    "oracleText": "{T}, Sacrifice Terramorphic Expanse: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.",
+    "colors": []
+  },
+  "prismatic vista": {
+    "name": "Prismatic Vista",
+    "manaCost": "",
+    "cmc": 0,
+    "typeLine": "Land",
+    "oracleText": "{T}, Pay 1 life, Sacrifice Prismatic Vista: Search your library for a basic land card, put it onto the battlefield, then shuffle.",
+    "colors": []
+  },
+  "escape tunnel": {
+    "name": "Escape Tunnel",
+    "manaCost": "",
+    "cmc": 0,
+    "typeLine": "Land",
+    "oracleText": "{T}, Sacrifice Escape Tunnel: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\n{1}, {T}, Sacrifice Escape Tunnel: Target creature with power 2 or less can't be blocked this turn.",
     "colors": []
   }
 }
