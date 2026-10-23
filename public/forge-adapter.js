@@ -114,7 +114,7 @@
             await cheerpjCreateDisplay(-1, -1, display);
 
             showLoadingBanner("Loading Card-Forge Engine", "Reading game rules, formats, and 33,600+ cards...");
-            const lib = await cheerpjRunLibrary("/app/forge-engine/patches.jar:/app/forge-engine/forge-gui-desktop-2.0.14-jar-with-dependencies.jar:/app/forge-engine/langs.jar");
+            const lib = await cheerpjRunLibrary("/app/forge-engine/patches.jar?v=10.18:/app/forge-engine/forge-gui-desktop-2.0.14-jar-with-dependencies.jar:/app/forge-engine/langs.jar");
             const bridge = await lib.forge.web.ForgeWebBridge;
 
             const initResStr = await bridge.initEngine("/app/forge-engine/");
@@ -350,7 +350,8 @@
 
             const prevTurn = this.turn;
             const prevActive = this.activePlayerIndex;
-            this.turn = data.turn || this.turn;
+            this.forgeTurn = data.turn || this.turn;
+            this.turn = (data.turn && this.bridge) ? Math.floor((data.turn - 1) / (this.players.length || 4)) + 1 : (data.turn || this.turn);
             let normPhase = data.phase || this.currentPhase;
             if (normPhase === 'MAIN1') normPhase = 'MAIN_1';
             else if (normPhase === 'MAIN2') normPhase = 'MAIN_2';
@@ -724,18 +725,20 @@
                     }
                 }
 
-                // If arriving at Player 0 (human), step through UNTAP -> UPKEEP -> DRAW directly into MAIN_1
-                if (this.activePlayerIndex === 0) {
-                    if (this.bridge && (this.currentPhase === 'UNTAP' || this.currentPhase === 'UPKEEP' || this.currentPhase === 'DRAW')) {
-                        let prepSteps = 0;
-                        while (this.activePlayerIndex === 0 && this.currentPhase !== 'MAIN_1' && this.currentPhase !== 'MAIN1' && prepSteps < 5) {
-                            const stepJson = await this.bridge.stepPhase();
-                            if (stepJson) this.updateFromRawJson(stepJson);
-                            prepSteps++;
-                        }
-                    } else {
-                        this.currentPhase = 'MAIN_1';
+                // When arriving at any player's turn (Human or AI), transition through UNTAP -> UPKEEP -> DRAW directly into MAIN_1
+                if (this.bridge && (this.currentPhase === 'UNTAP' || this.currentPhase === 'UPKEEP' || this.currentPhase === 'DRAW')) {
+                    let prepSteps = 0;
+                    const targetPlayerIdx = this.activePlayerIndex;
+                    while (this.activePlayerIndex === targetPlayerIdx && this.currentPhase !== 'MAIN_1' && this.currentPhase !== 'MAIN1' && prepSteps < 5) {
+                        const stepJson = await this.bridge.stepPhase();
+                        if (stepJson) this.updateFromRawJson(stepJson);
+                        prepSteps++;
                     }
+                } else if (!this.bridge) {
+                    this.currentPhase = 'MAIN_1';
+                }
+
+                if (this.activePlayerIndex === 0) {
                     const p1 = this.players[0];
                     if (p1 && !this._turnDrewPlayer0) {
                         this._turnDrewPlayer0 = true;

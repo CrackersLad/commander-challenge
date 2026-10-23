@@ -7,10 +7,9 @@
     const LANDS_SET = new Set(LANDS_ARRAY);
     root.__MTG_ALL_LANDS__ = LANDS_SET;
 
-    const LAND_NAME_REGEX = /\b(Plains|Island|Swamp|Mountain|Forest|Wastes|Tower|Orchard|Catacombs|Hollow|Estuary|Aqueduct|Bog|Mire|Passage|Vista|Delta|Strand|Foothills|Heath|Flats|Tarn|Mesa|Rainforest|Palace|Sanctum|Monastery|Citadel|Bivouac|Outpost|Shrine|Grave|Foundry|Pool|Garden|Basin|Canyon|Coast|Peak|Falls|Canal|Spire|Heights|Quarter|Steppes|Territory|Gorge|Ridge|Valley|Creek|Crag|Grove|Meadow|Marsh|Fen|Wilds|Expanse|Rift|Sinkhole|Shoal|Lair|Moor|Plaza|Vault|Depths|Glade|Furnace|Haven|Crucible|Pathway|Fairgrounds|Courtyard|Cemetery|Barrens|Overpass|Watercourse|Landscape|Caves?|Springs|Gate|Bridge|Vents|Shores|Tomb|Sanctuary|Lounge|Acres|Blighted|Fountain|Forge|Retreat|Woodland|Summit|Lighthouse|Port|Camp|Ruins|Underground|Nexus|Harbor|River|Crest|Plateau|Savannah|Taiga|Tundra|Badlands|Bayou|Scrubland|Volcanic Island)\b/i;
-
     /**
      * Determines if a card or card name is an MTG Land.
+     * Accurately checks against official Card-Forge 1,156 lands database and respects non-land card types/costs.
      * @param {Object|string} cardOrName
      * @returns {boolean}
      */
@@ -21,29 +20,49 @@
             if (LANDS_SET.has(clean)) return true;
             if (clean.includes(' // ')) {
                 const parts = clean.split(' // ');
-                if (parts.some(p => LANDS_SET.has(p.trim()))) return true;
+                if (parts.some(p => LANDS_SET.has(p.trim().toLowerCase()))) return true;
             }
-            return LAND_NAME_REGEX.test(clean);
+            return false;
         }
 
         const card = cardOrName;
-        if (card.isLand === true) return true;
-
         const tl = (card.typeLine || '').toLowerCase();
-        if (tl.includes('land')) return true;
 
-        const name = (card.name || '').trim().toLowerCase();
-        if (LANDS_SET.has(name)) return true;
-        if (name.includes(' // ')) {
-            const parts = name.split(' // ');
-            if (parts.some(p => LANDS_SET.has(p.trim()))) return true;
+        // 1. If explicit typeLine exists, rely on it
+        if (tl) {
+            if (tl.includes('land')) return true;
+            // Definitely not a land if explicit non-land type is stated
+            if (tl.includes('enchantment') || tl.includes('creature') || tl.includes('sorcery') || tl.includes('instant') || tl.includes('planeswalker') || tl.includes('battle')) {
+                return false;
+            }
         }
 
-        if (LAND_NAME_REGEX.test(name)) return true;
+        // 2. Normal MTG lands do NOT have a casting cost (CMC > 0 or non-empty mana cost)
+        const costStr = String(card.manaCost || '').trim();
+        if (costStr.length > 0 && costStr !== '{0}') {
+            return false;
+        }
+        if (typeof card.cmc === 'number' && card.cmc > 0) {
+            return false;
+        }
 
-        // If Scryfall oracle text has "{T}: Add" or enters tapped and no mana cost / 0 cmc
+        if (card.isLand === true) return true;
+
+        // 3. Check official verified MTG lands database
+        const name = (card.name || '').trim().toLowerCase();
+        if (name) {
+            if (LANDS_SET.has(name)) return true;
+            if (name.includes(' // ')) {
+                const parts = name.split(' // ');
+                if (parts.some(p => LANDS_SET.has(p.trim().toLowerCase()))) return true;
+            }
+        }
+
+        // 4. Fallback for un-enriched cards: only if strictly 0 cmc and produces mana via tap
         const oracle = (card.oracleText || '').toLowerCase();
-        if ((!card.manaCost || card.cmc === 0) && (oracle.includes('{t}: add') || oracle.includes('{t}, pay') || oracle.includes('enters tapped') || oracle.includes('enters the battlefield tapped'))) {
+        if ((!costStr || card.cmc === 0) && (oracle.includes('{t}: add') || oracle.includes('{t}, pay') || oracle.includes('enters the battlefield tapped'))) {
+            // Ensure not a mana rock like Sol Ring or Arcane Signet
+            if (tl.includes('artifact')) return false;
             return true;
         }
 

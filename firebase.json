@@ -26,6 +26,35 @@
         ]
       },
       {
+        "source": "/forge-engine/patches.jar",
+        "headers": [
+          {
+            "key": "Access-Control-Allow-Origin",
+            "value": "*"
+          },
+          {
+            "key": "Access-Control-Allow-Methods",
+            "value": "GET, HEAD, OPTIONS"
+          },
+          {
+            "key": "Access-Control-Allow-Headers",
+            "value": "Range, Content-Type, Accept"
+          },
+          {
+            "key": "Access-Control-Expose-Headers",
+            "value": "Content-Range, Content-Length, Accept-Ranges"
+          },
+          {
+            "key": "Accept-Ranges",
+            "value": "bytes"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
         "source": "/forge-engine/**",
         "headers": [
           {

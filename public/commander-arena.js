@@ -439,15 +439,22 @@
                 commander = cardName;
             }
 
-            const isLand = typeof window !== 'undefined' && typeof window.isLandCard === 'function' ? window.isLandCard(cardName) : false;
+            const cached = (typeof window !== 'undefined' && window.__MTG_CARD_CACHE__) ? window.__MTG_CARD_CACHE__[cardName.toLowerCase()] : null;
+            const isLand = cached
+                ? Boolean(cached.typeLine && cached.typeLine.toLowerCase().includes('land') && (!cached.manaCost || cached.cmc === 0))
+                : (typeof window !== 'undefined' && typeof window.isLandCard === 'function' ? window.isLandCard(cardName) : false);
+
             cards.push({
                 name: cardName,
                 quantity: qty,
                 isCommander: isCmdr,
                 isLand: isLand,
-                typeLine: isLand ? 'Land' : undefined,
-                cmc: isLand ? 0 : undefined,
-                manaCost: isLand ? '' : undefined
+                typeLine: cached ? cached.typeLine : (isLand ? 'Land' : undefined),
+                cmc: cached ? cached.cmc : (isLand ? 0 : undefined),
+                manaCost: cached ? cached.manaCost : (isLand ? '' : undefined),
+                power: cached ? cached.power : undefined,
+                toughness: cached ? cached.toughness : undefined,
+                oracleText: cached ? cached.oracleText : undefined
             });
         }
 
@@ -4119,7 +4126,10 @@
                     <div class="arena-brand">
                         <div class="arena-crown-badge">👑</div>
                         <div>
-                            <h2 class="arena-title">Commander Battle Arena</h2>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <h2 class="arena-title" style="margin: 0;">Commander Battle Arena</h2>
+                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v10.18</span>
+                            </div>
                             <span class="arena-subtitle">Client-Native Forge Rules Engine • Live 4-Player Tabletop</span>
                         </div>
                     </div>
@@ -4788,7 +4798,15 @@
             handHtml = `<div style="font-size: 0.8rem; color: var(--arena-text-muted); margin: auto;">Your hand is currently empty</div>`;
         } else {
             player.hand.forEach(c => {
-                const isLand = c.isLand || (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(c));
+                let isLand = false;
+                if (c.manaCost || (c.cmc && c.cmc > 0)) {
+                    isLand = false;
+                    c.isLand = false;
+                } else if (typeof window !== 'undefined' && typeof window.isLandCard === 'function') {
+                    isLand = window.isLandCard(c);
+                } else {
+                    isLand = Boolean(c.isLand) || (c.typeLine || '').toLowerCase().includes('land');
+                }
                 if (isLand) {
                     c.isLand = true;
                     if (!c.typeLine || !c.typeLine.toLowerCase().includes('land')) c.typeLine = 'Land';
@@ -6823,23 +6841,35 @@
         selectedDecks.forEach(d => {
             if (d && Array.isArray(d.cards)) {
                 d.cards.forEach(c => {
-                    const isLand = (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(c)) || (c.typeLine || '').toLowerCase().includes('land');
+                    if (window.__MTG_CARD_CACHE__) {
+                        const cached = window.__MTG_CARD_CACHE__[c.name.toLowerCase()];
+                        if (cached) {
+                            if (cached.manaCost !== undefined) c.manaCost = cached.manaCost;
+                            if (cached.cmc !== undefined) c.cmc = cached.cmc;
+                            if (cached.typeLine) c.typeLine = cached.typeLine;
+                            if (cached.power !== undefined) c.power = cached.power;
+                            if (cached.toughness !== undefined) c.toughness = cached.toughness;
+                            if (cached.oracleText) c.oracleText = cached.oracleText;
+                        }
+                    }
+
+                    let isLand = false;
+                    if (c.manaCost || (c.cmc && c.cmc > 0)) {
+                        isLand = false;
+                        c.isLand = false;
+                    } else if (typeof window !== 'undefined' && typeof window.isLandCard === 'function') {
+                        isLand = window.isLandCard(c);
+                    } else {
+                        isLand = Boolean(c.isLand) || (c.typeLine || '').toLowerCase().includes('land');
+                    }
+
                     if (isLand) {
                         c.isLand = true;
                         if (!c.typeLine || !c.typeLine.toLowerCase().includes('land')) c.typeLine = 'Land';
                         c.cmc = 0;
                         c.manaCost = '';
-                    }
-                    if (window.__MTG_CARD_CACHE__) {
-                        const cached = window.__MTG_CARD_CACHE__[c.name.toLowerCase()];
-                        if (cached) {
-                            if (!c.manaCost && !isLand) c.manaCost = cached.manaCost;
-                            if (c.cmc === undefined && !isLand) c.cmc = cached.cmc;
-                            if (!c.typeLine) c.typeLine = cached.typeLine;
-                            if (c.power === undefined) c.power = cached.power;
-                            if (c.toughness === undefined) c.toughness = cached.toughness;
-                            if (!c.oracleText) c.oracleText = cached.oracleText;
-                        }
+                    } else {
+                        c.isLand = false;
                     }
                 });
             }
