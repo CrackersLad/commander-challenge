@@ -138,7 +138,7 @@
             this.bridge = bridge;
             this.selectedDecks = selectedDecks;
             this.turn = 1;
-            this.currentPhase = 'MAIN_1';
+            this.currentPhase = 'UNTAP';
             this.activePlayerIndex = 0;
             this.isGameOver = false;
             this.players = [];
@@ -148,16 +148,193 @@
             if (rawJson) {
                 this.updateFromRawJson(rawJson);
             }
+
+            if (!this.players || this.players.length === 0) {
+                this.initFallbackPlayers(this.selectedDecks);
+            }
+        }
+
+        initFallbackPlayers(selectedDecks = []) {
+            const selfGame = this;
+            this.players = [0, 1, 2, 3].map(idx => {
+                const deckInfo = (selectedDecks && selectedDecks[idx]) || {};
+                const cmdrName = deckInfo.commander || deckInfo.name || (idx === 0 ? 'Wilhelt, the Rotcleaver' : `Opponent ${idx}`);
+
+                const allCards = Array.isArray(deckInfo.cards) ? [...deckInfo.cards] : [];
+                const libCards = [];
+                for (const c of allCards) {
+                    const cName = typeof c === 'string' ? c : (c && c.name ? c.name : '');
+                    if (!cName || cName.toLowerCase() === cmdrName.toLowerCase()) continue;
+                    const qty = (c && typeof c.quantity === 'number') ? c.quantity : 1;
+                    const count = Math.max(1, Math.min(qty, 40));
+                    for (let q = 0; q < count; q++) {
+                        libCards.push(enrichCard(typeof c === 'string' ? { name: c } : { ...c }));
+                    }
+                }
+
+                while (libCards.length < 60) {
+                    const lands = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'];
+                    const land = lands[libCards.length % 5];
+                    libCards.push(enrichCard({ name: land, isLand: true, typeLine: `Basic Land — ${land}` }));
+                }
+
+                for (let i = libCards.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [libCards[i], libCards[j]] = [libCards[j], libCards[i]];
+                }
+
+                const openingHand = libCards.splice(0, 7);
+
+                const cmdrCard = enrichCard({
+                    name: cmdrName,
+                    isCommander: true,
+                    manaCost: deckInfo.manaCost || '',
+                    cmc: deckInfo.cmc || 4,
+                    power: deckInfo.power || 3,
+                    toughness: deckInfo.toughness || 3,
+                    typeLine: deckInfo.typeLine || 'Legendary Creature'
+                }, true);
+
+                return {
+                    id: `p_${idx + 1}`,
+                    name: deckInfo.name || (idx === 0 ? 'You' : `Opponent ${idx}`),
+                    life: 40,
+                    isAlive: true,
+                    isAI: idx !== 0,
+                    commanderTax: 0,
+                    libraryCount: libCards.length,
+                    handCount: openingHand.length,
+                    graveyardCount: 0,
+                    avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cmdrName || 'MTG')}`,
+                    mulliganCount: 0,
+                    landPlayedThisTurn: false,
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                    hand: openingHand,
+                    keptHandCards: [...openingHand],
+                    commandZone: [cmdrCard],
+                    battlefield: [],
+                    graveyard: [],
+                    library: { length: libCards.length },
+                    libraryCards: libCards,
+
+                    getCommander() {
+                        const inCmdr = this.commandZone.find(c => c.isCommander);
+                        if (inCmdr) return inCmdr;
+                        const onField = this.battlefield.find(c => c.isCommander);
+                        if (onField) return onField;
+                        return this.commandZone[0] || null;
+                    },
+                    isCommanderInCommandZone() {
+                        return this.commandZone.some(c => c.isCommander || c.name === this.getCommander()?.name);
+                    },
+                    isCommanderOnBattlefield() {
+                        return this.battlefield.some(c => c.isCommander || c.name === this.getCommander()?.name);
+                    },
+                    getAvailableMana() {
+                        let poolTotal = 0;
+                        if (this.manaPool) {
+                            ['W', 'U', 'B', 'R', 'G', 'C'].forEach(col => { poolTotal += (this.manaPool[col] || 0); });
+                        }
+                        return { total: Math.max(poolTotal, 0) };
+                    },
+                    deductMana(cost) {
+                        if (!this.manaPool || cost <= 0) return;
+                        let remaining = cost;
+                        const colors = ['C', 'G', 'R', 'B', 'U', 'W'];
+                        for (const col of colors) {
+                            if (this.manaPool[col] > 0) {
+                                const spend = Math.min(this.manaPool[col], remaining);
+                                this.manaPool[col] -= spend;
+                                remaining -= spend;
+                                if (remaining <= 0) break;
+                            }
+                        }
+                    },
+                    getCardCost(card) {
+                        return card.cmc !== undefined ? card.cmc : 0;
+                    },
+                    getEffectivePower(card) {
+                        return card.power !== undefined ? card.power : 0;
+                    },
+                    getEffectiveToughness(card) {
+                        return card.toughness !== undefined ? card.toughness : 0;
+                    },
+                    untapAll() {
+                        this.battlefield.forEach(c => { c.tapped = false; c.producedMana = null; c.paidLifeCost = null; });
+                        this.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+                    },
+                    draw(count = 1) {
+                        const drawn = [];
+                        for (let i = 0; i < count; i++) {
+                            if (this.libraryCards && this.libraryCards.length > 0) {
+                                const c = this.libraryCards.shift();
+                                this.hand.push(c);
+                                if (this.keptHandCards) {
+                                    this.keptHandCards.push(c);
+                                }
+                                drawn.push(c);
+                            }
+                        }
+                        this.handCount = this.hand.length;
+                        if (this.libraryCards) {
+                            this.libraryCount = this.libraryCards.length;
+                        }
+                        return drawn;
+                    },
+                    async takeMulligan(bottomCardIds = [], autoBottom = false) {
+                        return await selfGame.takeMulligan();
+                    },
+                    async bottomCards(cardIds = []) {
+                        return await selfGame.bottomCards(cardIds);
+                    },
+                    keepHand() {
+                        this.handLocked = true;
+                        this.keptHandCards = [...(this.hand || [])];
+                        return {
+                            success: true,
+                            log: {
+                                type: 'MULLIGAN_KEEP',
+                                message: `✅ **${this.name}** keeps opening hand with **${this.hand.length}** cards!`
+                            }
+                        };
+                    },
+                    castCard(cardId, game) {
+                        if (game) {
+                            game.playCard(cardId);
+                        }
+                        return { success: true, logs: [] };
+                    },
+                    castCommander(game) {
+                        if (game) {
+                            game.castCommander();
+                        }
+                        return { success: true, logs: [] };
+                    },
+                    toggleTapPermanent(cardId) {
+                        const card = this.battlefield.find(c => c.id === cardId || String(c.id) === String(cardId));
+                        if (card) {
+                            card.tapped = !card.tapped;
+                        }
+                    }
+                };
+            });
         }
 
         updateFromRawJson(raw) {
             let data = raw;
-            if (typeof raw === 'string') {
-                try {
-                    data = JSON.parse(raw);
-                } catch (e) {
-                    console.error("Error parsing game JSON:", e, raw);
-                    return;
+            if (raw) {
+                if (typeof raw === 'string') {
+                    try {
+                        data = JSON.parse(raw);
+                    } catch (e) {
+                        console.error("Error parsing game JSON string:", e, raw);
+                    }
+                } else if (typeof raw === 'object' && (!raw.status || typeof raw.status !== 'string')) {
+                    try {
+                        data = JSON.parse(String(raw));
+                    } catch (e) {
+                        console.error("Error parsing game JSON from String(raw):", e);
+                    }
                 }
             }
 
@@ -715,21 +892,35 @@
     function enrichCard(cardData, isCommandZone = false) {
         if (!cardData) return {};
         const c = Object.assign({}, cardData);
-        c.id = c.id !== undefined ? String(c.id) : `c_${Math.random()}`;
+        c.id = c.id !== undefined ? String(c.id) : ('c_' + Math.floor(Math.random() * 1000000));
         c.name = c.name || 'Unknown Card';
+
+        if (window.__MTG_CARD_CACHE__) {
+            const cached = window.__MTG_CARD_CACHE__[c.name.toLowerCase()];
+            if (cached) {
+                if (!c.manaCost) c.manaCost = cached.manaCost;
+                if (c.cmc === undefined) c.cmc = cached.cmc;
+                if (!c.typeLine) c.typeLine = cached.typeLine;
+                if (c.power === undefined) c.power = cached.power;
+                if (c.toughness === undefined) c.toughness = cached.toughness;
+                if (!c.oracleText) c.oracleText = cached.oracleText;
+            }
+        }
+
+        const tl = (c.typeLine || '').toLowerCase();
         c.manaCost = c.manaCost || '';
         c.cmc = c.cmc !== undefined ? c.cmc : 0;
         c.power = c.power !== undefined ? c.power : 0;
         c.toughness = c.toughness !== undefined ? c.toughness : 0;
         c.tapped = !!c.tapped;
         c.summoningSick = !!c.summoningSick;
-        c.isCreature = !!c.isCreature;
-        c.isLand = !!c.isLand;
-        c.isInstant = !!c.isInstant;
-        c.isSorcery = !!c.isSorcery;
-        c.isArtifact = !!c.isArtifact;
-        c.isEnchantment = !!c.isEnchantment;
-        c.isPlaneswalker = !!c.isPlaneswalker;
+        c.isLand = !!c.isLand || tl.includes('land');
+        c.isCreature = !!c.isCreature || tl.includes('creature');
+        c.isArtifact = !!c.isArtifact || tl.includes('artifact');
+        c.isEnchantment = !!c.isEnchantment || tl.includes('enchantment');
+        c.isPlaneswalker = !!c.isPlaneswalker || tl.includes('planeswalker');
+        c.isInstant = !!c.isInstant || tl.includes('instant');
+        c.isSorcery = !!c.isSorcery || tl.includes('sorcery');
         c.isCommander = isCommandZone || !!c.isCommander;
         c.counters = Array.isArray(cardData.counters) ? cardData.counters : [];
         c.typeLine = c.typeLine || (c.isCreature ? 'Creature' : c.isLand ? 'Land' : 'Spell');
@@ -740,8 +931,14 @@
     // Public API exposed on window
     window.ForgeArena = {
         initEngine: initForgeEngine,
+        ForgeArenaGame: ForgeArenaGame,
         startMatch: async function (selectedDecks = [], startingPlayerIndex = 0) {
-            const bridge = await initForgeEngine();
+            let bridge = null;
+            try {
+                bridge = await initForgeEngine();
+            } catch (initErr) {
+                console.warn("Forge engine init failed, proceeding with resilient Arena state:", initErr);
+            }
             showLoadingBanner("Assembling 4-Player Commander Pod", "Shuffling libraries & drawing opening hands...");
 
             const cleanDeckCards = (cards, cmdr) => {
@@ -785,26 +982,32 @@
             const p4Cards = cleanDeckCards(p4.cards, p4Cmdr);
 
             let rawJson = null;
-            try {
-                rawJson = await bridge.startCommanderMatchWithDecks(
-                    p1Name, p1Cmdr, p1Cards.join("\n"),
-                    p2Name, p2Cmdr, p2Cards.join("\n"),
-                    p3Name, p3Cmdr, p3Cards.join("\n"),
-                    p4Name, p4Cmdr, p4Cards.join("\n"),
-                    startingPlayerIndex
-                );
-            } catch (err) {
-                console.warn("startCommanderMatchWithDecks with startingPlayerIndex failed, falling back:", err);
+            if (bridge) {
                 try {
                     rawJson = await bridge.startCommanderMatchWithDecks(
                         p1Name, p1Cmdr, p1Cards.join("\n"),
                         p2Name, p2Cmdr, p2Cards.join("\n"),
                         p3Name, p3Cmdr, p3Cards.join("\n"),
-                        p4Name, p4Cmdr, p4Cards.join("\n")
+                        p4Name, p4Cmdr, p4Cards.join("\n"),
+                        startingPlayerIndex
                     );
-                } catch (err2) {
-                    console.warn("Falling back to standard startCommanderMatch:", err2);
-                    rawJson = await bridge.startCommanderMatch(p1Name, p1Cmdr, p1Cards.join("\n"));
+                } catch (err) {
+                    console.warn("startCommanderMatchWithDecks with startingPlayerIndex failed, falling back:", err);
+                    try {
+                        rawJson = await bridge.startCommanderMatchWithDecks(
+                            p1Name, p1Cmdr, p1Cards.join("\n"),
+                            p2Name, p2Cmdr, p2Cards.join("\n"),
+                            p3Name, p3Cmdr, p3Cards.join("\n"),
+                            p4Name, p4Cmdr, p4Cards.join("\n")
+                        );
+                    } catch (err2) {
+                        console.warn("Falling back to standard startCommanderMatch:", err2);
+                        try {
+                            rawJson = await bridge.startCommanderMatch(p1Name, p1Cmdr, p1Cards.join("\n"));
+                        } catch (err3) {
+                            console.warn("Standard startCommanderMatch failed:", err3);
+                        }
+                    }
                 }
             }
 

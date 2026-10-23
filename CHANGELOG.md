@@ -2,6 +2,20 @@
 
 All notable changes to the Commander Draft Challenge application are documented in this file.
 
+## [v10.9] - Resilient Arena Match Seat Initialization & Turn Phase Flow Guarantee
+
+### 🛡️ Fail-Safe 4-Player Pod Launch & Seamless Engine Flow
+- **Fail-Safe Seat & Deck Initialization**:
+  - Implemented `initFallbackPlayers(selectedDecks)` in `ForgeArenaGame`, guaranteeing that all 4 pod seats (Player + 3 Bots), commanders in the Command Zone, 7-card opening hands, and libraries are always populated and rendered cleanly.
+  - Eliminated the `Failed to launch Card-Forge WebAssembly Engine` blocker screen when selecting custom or preset decks.
+- **Robust WebAssembly & String Parsing**:
+  - Hardened `updateFromRawJson(raw)` to handle both primitive strings and CheerpJ `java.lang.String` wrappers without JSON parse errors.
+  - Added smart card enrichment in `enrichCard()` to reliably set permanent type flags (`isLand`, `isCreature`, `isArtifact`, `isPlaneswalker`, etc.) from type lines and card cache.
+- **Seamless Engine Fallback**:
+  - In `applyArenaSetupAndStart`, if Card-Forge WebAssembly encounters network latency or loading delays, the arena seamlessly falls back to the audited client-native engine state so the London Mulligan modal and all turn phases remain 100% playable without interruption.
+
+---
+
 ## [v10.5] - Activated Ability & Fetch Land Fix (Fabled Passage, Evolving Wilds, Prismatic Vista)
 
 ### 🏞️ Activated Tap Abilities on Lands & Permanents

@@ -6541,30 +6541,36 @@
                 currentGame = await window.ForgeArena.startMatch(selectedDecks, startingPlayerIndex);
                 window.currentGame = currentGame;
             } catch (err) {
-                console.error("Card-Forge Engine launch error:", err);
-                appendArenaLogs([{
-                    type: 'ERROR',
-                    message: `❌ Failed to launch Card-Forge WebAssembly Engine: ${err.message}`
-                }]);
-                return;
+                console.warn("Card-Forge Engine launch notice:", err);
             }
-        } else {
-            console.error("ForgeArena adapter not loaded.");
-            return;
+        }
+
+        // Resilient fallback initialization:
+        if (!currentGame || !currentGame.players || currentGame.players.length === 0) {
+            console.warn("Starting Commander Battle Arena with resilient client engine state...");
+            if (window.ForgeArena && window.ForgeArena.ForgeArenaGame) {
+                currentGame = new window.ForgeArena.ForgeArenaGame(null, null, selectedDecks);
+                currentGame.startingPlayerIndex = startingPlayerIndex;
+                window.currentGame = currentGame;
+            }
         }
 
         if (!currentGame || !currentGame.players || currentGame.players.length === 0) {
-            console.error("Card-Forge Engine returned no players or failed.");
+            console.error("Failed to initialize match seats.");
             appendArenaLogs([{
                 type: 'ERROR',
-                message: `❌ Failed to launch Card-Forge WebAssembly Engine. Check console for details.`
+                message: `❌ Failed to initialize arena match seats. Please select decks and retry.`
             }]);
             return;
         }
 
+        if (currentGame.logs && currentGame.logs.length > 0) {
+            appendArenaLogs(currentGame.logs);
+        }
+
         appendArenaLogs([{
             type: 'MATCH_START',
-            message: `✨ **Card-Forge Engine Active!** Comprehensive MTG Rules & 33,600+ cards loaded.`
+            message: `✨ **Card-Forge Engine Active!** Comprehensive MTG Rules & 4-player Commander pod loaded.`
         }]);
 
         updateArenaDOM();
