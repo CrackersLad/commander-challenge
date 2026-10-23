@@ -537,6 +537,7 @@
                 const logsBefore = this.logs.length;
                 const prevPhase = this.currentPhase;
                 const prevTurn = this.turn;
+                const prevActive = this.activePlayerIndex;
                 let newJson = null;
                 try {
                     if (this.bridge && typeof this.bridge.stepPhase === 'function') {
@@ -547,13 +548,24 @@
                 }
                 if (newJson) {
                     this.updateFromRawJson(newJson);
-                } else {
+                }
+
+                // GUARANTEE FORWARD PROGRESSION:
+                // If engine did not advance (e.g. stalled on upkeep priority, trigger wait, or running in simulation)
+                if (this.currentPhase === prevPhase && this.turn === prevTurn && this.activePlayerIndex === prevActive) {
                     const phases = ['UNTAP', 'UPKEEP', 'DRAW', 'MAIN_1', 'DECLARE_ATTACKERS', 'MAIN_2', 'END_STEP'];
                     const curIdx = phases.indexOf(this.currentPhase);
-                    const nextPhase = phases[(curIdx + 1) % phases.length];
+                    const nextPhase = (curIdx !== -1) ? phases[(curIdx + 1) % phases.length] : 'MAIN_1';
                     if (nextPhase === 'UNTAP') {
                         this.turn += 1;
                         this.activePlayerIndex = (this.activePlayerIndex + 1) % this.players.length;
+                        const nextPlayer = this.players[this.activePlayerIndex];
+                        if (nextPlayer) {
+                            nextPlayer.landPlayedThisTurn = false;
+                            if (typeof nextPlayer.untapAll === 'function') {
+                                nextPlayer.untapAll();
+                            }
+                        }
                     }
                     this.currentPhase = nextPhase;
                 }
@@ -564,17 +576,13 @@
                     const isDrawStep = this.currentPhase === 'DRAW' || prevPhase === 'DRAW' || (prevPhase === 'UPKEEP' && (this.currentPhase === 'MAIN_1' || this.currentPhase === 'MAIN1'));
                     if (isDrawStep && !this._turnDrewPlayer0) {
                         this._turnDrewPlayer0 = true;
-                        if (!newJson) {
-                            // Fallback simulation mode without bridge
-                            const drawn = typeof p1.draw === 'function' ? p1.draw(1) : [];
-                            if (drawn && drawn.length > 0) {
-                                this.logs.push({
-                                    type: 'DRAW',
-                                    message: `📜 **${p1.name}** drew **${drawn[0].name}** for Turn ${this.turn}.`
-                                });
-                            }
+                        const drawn = typeof p1.draw === 'function' ? p1.draw(1) : [];
+                        if (drawn && drawn.length > 0) {
+                            this.logs.push({
+                                type: 'DRAW',
+                                message: `📜 **${p1.name}** drew **${drawn[0].name}** for Turn ${this.turn}.`
+                            });
                         } else {
-                            // In Forge bridge mode, Forge engine already executed turn-based draw (Rule 504.1)
                             this.logs.push({
                                 type: 'DRAW',
                                 message: `📜 **${p1.name}** drew for Turn ${this.turn}.`
@@ -587,7 +595,7 @@
                 }
 
                 const newLogs = this.logs.slice(logsBefore);
-                return { success: true, logs: newLogs };
+                return { success: true, logs: newLogs, currentPhase: this.currentPhase, activePlayer: this.getActivePlayer(), turn: this.turn };
             } finally {
                 this.isBusy = false;
             }
@@ -598,27 +606,38 @@
             this.isBusy = true;
             try {
                 const logsBefore = this.logs.length;
-                const newJson = await this.bridge.stepTurn();
-                this.updateFromRawJson(newJson);
+                const prevTurn = this.turn;
+                const prevActive = this.activePlayerIndex;
+                let newJson = null;
+                try {
+                    if (this.bridge && typeof this.bridge.stepTurn === 'function') {
+                        newJson = await this.bridge.stepTurn();
+                    }
+                } catch (e) {
+                    console.warn("bridge.stepTurn error, fallback advancing turn:", e);
+                }
+                if (newJson) {
+                    this.updateFromRawJson(newJson);
+                }
+                if (this.turn === prevTurn && this.activePlayerIndex === prevActive) {
+                    this.turn += 1;
+                    this.activePlayerIndex = (this.activePlayerIndex + 1) % this.players.length;
+                    this.currentPhase = 'MAIN_1';
+                    const nextPlayer = this.players[this.activePlayerIndex];
+                    if (nextPlayer) {
+                        nextPlayer.landPlayedThisTurn = false;
+                        if (typeof nextPlayer.untapAll === 'function') nextPlayer.untapAll();
+                    }
+                }
                 const newLogs = this.logs.slice(logsBefore);
-                return { success: true, logs: newLogs };
+                return { success: true, logs: newLogs, currentPhase: this.currentPhase, activePlayer: this.getActivePlayer(), turn: this.turn };
             } finally {
                 this.isBusy = false;
             }
         }
 
         async stepAction() {
-            if (this.isBusy || this.isGameOver) return { logs: [] };
-            this.isBusy = true;
-            try {
-                const logsBefore = this.logs.length;
-                const newJson = await this.bridge.stepAction();
-                this.updateFromRawJson(newJson);
-                const newLogs = this.logs.slice(logsBefore);
-                return { success: true, logs: newLogs };
-            } finally {
-                this.isBusy = false;
-            }
+            return await this.stepPhase();
         }
 
         async playCard(cardId) {

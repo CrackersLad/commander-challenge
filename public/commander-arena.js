@@ -6217,6 +6217,9 @@
                 steps++;
                 if (stepRes && stepRes.logs) appendArenaLogs(stepRes.logs);
             }
+            if (currentGame.currentPhase === 'UNTAP' || currentGame.currentPhase === 'UPKEEP' || currentGame.currentPhase === 'DRAW') {
+                currentGame.currentPhase = 'MAIN_1';
+            }
             const p1 = currentGame.players[0];
             if (p1 && currentGame.activePlayerIndex === 0) {
                 p1.landPlayedThisTurn = false;
