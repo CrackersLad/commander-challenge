@@ -562,7 +562,7 @@
                 // GUARANTEE FORWARD PROGRESSION:
                 // If engine did not advance (e.g. stalled on upkeep priority, trigger wait, or running in simulation)
                 if (this.currentPhase === prevPhase && this.turn === prevTurn && this.activePlayerIndex === prevActive) {
-                    const phases = ['UNTAP', 'UPKEEP', 'DRAW', 'MAIN_1', 'DECLARE_ATTACKERS', 'MAIN_2', 'END_STEP'];
+                    const phases = ['UNTAP', 'UPKEEP', 'DRAW', 'MAIN_1', 'COMBAT_BEGIN', 'DECLARE_ATTACKERS', 'COMBAT_DECLARE_BLOCKERS', 'COMBAT_DAMAGE', 'MAIN_2', 'END_STEP', 'CLEANUP'];
                     const curIdx = phases.indexOf(this.currentPhase);
                     const nextPhase = (curIdx !== -1) ? phases[(curIdx + 1) % phases.length] : 'MAIN_1';
                     if (nextPhase === 'UNTAP') {
@@ -701,6 +701,8 @@
                 if (newJson) {
                     this.updateFromRawJson(newJson);
                 }
+
+                // If bridge didn't advance or running in fallback simulation mode:
                 if (this.turn === prevTurn && this.activePlayerIndex === prevActive) {
                     let nextPlayerIdx = (this.activePlayerIndex + 1) % this.players.length;
                     while (this.players[nextPlayerIdx] && !this.players[nextPlayerIdx].isAlive) {
@@ -715,9 +717,91 @@
                     if (nextPlayer) {
                         nextPlayer.landPlayedThisTurn = false;
                         nextPlayer.landsPlayedCount = 0;
+                        nextPlayer._drewThisTurn = false;
+                        nextPlayer._actedMain1 = false;
+                        nextPlayer._attackedThisCombat = false;
                         if (typeof nextPlayer.untapAll === 'function') nextPlayer.untapAll();
                     }
                 }
+
+                // If arriving at Player 0 (human), step through UNTAP -> UPKEEP -> DRAW directly into MAIN_1
+                if (this.activePlayerIndex === 0) {
+                    if (this.bridge && (this.currentPhase === 'UNTAP' || this.currentPhase === 'UPKEEP' || this.currentPhase === 'DRAW')) {
+                        let prepSteps = 0;
+                        while (this.activePlayerIndex === 0 && this.currentPhase !== 'MAIN_1' && this.currentPhase !== 'MAIN1' && prepSteps < 5) {
+                            const stepJson = await this.bridge.stepPhase();
+                            if (stepJson) this.updateFromRawJson(stepJson);
+                            prepSteps++;
+                        }
+                    } else {
+                        this.currentPhase = 'MAIN_1';
+                    }
+                    const p1 = this.players[0];
+                    if (p1 && !this._turnDrewPlayer0) {
+                        this._turnDrewPlayer0 = true;
+                        if (typeof p1.draw === 'function') {
+                            const drawn = p1.draw(1);
+                            if (drawn && drawn.length > 0) {
+                                this.logs.push({
+                                    type: 'DRAW',
+                                    message: `📜 **${p1.name}** drew **${drawn[0].name}** for Turn ${this.turn}.`
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    this._turnDrewPlayer0 = false;
+                    // If AI player in fallback simulation mode, simulate their turn actions with logs
+                    const activeP = this.getActivePlayer();
+                    if (activeP && activeP.isAI) {
+                        if (typeof activeP.draw === 'function') activeP.draw(1);
+                        if (!activeP.landPlayedThisTurn && Array.isArray(activeP.hand)) {
+                            const landIdx = activeP.hand.findIndex(c => c.isLand || (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(c)));
+                            if (landIdx !== -1) {
+                                const landCard = activeP.hand.splice(landIdx, 1)[0];
+                                landCard.tapped = false;
+                                activeP.battlefield.push(landCard);
+                                activeP.landPlayedThisTurn = true;
+                                activeP.landsPlayedCount = 1;
+                                this.logs.push({
+                                    type: 'LAND_PLAY',
+                                    message: `🏞️ **${activeP.name}** played **${landCard.name}**.`
+                                });
+                            }
+                        }
+                        const availMana = activeP.battlefield.filter(c => c.isLand && !c.tapped).length;
+                        if (availMana > 0 && Array.isArray(activeP.hand)) {
+                            const castIdx = activeP.hand.findIndex(c => !c.isLand && (c.cmc || 0) <= availMana && (c.cmc || 0) > 0);
+                            if (castIdx !== -1) {
+                                const spell = activeP.hand.splice(castIdx, 1)[0];
+                                const cost = spell.cmc || 1;
+                                let tapped = 0;
+                                activeP.battlefield.forEach(c => {
+                                    if (c.isLand && !c.tapped && tapped < cost) {
+                                        c.tapped = true;
+                                        tapped++;
+                                    }
+                                });
+                                spell.tapped = false;
+                                spell.summoningSick = true;
+                                activeP.battlefield.push(spell);
+                                this.logs.push({
+                                    type: 'SPELL_CAST',
+                                    message: `🪄 **${activeP.name}** cast **${spell.name}** ({${cost}}).`
+                                });
+                            }
+                        }
+                        const readyAttackers = activeP.battlefield.filter(c => c.isCreature && !c.tapped && !c.summoningSick);
+                        if (readyAttackers.length > 0) {
+                            readyAttackers.forEach(c => { c.tapped = true; });
+                            this.logs.push({
+                                type: 'ATTACK',
+                                message: `⚔️ **${activeP.name}** declared attack with **${readyAttackers.length}** creature(s)!`
+                            });
+                        }
+                    }
+                }
+
                 const newLogs = this.logs.slice(logsBefore);
                 return { success: true, logs: newLogs, currentPhase: this.currentPhase, activePlayer: this.getActivePlayer(), turn: this.turn };
             } finally {

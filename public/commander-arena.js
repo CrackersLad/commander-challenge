@@ -4839,24 +4839,34 @@
         }
 
         // 4. Action Trigger Button Label based on current Phase
-        let actionBtnText = 'Next Step ⏭️';
+        let actionBtnText = 'Proceed ⏭️';
         let actionBtnClass = 'action-trigger-btn';
         if (isMyTurn) {
             if (currentPhase === 'MAIN_1' || currentPhase === 'MAIN1') {
                 actionBtnText = 'Go to Combat ⚔️';
                 actionBtnClass = 'action-trigger-btn arena-btn-gold';
+            } else if (currentPhase === 'COMBAT_BEGIN') {
+                actionBtnText = 'Declare Attackers ⚔️';
+                actionBtnClass = 'action-trigger-btn arena-btn-gold';
             } else if (currentPhase === 'DECLARE_ATTACKERS' || currentPhase === 'COMBAT_DECLARE_ATTACKERS') {
-                actionBtnText = selectedAttackerIds.size > 0 ? `Attack (${selectedAttackerIds.size} Selected) 💥` : 'Pass Combat (No Attacks)';
+                actionBtnText = selectedAttackerIds.size > 0 ? `Attack (${selectedAttackerIds.size} Selected) 💥` : 'Pass Combat (No Attacks) 🛡️';
+                actionBtnClass = selectedAttackerIds.size > 0 ? 'action-trigger-btn arena-btn-danger' : 'action-trigger-btn';
+            } else if (currentPhase.includes('COMBAT') || currentPhase.includes('BLOCK') || currentPhase.includes('DAMAGE')) {
+                actionBtnText = 'Resolve Combat ⚔️';
                 actionBtnClass = 'action-trigger-btn';
             } else if (currentPhase === 'MAIN_2' || currentPhase === 'MAIN2') {
                 actionBtnText = 'End Turn ⏳';
                 actionBtnClass = 'action-trigger-btn arena-btn-gold';
             } else if (currentPhase === 'END_STEP' || currentPhase === 'END_OF_TURN' || currentPhase === 'CLEANUP') {
-                actionBtnText = 'End Turn (Pass) ⏳';
+                actionBtnText = 'Pass to Next Player ⏳';
+                actionBtnClass = 'action-trigger-btn arena-btn-gold';
+            } else if (currentPhase === 'UNTAP' || currentPhase === 'UPKEEP' || currentPhase === 'DRAW') {
+                actionBtnText = 'Proceed to Main 1 ⏭️';
                 actionBtnClass = 'action-trigger-btn arena-btn-gold';
             }
         } else {
-            actionBtnText = `Advance ${activePlayer ? activePlayer.name : 'Bot'} (${currentPhase.replace(/_/g, ' ')}) 🤖`;
+            actionBtnText = `Advance ${activePlayer ? activePlayer.name : 'Bot'} 🤖`;
+            actionBtnClass = 'action-trigger-btn arena-btn-primary';
         }
 
         return `
@@ -6187,8 +6197,8 @@
         const activePlayer = currentGame.getActivePlayer();
         const player = currentGame.players[0];
 
-        if (activePlayer.id === player.id) {
-            if (currentGame.currentPhase === 'DECLARE_ATTACKERS') {
+        if (activePlayer && activePlayer.id === player.id) {
+            if (currentGame.currentPhase === 'DECLARE_ATTACKERS' || currentGame.currentPhase === 'COMBAT_DECLARE_ATTACKERS') {
                 // Confirm attacks
                 const opps = currentGame.players.slice(1).filter(p => p.isAlive);
                 const defaultOpp = opps[0];
@@ -6213,7 +6223,39 @@
                 attackerTargets.clear();
                 if (res && res.logs) appendArenaLogs(res.logs);
                 await currentGame.stepPhase(); // Move to damage
+                if (currentGame.bridge) {
+                    let steps = 0;
+                    while (currentGame.currentPhase !== 'MAIN_2' && currentGame.currentPhase !== 'MAIN2' && steps < 6) {
+                        await currentGame.stepPhase();
+                        steps++;
+                    }
+                }
                 updateArenaDOM();
+                return;
+            } else if (currentGame.currentPhase === 'MAIN_1' || currentGame.currentPhase === 'MAIN1') {
+                await currentGame.stepPhase();
+                if (currentGame.bridge && currentGame.currentPhase === 'COMBAT_BEGIN') {
+                    await currentGame.stepPhase();
+                }
+                updateArenaDOM();
+                return;
+            } else if (currentGame.currentPhase === 'MAIN_2' || currentGame.currentPhase === 'MAIN2' || currentGame.currentPhase === 'END_STEP' || currentGame.currentPhase === 'END_OF_TURN' || currentGame.currentPhase === 'CLEANUP') {
+                // Pass turn to the next player (Seat 1 / Opponent 1)
+                const result = await currentGame.stepTurn();
+                updateArenaDOM();
+                if (result && result.logs && result.logs.length > 0) {
+                    appendArenaLogs(result.logs);
+                }
+                return;
+            }
+        } else {
+            // It is an opponent's turn: advance this bot's turn to the next player
+            if (currentGame.stepTurn) {
+                const result = await currentGame.stepTurn();
+                updateArenaDOM();
+                if (result && result.logs && result.logs.length > 0) {
+                    appendArenaLogs(result.logs);
+                }
                 return;
             }
         }
@@ -6493,11 +6535,20 @@
 
             window.closeMulliganModal();
 
-            // Set up starting player's Turn 1 cleanly without premature while-loop phase skipping
+            // Set up starting player's Turn 1 cleanly in sync with engine
             const startIdx = typeof currentGame.startingPlayerIndex === 'number' ? currentGame.startingPlayerIndex : 0;
             currentGame.activePlayerIndex = startIdx;
             currentGame.turn = 1;
-            currentGame.currentPhase = 'MAIN_1';
+
+            if (currentGame.bridge && currentGame.activePlayerIndex === 0) {
+                let prepSteps = 0;
+                while (currentGame.currentPhase !== 'MAIN_1' && currentGame.currentPhase !== 'MAIN1' && prepSteps < 5) {
+                    await currentGame.stepPhase();
+                    prepSteps++;
+                }
+            } else {
+                currentGame.currentPhase = 'MAIN_1';
+            }
 
             const activeP = currentGame.getActivePlayer();
             if (activeP) {
@@ -6562,13 +6613,18 @@
                     return;
                 }
                 const activeP = currentGame.getActivePlayer();
-                // If it is human player's main phase or declare attackers, pause to let them act!
+                // If it is human player's turn, pause auto-play to let them act!
                 if (!activeP.isAI && (currentGame.currentPhase.includes('MAIN') || currentGame.currentPhase === 'DECLARE_ATTACKERS')) {
                     window.toggleArenaPlayPause();
                     return;
                 }
 
-                const result = await currentGame.stepPhase();
+                let result = null;
+                if (activeP.isAI && currentGame.stepTurn) {
+                    result = await currentGame.stepTurn();
+                } else {
+                    result = await currentGame.stepPhase();
+                }
                 updateArenaDOM();
                 if (result && result.logs && result.logs.length > 0) {
                     appendArenaLogs(result.logs);
