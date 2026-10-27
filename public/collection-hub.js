@@ -841,8 +841,8 @@
                     const raw = localStorage.getItem(key);
                     if (!raw) return null;
                     const parsed = JSON.parse(raw);
-                    // 2 hour cache validity
-                    if (Date.now() - (parsed.timestamp || 0) < 2 * 60 * 60 * 1000 && Array.isArray(parsed.cards)) {
+                    // 8 hour cache validity
+                    if (Date.now() - (parsed.timestamp || 0) < 8 * 60 * 60 * 1000 && Array.isArray(parsed.cards)) {
                         return parsed.cards.map(c => {
                             const s = (c.set || c.setCode || '').toLowerCase();
                             const num = (c.collectorNumber || c.collector_number || c.number || '').toString().trim();
@@ -874,7 +874,7 @@
                     const cleanId = String(id).trim();
                     const key = `archidekt_coll_${cleanId}`;
                     const stored = await idbGet(key);
-                    if (stored && Array.isArray(stored.cards) && (Date.now() - (stored.timestamp || 0) < 2 * 60 * 60 * 1000)) {
+                    if (stored && Array.isArray(stored.cards) && (Date.now() - (stored.timestamp || 0) < 8 * 60 * 60 * 1000)) {
                         return stored.cards.map(c => {
                             const s = (c.set || c.setCode || '').toLowerCase();
                             const num = (c.collectorNumber || c.collector_number || c.number || '').toString().trim();
@@ -2319,7 +2319,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=10.17');
+                    const res = await fetch('./commander-precons.json?v=10.18');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2355,7 +2355,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=10.17');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=10.18');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -5592,6 +5592,99 @@
             return data;
         }
 
+        async function streamArchidektCollectionForComparator(collectionId) {
+            let response = null;
+            try {
+                response = await fetch('/getCollectionInsights?stream=true', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+                    body: JSON.stringify({ collectionId })
+                });
+            } catch (e) {
+                console.warn("[STREAM] Primary route network error, falling back to direct Cloud Function:", e);
+            }
+
+            if (!response || !response.ok) {
+                try {
+                    response = await fetch('https://us-central1-commander-challenge.cloudfunctions.net/getCollectionInsights?stream=true', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+                        body: JSON.stringify({ collectionId })
+                    });
+                } catch (e) {
+                    console.warn("[STREAM] Direct Cloud Function fetch failed:", e);
+                }
+            }
+
+            if (!response || !response.ok) {
+                let errMsg = response ? `Server status ${response.status}` : 'Network error';
+                if (response && (response.status === 429 || response.status === 503)) {
+                    errMsg = 'Archidekt rate limit (HTTP 429) reached. Please wait a moment or upload your collection CSV.';
+                }
+                throw new Error(errMsg);
+            }
+
+            const contentType = response.headers.get('content-type') || '';
+            let finalData = null;
+
+            if (contentType.includes('text/event-stream') && response.body) {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const blocks = buffer.split('\n\n');
+                    buffer = blocks.pop();
+
+                    for (const block of blocks) {
+                        if (!block.trim()) continue;
+                        const lines = block.split('\n');
+                        let eventName = 'message';
+                        let dataStr = '';
+
+                        for (const line of lines) {
+                            if (line.startsWith('event:')) eventName = line.substring(6).trim();
+                            else if (line.startsWith('data:')) dataStr = line.substring(5).trim();
+                        }
+
+                        if (!dataStr) continue;
+                        let parsed = null;
+                        try { parsed = JSON.parse(dataStr); } catch (e) { continue; }
+
+                        if (eventName === 'progress') {
+                            const pct = Math.min(88, Math.max(5, parsed.pct || 10));
+                            updateDeckCompareProgressUI({
+                                title: `Retrieving Collection #${collectionId}...`,
+                                status: parsed.message || `Downloading collection cards...`,
+                                badge: 'Archidekt Sync',
+                                pct: pct,
+                                detailText: `Fetched ${parsed.fetched || 0} / ${parsed.count || '?'} cards (Page ${parsed.page || 1} of ${parsed.totalPages || '?'})`,
+                                phaseText: 'Phase 1 / 4 (Collection Sync)',
+                                step: 1
+                            });
+                        } else if (eventName === 'result') {
+                            finalData = parsed;
+                        } else if (eventName === 'error') {
+                            throw new Error(parsed.error || 'Error streaming collection from Archidekt');
+                        }
+                    }
+                }
+            } else {
+                finalData = await response.json();
+            }
+
+            const collCards = (finalData?.collection && Array.isArray(finalData.collection) && finalData.collection.length > 0)
+                ? finalData.collection
+                : ((finalData?.cachedCollectionData && Array.isArray(finalData.cachedCollectionData))
+                    ? finalData.cachedCollectionData
+                    : []);
+
+            return collCards;
+        }
+
         async function runComparison() {
             const deckInputEl = document.getElementById('deckInput');
             if (deckInputEl && deckInputEl.value.trim() !== '') addDeck();
@@ -5609,6 +5702,7 @@
             const btn = document.getElementById('compareBtn');
             const resultsContainer = document.getElementById('resultsContainer');
 
+            // 1. Resolve collection data (prioritize uploaded CSV, then local cache)
             let collectionCsvData = cachedParsedCsv;
             if (csvFile && !collectionCsvData) {
                 try {
@@ -5623,6 +5717,23 @@
                 }
             }
 
+            // Check if collection cards are already cached in memory or IndexedDB/AppStorage
+            if (!collectionCsvData && collectionId) {
+                if (Array.isArray(currentCollectionData) && currentCollectionData.length > 0) {
+                    collectionCsvData = currentCollectionData;
+                } else {
+                    let stored = AppStorage.loadArchidektCollection(collectionId);
+                    if (!stored || stored.length === 0) {
+                        stored = await AppStorage.loadArchidektCollectionAsync(collectionId);
+                    }
+                    if (stored && stored.length > 0) {
+                        currentCollectionData = stored;
+                        collectionCsvData = stored;
+                        updateCollectionStatusBadge();
+                    }
+                }
+            }
+
             // Fallback to in-memory collection data if collectionId/CSV is not typed but data exists
             if (!collectionId && !collectionCsvData && Array.isArray(currentCollectionData) && currentCollectionData.length > 0) {
                 collectionCsvData = currentCollectionData;
@@ -5631,6 +5742,51 @@
             if ((!deckIds && customPastedDecks.length === 0) || (!collectionId && !csvFile && !cachedParsedCsv && !collectionCsvData)) {
                 alert("Please enter your Decks and a Collection Source.");
                 return;
+            }
+
+            // If an Archidekt collection ID was entered but not yet in local cache,
+            // stream it first with live SSE progress so it never times out on the 60s gateway!
+            if (!collectionCsvData && collectionId) {
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner"></span> Syncing Archidekt Collection...';
+                }
+                const dcLoadingCard = document.getElementById('deckCompareLoadingCard');
+                if (dcLoadingCard) {
+                    dcLoadingCard.style.display = 'block';
+                    dcLoadingCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+
+                updateDeckCompareProgressUI({
+                    title: `Retrieving Collection #${collectionId}...`,
+                    status: 'Streaming cards from Archidekt into browser cache (prevents 60s gateway timeouts)...',
+                    badge: 'Archidekt Sync',
+                    pct: 8,
+                    detailText: 'Connecting to Archidekt API...',
+                    phaseText: 'Phase 1 / 4 (Collection Sync)',
+                    elapsedSec: 0,
+                    step: 1
+                });
+
+                try {
+                    const syncedCards = await streamArchidektCollectionForComparator(collectionId);
+                    if (syncedCards && syncedCards.length > 0) {
+                        currentCollectionData = syncedCards;
+                        collectionCsvData = syncedCards;
+                        AppStorage.saveArchidektCollection(collectionId, syncedCards);
+                        updateCollectionStatusBadge();
+                    } else {
+                        throw new Error(`Archidekt returned 0 cards for collection #${collectionId}. Ensure the collection is public.`);
+                    }
+                } catch (syncErr) {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<span>⚡</span> Compare Decks';
+                    }
+                    if (dcLoadingCard) dcLoadingCard.style.display = 'none';
+                    alert(`Could not sync Archidekt collection: ${syncErr.message}\n\n💡 TIP: For large collections or Archidekt rate limits, export your collection as a CSV (Archidekt -> Collection -> Export -> CSV) and click 'Upload CSV' for instant 0-second comparison!`);
+                    return;
+                }
             }
 
             // Update URL to make it bookmarkable
@@ -9289,7 +9445,10 @@
             // Try restoring cached Archidekt collection into memory for sub-second lookups
             const initialCollId = collectionInput.value.trim();
             if (initialCollId && !cachedParsedCsv) {
-                const storedColl = AppStorage.loadArchidektCollection(initialCollId);
+                let storedColl = AppStorage.loadArchidektCollection(initialCollId);
+                if (!storedColl || storedColl.length === 0) {
+                    storedColl = await AppStorage.loadArchidektCollectionAsync(initialCollId);
+                }
                 if (storedColl && storedColl.length > 0) {
                     currentCollectionData = storedColl;
                 }

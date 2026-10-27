@@ -19,7 +19,7 @@ const deckNameCache = new Map(); // compositeKey -> { timestamp, name }
 const DECK_NAME_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 const collectionCache = new Map(); // collectionId -> { timestamp, cards }
-const COLLECTION_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const COLLECTION_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 
 /**
  * Fast & rate-limit safe collection fetcher with multi-round retry to guarantee 100% complete card retrieval.
@@ -74,7 +74,7 @@ async function fetchArchidektCollection(collectionId, options = {}, onProgress =
                 const dbVal = dbSnap.val();
                 if (dbVal && Array.isArray(dbVal.cards) && dbVal.cards.length > 0) {
                     const age = Date.now() - (dbVal.timestamp || 0);
-                    if (age < 60 * 60 * 1000) { // 1 hour
+                    if (age < 12 * 60 * 60 * 1000) { // 12 hours
                         console.log(`[RTDB CACHE] Returning cloud-cached collection for ID ${cleanId} (${dbVal.cards.length} cards)`);
                         collectionCache.set(cleanId, { timestamp: Date.now(), cards: dbVal.cards });
                         if (typeof onProgress === 'function') {
@@ -812,10 +812,10 @@ exports.compareDecks = onRequest({ cors: true, timeoutSeconds: 300, memory: "512
         const idList = deckIds ? deckIds.split(',').map(id => id.trim()).filter(id => id.length > 0) : [];
         const rawDeckObjects = [];
 
-        // Fetch remote decks with sequential throttling (concurrency: 1, delay: 350ms) to stay within Archidekt rate limits
+        // Fetch remote decks with bounded concurrency (concurrency: 2, delay: 200ms) to stay within Archidekt rate limits
         if (idList.length > 0) {
             const deckTaskFns = idList.map(idStr => () => fetchSingleDeck(idStr));
-            const fetchedDecks = await runWithConcurrency(deckTaskFns, 1, 350);
+            const fetchedDecks = await runWithConcurrency(deckTaskFns, 2, 200);
             rawDeckObjects.push(...fetchedDecks);
         }
 

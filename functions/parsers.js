@@ -372,9 +372,31 @@ async function enrichCardsWithScryfall(cardItems) {
     for (const item of cardItems) {
         const rawName = item.name || item.card?.name || '';
         const clean = normalizeCardName(rawName);
-        if (clean && !nameMap.has(clean)) {
-            nameMap.set(clean, null);
-            uncachedNames.push(rawName);
+        if (!clean) continue;
+
+        if (!nameMap.has(clean)) {
+            // Check if item already contains oracle, type line, and color metadata (e.g. from Archidekt cache)
+            const oracle = item.card?.oracleCard || (item.typeLine || item.type_line ? item : null);
+            if (oracle && (oracle.typeLine || oracle.type_line)) {
+                const typeLine = (oracle.typeLine || oracle.type_line || '').toLowerCase();
+                const colors = oracle.colorIdentity || oracle.color_identity || oracle.colors || [];
+                const isLegendary = typeLine.includes('legendary');
+                const isCreature = typeLine.includes('creature');
+                const isEligibleCommander = Boolean(oracle.isCommander || item.isCommander || (isLegendary && isCreature));
+
+                nameMap.set(clean, {
+                    name: oracle.name || rawName,
+                    type_line: oracle.type_line || oracle.typeLine,
+                    mana_cost: oracle.mana_cost || oracle.manaCost || '',
+                    color_identity: colors,
+                    edhrec_rank: oracle.edhrec_rank || oracle.edhrecRank || null,
+                    canBeCommander: isEligibleCommander,
+                    isCommander: isEligibleCommander
+                });
+            } else {
+                nameMap.set(clean, null);
+                uncachedNames.push(rawName);
+            }
         }
     }
 
