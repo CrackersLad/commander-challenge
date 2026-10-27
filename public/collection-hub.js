@@ -99,6 +99,9 @@
                 if (userMenu) userMenu.style.display = 'none';
                 closeUserDropdown();
             }
+            if (typeof updateCollectionStatusBadge === 'function') {
+                updateCollectionStatusBadge();
+            }
         }
 
         function toggleUserDropdown(event) {
@@ -293,6 +296,16 @@
                                 localStorage.setItem('archidekt_collectionId', cloudVal.collectionId);
                                 if (typeof toggleCollectionInputs === 'function') toggleCollectionInputs();
                                 if (typeof updateCollectionStatusBadge === 'function') updateCollectionStatusBadge();
+                            }
+                        }
+
+                        // Restore Saved Collection Metadata (Last Updated / Card Count / Source)
+                        if (cloudVal.savedCollection && typeof cloudVal.savedCollection === 'object') {
+                            const localMeta = typeof getCollectionMetadata === 'function' ? getCollectionMetadata() : null;
+                            if (!localMeta || (cloudVal.savedCollection.updatedAt || 0) >= (localMeta.updatedAt || 0)) {
+                                if (typeof saveCollectionMetadata === 'function') {
+                                    saveCollectionMetadata(cloudVal.savedCollection);
+                                }
                             }
                         }
 
@@ -1119,45 +1132,449 @@
             }
         }
 
-        function updateCollectionStatusBadge() {
-            const badge = document.getElementById('collectionStatusBadge');
-            const refreshBtn = document.getElementById('refreshCollectionBtn');
-            const clearBtn = document.getElementById('clearCollectionCacheBtn');
-            const collIdInput = document.getElementById('collectionId');
-            const collId = collIdInput ? collIdInput.value.trim() : '';
+        function getCollectionMetadata() {
+            try {
+                const raw = localStorage.getItem('archidekt_collection_meta');
+                return raw ? JSON.parse(raw) : null;
+            } catch (e) {
+                return null;
+            }
+        }
 
-            if (cachedParsedCsv && cachedParsedCsv.length > 0) {
-                if (badge) {
-                    badge.innerHTML = `<span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">📎 Saved CSV Active (${cachedParsedCsv.length.toLocaleString()} cards)</span>`;
+        async function saveCollectionMetadata(meta) {
+            try {
+                if (!meta) return;
+                meta.updatedAt = meta.updatedAt || Date.now();
+                localStorage.setItem('archidekt_collection_meta', JSON.stringify(meta));
+                if (typeof idbSet === 'function') {
+                    await idbSet('archidekt_collection_meta', meta);
                 }
-                if (refreshBtn) refreshBtn.style.display = 'inline-flex';
-                if (clearBtn) clearBtn.style.display = 'inline-flex';
-            } else if (collId) {
-                const count = currentCollectionData?.length || 0;
-                if (badge) {
-                    if (count > 0) {
-                        badge.innerHTML = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);" title="Collection cached locally for sub-second lookups">⚡ Collection: #${collId} (${count.toLocaleString()} cards cached)</span>`;
+                const user = currentAuthUser || getUnifiedUser();
+                if (user && !user.isAnonymous && window.db && window.firebaseSet && window.firebaseRef) {
+                    await window.firebaseSet(window.firebaseRef(window.db, `users/${user.uid}/collectionPrefs/savedCollection`), meta);
+                    await window.firebaseSet(window.firebaseRef(window.db, `users/${user.uid}/collectionPrefs/updatedAt`), meta.updatedAt);
+                }
+            } catch (e) {
+                console.warn("Could not save collection metadata:", e);
+            }
+        }
+
+        function formatLastUpdated(timestamp) {
+            if (!timestamp) return 'Never';
+            const date = new Date(timestamp);
+            if (isNaN(date.getTime())) return 'Never';
+
+            const now = Date.now();
+            const diffSec = Math.floor((now - timestamp) / 1000);
+
+            let relative = '';
+            if (diffSec < 60) relative = 'Just now';
+            else if (diffSec < 3600) {
+                const mins = Math.floor(diffSec / 60);
+                relative = `${mins} min${mins === 1 ? '' : 's'} ago`;
+            } else if (diffSec < 86400) {
+                const hours = Math.floor(diffSec / 3600);
+                relative = `${hours} hr${hours === 1 ? '' : 's'} ago`;
+            } else {
+                const days = Math.floor(diffSec / 86400);
+                relative = `${days} day${days === 1 ? '' : 's'} ago`;
+            }
+
+            const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+            const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+            return `${dateStr} at ${timeStr} (${relative})`;
+        }
+
+        function updateCollectionStatusBadge() {
+            const activeCard = document.getElementById('activeCollectionCard');
+            const setupCard = document.getElementById('collectionSetupCard');
+            const cancelBtn = document.getElementById('cancelSetupBtn');
+            const titleEl = document.getElementById('activeCollectionTitle');
+            const countEl = document.getElementById('activeCollectionCardCount');
+            const updatedEl = document.getElementById('activeCollectionLastUpdatedText');
+            const syncBadge = document.getElementById('activeCollectionAccountSyncBadge');
+            const refreshBtn = document.getElementById('activeCollectionRefreshBtn');
+            const iconEl = document.getElementById('activeCollectionIcon');
+            const compareBtnText = document.getElementById('compareBtnText');
+            const compareWarningHint = document.getElementById('compareWarningHint');
+            const headerBadge = document.getElementById('collectionStatusBadge');
+
+            const collIdInput = document.getElementById('collectionId');
+            const rawCollId = collIdInput ? collIdInput.value.trim() : '';
+            const collMatch = rawCollId.match(/(\d+)/);
+            const collId = collMatch ? collMatch[1] : (localStorage.getItem('archidekt_collectionId') || '');
+            const meta = getCollectionMetadata() || {};
+
+            const user = currentAuthUser || getUnifiedUser();
+            const isUserLoggedIn = user && !user.isAnonymous;
+
+            const hasCsv = cachedParsedCsv && Array.isArray(cachedParsedCsv) && cachedParsedCsv.length > 0;
+            const hasMemoryCards = currentCollectionData && Array.isArray(currentCollectionData) && currentCollectionData.length > 0;
+            const hasStoredCards = hasCsv || hasMemoryCards;
+
+            if (hasStoredCards) {
+                const cardCount = hasCsv ? cachedParsedCsv.length : currentCollectionData.length;
+                const isCsvSource = hasCsv && !collId;
+
+                if (activeCard) activeCard.style.display = 'block';
+                if (setupCard) setupCard.style.display = 'none';
+                if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+
+                if (titleEl) {
+                    titleEl.textContent = isCsvSource 
+                        ? (meta.fileName ? `CSV Collection: ${meta.fileName}` : 'Saved CSV Collection') 
+                        : `Archidekt Collection #${collId || meta.collectionId || ''}`;
+                }
+                if (iconEl) {
+                    iconEl.textContent = isCsvSource ? '📁' : '🌐';
+                }
+                if (countEl) {
+                    countEl.textContent = `${cardCount.toLocaleString()} Cards Loaded`;
+                }
+                if (updatedEl) {
+                    const ts = meta.updatedAt || Date.now();
+                    updatedEl.innerHTML = `🕒 Last Updated: <strong>${formatLastUpdated(ts)}</strong>`;
+                }
+                if (syncBadge) {
+                    if (isUserLoggedIn) {
+                        syncBadge.style.display = 'inline-flex';
+                        syncBadge.className = 'account-sync-badge';
+                        syncBadge.innerHTML = `☁️ Synced to ${user.displayName || user.email?.split('@')[0] || 'Account'}`;
                     } else {
-                        badge.innerHTML = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">💾 Collection: ${collId}</span>`;
+                        syncBadge.style.display = 'inline-flex';
+                        syncBadge.className = 'account-sync-badge';
+                        syncBadge.style.background = 'rgba(255,255,255,0.06)';
+                        syncBadge.style.borderColor = 'rgba(255,255,255,0.15)';
+                        syncBadge.style.color = 'var(--text-muted)';
+                        syncBadge.innerHTML = `<a href="javascript:void(0)" onclick="openAuthModal()" style="color: #38bdf8; text-decoration: none;">💾 Stored Locally · Sign in to sync</a>`;
                     }
                 }
-                if (refreshBtn) refreshBtn.style.display = 'inline-flex';
+                if (refreshBtn) {
+                    refreshBtn.style.display = isCsvSource ? 'none' : 'inline-flex';
+                }
+
+                if (compareWarningHint) compareWarningHint.style.display = 'none';
+                if (compareBtnText) {
+                    compareBtnText.innerHTML = `⚡ Compare Decks Against Saved Collection (${cardCount.toLocaleString()} cards)`;
+                }
+                if (headerBadge) {
+                    headerBadge.innerHTML = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">✓ Active Collection Ready</span>`;
+                }
+            } else {
+                if (activeCard) activeCard.style.display = 'none';
+                if (setupCard) setupCard.style.display = 'block';
+                if (cancelBtn) cancelBtn.style.display = 'none';
+
+                if (activeDeckIds && activeDeckIds.size > 0 && compareWarningHint) {
+                    compareWarningHint.style.display = 'block';
+                } else if (compareWarningHint) {
+                    compareWarningHint.style.display = 'none';
+                }
+
+                if (compareBtnText) {
+                    compareBtnText.innerHTML = `⚠️ Scan Collection in Step 1 First`;
+                }
+                if (headerBadge) {
+                    headerBadge.innerHTML = `<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3);">No Collection Loaded</span>`;
+                }
+            }
+        }
+
+        function switchCollectionSourceTab(tab) {
+            const archBtn = document.getElementById('tabArchidektSourceBtn');
+            const csvBtn = document.getElementById('tabCsvSourceBtn');
+            const archSection = document.getElementById('archidektSourceSection');
+            const csvSection = document.getElementById('csvSourceSection');
+
+            if (tab === 'csv') {
+                if (archBtn) archBtn.classList.remove('active');
+                if (csvBtn) csvBtn.classList.add('active');
+                if (archSection) archSection.style.display = 'none';
+                if (csvSection) csvSection.style.display = 'block';
+            } else {
+                if (archBtn) archBtn.classList.add('active');
+                if (csvBtn) csvBtn.classList.remove('active');
+                if (archSection) archSection.style.display = 'block';
+                if (csvSection) csvSection.style.display = 'none';
+            }
+        }
+        window.switchCollectionSourceTab = switchCollectionSourceTab;
+
+        function showCollectionSetupForm() {
+            const activeCard = document.getElementById('activeCollectionCard');
+            const setupCard = document.getElementById('collectionSetupCard');
+            const cancelBtn = document.getElementById('cancelSetupBtn');
+            if (activeCard) activeCard.style.display = 'none';
+            if (setupCard) setupCard.style.display = 'block';
+            if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+            const collIdInput = document.getElementById('collectionId');
+            if (collIdInput) collIdInput.focus();
+        }
+        window.showCollectionSetupForm = showCollectionSetupForm;
+
+        function hideCollectionSetupForm() {
+            const hasStoredCards = (cachedParsedCsv && cachedParsedCsv.length > 0) || (currentCollectionData && currentCollectionData.length > 0);
+            if (hasStoredCards) {
+                updateCollectionStatusBadge();
+            } else {
+                showToast("Please scan or upload a collection first.");
+            }
+        }
+        window.hideCollectionSetupForm = hideCollectionSetupForm;
+
+        function handleCsvFileSelected(event) {
+            const input = event.target;
+            const saveBtn = document.getElementById('saveCsvBtn');
+            const clearBtn = document.getElementById('clearCsvBtn');
+            if (input.files && input.files.length > 0) {
+                const file = input.files[0];
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = `<span>📥</span> Upload & Save CSV (${file.name})`;
+                }
                 if (clearBtn) clearBtn.style.display = 'inline-flex';
             } else {
-                if (badge) badge.innerHTML = '';
-                if (refreshBtn) refreshBtn.style.display = 'none';
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = `<span>📥</span> Upload & Save CSV`;
+                }
                 if (clearBtn) clearBtn.style.display = 'none';
             }
         }
+        window.handleCsvFileSelected = handleCsvFileSelected;
+
+        async function uploadAndSaveCsvCollection() {
+            const csvInput = document.getElementById('csvUpload');
+            if (!csvInput || !csvInput.files || csvInput.files.length === 0) {
+                alert("Please select a CSV file first.");
+                return;
+            }
+            const file = csvInput.files[0];
+            const saveBtn = document.getElementById('saveCsvBtn');
+
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<span class="spinner"></span> Parsing CSV...';
+            }
+
+            try {
+                const csvText = await readCSVFile(file);
+                const parsed = parseCSV(csvText);
+                if (!parsed || parsed.length === 0) {
+                    throw new Error("No cards could be parsed from the CSV. Ensure it has 'Name' and 'Quantity' columns.");
+                }
+
+                cachedParsedCsv = parsed;
+                currentCollectionData = parsed;
+                AppStorage.saveCsv(parsed);
+
+                // Clear collectionId so CSV is active source
+                const idInput = document.getElementById('collectionId');
+                if (idInput) idInput.value = '';
+                localStorage.removeItem('archidekt_collectionId');
+
+                await saveCollectionMetadata({
+                    sourceType: 'csv',
+                    fileName: file.name,
+                    cardCount: parsed.length,
+                    updatedAt: Date.now()
+                });
+
+                updateCollectionStatusBadge();
+                showToast(`✓ CSV Collection "${file.name}" saved (${parsed.length.toLocaleString()} cards)!`);
+            } catch (err) {
+                alert("Error processing CSV: " + err.message);
+            } finally {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = `<span>📥</span> Upload & Save CSV`;
+                }
+            }
+        }
+        window.uploadAndSaveCsvCollection = uploadAndSaveCsvCollection;
+
+        async function scanAndSaveArchidektCollection() {
+            const idInput = document.getElementById('collectionId');
+            let rawVal = idInput ? idInput.value.trim() : '';
+            if (!rawVal) {
+                rawVal = localStorage.getItem('archidekt_collectionId') || '';
+            }
+            if (!rawVal) {
+                alert("Please enter your Archidekt Collection ID or URL.");
+                if (idInput) idInput.focus();
+                return;
+            }
+
+            const collMatch = rawVal.match(/(?:archidekt\.com\/(?:[a-z0-9_-]+\/)?collections?\/)(\d+)/i) || rawVal.match(/(\d+)/);
+            if (!collMatch) {
+                alert("Could not find a valid numeric collection ID in: " + rawVal);
+                return;
+            }
+            const cleanId = collMatch[1];
+            if (idInput) idInput.value = cleanId;
+            localStorage.setItem('archidekt_collectionId', cleanId);
+
+            const scanBtn = document.getElementById('scanCollectionBtn');
+            const progressCard = document.getElementById('collectionScanProgressCard');
+            const progressBar = document.getElementById('scanProgressBarFill');
+            const progressCount = document.getElementById('scanProgressCount');
+            const progressPct = document.getElementById('scanProgressPct');
+            const progressPage = document.getElementById('scanProgressPage');
+            const progressStatus = document.getElementById('scanProgressStatus');
+            const progressTitle = document.getElementById('scanProgressTitle');
+            const progressEta = document.getElementById('scanProgressEta');
+
+            if (scanBtn) {
+                scanBtn.disabled = true;
+                scanBtn.innerHTML = '<span class="spinner"></span> Scanning Archidekt...';
+            }
+            if (progressCard) progressCard.style.display = 'block';
+
+            const startTime = Date.now();
+            let estTotalSec = 16;
+            const ticker = setInterval(() => {
+                const elapsed = Math.max(1, Math.round((Date.now() - startTime) / 1000));
+                const remaining = Math.max(1, Math.round(estTotalSec - elapsed));
+                if (progressEta) progressEta.textContent = `Est. remaining: ~${remaining}s (Elapsed: ${elapsed}s)`;
+            }, 500);
+
+            try {
+                let response = null;
+                try {
+                    response = await fetch('/getCollectionInsights?stream=true', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+                        body: JSON.stringify({ collectionId: cleanId, forceFresh: true })
+                    });
+                } catch (e) {
+                    console.warn("[SCAN] Gateway fetch failed, falling back to direct Cloud Function:", e);
+                }
+
+                if (!response || !response.ok) {
+                    try {
+                        response = await fetch('https://us-central1-commander-challenge.cloudfunctions.net/getCollectionInsights?stream=true', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+                            body: JSON.stringify({ collectionId: cleanId, forceFresh: true })
+                        });
+                    } catch (e) {
+                        console.warn("[SCAN] Direct fetch failed:", e);
+                    }
+                }
+
+                if (!response || !response.ok) {
+                    let errMsg = response ? `Server status ${response.status}` : 'Network error';
+                    if (response && (response.status === 429 || response.status === 503)) {
+                        errMsg = 'Archidekt rate limit (HTTP 429) reached. Please wait a moment or export CSV on Archidekt.';
+                    }
+                    throw new Error(errMsg);
+                }
+
+                const contentType = response.headers.get('content-type') || '';
+                let finalData = null;
+
+                if (contentType.includes('text/event-stream') && response.body) {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+                        const blocks = buffer.split('\n\n');
+                        buffer = blocks.pop();
+
+                        for (const block of blocks) {
+                            if (!block.trim()) continue;
+                            const lines = block.split('\n');
+                            let eventName = 'message';
+                            let dataStr = '';
+                            for (const line of lines) {
+                                if (line.startsWith('event:')) eventName = line.substring(6).trim();
+                                else if (line.startsWith('data:')) dataStr = line.substring(5).trim();
+                            }
+                            if (!dataStr) continue;
+                            let parsed = null;
+                            try { parsed = JSON.parse(dataStr); } catch (e) { continue; }
+
+                            if (eventName === 'progress') {
+                                const pct = Math.min(95, Math.max(5, parsed.pct || 10));
+                                if (progressBar) progressBar.style.width = `${pct}%`;
+                                if (progressPct) progressPct.textContent = `${pct}%`;
+                                if (progressCount) progressCount.textContent = `Fetched ${parsed.fetched || 0} / ${parsed.count || '?'} cards`;
+                                if (progressPage) progressPage.textContent = `Page ${parsed.page || 1} of ${parsed.totalPages || '?'}`;
+                                if (progressStatus) progressStatus.textContent = parsed.message || 'Retrieving cards...';
+                                if (progressTitle) progressTitle.textContent = `Scanning Collection #${cleanId}...`;
+                            } else if (eventName === 'result') {
+                                finalData = parsed;
+                            } else if (eventName === 'error') {
+                                throw new Error(parsed.error || 'Failed scanning Archidekt collection');
+                            }
+                        }
+                    }
+                } else {
+                    finalData = await response.json();
+                }
+
+                clearInterval(ticker);
+
+                const collCards = (finalData?.collection && Array.isArray(finalData.collection) && finalData.collection.length > 0)
+                    ? finalData.collection
+                    : ((finalData?.cachedCollectionData && Array.isArray(finalData.cachedCollectionData))
+                        ? finalData.cachedCollectionData
+                        : []);
+
+                if (!collCards || collCards.length === 0) {
+                    throw new Error(`No cards retrieved from Collection #${cleanId}. Please check the ID and ensure the collection is public.`);
+                }
+
+                currentCollectionData = collCards;
+                cachedParsedCsv = null;
+                localStorage.removeItem('archidekt_cachedCsvData');
+
+                AppStorage.saveArchidektCollection(cleanId, collCards);
+                await saveCollectionMetadata({
+                    sourceType: 'archidekt',
+                    collectionId: cleanId,
+                    cardCount: collCards.length,
+                    updatedAt: Date.now()
+                });
+
+                if (progressCard) progressCard.style.display = 'none';
+                updateCollectionStatusBadge();
+                showToast(`✓ Collection #${cleanId} saved (${collCards.length.toLocaleString()} cards)! Ready to compare.`);
+            } catch (err) {
+                clearInterval(ticker);
+                if (progressCard) progressCard.style.display = 'none';
+                alert(`Could not scan Archidekt collection: ${err.message}\n\n💡 TIP: For very large collections or Archidekt rate limits, click 'Upload CSV File' to load your Archidekt CSV export instantly!`);
+            } finally {
+                clearInterval(ticker);
+                if (scanBtn) {
+                    scanBtn.disabled = false;
+                    scanBtn.innerHTML = '<span>⚡</span> Scan & Save Collection';
+                }
+            }
+        }
+        window.scanAndSaveArchidektCollection = scanAndSaveArchidektCollection;
 
         async function clearSavedCollection() {
             if (!confirm("Are you sure you want to clear your saved collection and cached insights?")) return;
             const collInput = document.getElementById('collectionId');
-            const cleanId = collInput ? collInput.value.trim() : '';
+            const cleanId = collInput ? collInput.value.trim() : (localStorage.getItem('archidekt_collectionId') || '');
             if (cleanId) AppStorage.clearArchidektCollection(cleanId);
             localStorage.removeItem('archidekt_collectionId');
             localStorage.removeItem('archidekt_cachedCsvData');
             localStorage.removeItem('archidekt_cachedInsights');
+            localStorage.removeItem('archidekt_collection_meta');
+            if (typeof idbDelete === 'function') {
+                await idbDelete('archidekt_collection_meta');
+            }
+            const user = currentAuthUser || getUnifiedUser();
+            if (user && !user.isAnonymous && window.db && window.firebaseSet && window.firebaseRef) {
+                window.firebaseSet(window.firebaseRef(window.db, `users/${user.uid}/collectionPrefs/savedCollection`), null).catch(() => {});
+            }
+
             cachedParsedCsv = null;
             cachedInsightsData = null;
             currentCollectionData = [];
@@ -1166,7 +1583,12 @@
             if (collInput) collInput.value = '';
             const csvInput = document.getElementById('csvUpload');
             if (csvInput) csvInput.value = '';
-            toggleCollectionInputs();
+            const saveCsvBtn = document.getElementById('saveCsvBtn');
+            if (saveCsvBtn) {
+                saveCsvBtn.disabled = true;
+                saveCsvBtn.innerHTML = '<span>📥</span> Upload & Save CSV';
+            }
+
             updateCollectionStatusBadge();
 
             const emptyEl = document.getElementById('collectionInsightsEmpty');
@@ -1175,36 +1597,19 @@
             if (dashEl) dashEl.style.display = 'none';
             showToast("Saved collection cache cleared!");
         }
+        window.clearSavedCollection = clearSavedCollection;
 
         function refreshActiveCollection() {
-            localStorage.removeItem('archidekt_cachedInsights');
-            cachedInsightsData = null;
-            cachedParsedCsv = null;
-            const collInput = document.getElementById('collectionId');
-            let collId = collInput ? collInput.value.trim() : '';
-            const collMatch = collId.match(/(?:archidekt\.com\/collections?\/)(\d+)/i);
-            if (collMatch) collId = collMatch[1];
-            else {
-                const rawNum = collId.match(/\d+/);
-                if (rawNum && /^\d+$/.test(collId)) collId = rawNum[0];
+            const meta = getCollectionMetadata();
+            if (meta && meta.sourceType === 'csv') {
+                showCollectionSetupForm();
+                switchCollectionSourceTab('csv');
+                showToast("To refresh your CSV collection, please select and upload the latest CSV export.");
+                return;
             }
-            if (collId) {
-                AppStorage.clearArchidektCollection(collId);
-            }
-            currentCollectionData = [];
-            updateCollectionStatusBadge();
-
-            const tab = localStorage.getItem('archidekt_activeTab') || 'deck';
-            if (tab === 'collection') {
-                fetchCollectionInsights(true);
-            } else if (tab === 'deck') {
-                runComparison();
-            } else if (tab === 'set') {
-                runSetComparison(true);
-            } else if (tab === 'build') {
-                renderBuildSection(true);
-            }
+            scanAndSaveArchidektCollection();
         }
+        window.refreshActiveCollection = refreshActiveCollection;
 
         // ==================== TRADE BINDER & SHARING ENGINE ====================
         let tradeBinder = AppStorage.loadTradeBinder();
@@ -2319,7 +2724,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=10.18');
+                    const res = await fetch('./commander-precons.json?v=10.19');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2355,7 +2760,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=10.18');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=10.19');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -5702,92 +6107,96 @@
             const btn = document.getElementById('compareBtn');
             const resultsContainer = document.getElementById('resultsContainer');
 
-            // 1. Resolve collection data (prioritize uploaded CSV, then local cache)
+            // 1. Resolve collection data (prioritize active saved collection, in-memory cache, or storage)
+            const meta = typeof getCollectionMetadata === 'function' ? getCollectionMetadata() : null;
             let collectionCsvData = cachedParsedCsv;
+
+            // Check if user just selected a new CSV file without clicking upload yet
             if (csvFile && !collectionCsvData) {
                 try {
                     const csvText = await readCSVFile(csvFile);
                     collectionCsvData = parseCSV(csvText);
                     cachedParsedCsv = collectionCsvData;
+                    currentCollectionData = collectionCsvData;
                     AppStorage.saveCsv(collectionCsvData);
-                    updateCollectionStatusBadge();
+                    saveCollectionMetadata({
+                        sourceType: 'csv',
+                        fileName: csvFile.name || 'collection.csv',
+                        cardCount: collectionCsvData.length,
+                        updatedAt: Date.now()
+                    });
                 } catch (e) {
                     alert("Error parsing CSV: " + e.message);
                     return;
                 }
             }
 
-            // Check if collection cards are already cached in memory or IndexedDB/AppStorage
-            if (!collectionCsvData && collectionId) {
+            // Check if collection cards are already cached in memory
+            if (!collectionCsvData || collectionCsvData.length === 0) {
                 if (Array.isArray(currentCollectionData) && currentCollectionData.length > 0) {
                     collectionCsvData = currentCollectionData;
-                } else {
-                    let stored = AppStorage.loadArchidektCollection(collectionId);
+                }
+            }
+
+            // Check if we can restore from IndexedDB/AppStorage using saved metadata or entered ID
+            if (!collectionCsvData || collectionCsvData.length === 0) {
+                const effectiveId = collectionId || (meta && meta.collectionId ? meta.collectionId : '');
+                if (effectiveId) {
+                    let stored = AppStorage.loadArchidektCollection(effectiveId);
                     if (!stored || stored.length === 0) {
-                        stored = await AppStorage.loadArchidektCollectionAsync(collectionId);
+                        stored = await AppStorage.loadArchidektCollectionAsync(effectiveId);
                     }
                     if (stored && stored.length > 0) {
                         currentCollectionData = stored;
                         collectionCsvData = stored;
-                        updateCollectionStatusBadge();
+                        if (typeof updateCollectionStatusBadge === 'function') updateCollectionStatusBadge();
+                    }
+                } else if (meta && meta.sourceType === 'csv') {
+                    const storedCsv = AppStorage.loadCsv();
+                    if (storedCsv && storedCsv.length > 0) {
+                        cachedParsedCsv = storedCsv;
+                        currentCollectionData = storedCsv;
+                        collectionCsvData = storedCsv;
+                        if (typeof updateCollectionStatusBadge === 'function') updateCollectionStatusBadge();
                     }
                 }
             }
 
-            // Fallback to in-memory collection data if collectionId/CSV is not typed but data exists
-            if (!collectionId && !collectionCsvData && Array.isArray(currentCollectionData) && currentCollectionData.length > 0) {
-                collectionCsvData = currentCollectionData;
-            }
+            const compareWarningHint = document.getElementById('compareWarningHint');
 
-            if ((!deckIds && customPastedDecks.length === 0) || (!collectionId && !csvFile && !cachedParsedCsv && !collectionCsvData)) {
-                alert("Please enter your Decks and a Collection Source.");
-                return;
-            }
-
-            // If an Archidekt collection ID was entered but not yet in local cache,
-            // stream it first with live SSE progress so it never times out on the 60s gateway!
-            if (!collectionCsvData && collectionId) {
-                if (btn) {
-                    btn.disabled = true;
-                    btn.innerHTML = '<span class="spinner"></span> Syncing Archidekt Collection...';
+            // Prerequisite 1: Saved Collection Required
+            if (!collectionCsvData || collectionCsvData.length === 0) {
+                if (collectionId) {
+                    // User has entered an Archidekt ID but hasn't scanned yet: automatically scan & save now
+                    await scanAndSaveArchidektCollection();
+                    collectionCsvData = currentCollectionData;
                 }
-                const dcLoadingCard = document.getElementById('deckCompareLoadingCard');
-                if (dcLoadingCard) {
-                    dcLoadingCard.style.display = 'block';
-                    dcLoadingCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
-
-                updateDeckCompareProgressUI({
-                    title: `Retrieving Collection #${collectionId}...`,
-                    status: 'Streaming cards from Archidekt into browser cache (prevents 60s gateway timeouts)...',
-                    badge: 'Archidekt Sync',
-                    pct: 8,
-                    detailText: 'Connecting to Archidekt API...',
-                    phaseText: 'Phase 1 / 4 (Collection Sync)',
-                    elapsedSec: 0,
-                    step: 1
-                });
-
-                try {
-                    const syncedCards = await streamArchidektCollectionForComparator(collectionId);
-                    if (syncedCards && syncedCards.length > 0) {
-                        currentCollectionData = syncedCards;
-                        collectionCsvData = syncedCards;
-                        AppStorage.saveArchidektCollection(collectionId, syncedCards);
-                        updateCollectionStatusBadge();
-                    } else {
-                        throw new Error(`Archidekt returned 0 cards for collection #${collectionId}. Ensure the collection is public.`);
+                
+                if (!collectionCsvData || collectionCsvData.length === 0) {
+                    if (compareWarningHint) {
+                        compareWarningHint.style.display = 'block';
+                        compareWarningHint.innerHTML = '⚠️ <strong>Step 1 required:</strong> Please scan or upload your collection first using the panel above before comparing decks.';
                     }
-                } catch (syncErr) {
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = '<span>⚡</span> Compare Decks';
-                    }
-                    if (dcLoadingCard) dcLoadingCard.style.display = 'none';
-                    alert(`Could not sync Archidekt collection: ${syncErr.message}\n\n💡 TIP: For large collections or Archidekt rate limits, export your collection as a CSV (Archidekt -> Collection -> Export -> CSV) and click 'Upload CSV' for instant 0-second comparison!`);
+                    const collCard = document.getElementById('collectionSourceCard');
+                    if (collCard) collCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    showToast("⚠️ Please scan or upload your collection in Step 1 first.");
                     return;
                 }
             }
+            if (compareWarningHint) compareWarningHint.style.display = 'none';
+
+            // Prerequisite 2: Decks to Compare Required
+            if (!deckIds && customPastedDecks.length === 0) {
+                if (compareWarningHint) {
+                    compareWarningHint.style.display = 'block';
+                    compareWarningHint.innerHTML = '⚠️ <strong>Step 2 required:</strong> Please add at least one Archidekt deck URL or paste a decklist above.';
+                }
+                const deckInput = document.getElementById('deckInput');
+                if (deckInput) deckInput.focus();
+                showToast("⚠️ Please add at least one deck to compare.");
+                return;
+            }
+            if (compareWarningHint) compareWarningHint.style.display = 'none';
 
             // Update URL to make it bookmarkable
             const params = new URLSearchParams(window.location.search);
@@ -9402,6 +9811,7 @@
             const savedCsv = AppStorage.loadCsv();
             if (savedCsv && Array.isArray(savedCsv) && savedCsv.length > 0) {
                 cachedParsedCsv = savedCsv;
+                currentCollectionData = savedCsv;
             }
 
             // Restore cached insights
@@ -9422,6 +9832,7 @@
             const urlSetCode = params.get('setCode') || localStorage.getItem('archidekt_selectedSetCode');
             const savedDeckIds = localStorage.getItem('archidekt_deckIds');
             const savedCollectionId = localStorage.getItem('archidekt_collectionId');
+            const savedMeta = typeof getCollectionMetadata === 'function' ? getCollectionMetadata() : null;
 
             let initialDeckIds = urlDeckIds || savedDeckIds;
             if (initialDeckIds) {
@@ -9439,12 +9850,14 @@
                 collectionInput.value = urlCollectionId;
             } else if (savedCollectionId) {
                 collectionInput.value = savedCollectionId;
+            } else if (savedMeta && savedMeta.sourceType === 'archidekt' && savedMeta.collectionId) {
+                collectionInput.value = savedMeta.collectionId;
             }
             toggleCollectionInputs();
 
             // Try restoring cached Archidekt collection into memory for sub-second lookups
-            const initialCollId = collectionInput.value.trim();
-            if (initialCollId && !cachedParsedCsv) {
+            const initialCollId = collectionInput.value.trim() || (savedMeta && savedMeta.sourceType === 'archidekt' ? savedMeta.collectionId : '');
+            if (initialCollId && (!currentCollectionData || currentCollectionData.length === 0)) {
                 let storedColl = AppStorage.loadArchidektCollection(initialCollId);
                 if (!storedColl || storedColl.length === 0) {
                     storedColl = await AppStorage.loadArchidektCollectionAsync(initialCollId);
