@@ -1066,6 +1066,16 @@ exports.hostDeclareWinner = onCall(async (request) => {
     updates['meetup'] = null;
     updates['activeDraft'] = null;
 
+    // Also persist lightweight indexed Hall of Fame record so clients don't have to download all rooms
+    try {
+        await admin.database().ref(`hall_of_fame/records/${roomId}_${historyId}`).set({
+            ...historyRecord,
+            roomCode: roomId
+        });
+    } catch (hofErr) {
+        console.warn("[hostDeclareWinner] Non-fatal Hall of Fame index write error:", hofErr.message);
+    }
+
     Object.keys(players).forEach(id => {
         updates[`players/${id}/generated`] = null;
         updates[`players/${id}/selected`] = null;

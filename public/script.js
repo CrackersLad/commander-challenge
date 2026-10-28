@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=10.20';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=10.20';
-import { getArchives } from './data-service.js?v=10.20';
-import { initDeckActionsModule } from './deck-actions.js?v=10.20';
-import { initRoomActionsModule } from './room-actions.js?v=10.20';
-import { initPlayerViewModule } from './player-view.js?v=10.20';
-import { initAdminModule } from './admin.js?v=10.20';
-import { initCalendarModule } from './calendar.js?v=10.20';
-import { initAuthModule } from './auth.js?v=10.20';
-import { initHubModule } from './hub.js?v=10.20';
-import { initProfileModule } from './profile.js?v=10.20';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=10.20';
-import { initWarRoom, openWarRoom } from './war-room.js?v=10.20';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=10.20';
-import { initBoosterDraftModule } from './booster-draft.js?v=10.20';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=10.20';
+import { db, auth, functions } from './firebase-setup.js?v=11.0';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=11.0';
+import { getArchives } from './data-service.js?v=11.0';
+import { initDeckActionsModule } from './deck-actions.js?v=11.0';
+import { initRoomActionsModule } from './room-actions.js?v=11.0';
+import { initPlayerViewModule } from './player-view.js?v=11.0';
+import { initAdminModule } from './admin.js?v=11.0';
+import { initCalendarModule } from './calendar.js?v=11.0';
+import { initAuthModule } from './auth.js?v=11.0';
+import { initHubModule } from './hub.js?v=11.0';
+import { initProfileModule } from './profile.js?v=11.0';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=11.0';
+import { initWarRoom, openWarRoom } from './war-room.js?v=11.0';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=11.0';
+import { initBoosterDraftModule } from './booster-draft.js?v=11.0';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=11.0';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -551,7 +551,7 @@ window.openPlaytesterLaunchModal = () => {
         return;
     }
 
-    // Populate Armory select with decks from current room or user
+    // Populate Armory select with decks from current room or user's saved Armory
     const armorySelect = document.getElementById('launchArmorySelect');
     if (armorySelect) {
         armorySelect.innerHTML = '<option value="">-- Choose an Armory Deck --</option>';
@@ -571,10 +571,25 @@ window.openPlaytesterLaunchModal = () => {
                 addedCount++;
             }
         });
+        if (typeof window.getSavedArmoryDecks === 'function') {
+            const savedDecks = window.getSavedArmoryDecks() || [];
+            savedDecks.forEach(d => {
+                if (d && d.text) {
+                    const opt = document.createElement('option');
+                    opt.value = JSON.stringify({
+                        name: d.name || 'Saved Armory Deck',
+                        deck: d.text
+                    });
+                    opt.textContent = `⚔️ [Armory] ${d.name} (${d.cardCount || 0} cards • B${d.bracket || 1})`;
+                    armorySelect.appendChild(opt);
+                    addedCount++;
+                }
+            });
+        }
         if (addedCount === 0) {
             const emptyOpt = document.createElement('option');
             emptyOpt.value = "";
-            emptyOpt.textContent = "(No drafted decks in current lobby yet)";
+            emptyOpt.textContent = "(No drafted or saved Armory decks yet)";
             emptyOpt.disabled = true;
             armorySelect.appendChild(emptyOpt);
         }
@@ -2383,7 +2398,8 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=10.20').then(module => module.initDeckBuilderModule(utils, state));
+import('./deck-builder-view.js?v=11.0').then(module => module.initDeckBuilderModule(utils, state));
+import('./command-center-extras.js?v=11.0').then(module => module.initCommandCenterExtras(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

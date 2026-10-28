@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=10.20';
+import { db, auth } from './firebase-setup.js?v=11.0';
 import { ref, get, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initProfileModule(utils, state) {
@@ -147,61 +147,69 @@ export function initProfileModule(utils, state) {
         `;
 
         try {
-            // Aggregate from database rooms/history or hall_of_fame node
-            const [roomsSnap, hallSnap] = await Promise.all([
-                get(ref(db, 'rooms')),
-                get(ref(db, 'hall_of_fame')).catch(() => null)
+            // Aggregate from lightweight hall_of_fame index + bounded recent rooms query (prevents full-DB download)
+            const [hallSnap, roomsSnap] = await Promise.all([
+                get(ref(db, 'hall_of_fame')).catch(() => null),
+                get(query(ref(db, 'rooms'), limitToLast(30))).catch(() => null)
             ]);
 
-            const rooms = roomsSnap.val() || {};
-            const hallData = hallSnap && hallSnap.val() ? hallSnap.val() : {};
+            const rooms = (roomsSnap && roomsSnap.val()) ? roomsSnap.val() : {};
+            const hallData = (hallSnap && hallSnap.val()) ? hallSnap.val() : {};
 
             const playerStats = {};
             const commanderStats = {};
             const matchHistory = [];
+            const seenMatchKeys = new Set();
             let maxSalt = { score: 0, player: 'None', commander: 'None' };
             let maxPrice = { price: 0, player: 'None', commander: 'None' };
 
-            // Process all matches recorded across rooms
-            Object.entries(rooms).forEach(([roomId, room]) => {
-                const history = room.history || {};
-                Object.values(history).forEach(match => {
-                    if (!match) return;
-                    matchHistory.push({ ...match, roomCode: roomId });
+            const recordMatch = (match, roomIdFallback = 'Challenge') => {
+                if (!match) return;
+                const roomCode = match.roomCode || roomIdFallback;
+                const dedupKey = `${roomCode}_${match.date || ''}_${match.winnerName || ''}_${match.commander || ''}`;
+                if (seenMatchKeys.has(dedupKey)) return;
+                seenMatchKeys.add(dedupKey);
 
-                    if (match.winnerName) {
-                        const pName = match.winnerName;
-                        if (!playerStats[pName]) playerStats[pName] = { name: pName, wins: 0, matches: 0 };
-                        playerStats[pName].wins += 1;
-                    }
+                matchHistory.push({ ...match, roomCode });
 
-                    if (match.commander) {
-                        const cmdr = match.commander;
-                        if (!commanderStats[cmdr]) commanderStats[cmdr] = { name: cmdr, wins: 0, highestSalt: 0 };
-                        commanderStats[cmdr].wins += 1;
-                    }
+                if (match.winnerName) {
+                    const pName = match.winnerName;
+                    if (!playerStats[pName]) playerStats[pName] = { name: pName, wins: 0, matches: 0 };
+                    playerStats[pName].wins += 1;
+                }
 
-                    if (match.participants) {
-                        Object.values(match.participants).forEach(p => {
-                            if (!p || !p.name) return;
-                            if (!playerStats[p.name]) playerStats[p.name] = { name: p.name, wins: 0, matches: 0 };
-                            playerStats[p.name].matches += 1;
+                if (match.commander) {
+                    const cmdr = match.commander;
+                    if (!commanderStats[cmdr]) commanderStats[cmdr] = { name: cmdr, wins: 0, highestSalt: 0 };
+                    commanderStats[cmdr].wins += 1;
+                }
 
-                            if (p.salt && p.salt > maxSalt.score) {
-                                maxSalt = { score: p.salt, player: p.name, commander: p.commander || 'Unknown' };
-                            }
-                            if (p.price && p.price > maxPrice.price) {
-                                maxPrice = { price: p.price, player: p.name, commander: p.commander || 'Unknown' };
-                            }
-                        });
-                    }
-                });
-            });
+                if (match.participants) {
+                    Object.values(match.participants).forEach(p => {
+                        if (!p || !p.name) return;
+                        if (!playerStats[p.name]) playerStats[p.name] = { name: p.name, wins: 0, matches: 0 };
+                        playerStats[p.name].matches += 1;
 
-            // Merge any standalone hallData
+                        if (p.salt && p.salt > maxSalt.score) {
+                            maxSalt = { score: p.salt, player: p.name, commander: p.commander || 'Unknown' };
+                        }
+                        if (p.price && p.price > maxPrice.price) {
+                            maxPrice = { price: p.price, player: p.name, commander: p.commander || 'Unknown' };
+                        }
+                    });
+                }
+            };
+
+            // 1. Process indexed Hall of Fame records first
             if (hallData.records) {
-                Object.values(hallData.records).forEach(rec => matchHistory.push(rec));
+                Object.values(hallData.records).forEach(rec => recordMatch(rec));
             }
+
+            // 2. Merge recent room history
+            Object.entries(rooms).forEach(([roomId, room]) => {
+                const history = (room && room.history) || {};
+                Object.values(history).forEach(match => recordMatch(match, roomId));
+            });
 
             const topPlayers = Object.values(playerStats).sort((a,b) => b.wins - a.wins || (b.wins/b.matches || 0) - (a.wins/a.matches || 0)).slice(0, 8);
             const topCommanders = Object.values(commanderStats).sort((a,b) => b.wins - a.wins).slice(0, 8);

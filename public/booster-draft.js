@@ -8,7 +8,7 @@
 // 6. Winchester Draft (2 players, 6 packs, 4 face-up piles, open draft)
 // 7. Rochester / Face-Up Open Draft (1 pack face-up, snake pick order)
 
-import { db, auth } from './firebase-setup.js?v=10.20';
+import { db, auth } from './firebase-setup.js?v=11.0';
 import { ref, get, set, update, onValue, off, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 import { 
@@ -21,7 +21,7 @@ import {
     getCardPrice,
     formatCurrency,
     getSetBasicLands 
-} from './booster-simulator.js?v=10.20';
+} from './booster-simulator.js?v=11.0';
 
 // Realtime Database Path for Booster Drafts
 const getDraftDbPath = (suffix = '') => suffix ? `booster_drafts/${suffix}` : 'booster_drafts';
@@ -196,17 +196,66 @@ export function initBoosterDraftModule(utils, state) {
     window.removeBotFromDraft = removeBotFromDraft;
     window.clearAllBotsFromDraft = clearAllBotsFromDraft;
     window.copyDraftDecklist = copyDraftDecklist;
+    function getDraftFormattedDeckText() {
+        const landNames = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' };
+        const mainCards = myDraftedPool.filter(c => mainDeckUids.has(c.uid));
+        const activeCards = mainCards.length > 0 ? mainCards : myDraftedPool;
+        const lines = [];
+        const legendaries = activeCards.filter(c => (c.type_line || '').includes('Legendary') && (c.type_line || '').includes('Creature'));
+        const cmdr = myCommanderCard || legendaries[0] || activeCards[0];
+        let cmdrAdded = false;
+        const counts = new Map();
+        activeCards.forEach(c => {
+            if (!cmdrAdded && cmdr && c.name === cmdr.name) {
+                lines.push(`1 ${c.name} *CMDR*`);
+                cmdrAdded = true;
+                return;
+            }
+            counts.set(c.name, (counts.get(c.name) || 0) + 1);
+        });
+        for (const [name, cnt] of counts.entries()) {
+            lines.push(`${cnt} ${name}`);
+        }
+        Object.entries(addedBasicLands).forEach(([sym, cnt]) => {
+            if (cnt > 0 && landNames[sym]) lines.push(`${cnt} ${landNames[sym]}`);
+        });
+        return lines.join('\n');
+    }
     window.compareDraftWithCollection = async () => {
-        playSound('sfx-click');
-        const deckText = await buildDecklistText();
+        if (draftUtils?.playSound) draftUtils.playSound('sfx-click');
+        const deckText = getDraftFormattedDeckText();
         if (!deckText || !deckText.trim()) {
-            return showToast("No drafted deck found to compare.", true);
+            if (draftUtils?.showToast) draftUtils.showToast("No drafted deck found to compare.", true);
+            return;
         }
         if (window.openCollectionTab) {
-            window.openCollectionTab('deck', { preloadDeck: deckText });
-            showToast("Drafted deck transferred to Deck Comparator!", false, 3000, true);
-        } else {
-            showToast("Collection tool is loading, please try again in a second.", true);
+            window.openCollectionTab('comparator', { preloadDeck: deckText, deckName: `Draft Deck (${currentDraftData?.setCode?.toUpperCase() || 'Limited'})` });
+            if (draftUtils?.showToast) draftUtils.showToast("Drafted deck transferred to Deck Comparator!", false, 3000, true);
+        }
+    };
+    window.playtestDraftInArena = () => {
+        if (draftUtils?.playSound) draftUtils.playSound('sfx-click');
+        const deckText = getDraftFormattedDeckText();
+        if (!deckText) return;
+        if (window.openCommanderArena) {
+            window.openCommanderArena(deckText, `Draft Deck (${currentDraftData?.setCode?.toUpperCase() || 'Limited'})`);
+        }
+    };
+    window.openDraftInBuilder = () => {
+        if (draftUtils?.playSound) draftUtils.playSound('sfx-click');
+        const deckText = getDraftFormattedDeckText();
+        if (!deckText) return;
+        if (window.openDeckBuilderView) {
+            window.openDeckBuilderView({ preloadDeckText: deckText, deckName: `Draft Deck (${currentDraftData?.setCode?.toUpperCase() || 'Limited'})` });
+        }
+    };
+    window.printDraftProxies = () => {
+        if (draftUtils?.playSound) draftUtils.playSound('sfx-click');
+        const mainCards = myDraftedPool.filter(c => mainDeckUids.has(c.uid));
+        const activeCards = mainCards.length > 0 ? mainCards : myDraftedPool;
+        if (window.openProxyPrinterModal) {
+            const list = activeCards.map(c => ({ name: c.name, quantity: 1, imageUrl: c.image }));
+            window.openProxyPrinterModal(list, `Draft Proxies (${currentDraftData?.setCode?.toUpperCase() || 'Limited'})`);
         }
     };
     window.inspectDraftCard = (cardIdentifier) => {
@@ -3228,12 +3277,18 @@ function renderDraftDeckWorkspace(pool, formatId) {
                 </div>
 
                 <!-- Export CTA -->
-                <div class="deck-export-col">
+                <div class="deck-export-col" style="display:flex; flex-direction:column; gap:6px;">
+                    <button class="select-btn export-deck-cta" style="background: linear-gradient(135deg, #ef4444, #b91c1c); border-color: #f87171; font-weight:800;" onclick="window.playtestDraftInArena()">
+                        ⚔️ Playtest in Arena
+                    </button>
                     <button class="select-btn export-deck-cta" onclick="window.copyDraftDecklist()">
                         📋 Copy Decklist
                     </button>
-                    <button class="select-btn export-deck-cta" style="background: linear-gradient(135deg, #0284c7, #0ea5e9); border-color: rgba(56, 189, 248, 0.4); margin-top: 8px;" onclick="window.compareDraftWithCollection()">
-                        🔄 Compare with Collection
+                    <button class="select-btn export-deck-cta" style="background: linear-gradient(135deg, #0284c7, #0ea5e9); border-color: rgba(56, 189, 248, 0.4);" onclick="window.compareDraftWithCollection()">
+                        🔄 Compare Collection
+                    </button>
+                    <button class="secondary-btn export-deck-cta" style="border-color: #a855f7; color: #e9d5ff; padding:6px 10px; font-size:0.8rem;" onclick="window.printDraftProxies()">
+                        🖨️ Print Proxies
                     </button>
                 </div>
             </div>

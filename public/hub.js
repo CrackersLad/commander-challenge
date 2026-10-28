@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=10.20';
+import { db, auth } from './firebase-setup.js?v=11.0';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -135,16 +135,39 @@ export function initHubModule(utils, state, coreUi) {
             cardImageContainer.innerHTML = imageHtml;
 
             buttonsEl.innerHTML = `
-                <div style="display: flex; gap: 10px; justify-content: center;">
-                    <button id="quickRollAgainBtn" class="select-btn" style="flex: 1; padding: 10px;">Roll Again</button>
-                    <button id="closeQuickRollBtn" class="select-btn" style="flex: 1; padding: 10px; background: transparent; border: 1px solid #ff4444; color: #ff9999;">Close</button>
+                <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                    <button id="quickRollBrewBtn" class="select-btn" style="flex: 1; padding: 9px 10px; font-size: 0.84rem; background: linear-gradient(135deg, #f59e0b, #d97706); border-color: #fbbf24; color: #111; font-weight: 800;">🛠️ Brew in Builder</button>
+                    <button id="quickRollInspectBtn" class="secondary-btn" style="flex: 1; padding: 9px 10px; font-size: 0.84rem; border-color: var(--gold); color: var(--gold);">🔍 3D & Rulings</button>
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                    <button id="quickRollCollectionBtn" class="secondary-btn" style="flex: 1.2; padding: 8px 10px; font-size: 0.82rem; border-color: #38bdf8; color: #38bdf8;">🔄 Check Collection</button>
+                    <button id="quickRollAgainBtn" class="select-btn" style="flex: 1; padding: 8px 10px; font-size: 0.84rem;">🎲 Roll Again</button>
+                    <button id="closeQuickRollBtn" class="select-btn" style="flex: 0.7; padding: 8px 10px; font-size: 0.84rem; background: transparent; border: 1px solid #ff4444; color: #ff9999;">Close</button>
                 </div>
             `;
             buttonsEl.style.display = 'flex';
+            buttonsEl.style.flexDirection = 'column';
+            buttonsEl.style.gap = '8px';
 
             const close = () => { playSound('sfx-click'); overlay.classList.remove('show'); setTimeout(() => overlay.remove(), 300); };
             document.getElementById('closeQuickRollBtn').onclick = close;
             document.getElementById('quickRollAgainBtn').onclick = () => { close(); setTimeout(() => window.quickRollCommander(), 300); };
+            document.getElementById('quickRollInspectBtn').onclick = () => {
+                playSound('sfx-click');
+                if (window.openCardInspector) window.openCardInspector(card);
+            };
+            document.getElementById('quickRollBrewBtn').onclick = () => {
+                close();
+                if (window.openDeckBuilderView) {
+                    window.openDeckBuilderView({ preloadDeckText: `1 ${card.name} *CMDR*`, deckName: `${card.name} Brew` });
+                }
+            };
+            document.getElementById('quickRollCollectionBtn').onclick = () => {
+                close();
+                if (window.openCollectionTab) {
+                    window.openCollectionTab('comparator', { preloadDeck: `1 ${card.name} *CMDR*`, deckName: `${card.name} Shell` });
+                }
+            };
         }
 
         animateRoll();
@@ -159,7 +182,7 @@ export function initHubModule(utils, state, coreUi) {
     async function loadPreconData() {
         if (localPrecons && localPrecons.length > 0) return localPrecons;
         try {
-            const res = await fetch('./commander-precons.json?v=10.20');
+            const res = await fetch('./commander-precons.json?v=11.0');
             if (res.ok) {
                 localPrecons = await res.json();
                 return localPrecons;
@@ -300,12 +323,28 @@ export function initHubModule(utils, state, coreUi) {
             }
 
             buttonsEl.innerHTML = `
+                <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                    <button id="playtestPreconArenaBtn" class="select-btn" style="flex: 1.1; padding: 9px 10px; font-size: 0.82rem; background: linear-gradient(135deg, #ef4444, #b91c1c); border-color: #f87171; font-weight: 800;" title="Playtest this full 100-card Precon in Commander Arena">
+                        ⚔️ Playtest in Arena
+                    </button>
+                    <button id="editPreconBuilderBtn" class="select-btn" style="flex: 1; padding: 9px 10px; font-size: 0.82rem; background: linear-gradient(135deg, #f59e0b, #d97706); border-color: #fbbf24; color: #111; font-weight: 800;" title="Open in Native Deck Builder">
+                        🛠️ Edit in Builder
+                    </button>
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                    <button id="comparePreconCollBtn" class="secondary-btn" style="flex: 1; padding: 8px 10px; font-size: 0.8rem; border-color: #38bdf8; color: #38bdf8;" title="Compare this Precon against your owned collection">
+                        🔄 Compare Owned
+                    </button>
+                    <button id="printPreconProxiesBtn" class="secondary-btn" style="flex: 1; padding: 8px 10px; font-size: 0.8rem; border-color: #a855f7; color: #e9d5ff;" title="Generate 3x3 printable proxy sheets">
+                        🖨️ Print Proxies
+                    </button>
+                </div>
                 <div style="display: flex; gap: 8px; justify-content: center;">
-                    <a id="edhrecPreconBtn" href="${edhrecPreconUrl}" target="_blank" rel="noopener noreferrer" onclick="playSound('sfx-click')" class="select-btn" style="flex: 1.2; padding: 9px 12px; font-size: 0.85rem; text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: #059669; border-color: #10b981;" title="View official decklist & upgrades on EDHREC">
-                        📈 EDHREC Decklist ↗
+                    <a id="edhrecPreconBtn" href="${edhrecPreconUrl}" target="_blank" rel="noopener noreferrer" onclick="playSound('sfx-click')" class="select-btn" style="flex: 1.2; padding: 8px 10px; font-size: 0.82rem; text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: #059669; border-color: #10b981;" title="View official decklist & upgrades on EDHREC">
+                        📈 EDHREC ↗
                     </a>
-                    <button id="copyPreconDecklistBtn" class="select-btn" style="flex: 1; padding: 9px 12px; font-size: 0.85rem;" title="Copy exact decklist with card art & basic lands for Moxfield or Tabletop Simulator">
-                        📋 Copy Decklist (${precon.cardCount || 100})
+                    <button id="copyPreconDecklistBtn" class="select-btn" style="flex: 1; padding: 8px 10px; font-size: 0.82rem;" title="Copy exact decklist with card art & basic lands for Moxfield or Tabletop Simulator">
+                        📋 Copy (${precon.cardCount || 100})
                     </button>
                 </div>
                 <div style="display: flex; gap: 8px; justify-content: center;">
@@ -346,6 +385,36 @@ export function initHubModule(utils, state, coreUi) {
             document.getElementById('preconRollAgainBtn').onclick = () => { 
                 close(); 
                 setTimeout(() => window.quickRollPrecon(), 300); 
+            };
+
+            const fallbackDeckText = precon.decklist || `1 ${precon.commander} *CMDR*`;
+            document.getElementById('playtestPreconArenaBtn').onclick = () => {
+                close();
+                if (window.openCommanderArena) {
+                    window.openCommanderArena(fallbackDeckText, precon.name);
+                }
+            };
+            document.getElementById('editPreconBuilderBtn').onclick = () => {
+                close();
+                if (window.openDeckBuilderView) {
+                    window.openDeckBuilderView({ preloadDeckText: fallbackDeckText, deckName: precon.name });
+                }
+            };
+            document.getElementById('comparePreconCollBtn').onclick = () => {
+                close();
+                if (window.openCollectionTab) {
+                    window.openCollectionTab('comparator', { preloadDeck: fallbackDeckText, deckName: precon.name });
+                }
+            };
+            document.getElementById('printPreconProxiesBtn').onclick = () => {
+                close();
+                if (window.openProxyPrinterModal) {
+                    const parsedCards = fallbackDeckText.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+                        const m = line.match(/^(\d+)[xX]?\s+(.+?)(\s+\([a-zA-Z0-9]+\).*)?(\s+\*[A-Z]+\*)?$/);
+                        return m ? { quantity: parseInt(m[1], 10) || 1, name: m[2].trim() } : { quantity: 1, name: line.replace(/\*CMDR\*/gi, '').trim() };
+                    });
+                    window.openProxyPrinterModal(parsedCards, `Precon Proxies: ${precon.name}`);
+                }
             };
 
             document.getElementById('copyPreconDecklistBtn').onclick = () => {

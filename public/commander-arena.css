@@ -2035,3 +2035,45 @@
   box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
 }
 
+/* ============================================================================
+ * RESPONSIVE COMPACT OPPONENT TABS & COLLAPSIBLE HAND TRAY (Rec #8)
+ * ============================================================================
+ */
+@media (max-width: 1180px) {
+  .arena-opponents-row {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 10px;
+  }
+  .opponent-bay {
+    min-width: 280px;
+    scroll-snap-align: start;
+  }
+  .arena-sidebar {
+    width: 240px;
+  }
+}
+
+@media (max-width: 900px) {
+  .arena-theater {
+    grid-template-columns: 1fr !important;
+  }
+  .arena-sidebar {
+    display: none;
+  }
+  .player-board-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .player-cmdr-pedestal {
+    flex-direction: row !important;
+    justify-content: space-between;
+    padding: 8px 12px !important;
+  }
+  .player-cmdr-card-img {
+    width: 48px !important;
+    height: 48px !important;
+  }
+}
+
+

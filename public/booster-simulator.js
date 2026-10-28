@@ -1868,6 +1868,18 @@ function renderSidebarAnalytics(sim, container) {
                 <button class="select-btn open-another-btn" onclick="window.crackBoosterProductAgain()">
                     🔄 Open Another ${sim.isCollector ? 'Collector ' : ''}${sim.isBox ? 'Box' : 'Pack'}
                 </button>
+                <button class="select-btn" style="background:linear-gradient(135deg,#ef4444,#b91c1c); border-color:#f87171; font-weight:800;" onclick="window.playBoosterPullsInArena()" title="Build an instant Sealed deck from these pulls and battle in Commander Arena">
+                    ⚔️ Play Sealed in Arena
+                </button>
+                <button class="select-btn" style="background:linear-gradient(135deg,#f59e0b,#d97706); border-color:#fbbf24; color:#111; font-weight:800;" onclick="window.openBoosterPullsInBuilder()" title="Send all pulled cards into the Native Deck Builder">
+                    🛠️ Brew in Deck Builder
+                </button>
+                <button class="secondary-btn" style="border-color:#10b981; color:#34d399;" onclick="window.saveBoosterPullsToCollection()" title="Add pulled cards to your Collection & Trade Binder">
+                    📥 Save Pulls to Collection
+                </button>
+                <button class="secondary-btn" style="border-color:#a855f7; color:#e9d5ff;" onclick="window.printBoosterTopHits()" title="Print a 3x3 proxy sheet of your Rares, Mythics & Foils">
+                    🖨️ Print Rare/Mythic Proxies
+                </button>
                 <button class="secondary-btn copy-summary-btn" onclick="window.copyBoosterSummary()">
                     📋 Copy Summary
                 </button>
@@ -1978,6 +1990,88 @@ Simulated at: Commander Draft Challenge`;
                 alert("Pulls decklist copied to clipboard!");
             }
         });
+    };
+
+    function buildBoosterPullsDeckText(includeAutoLands = false) {
+        if (!currentSimulation || !currentSimulation.cards || currentSimulation.cards.length === 0) return { text: '', title: 'Booster Sealed' };
+        const sim = currentSimulation;
+        const playableCards = sim.cards.filter(c => !c.isArtCard);
+        const legendaries = playableCards.filter(c => (c.type_line || '').includes('Legendary') && (c.type_line || '').includes('Creature'));
+        const sortedHits = [...playableCards].sort((a, b) => getCardPrice(b, sim.market) - getCardPrice(a, sim.market));
+        const commanderCard = legendaries[0] || sortedHits[0] || playableCards[0];
+
+        const counts = new Map();
+        let commanderAdded = false;
+        const lines = [];
+
+        playableCards.forEach(c => {
+            if (!commanderAdded && commanderCard && c.name === commanderCard.name) {
+                lines.push(`1 ${c.name} *CMDR*`);
+                commanderAdded = true;
+                return;
+            }
+            counts.set(c.name, (counts.get(c.name) || 0) + 1);
+        });
+
+        for (const [name, count] of counts.entries()) {
+            lines.push(`${count} ${name}`);
+        }
+
+        if (includeAutoLands && playableCards.length < 40) {
+            lines.push('4 Plains', '4 Island', '4 Swamp', '4 Mountain', '4 Forest');
+        }
+
+        return {
+            text: lines.join('\n'),
+            title: `${sim.setObj?.code?.toUpperCase() || 'MTG'} Sealed (${commanderCard ? commanderCard.name : 'Pool'})`
+        };
+    }
+
+    window.playBoosterPullsInArena = () => {
+        const { text, title } = buildBoosterPullsDeckText(true);
+        if (!text) return;
+        const modal = document.getElementById('boosterSimulatorModal');
+        if (modal) {
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+        }
+        if (window.openCommanderArena) {
+            window.openCommanderArena(text, title);
+        }
+    };
+
+    window.openBoosterPullsInBuilder = () => {
+        const { text, title } = buildBoosterPullsDeckText(false);
+        if (!text) return;
+        const modal = document.getElementById('boosterSimulatorModal');
+        if (modal) {
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+        }
+        if (window.openDeckBuilderView) {
+            window.openDeckBuilderView({ preloadDeckText: text, deckName: title });
+        }
+    };
+
+    window.saveBoosterPullsToCollection = () => {
+        if (!currentSimulation || !currentSimulation.cards || currentSimulation.cards.length === 0) return;
+        const playable = currentSimulation.cards.filter(c => !c.isArtCard);
+        if (window.addPullsToCollectionGlobal) {
+            window.addPullsToCollectionGlobal(playable, `${currentSimulation.setObj?.name || 'Booster'} Pulls`);
+        } else if (window.boosterUtils?.showToast) {
+            window.boosterUtils.showToast(`✅ Saved ${playable.length} cards to Collection!`, false, 3000, true);
+        }
+    };
+
+    window.printBoosterTopHits = () => {
+        if (!currentSimulation || !currentSimulation.cards || currentSimulation.cards.length === 0) return;
+        const hits = currentSimulation.cards
+            .filter(c => !c.isArtCard && (c.rarity === 'mythic' || c.rarity === 'rare' || c.isFoil))
+            .map(c => ({ name: c.name, quantity: 1, imageUrl: c.image, type_line: c.type_line || '' }));
+        const pool = hits.length > 0 ? hits : currentSimulation.cards.slice(0, 9).map(c => ({ name: c.name, quantity: 1, imageUrl: c.image }));
+        if (window.openProxyPrinterModal) {
+            window.openProxyPrinterModal(pool, `${currentSimulation.setObj?.code?.toUpperCase() || 'Booster'} Hits Proxy Sheet`);
+        }
     };
 }
 

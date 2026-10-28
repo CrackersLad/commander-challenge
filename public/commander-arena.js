@@ -3895,6 +3895,26 @@
                 list.push({ ...sd, group: 'custom' });
             }
         });
+        if (typeof window.getSavedArmoryDecks === 'function') {
+            try {
+                const armoryDecks = window.getSavedArmoryDecks() || [];
+                armoryDecks.forEach(ad => {
+                    if (ad && ad.text) {
+                        const armoryId = `armory_${ad.id}`;
+                        if (!list.some(x => x.id === armoryId)) {
+                            list.push({
+                                id: armoryId,
+                                name: `⚔️ [Armory] ${ad.name} (${ad.commander || 'Commander'})`,
+                                commander: ad.commander || ad.name,
+                                decklist: ad.text,
+                                cards: null,
+                                group: 'custom'
+                            });
+                        }
+                    }
+                });
+            } catch (e) {}
+        }
         if (window.currentDecksData && Array.isArray(window.currentDecksData)) {
             window.currentDecksData.forEach(d => {
                 if (d && !d.error && d.cards && d.cards.length > 0) {
@@ -4136,6 +4156,12 @@
 
                     <!-- Action Controls -->
                     <div class="arena-controls">
+                        <button class="arena-btn" id="arenaBtnUndo" onclick="window.undoArenaAction()" title="Undo Last Action (Hotkey: Z)">
+                            ↩️ Undo (Z)
+                        </button>
+                        <button class="arena-btn" id="arenaBtnUntap" onclick="window.untapAllMyLands()" title="Untap All Lands & Rocks (Hotkey: U)">
+                            ⚡ Untap (U)
+                        </button>
                         <button class="arena-btn" id="arenaBtnFullscreen" onclick="window.toggleFullscreenArena()" title="Toggle Fullscreen Arena">
                             <span id="arenaFullscreenIcon">⛶</span> Fullscreen
                         </button>
@@ -4145,7 +4171,7 @@
                         <button class="arena-btn" id="arenaBtnPlayPause" onclick="window.toggleArenaPlayPause()">
                             <span id="arenaPlayIcon">▶️</span> <span id="arenaPlayText">Auto-Bots</span>
                         </button>
-                        <button class="arena-btn arena-btn-primary" id="arenaBtnStep" onclick="window.stepArenaPhase()">
+                        <button class="arena-btn arena-btn-primary" id="arenaBtnStep" onclick="window.stepArenaPhase()" title="Advance Phase (Hotkey: Space)">
                             ⏭️ Next Action
                         </button>
                         <button class="arena-btn" onclick="window.simulateArenaInstant()">
@@ -6963,6 +6989,163 @@
         updateArenaDOM();
         window.openMulliganModal();
     };
+
+    // ============================================================================
+    // UNDO SNAPSHOT ENGINE & KEYBOARD HOTKEYS (Rec #8)
+    // ============================================================================
+    const arenaUndoStack = [];
+    const MAX_ARENA_UNDO = 20;
+
+    function cloneArenaCards(arr) {
+        if (!Array.isArray(arr)) return [];
+        return arr.map(c => ({
+            ...c,
+            colors: Array.isArray(c.colors) ? [...c.colors] : [],
+            producedMana: Array.isArray(c.producedMana) ? [...c.producedMana] : null,
+            keywords: c.keywords instanceof Set ? new Set(c.keywords) : c.keywords,
+            counters: Array.isArray(c.counters) ? c.counters.map(x => ({ ...x })) : (c.counters ? { ...c.counters } : [])
+        }));
+    }
+
+    function pushArenaUndoSnapshot(actionLabel = 'Action') {
+        if (!currentGame || !Array.isArray(currentGame.players)) return;
+        try {
+            const snap = {
+                label: actionLabel,
+                turn: currentGame.turn,
+                currentPhase: currentGame.currentPhase,
+                activePlayerIndex: currentGame.activePlayerIndex,
+                players: currentGame.players.map(p => ({
+                    life: p.life,
+                    isAlive: p.isAlive,
+                    commanderTax: p.commanderTax,
+                    landPlayedThisTurn: p.landPlayedThisTurn,
+                    landsPlayedCount: p.landsPlayedCount,
+                    manaPool: p.manaPool ? { ...p.manaPool } : { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                    hand: cloneArenaCards(p.hand),
+                    battlefield: cloneArenaCards(p.battlefield),
+                    graveyard: cloneArenaCards(p.graveyard),
+                    exile: cloneArenaCards(p.exile),
+                    commandZone: cloneArenaCards(p.commandZone),
+                    library: cloneArenaCards(p.library)
+                }))
+            };
+            arenaUndoStack.push(snap);
+            if (arenaUndoStack.length > MAX_ARENA_UNDO) arenaUndoStack.shift();
+        } catch (e) {}
+    }
+
+    window.undoArenaAction = function () {
+        if (!currentGame || arenaUndoStack.length === 0) {
+            appendArenaLogs([{
+                type: 'INFO',
+                message: `↩️ **Undo**: No previous action to undo.`
+            }]);
+            return;
+        }
+        const snap = arenaUndoStack.pop();
+        currentGame.turn = snap.turn;
+        currentGame.currentPhase = snap.currentPhase;
+        currentGame.activePlayerIndex = snap.activePlayerIndex;
+        currentGame.players.forEach((p, idx) => {
+            const sp = snap.players[idx];
+            if (!sp) return;
+            p.life = sp.life;
+            p.isAlive = sp.isAlive;
+            p.commanderTax = sp.commanderTax;
+            p.landPlayedThisTurn = sp.landPlayedThisTurn;
+            p.landsPlayedCount = sp.landsPlayedCount;
+            p.manaPool = { ...sp.manaPool };
+            p.hand = cloneArenaCards(sp.hand);
+            p.battlefield = cloneArenaCards(sp.battlefield);
+            p.graveyard = cloneArenaCards(sp.graveyard);
+            p.exile = cloneArenaCards(sp.exile);
+            p.commandZone = cloneArenaCards(sp.commandZone);
+            p.library = cloneArenaCards(sp.library);
+        });
+        selectedAttackerIds.clear();
+        attackerTargets.clear();
+        appendArenaLogs([{
+            type: 'UNDO',
+            message: `↩️ **Reverted**: Undid last action (${snap.label}).`
+        }]);
+        updateArenaDOM();
+    };
+
+    // Wrap primary actions to auto-snapshot before state mutation
+    const _origPlayCardFromHand = window.playCardFromHand;
+    if (typeof _origPlayCardFromHand === 'function') {
+        window.playCardFromHand = async function (cardId) {
+            pushArenaUndoSnapshot('Play Card');
+            return _origPlayCardFromHand.apply(this, arguments);
+        };
+    }
+
+    const _origCastPlayerCommander = window.castPlayerCommander;
+    if (typeof _origCastPlayerCommander === 'function') {
+        window.castPlayerCommander = async function () {
+            pushArenaUndoSnapshot('Cast Commander');
+            return _origCastPlayerCommander.apply(this, arguments);
+        };
+    }
+
+    const _origApplyManaOption = window.applyManaOption;
+    if (typeof _origApplyManaOption === 'function') {
+        window.applyManaOption = function (optionIndex) {
+            pushArenaUndoSnapshot('Tap for Mana');
+            return _origApplyManaOption.apply(this, arguments);
+        };
+    }
+
+    const _origStepArenaPhase = window.stepArenaPhase;
+    if (typeof _origStepArenaPhase === 'function') {
+        window.stepArenaPhase = async function () {
+            pushArenaUndoSnapshot('Advance Phase');
+            return _origStepArenaPhase.apply(this, arguments);
+        };
+    }
+
+    const _origAdjustPlayerLife = window.adjustPlayerLife;
+    if (typeof _origAdjustPlayerLife === 'function') {
+        window.adjustPlayerLife = async function (delta) {
+            pushArenaUndoSnapshot('Life Change');
+            return _origAdjustPlayerLife.apply(this, arguments);
+        };
+    }
+
+    // Keyboard Hotkeys when Arena is active
+    document.addEventListener('keydown', (e) => {
+        const backdrop = document.getElementById('arenaModalBackdrop');
+        if (!backdrop || backdrop.style.display === 'none') return;
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.ctrlKey || e.metaKey || e.altKey) return;
+
+        // Ignore hotkeys if setup modal or paste modal is open
+        const setupOverlay = document.getElementById('arenaSetupOverlay');
+        if (setupOverlay && setupOverlay.style.display === 'flex') return;
+
+        const key = e.key.toLowerCase();
+        if (e.code === 'Space') {
+            e.preventDefault();
+            if (window.handleMainActionClick) window.handleMainActionClick();
+            else if (window.stepArenaPhase) window.stepArenaPhase();
+        } else if (key === 'z') {
+            e.preventDefault();
+            window.undoArenaAction();
+        } else if (key === 'u') {
+            e.preventDefault();
+            if (window.untapAllMyLands) window.untapAllMyLands();
+        } else if (key === 'm') {
+            e.preventDefault();
+            if (window.clearManaPool) window.clearManaPool();
+        } else if (key === 'l') {
+            e.preventDefault();
+            const sidebar = document.querySelector('#arenaContainer .arena-sidebar');
+            if (sidebar) {
+                sidebar.style.display = sidebar.style.display === 'none' ? 'flex' : 'none';
+            }
+        }
+    });
 
     // Auto-mount listener on document ready
     document.addEventListener('DOMContentLoaded', () => {

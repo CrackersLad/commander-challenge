@@ -16,6 +16,19 @@
         window.sanitizeHTML = sanitizeHTML;
 
         window.openCollectionTab = function(tab, options = {}) {
+            // Normalize tab aliases
+            const tabMap = {
+                comparator: 'deck',
+                deck: 'deck',
+                sets: 'set',
+                set: 'set',
+                insights: 'collection',
+                collection: 'collection',
+                trade: 'trade',
+                build: 'build'
+            };
+            const resolvedTab = tabMap[tab] || tab || 'deck';
+
             // 1. Direct view switch to view-collection-hub
             if (typeof window.switchView === 'function') {
                 window.switchView('view-collection-hub');
@@ -29,9 +42,9 @@
 
             // 2. Switch the active collection sub-tab
             if (typeof switchTab === 'function') {
-                switchTab(tab);
+                switchTab(resolvedTab);
             } else if (typeof window.switchTab === 'function') {
-                window.switchTab(tab);
+                window.switchTab(resolvedTab);
             }
 
             // 3. Handle upgrader drawer
@@ -46,12 +59,32 @@
                 }, 200);
             }
 
-            // 4. Handle preloaded deck
-            if (options && options.preloadDeck && typeof addDeck === 'function') {
-                const deckInput = document.getElementById('deckInput');
-                if (deckInput) {
-                    deckInput.value = options.preloadDeck;
-                    addDeck();
+            // 4. Handle preloaded deck (supports both URLs/IDs and full multi-line decklists)
+            if (options && options.preloadDeck) {
+                const rawDeck = String(options.preloadDeck).trim();
+                const isDecklistText = rawDeck.includes('\n') || /^\d+[xX]?\s+[A-Za-z]/.test(rawDeck);
+                if (isDecklistText && typeof customPastedDecks !== 'undefined') {
+                    const customId = `custom:${Date.now()}`;
+                    const deckTitle = options.deckName || 'Imported Decklist';
+                    customPastedDecks.push({
+                        id: customId,
+                        name: deckTitle,
+                        text: rawDeck
+                    });
+                    activeDeckIds.add(customId);
+                    deckNames[customId] = deckTitle;
+                    renderDeckChips();
+                    saveDecksState();
+                    showToast(`Loaded "${deckTitle}" into Deck Comparator!`);
+                    if (currentCollectionData && currentCollectionData.length > 0 && typeof runComparison === 'function') {
+                        setTimeout(() => runComparison(), 250);
+                    }
+                } else if (typeof addDeck === 'function') {
+                    const deckInput = document.getElementById('deckInput');
+                    if (deckInput) {
+                        deckInput.value = rawDeck;
+                        addDeck();
+                    }
                 }
             }
         };
@@ -2800,7 +2833,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=10.20');
+                    const res = await fetch('./commander-precons.json?v=11.0');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2836,7 +2869,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=10.20');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=11.0');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -10262,3 +10295,252 @@
         } else {
             setTimeout(renderCollectionProfilesUI, 100);
         }
+
+        // ==================== CROSS-TOOL GLOBAL PIPELINES & DEMO ONBOARDING ====================
+        window.addCardToTradeBinderGlobal = function(cardObj, type = 'have') {
+            if (!cardObj) return;
+            const img = cardObj.image_uris?.normal || cardObj.card_faces?.[0]?.image_uris?.normal || cardObj.imageUrl || cardObj.image || '';
+            const price = parseFloat(cardObj.prices?.usd || cardObj.priceUsd || 0) || 0;
+            addToTradeBinder({
+                name: cardObj.name,
+                setCode: (cardObj.set || cardObj.setCode || '').toUpperCase(),
+                collectorNumber: String(cardObj.collector_number || cardObj.collectorNumber || ''),
+                finish: cardObj.isFoil ? 'Foil' : 'Normal',
+                isFoil: Boolean(cardObj.isFoil),
+                priceUsd: price,
+                imageUrl: img,
+                prices: cardObj.prices || { usd: price },
+                quantity: 1,
+                type: type === 'want' ? 'want' : 'have'
+            });
+        };
+
+        window.addPullsToCollectionGlobal = async function(pulledCards, sourceLabel = 'Booster Pulls') {
+            if (!Array.isArray(pulledCards) || pulledCards.length === 0) return;
+            const existing = Array.isArray(currentCollectionData) && currentCollectionData.length > 0
+                ? [...currentCollectionData]
+                : (AppStorage.loadCsv() || []);
+
+            const mapByKey = new Map();
+            existing.forEach((c, idx) => {
+                const k = `${(c.name || '').toLowerCase()}|${(c.set || c.setCode || '').toLowerCase()}|${c.collectorNumber || ''}`;
+                mapByKey.set(k, idx);
+            });
+
+            pulledCards.forEach(c => {
+                if (!c || !c.name) return;
+                const setCode = (c.set || '').toLowerCase();
+                const num = String(c.collector_number || '');
+                const k = `${c.name.toLowerCase()}|${setCode}|${num}`;
+                const price = parseFloat(c.prices?.usd || 0) || 0;
+                if (mapByKey.has(k)) {
+                    const target = existing[mapByKey.get(k)];
+                    target.quantity = (target.quantity || 1) + 1;
+                    target.owned = target.quantity;
+                } else {
+                    const newEntry = {
+                        name: c.name,
+                        set: setCode,
+                        setCode: setCode.toUpperCase(),
+                        collectorNumber: num,
+                        collector_number: num,
+                        quantity: 1,
+                        owned: 1,
+                        inDecks: 0,
+                        in_decks: 0,
+                        finish: c.isFoil ? 'Foil' : 'Normal',
+                        isFoil: Boolean(c.isFoil),
+                        rarity: c.rarity || 'common',
+                        typeLine: c.type_line || '',
+                        manaCost: c.mana_cost || '',
+                        colors: c.colors || [],
+                        isCommander: Boolean((c.type_line || '').includes('Legendary') && (c.type_line || '').includes('Creature')),
+                        priceUsd: price,
+                        prices: c.prices || { usd: price },
+                        imageUrl: c.image || c.image_uris?.normal || ''
+                    };
+                    mapByKey.set(k, existing.length);
+                    existing.push(newEntry);
+                }
+            });
+
+            currentCollectionData = existing;
+            cachedParsedCsv = existing;
+            AppStorage.saveCsv(existing);
+            if (typeof saveCollectionMetadata === 'function') {
+                await saveCollectionMetadata({
+                    sourceType: 'csv',
+                    fileName: `${sourceLabel} (${existing.length} cards)`,
+                    cardCount: existing.length,
+                    updatedAt: Date.now()
+                });
+            }
+            if (typeof updateCollectionStatusBadge === 'function') updateCollectionStatusBadge();
+            showToast(`📥 Added ${pulledCards.length} cards from ${sourceLabel} to your Collection (${existing.length} total unique printings)!`);
+        };
+
+        window.loadSampleDemoCollection = async function() {
+            try {
+                showToast("✨ Loading Instant Demo Collection (250+ EDH Staples & Commanders)...");
+                const res = await fetch('./commander-cards-cache.json?v=11.0');
+                const cacheObj = res.ok ? await res.json() : {};
+                const entries = Object.entries(cacheObj);
+
+                const demoCards = [];
+                // Curated staple & commander pool from local cache
+                entries.slice(0, 260).forEach(([cardName, info], idx) => {
+                    const qty = idx % 5 === 0 ? 2 : 1;
+                    const price = parseFloat(info.price || info.prices?.usd || 1.25) || 1.25;
+                    const typeLine = info.type_line || info.typeLine || 'Creature';
+                    demoCards.push({
+                        name: info.name || cardName,
+                        set: (info.set || 'cmm').toLowerCase(),
+                        setCode: (info.set || 'CMM').toUpperCase(),
+                        collectorNumber: String(info.collector_number || (idx + 1)),
+                        collector_number: String(info.collector_number || (idx + 1)),
+                        quantity: qty,
+                        owned: qty,
+                        inDecks: idx % 7 === 0 ? 1 : 0,
+                        in_decks: idx % 7 === 0 ? 1 : 0,
+                        finish: idx % 9 === 0 ? 'Foil' : 'Normal',
+                        isFoil: idx % 9 === 0,
+                        rarity: info.rarity || (price > 10 ? 'mythic' : (price > 3 ? 'rare' : 'uncommon')),
+                        typeLine: typeLine,
+                        manaCost: info.mana_cost || '',
+                        colors: info.colors || info.color_identity || [],
+                        isCommander: Boolean(typeLine.includes('Legendary') && typeLine.includes('Creature')),
+                        edhrecRank: info.edhrec_rank || (idx * 15 + 10),
+                        priceUsd: price,
+                        prices: info.prices || { usd: String(price.toFixed(2)) },
+                        imageUrl: info.imageUrl || info.image_uris?.normal || ''
+                    });
+                });
+
+                // Guarantee core staples in demo collection
+                const coreStaples = [
+                    { name: 'Sol Ring', set: 'cmm', price: 1.5, typeLine: 'Artifact', rarity: 'uncommon', colors: [] },
+                    { name: 'Arcane Signet', set: 'cmm', price: 1.0, typeLine: 'Artifact', rarity: 'uncommon', colors: [] },
+                    { name: 'Command Tower', set: 'cmm', price: 0.5, typeLine: 'Land', rarity: 'common', colors: [] },
+                    { name: 'Swords to Plowshares', set: 'cmm', price: 1.5, typeLine: 'Instant', rarity: 'uncommon', colors: ['W'] },
+                    { name: 'Counterspell', set: 'cmm', price: 1.5, typeLine: 'Instant', rarity: 'uncommon', colors: ['U'] },
+                    { name: 'Cultivate', set: 'cmm', price: 1.0, typeLine: 'Sorcery', rarity: 'common', colors: ['G'] },
+                    { name: 'Beast Within', set: 'cmm', price: 1.5, typeLine: 'Instant', rarity: 'uncommon', colors: ['G'] },
+                    { name: 'Chaos Warp', set: 'cmm', price: 1.5, typeLine: 'Instant', rarity: 'rare', colors: ['R'] },
+                    { name: 'Rhystic Study', set: 'wot', price: 42.0, typeLine: 'Enchantment', rarity: 'rare', colors: ['U'] },
+                    { name: 'Smothering Tithe', set: '2x2', price: 28.0, typeLine: 'Enchantment', rarity: 'rare', colors: ['W'] },
+                    { name: "Atraxa, Praetors' Voice", set: '2xm', price: 18.0, typeLine: 'Legendary Creature — Phyrexian Angel Horror', rarity: 'mythic', colors: ['W', 'U', 'B', 'G'], isCommander: true },
+                    { name: 'Krenko, Mob Boss', set: 'm13', price: 5.0, typeLine: 'Legendary Creature — Goblin Warrior', rarity: 'rare', colors: ['R'], isCommander: true }
+                ];
+                coreStaples.forEach((st, i) => {
+                    if (!demoCards.some(d => d.name.toLowerCase() === st.name.toLowerCase())) {
+                        demoCards.push({
+                            name: st.name,
+                            set: st.set,
+                            setCode: st.set.toUpperCase(),
+                            collectorNumber: String(900 + i),
+                            collector_number: String(900 + i),
+                            quantity: 2,
+                            owned: 2,
+                            inDecks: 0,
+                            in_decks: 0,
+                            finish: 'Normal',
+                            isFoil: false,
+                            rarity: st.rarity,
+                            typeLine: st.typeLine,
+                            colors: st.colors,
+                            isCommander: Boolean(st.isCommander),
+                            priceUsd: st.price,
+                            prices: { usd: String(st.price.toFixed(2)) }
+                        });
+                    }
+                });
+
+                currentCollectionData = demoCards;
+                cachedParsedCsv = demoCards;
+                cachedInsightsData = null;
+                AppStorage.saveCsv(demoCards);
+                if (typeof saveCollectionMetadata === 'function') {
+                    await saveCollectionMetadata({
+                        sourceType: 'csv',
+                        fileName: '✨ Demo Sample Collection (260+ Cards)',
+                        cardCount: demoCards.length,
+                        updatedAt: Date.now()
+                    });
+                }
+                if (typeof updateCollectionStatusBadge === 'function') updateCollectionStatusBadge();
+
+                // Also preload a sample deck if no decks are loaded yet so Deck Comparator works in 1 click
+                if (activeDeckIds.size === 0 && EDHREC_META_DECKS && EDHREC_META_DECKS[0]) {
+                    const sampleDeck = EDHREC_META_DECKS[0];
+                    const customId = `custom:demo_krenko`;
+                    customPastedDecks = customPastedDecks.filter(d => d.id !== customId);
+                    customPastedDecks.push({
+                        id: customId,
+                        name: sampleDeck.name,
+                        text: sampleDeck.decklist
+                    });
+                    activeDeckIds.add(customId);
+                    deckNames[customId] = sampleDeck.name;
+                    renderDeckChips();
+                    saveDecksState();
+                }
+
+                showToast(`🎉 Loaded ${demoCards.length} Demo Collection cards! Click "Scan & Compare Decks" or explore "What Can I Build" & "Insights"!`);
+                const activeTab = localStorage.getItem('archidekt_activeTab') || 'deck';
+                if (activeTab === 'collection' && typeof onOpenCollectionTab === 'function') {
+                    onOpenCollectionTab();
+                } else if (activeTab === 'build' && typeof renderBuildSection === 'function') {
+                    renderBuildSection();
+                }
+            } catch (err) {
+                console.error("Failed to load demo collection:", err);
+                showToast("Could not load demo collection.", true);
+            }
+        };
+
+        window.playtestActiveComparatorDeckInArena = function() {
+            const cards = getActiveDeckCards();
+            if (!cards || cards.length === 0) {
+                showToast("Select a deck in the breakdown first.");
+                return;
+            }
+            const deckObj = currentDecksData.find(d => d.id === activeDeckViewId);
+            const title = deckObj ? deckObj.name : 'Comparator Deck';
+            const lines = cards.map(c => `${c.quantity || 1} ${c.name}${c.category === 'Commander' ? ' *CMDR*' : ''}`);
+            if (window.openCommanderArena) {
+                window.openCommanderArena(lines.join('\n'), title);
+            }
+        };
+
+        window.editActiveComparatorDeckInBuilder = function() {
+            const cards = getActiveDeckCards();
+            if (!cards || cards.length === 0) {
+                showToast("Select a deck in the breakdown first.");
+                return;
+            }
+            const deckObj = currentDecksData.find(d => d.id === activeDeckViewId);
+            const title = deckObj ? deckObj.name : 'Comparator Deck';
+            const lines = cards.map(c => `${c.quantity || 1} ${c.name}${c.category === 'Commander' ? ' *CMDR*' : ''}`);
+            if (window.openDeckBuilderView) {
+                window.openDeckBuilderView({ preloadDeckText: lines.join('\n'), deckName: title });
+            }
+        };
+
+        window.printMissingComparatorProxies = function() {
+            const cards = getActiveDeckCards();
+            const missingCards = cards.filter(c => c.status === 'missing' || c.status === 'partial');
+            if (missingCards.length === 0) {
+                showToast("You already own 100% of the cards in this deck! 🎉");
+                return;
+            }
+            const deckObj = currentDecksData.find(d => d.id === activeDeckViewId);
+            const title = deckObj ? `Missing Proxies: ${deckObj.name}` : 'Missing Deck Proxies';
+            const proxyList = missingCards.map(c => ({
+                name: c.name,
+                quantity: c.missing || c.quantity || 1,
+                imageUrl: c.imageUrl || c.image_url || ''
+            }));
+            if (window.openProxyPrinterModal) {
+                window.openProxyPrinterModal(proxyList, title);
+            }
+        };
