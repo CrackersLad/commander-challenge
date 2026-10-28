@@ -251,6 +251,19 @@
                 return { isMulti: true, options: ['W', 'U', 'B', 'R', 'G'].map(c => ({ colors: [c], cost: null, desc: `Add {${c}}` })) };
             }
 
+            // Pure Fetchlands (do NOT produce mana on their own)
+            const isPureFetchLand = /evolving wilds|terramorphic expanse|fabled passage|prismatic vista|brokers hideout|cabaretti courtyard|maestros theater|obscura storefront|riveteers overlook|flooded strand|polluted delta|bloodstained mire|wooded foothills|windswept heath|marsh flats|scalding tarn|verdant catacombs|arid mesa|misty rainforest/i.test(nLower) ||
+                (isLand && oracle && /search your library/i.test(oracle) && !/add\s+\{[WUBRGC0-9]+\}|add\s+one\s+mana|add\s+two\s+mana|add\s+three\s+mana/i.test(oracle));
+            if (isPureFetchLand) {
+                return null;
+            }
+
+            // Non-land artifacts that don't actually produce mana (e.g. Wayfarer's Bauble, Equipment)
+            if (!isLand && !card.isManaRock) {
+                const hasManaText = /add\s+\{[WUBRGC0-9]+\}|add\s+one\s+mana|add\s+two\s+mana|add\s+three\s+mana/i.test(oracle);
+                if (!hasManaText) return null;
+            }
+
             if (Array.isArray(card.colors) && card.colors.length > 1) {
                 return {
                     isMulti: true,
@@ -360,7 +373,7 @@
             });
         }
 
-        // Fallback recognition for famous fetch lands if oracleText was missing/generic
+        // Fallback recognition for famous fetch lands/baubles if oracleText was missing/generic
         if (abilities.length === 0 && card && card.name) {
             const nameLower = card.name.toLowerCase();
             if (nameLower.includes('fabled passage')) {
@@ -392,6 +405,56 @@
                     requiresSacrifice: true,
                     manaCostNum: 0,
                     raw: '{T}, Pay 1 life, Sacrifice Prismatic Vista: Search your library for a basic land card, put it onto the battlefield, then shuffle.'
+                });
+            } else if (nameLower.includes('shire terrace') || nameLower.includes('promising vein')) {
+                abilities.push({
+                    type: 'TAP_ABILITY',
+                    costText: `{1}, {T}, Sacrifice ${card.name}`,
+                    effectText: 'Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.',
+                    requiresTap: true,
+                    requiresSacrifice: true,
+                    manaCostNum: 1,
+                    raw: `{1}, {T}, Sacrifice ${card.name}: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.`
+                });
+            } else if (nameLower.includes('myriad landscape')) {
+                abilities.push({
+                    type: 'TAP_ABILITY',
+                    costText: '{2}, {T}, Sacrifice Myriad Landscape',
+                    effectText: 'Search your library for up to two basic land cards that share a land type, put them onto the battlefield tapped, then shuffle.',
+                    requiresTap: true,
+                    requiresSacrifice: true,
+                    manaCostNum: 2,
+                    raw: '{2}, {T}, Sacrifice Myriad Landscape: Search your library for up to two basic land cards that share a land type, put them onto the battlefield tapped, then shuffle.'
+                });
+            } else if (nameLower.includes("wayfarer's bauble")) {
+                abilities.push({
+                    type: 'TAP_ABILITY',
+                    costText: "{2}, {T}, Sacrifice Wayfarer's Bauble",
+                    effectText: 'Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.',
+                    requiresTap: true,
+                    requiresSacrifice: true,
+                    manaCostNum: 2,
+                    raw: "{2}, {T}, Sacrifice Wayfarer's Bauble: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle."
+                });
+            } else if (nameLower.includes('blighted woodland')) {
+                abilities.push({
+                    type: 'TAP_ABILITY',
+                    costText: '{3}{G}, {T}, Sacrifice Blighted Woodland',
+                    effectText: 'Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.',
+                    requiresTap: true,
+                    requiresSacrifice: true,
+                    manaCostNum: 4,
+                    raw: '{3}{G}, {T}, Sacrifice Blighted Woodland: Search your library for up to two basic land cards, put them onto the battlefield tapped, then shuffle.'
+                });
+            } else if (nameLower.includes('krosan verge')) {
+                abilities.push({
+                    type: 'TAP_ABILITY',
+                    costText: '{2}, {T}, Sacrifice Krosan Verge',
+                    effectText: 'Search your library for a Forest card and a Plains card, put them onto the battlefield tapped, then shuffle.',
+                    requiresTap: true,
+                    requiresSacrifice: true,
+                    manaCostNum: 2,
+                    raw: '{2}, {T}, Sacrifice Krosan Verge: Search your library for a Forest card and a Plains card, put them onto the battlefield tapped, then shuffle.'
                 });
             }
         }
@@ -4474,6 +4537,33 @@
                     </div>
                 </div>
 
+                <!-- Cleanup Step: Discard to Maximum Hand Size Modal (MTG Rule 514.1) -->
+                <div class="arena-ability-modal" id="arenaCleanupDiscardModal" style="display: none; z-index: 10006;">
+                    <div class="arena-ability-card" style="max-width: 680px; border: 1px solid rgba(245, 158, 11, 0.5); box-shadow: 0 20px 50px rgba(0,0,0,0.85), 0 0 30px rgba(245, 158, 11, 0.2);">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                            <div>
+                                <h3 style="margin: 0; color: #f59e0b; font-size: 1.15rem; font-weight: 800;">🧹 Cleanup Step — Discard to Hand Size (MTG Rule 514.1)</h3>
+                                <div id="cleanupDiscardSubtext" style="font-size: 0.8rem; color: #cbd5e1; margin-top: 4px;">
+                                    Your hand exceeds your maximum hand size of 7. Choose which card(s) to discard to your graveyard:
+                                </div>
+                            </div>
+                            <span id="cleanupDiscardCounterBadge" style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.5); color: #fde047; font-size: 0.78rem; font-weight: 800; padding: 4px 10px; border-radius: 999px; white-space: nowrap;">
+                                Selected: 0 / 1
+                            </span>
+                        </div>
+
+                        <div id="cleanupDiscardCardsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-height: 360px; overflow-y: auto; padding: 6px;">
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
+                            <button class="arena-btn" onclick="window.closeCleanupDiscardModal()">Stay in End Step</button>
+                            <button class="arena-btn arena-btn-gold" id="confirmCleanupDiscardBtn" onclick="window.confirmCleanupDiscardAndPass()" disabled style="opacity: 0.5; cursor: not-allowed;">
+                                🗑️ Discard Selected &amp; End Turn
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Opening Hand & Mulligan Modal Overlay -->
                 <div class="arena-mulligan-overlay" id="arenaMulliganOverlay"></div>
             </div>
@@ -4883,6 +4973,8 @@
         }
 
         // 4. Action Trigger Button Label based on current Phase
+        const maxHandSize = getPlayerMaxHandSize(player);
+        const excessHandCount = maxHandSize === Infinity ? 0 : Math.max(0, player.hand.length - maxHandSize);
         let actionBtnText = 'Proceed ⏭️';
         let actionBtnClass = 'action-trigger-btn';
         if (isMyTurn) {
@@ -4899,11 +4991,16 @@
                 actionBtnText = 'Resolve Combat ⚔️';
                 actionBtnClass = 'action-trigger-btn';
             } else if (currentPhase === 'MAIN_2' || currentPhase === 'MAIN2') {
-                actionBtnText = 'End Turn ⏳';
+                actionBtnText = 'Go to End Step ⏭️';
                 actionBtnClass = 'action-trigger-btn arena-btn-gold';
             } else if (currentPhase === 'END_STEP' || currentPhase === 'END_OF_TURN' || currentPhase === 'CLEANUP') {
-                actionBtnText = 'Pass to Next Player ⏳';
-                actionBtnClass = 'action-trigger-btn arena-btn-gold';
+                if (excessHandCount > 0) {
+                    actionBtnText = `🧹 Cleanup: Discard ${excessHandCount} & Pass`;
+                    actionBtnClass = 'action-trigger-btn arena-btn-danger';
+                } else {
+                    actionBtnText = 'Pass to Next Player ⏳';
+                    actionBtnClass = 'action-trigger-btn arena-btn-gold';
+                }
             } else if (currentPhase === 'UNTAP' || currentPhase === 'UPKEEP' || currentPhase === 'DRAW') {
                 actionBtnText = 'Proceed to Main 1 ⏭️';
                 actionBtnClass = 'action-trigger-btn arena-btn-gold';
@@ -4964,8 +5061,8 @@
                 <!-- Hand Tray fanned out at bottom -->
                 <div class="arena-hand-tray-container">
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 0.5rem;">
-                        <span style="font-size: 0.74rem; font-weight: 800; color: var(--arena-text-muted); text-transform: uppercase;">
-                            🃏 Your Hand (${player.hand.length} cards)
+                        <span style="font-size: 0.74rem; font-weight: 800; color: ${excessHandCount > 0 ? '#f59e0b' : 'var(--arena-text-muted)'}; text-transform: uppercase;">
+                            🃏 Your Hand (${player.hand.length}/${maxHandSize === Infinity ? '∞' : maxHandSize} cards)${excessHandCount > 0 ? ` • Discard ${excessHandCount} at Cleanup` : ''}
                         </span>
                         <span style="font-size: 0.72rem; color: #a855f7;">Tap lands/rocks to float mana into pool, then click card to cast</span>
                     </div>
@@ -5162,6 +5259,22 @@
             .replace(/'/g, '&#039;');
     }
 
+    function getPlayerMaxHandSize(player) {
+        if (!player) return 7;
+        if (Array.isArray(player.battlefield)) {
+            const hasUnlimitedHand = player.battlefield.some(c => {
+                if (!c) return false;
+                const n = (c.name || '').toLowerCase();
+                const o = (c.oracleText || '').toLowerCase();
+                return /no maximum hand size/i.test(o) ||
+                    /reliquary tower|thought vessel|decanter of endless water|spellbook|venser's journal|kruphix, god of horizons|nezahal, primal tide|library of leng|ancient silver dragon/i.test(n);
+            });
+            if (hasUnlimitedHand) return Infinity;
+        }
+        return 7;
+    }
+    window.getPlayerMaxHandSize = getPlayerMaxHandSize;
+
     // ============================================================================
     // USER ACTIONS & INTERACTIVE CONTROLS
     // ============================================================================
@@ -5244,6 +5357,9 @@
             res = await currentGame.playCard(cardId);
         } else {
             res = player.castCard(cardId, currentGame);
+            if (spellCost > 0 && typeof player.deductMana === 'function') {
+                player.deductMana(spellCost);
+            }
         }
         if (res && !res.success) {
             alert(res.message);
@@ -5257,10 +5373,6 @@
                 currentGame.players[0].landPlayedThisTurn = true;
                 currentGame.players[0].landsPlayedCount = (currentGame.players[0].landsPlayedCount || 0) + 1;
             }
-        }
-
-        if (spellCost > 0 && typeof player.deductMana === 'function') {
-            player.deductMana(spellCost);
         }
 
         if (res && res.logs) appendArenaLogs(res.logs);
@@ -5319,14 +5431,13 @@
             res = await currentGame.castCommander();
         } else {
             res = player.castCommander(currentGame);
+            if (totalCost > 0 && typeof player.deductMana === 'function') {
+                player.deductMana(totalCost);
+            }
         }
         if (res && !res.success) {
             alert(res.message);
             return;
-        }
-
-        if (totalCost > 0 && typeof player.deductMana === 'function') {
-            player.deductMana(totalCost);
         }
 
         if (res && res.logs) appendArenaLogs(res.logs);
@@ -5583,15 +5694,24 @@
         // Close modal immediately
         window.closeCardAbilityModal();
 
-        // Check if this is a fetchland/search library ability (e.g. Terramorphic Expanse, Evolving Wilds, etc.)
+        // Check if this is a fetchland/search library ability (e.g. Terramorphic Expanse, Evolving Wilds, Shire Terrace, Myriad Landscape, etc.)
         const effectLower = (ab.effectText || '').toLowerCase();
         const costLower = (ab.costText || '').toLowerCase();
         const isFetchAbility = (ab.requiresSacrifice || costLower.includes('sacrifice')) &&
             effectLower.includes('search your library') &&
-            (effectLower.includes('basic land') || effectLower.includes('land card'));
+            (effectLower.includes('basic land') || effectLower.includes('land card') || effectLower.includes('forest') || effectLower.includes('plains') || effectLower.includes('island') || effectLower.includes('swamp') || effectLower.includes('mountain'));
 
         if (isFetchAbility) {
-            window.openFetchLandModal(card.id);
+            const lifeCostMatch = costLower.match(/pay\s+(\d+)\s+life/i);
+            const lifeCostNum = lifeCostMatch ? (parseInt(lifeCostMatch[1], 10) || 0) : 0;
+            const fetchCount = /two\s+basic\s+land/i.test(effectLower) ? 2 : 1;
+            window.openFetchLandModal(card.id, {
+                manaCostNum: ab.manaCostNum || 0,
+                lifeCostNum,
+                fetchCount,
+                costText: ab.costText || '',
+                effectText: ab.effectText || ''
+            });
             return;
         }
 
@@ -5607,15 +5727,22 @@
 
         // Delegate to Forge Engine if active
         if (typeof currentGame.activateAbility === 'function') {
+            // Deduct mana and mark tapped BEFORE calling bridge so updateFromRawJson preserves paid state
+            if (ab.manaCostNum > 0) {
+                if (typeof player.deductMana === 'function') player.deductMana(ab.manaCostNum);
+                else if (typeof player.tapMana === 'function') player.tapMana(ab.manaCostNum);
+            }
+            if (ab.requiresTap) {
+                card.tapped = true;
+            }
             const res = await currentGame.activateAbility(card.id, abilityIndex);
             if (res && res.logs && res.logs.length > 0) {
                 appendArenaLogs(res.logs);
             }
-            if (ab.manaCostNum > 0 && typeof player.deductMana === 'function') {
-                player.deductMana(ab.manaCostNum);
-            }
-            if (ab.requiresTap) {
-                card.tapped = true;
+            const pAfter = currentGame.players[0];
+            if (pAfter && ab.requiresTap) {
+                const cAfter = pAfter.battlefield.find(c => String(c.id) === String(card.id));
+                if (cAfter) cAfter.tapped = true;
             }
         } else {
             // Local fallback simulation
@@ -5911,8 +6038,9 @@
     window.toggleLandTap = window.handlePermanentClick;
 
     let currentFetchCardId = null;
+    let currentFetchMeta = null;
 
-    window.openFetchLandModal = function (cardId) {
+    window.openFetchLandModal = function (cardId, fetchMeta = null) {
         if (!currentGame) return;
         const player = currentGame.players[0];
         const card = player.battlefield.find(c => c.id === cardId || String(c.id) === String(cardId));
@@ -5923,7 +6051,46 @@
             return;
         }
 
+        // Resolve fetch ability metadata (mana cost, life cost, fetch count) if not explicitly provided
+        let resolvedMeta = fetchMeta;
+        if (!resolvedMeta) {
+            const abilities = parseActivatedAbilities(card);
+            const fetchAb = abilities.find(ab => {
+                const eff = (ab.effectText || '').toLowerCase();
+                const cst = (ab.costText || '').toLowerCase();
+                return (ab.requiresSacrifice || cst.includes('sacrifice')) && eff.includes('search your library');
+            });
+            if (fetchAb) {
+                const cstLower = (fetchAb.costText || '').toLowerCase();
+                const effLower = (fetchAb.effectText || '').toLowerCase();
+                const lifeMatch = cstLower.match(/pay\s+(\d+)\s+life/i);
+                resolvedMeta = {
+                    manaCostNum: fetchAb.manaCostNum || 0,
+                    lifeCostNum: lifeMatch ? (parseInt(lifeMatch[1], 10) || 0) : 0,
+                    fetchCount: /two\s+basic\s+land/i.test(effLower) ? 2 : 1,
+                    costText: fetchAb.costText || '',
+                    effectText: fetchAb.effectText || ''
+                };
+            } else {
+                resolvedMeta = { manaCostNum: 0, lifeCostNum: 0, fetchCount: 1, costText: '', effectText: '' };
+            }
+        }
+
+        // Validate mana and life costs before opening the modal
+        if (resolvedMeta.manaCostNum > 0) {
+            const avail = player.getAvailableMana().total;
+            if (avail < resolvedMeta.manaCostNum) {
+                alert(`Cannot activate ${card.name}: Need {${resolvedMeta.manaCostNum}} mana in floating pool, but you have {${avail}}!\n\n💡 Tap lands/mana rocks first to float mana.`);
+                return;
+            }
+        }
+        if (resolvedMeta.lifeCostNum > 0 && player.life <= resolvedMeta.lifeCostNum) {
+            alert(`Cannot activate ${card.name}: Need to pay ${resolvedMeta.lifeCostNum} life, and you only have ${player.life} life!`);
+            return;
+        }
+
         currentFetchCardId = card.id;
+        currentFetchMeta = resolvedMeta;
 
         const modal = document.getElementById('arenaFetchLandModal');
         const thumb = document.getElementById('fetchLandThumb');
@@ -5932,7 +6099,12 @@
         if (!modal || !list) return;
 
         if (thumb) thumb.src = getCardArtCropUrl(card.name);
-        if (nameEl) nameEl.textContent = `⚡ Crack ${card.name}`;
+        if (nameEl) {
+            const costSuffix = resolvedMeta.manaCostNum > 0
+                ? ` (Cost: {${resolvedMeta.manaCostNum}}, {T}, Sacrifice)`
+                : (resolvedMeta.lifeCostNum > 0 ? ` (Cost: Pay ${resolvedMeta.lifeCostNum} life, {T}, Sacrifice)` : '');
+            nameEl.textContent = `⚡ Crack ${card.name}${costSuffix}`;
+        }
 
         // Count basic lands in player's library
         const lib = player.libraryCards || [];
@@ -5979,7 +6151,7 @@
                         <span style="font-size: 1.5rem;">${l.icon}</span>
                         <div>
                             <div style="font-weight: 800; font-size: 0.95rem; color: #fff;">${l.name}</div>
-                            <div style="font-size: 0.72rem; color: ${l.color}; font-weight: 600;">Basic Land</div>
+                            <div style="font-size: 0.72rem; color: ${l.color}; font-weight: 600;">Basic Land${resolvedMeta.fetchCount > 1 ? ` (Fetches up to ${resolvedMeta.fetchCount})` : ''}</div>
                         </div>
                     </div>
                     <span style="font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; ${badgeStyle}">
@@ -5996,14 +6168,36 @@
         const modal = document.getElementById('arenaFetchLandModal');
         if (modal) modal.style.display = 'none';
         currentFetchCardId = null;
+        currentFetchMeta = null;
     };
 
     window.confirmFetchLandChoice = async function (cardId, chosenBasicName) {
+        const fetchMeta = currentFetchMeta || { manaCostNum: 0, lifeCostNum: 0, fetchCount: 1 };
         window.closeFetchLandModal();
         if (!currentGame) return;
         const player = currentGame.players[0];
         const card = player.battlefield.find(c => c.id === cardId || String(c.id) === String(cardId));
         const fetchName = card ? card.name : 'Fetchland';
+
+        // 1. Deduct activation mana cost and life cost BEFORE calling executeFetchLand so updateFromRawJson preserves the paid state
+        if (fetchMeta.manaCostNum > 0) {
+            if (typeof player.deductMana === 'function') {
+                player.deductMana(fetchMeta.manaCostNum);
+            } else if (typeof player.tapMana === 'function') {
+                player.tapMana(fetchMeta.manaCostNum);
+            }
+            appendArenaLogs([{
+                type: 'MANA_PAID',
+                message: `💎 **${player.name}** paid **{${fetchMeta.manaCostNum}} mana** to activate **${fetchName}**.`
+            }]);
+        }
+        if (fetchMeta.lifeCostNum > 0) {
+            player.life = Math.max(0, player.life - fetchMeta.lifeCostNum);
+            appendArenaLogs([{
+                type: 'LIFE_PAID',
+                message: `💔 **${player.name}** paid **${fetchMeta.lifeCostNum} life** to activate **${fetchName}**.`
+            }]);
+        }
 
         // Stack animation
         const stackBox = document.getElementById('arenaStackBox');
@@ -6017,7 +6211,7 @@
         }
 
         if (typeof currentGame.executeFetchLand === 'function') {
-            const res = await currentGame.executeFetchLand(cardId, chosenBasicName);
+            const res = await currentGame.executeFetchLand(cardId, chosenBasicName, fetchMeta);
             if (res && res.logs && res.logs.length > 0) {
                 appendArenaLogs(res.logs);
             }
@@ -6032,20 +6226,25 @@
                 }
             }
             const lib = player.libraryCards || [];
-            const idx = lib.findIndex(c => (c.name || '').toLowerCase() === chosenBasicName.toLowerCase());
-            let fetchedCard = null;
-            if (idx !== -1) {
-                fetchedCard = lib.splice(idx, 1)[0];
-            } else {
-                fetchedCard = {
-                    id: `c_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-                    name: chosenBasicName,
-                    isLand: true,
-                    typeLine: `Basic Land — ${chosenBasicName}`
-                };
+            const totalToFetch = Math.max(1, fetchMeta.fetchCount || 1);
+            for (let i = 0; i < totalToFetch; i++) {
+                const idx = lib.findIndex(c => (c.name || '').toLowerCase() === chosenBasicName.toLowerCase());
+                let fetchedCard = null;
+                if (idx !== -1) {
+                    fetchedCard = lib.splice(idx, 1)[0];
+                } else if (i === 0) {
+                    fetchedCard = {
+                        id: `c_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                        name: chosenBasicName,
+                        isLand: true,
+                        typeLine: `Basic Land — ${chosenBasicName}`
+                    };
+                }
+                if (fetchedCard) {
+                    fetchedCard.tapped = true;
+                    player.battlefield.push(fetchedCard);
+                }
             }
-            fetchedCard.tapped = true;
-            player.battlefield.push(fetchedCard);
             appendArenaLogs([{
                 type: 'FETCH_LAND',
                 message: `⚡ **${player.name}** cracked **${fetchName}**, searched library for **${chosenBasicName}**, and put it onto the battlefield tapped.`
@@ -6059,6 +6258,11 @@
         if (!currentGame) return;
         const player = currentGame.players[0];
         player.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        if (Array.isArray(player.battlefield)) {
+            player.battlefield.forEach(c => {
+                if (c) c.producedMana = null;
+            });
+        }
         appendArenaLogs([{
             type: 'MANA_EMPTIED',
             message: `🧹 **${player.name}** emptied their mana pool.`
@@ -6283,7 +6487,30 @@
                 }
                 updateArenaDOM();
                 return;
-            } else if (currentGame.currentPhase === 'MAIN_2' || currentGame.currentPhase === 'MAIN2' || currentGame.currentPhase === 'END_STEP' || currentGame.currentPhase === 'END_OF_TURN' || currentGame.currentPhase === 'CLEANUP') {
+            } else if (currentGame.currentPhase === 'MAIN_2' || currentGame.currentPhase === 'MAIN2') {
+                // Step into End Step (MTG Rule 513) so the player can see their End Step before Cleanup
+                currentGame.currentPhase = 'END_STEP';
+                if (player) {
+                    player.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+                    if (Array.isArray(player.battlefield)) {
+                        player.battlefield.forEach(c => { if (c) c.producedMana = null; });
+                    }
+                }
+                appendArenaLogs([{
+                    type: 'PHASE_CHANGE',
+                    message: `⏳ **${player.name}** entered the **End Step** (MTG Rule 513).`
+                }]);
+                updateArenaDOM();
+                return;
+            } else if (currentGame.currentPhase === 'END_STEP' || currentGame.currentPhase === 'END_OF_TURN' || currentGame.currentPhase === 'CLEANUP') {
+                // Check Maximum Hand Size during Cleanup Step (MTG Rule 514.1)
+                const maxHandSize = getPlayerMaxHandSize(player);
+                if (player && Array.isArray(player.hand) && player.hand.length > maxHandSize) {
+                    currentGame.currentPhase = 'CLEANUP';
+                    updateArenaDOM();
+                    window.openCleanupDiscardModal();
+                    return;
+                }
                 // Pass turn to the next player (Seat 1 / Opponent 1)
                 const result = await currentGame.stepTurn();
                 updateArenaDOM();
@@ -6305,6 +6532,144 @@
         }
 
         await window.stepArenaPhase();
+    };
+
+    // ============================================================================
+    // CLEANUP STEP: DISCARD TO MAXIMUM HAND SIZE (MTG Rule 514.1)
+    // ============================================================================
+    const selectedCleanupDiscardIds = new Set();
+
+    window.openCleanupDiscardModal = function () {
+        if (!currentGame || !currentGame.players || !currentGame.players[0]) return;
+        const player = currentGame.players[0];
+        const maxHandSize = getPlayerMaxHandSize(player);
+        const needDiscard = Math.max(0, (player.hand ? player.hand.length : 0) - maxHandSize);
+        if (needDiscard <= 0) {
+            window.closeCleanupDiscardModal();
+            return;
+        }
+        selectedCleanupDiscardIds.clear();
+        window.renderCleanupDiscardModal();
+        const modal = document.getElementById('arenaCleanupDiscardModal');
+        if (modal) modal.style.display = 'flex';
+    };
+
+    window.closeCleanupDiscardModal = function () {
+        selectedCleanupDiscardIds.clear();
+        const modal = document.getElementById('arenaCleanupDiscardModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.renderCleanupDiscardModal = function () {
+        if (!currentGame || !currentGame.players || !currentGame.players[0]) return;
+        const player = currentGame.players[0];
+        const maxHandSize = getPlayerMaxHandSize(player);
+        const hand = player.hand || [];
+        const needDiscard = Math.max(0, hand.length - maxHandSize);
+
+        const subEl = document.getElementById('cleanupDiscardSubtext');
+        const badgeEl = document.getElementById('cleanupDiscardCounterBadge');
+        const gridEl = document.getElementById('cleanupDiscardCardsGrid');
+        const confirmBtn = document.getElementById('confirmCleanupDiscardBtn');
+        if (!gridEl) return;
+
+        if (subEl) {
+            subEl.innerHTML = `You have <strong>${hand.length}</strong> cards in hand (Maximum hand size: <strong>${maxHandSize}</strong>). Select <strong>${needDiscard}</strong> card${needDiscard > 1 ? 's' : ''} to discard to your graveyard:`;
+        }
+        if (badgeEl) {
+            badgeEl.textContent = `Selected: ${selectedCleanupDiscardIds.size} / ${needDiscard}`;
+        }
+
+        gridEl.innerHTML = hand.map(c => {
+            const isSelected = selectedCleanupDiscardIds.has(String(c.id));
+            return `
+                <div onclick="window.toggleCleanupDiscardCard('${escapeHtml(String(c.id))}')"
+                     data-card-name="${escapeHtml(c.name)}"
+                     onmouseenter="window.showCardInspector(this.getAttribute('data-card-name'), event)"
+                     onmouseleave="window.hideCardInspector()"
+                     style="position: relative; border-radius: 10px; overflow: hidden; cursor: pointer; border: 2px solid ${isSelected ? '#ef4444' : 'rgba(255,255,255,0.15)'}; box-shadow: ${isSelected ? '0 0 16px rgba(239, 68, 68, 0.6)' : 'none'}; transform: ${isSelected ? 'scale(0.96)' : 'scale(1)'}; transition: all 0.15s; background: #0f172a;">
+                    <img src="${getCardNormalUrl(c.name)}" alt="${escapeHtml(c.name)}" style="width: 100%; display: block; opacity: ${isSelected ? '0.65' : '1'};" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
+                    <div style="padding: 5px 6px; font-size: 0.72rem; font-weight: 800; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; background: rgba(15, 23, 42, 0.95);">
+                        ${escapeHtml(c.name)}
+                    </div>
+                    ${isSelected ? `<div style="position: absolute; top: 6px; right: 6px; background: #ef4444; color: #fff; font-size: 0.68rem; font-weight: 900; padding: 2px 7px; border-radius: 999px; box-shadow: 0 2px 6px rgba(0,0,0,0.6);">🗑️ DISCARD</div>` : ''}
+                </div>
+            `;
+        }).join('');
+
+        const ready = selectedCleanupDiscardIds.size === needDiscard;
+        if (confirmBtn) {
+            confirmBtn.disabled = !ready;
+            confirmBtn.style.opacity = ready ? '1' : '0.5';
+            confirmBtn.style.cursor = ready ? 'pointer' : 'not-allowed';
+            confirmBtn.textContent = `🗑️ Discard ${selectedCleanupDiscardIds.size}/${needDiscard} & Pass Turn`;
+        }
+    };
+
+    window.toggleCleanupDiscardCard = function (cardId) {
+        if (!currentGame || !currentGame.players || !currentGame.players[0]) return;
+        const player = currentGame.players[0];
+        const maxHandSize = getPlayerMaxHandSize(player);
+        const needDiscard = Math.max(0, (player.hand ? player.hand.length : 0) - maxHandSize);
+        if (needDiscard <= 0) return;
+
+        const key = String(cardId);
+        if (selectedCleanupDiscardIds.has(key)) {
+            selectedCleanupDiscardIds.delete(key);
+        } else {
+            if (selectedCleanupDiscardIds.size >= needDiscard) {
+                const first = selectedCleanupDiscardIds.values().next().value;
+                selectedCleanupDiscardIds.delete(first);
+            }
+            selectedCleanupDiscardIds.add(key);
+        }
+        window.renderCleanupDiscardModal();
+    };
+
+    window.confirmCleanupDiscardAndPass = async function () {
+        if (!currentGame || !currentGame.players || !currentGame.players[0]) return;
+        const player = currentGame.players[0];
+        const maxHandSize = getPlayerMaxHandSize(player);
+        const needDiscard = Math.max(0, (player.hand ? player.hand.length : 0) - maxHandSize);
+        if (selectedCleanupDiscardIds.size !== needDiscard) {
+            alert(`Please select ${needDiscard} card(s) to discard down to your maximum hand size of ${maxHandSize}.`);
+            return;
+        }
+
+        const idsToDiscard = Array.from(selectedCleanupDiscardIds);
+        window.closeCleanupDiscardModal();
+
+        if (typeof currentGame.discardCardsFromHand === 'function') {
+            const discarded = currentGame.discardCardsFromHand(idsToDiscard);
+            if (discarded && discarded.length > 0) {
+                appendArenaLogs([{
+                    type: 'CLEANUP_DISCARD',
+                    message: `🗑️ **${player.name}** discarded **${discarded.map(c => c.name).join(', ')}** during Cleanup Step (down to ${maxHandSize} cards - MTG Rule 514.1).`
+                }]);
+            }
+        } else {
+            const idSet = new Set(idsToDiscard.map(String));
+            const discarded = [];
+            player.hand = (player.hand || []).filter(c => {
+                if (c && idSet.has(String(c.id))) {
+                    discarded.push(c);
+                    return false;
+                }
+                return true;
+            });
+            if (!Array.isArray(player.graveyard)) player.graveyard = [];
+            player.graveyard.push(...discarded);
+            appendArenaLogs([{
+                type: 'CLEANUP_DISCARD',
+                message: `🗑️ **${player.name}** discarded **${discarded.map(c => c.name).join(', ')}** during Cleanup Step (down to ${maxHandSize} cards - MTG Rule 514.1).`
+            }]);
+        }
+
+        const result = await currentGame.stepTurn();
+        updateArenaDOM();
+        if (result && result.logs && result.logs.length > 0) {
+            appendArenaLogs(result.logs);
+        }
     };
 
     // ============================================================================
@@ -6587,7 +6952,10 @@
             if (currentGame.bridge && currentGame.activePlayerIndex === 0) {
                 let prepSteps = 0;
                 while (currentGame.currentPhase !== 'MAIN_1' && currentGame.currentPhase !== 'MAIN1' && prepSteps < 5) {
-                    await currentGame.stepPhase();
+                    const res = await currentGame.stepPhase();
+                    if (res && res.logs && res.logs.length > 0) {
+                        appendArenaLogs(res.logs);
+                    }
                     prepSteps++;
                 }
             } else {
@@ -6598,15 +6966,23 @@
             if (activeP) {
                 activeP.landPlayedThisTurn = false;
                 activeP.landsPlayedCount = 0;
-                // Starting player draws for Turn 1 in multiplayer Commander
-                if (typeof activeP.draw === 'function' && !currentGame._turnDrewPlayer0 && activeP.id === player.id) {
-                    currentGame._turnDrewPlayer0 = true;
-                    const drawn = activeP.draw(1);
-                    if (drawn && drawn.length > 0) {
-                        appendArenaLogs([{
-                            type: 'DRAW',
-                            message: `📜 **${activeP.name}** drew **${drawn[0].name}** for Turn 1.`
-                        }]);
+                // Starting player draws for Turn 1 in multiplayer Commander (strictly once via drawForTurnPlayer0)
+                if (activeP.id === player.id) {
+                    if (typeof currentGame.drawForTurnPlayer0 === 'function') {
+                        const logsBefore = currentGame.logs ? currentGame.logs.length : 0;
+                        currentGame.drawForTurnPlayer0();
+                        if (currentGame.logs && currentGame.logs.length > logsBefore) {
+                            appendArenaLogs(currentGame.logs.slice(logsBefore));
+                        }
+                    } else if (typeof activeP.draw === 'function' && !currentGame._turnDrewPlayer0) {
+                        currentGame._turnDrewPlayer0 = true;
+                        const drawn = activeP.draw(1);
+                        if (drawn && drawn.length > 0) {
+                            appendArenaLogs([{
+                                type: 'DRAW',
+                                message: `📜 **${activeP.name}** drew **${drawn[0].name}** for Turn 1.`
+                            }]);
+                        }
                     }
                 }
             }
@@ -6687,6 +7063,20 @@
 
     window.stepArenaPhase = async function () {
         if (!currentGame || currentGame.isGameOver) return;
+        const activeP = currentGame.getActivePlayer();
+        const player = currentGame.players ? currentGame.players[0] : null;
+        if (activeP && player && activeP.id === player.id) {
+            const ph = currentGame.currentPhase;
+            if (ph === 'END_STEP' || ph === 'END_OF_TURN' || ph === 'CLEANUP') {
+                const maxHandSize = getPlayerMaxHandSize(player);
+                if (Array.isArray(player.hand) && player.hand.length > maxHandSize) {
+                    currentGame.currentPhase = 'CLEANUP';
+                    updateArenaDOM();
+                    window.openCleanupDiscardModal();
+                    return;
+                }
+            }
+        }
         const result = await currentGame.stepPhase();
         updateArenaDOM();
         if (result && result.logs && result.logs.length > 0) {

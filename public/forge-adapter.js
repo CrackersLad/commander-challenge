@@ -246,9 +246,30 @@
                                 const spend = Math.min(this.manaPool[col], remaining);
                                 this.manaPool[col] -= spend;
                                 remaining -= spend;
+                                // Also consume producedMana pips on tapped permanents so spent mana cannot be undone
+                                let toConsume = spend;
+                                if (Array.isArray(this.battlefield)) {
+                                    for (const perm of this.battlefield) {
+                                        if (toConsume <= 0) break;
+                                        if (perm && Array.isArray(perm.producedMana) && perm.producedMana.length > 0) {
+                                            for (let i = perm.producedMana.length - 1; i >= 0 && toConsume > 0; i--) {
+                                                if (perm.producedMana[i] === col) {
+                                                    perm.producedMana.splice(i, 1);
+                                                    toConsume--;
+                                                }
+                                            }
+                                            if (perm.producedMana.length === 0) {
+                                                perm.producedMana = null;
+                                            }
+                                        }
+                                    }
+                                }
                                 if (remaining <= 0) break;
                             }
                         }
+                    },
+                    tapMana(cost) {
+                        this.deductMana(cost);
                     },
                     getCardCost(card) {
                         return card.cmc !== undefined ? card.cmc : 0;
@@ -401,17 +422,74 @@
                         ),
                         manaPool: (isNewTurnOrActive && this.activePlayerIndex === idx) ? { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 } : (existing.manaPool || { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }),
 
+                        handLocked: Boolean(existing.handLocked),
+                        keptHandCards: existing.keptHandCards || null,
                         hand: (() => {
-                            if (pData.hand && Array.isArray(pData.hand)) {
-                                return pData.hand.map(c => enrichCard(c));
+                            // For human player (Seat 0), once opening hand is initialized/mulliganed, preserve JS authoritative hand
+                            // so Forge's internal AI controller never double-draws or silently auto-discards cards during Cleanup.
+                            if (idx === 0 && Array.isArray(existing.hand) && (existing.hand.length > 0 || existing.handLocked)) {
+                                return existing.hand;
                             }
                             if (idx === 0 && existing.keptHandCards && existing.keptHandCards.length > 0) {
                                 return existing.keptHandCards;
                             }
+                            if (pData.hand && Array.isArray(pData.hand)) {
+                                return pData.hand.map(c => enrichCard(c));
+                            }
                             return [];
                         })(),
                         commandZone: (pData.commandZone || []).map(c => enrichCard(c, true)),
-                        battlefield: (pData.battlefield || []).map(c => enrichCard(c)),
+                        battlefield: (() => {
+                            const incoming = (pData.battlefield || []).map(c => enrichCard(c));
+                            // Preserve human player's manual tap state, producedMana, and paidLifeCost during the same turn
+                            if (!isNewTurnOrActive && idx === 0 && Array.isArray(existing.battlefield) && existing.battlefield.length > 0) {
+                                const oldById = new Map();
+                                const unmatchedTappedByName = new Map();
+                                existing.battlefield.forEach(oldC => {
+                                    if (!oldC) return;
+                                    oldById.set(String(oldC.id), oldC);
+                                    if (oldC.tapped) {
+                                        const key = (oldC.name || '').toLowerCase();
+                                        if (!unmatchedTappedByName.has(key)) unmatchedTappedByName.set(key, []);
+                                        unmatchedTappedByName.get(key).push(oldC);
+                                    }
+                                });
+
+                                // Remove IDs that match directly from the fallback name queue
+                                incoming.forEach(c => {
+                                    const direct = oldById.get(String(c.id));
+                                    if (direct && direct.tapped) {
+                                        const key = (direct.name || '').toLowerCase();
+                                        const arr = unmatchedTappedByName.get(key);
+                                        if (arr) {
+                                            const i = arr.indexOf(direct);
+                                            if (i !== -1) arr.splice(i, 1);
+                                        }
+                                    }
+                                });
+
+                                return incoming.map(c => {
+                                    let oldC = oldById.get(String(c.id));
+                                    if (!oldC) {
+                                        const key = (c.name || '').toLowerCase();
+                                        const arr = unmatchedTappedByName.get(key);
+                                        if (arr && arr.length > 0) {
+                                            oldC = arr.shift();
+                                        }
+                                    }
+                                    if (oldC) {
+                                        const isLandOrRock = Boolean(oldC.isLand || oldC.isManaRock || c.isLand || c.isManaRock);
+                                        c.tapped = isLandOrRock ? Boolean(oldC.tapped) : Boolean(oldC.tapped || c.tapped);
+                                        c.producedMana = (c.tapped && Array.isArray(oldC.producedMana) && oldC.producedMana.length > 0)
+                                            ? [...oldC.producedMana]
+                                            : null;
+                                        c.paidLifeCost = oldC.paidLifeCost || null;
+                                    }
+                                    return c;
+                                });
+                            }
+                            return incoming;
+                        })(),
                         graveyard: (pData.graveyard || []).map(c => enrichCard(c)),
                         library: { length: pData.libraryCount || 53 },
                         libraryCards: existing.libraryCards || (() => {
@@ -460,9 +538,29 @@
                                     const spend = Math.min(this.manaPool[col], remaining);
                                     this.manaPool[col] -= spend;
                                     remaining -= spend;
+                                    let toConsume = spend;
+                                    if (Array.isArray(this.battlefield)) {
+                                        for (const perm of this.battlefield) {
+                                            if (toConsume <= 0) break;
+                                            if (perm && Array.isArray(perm.producedMana) && perm.producedMana.length > 0) {
+                                                for (let i = perm.producedMana.length - 1; i >= 0 && toConsume > 0; i--) {
+                                                    if (perm.producedMana[i] === col) {
+                                                        perm.producedMana.splice(i, 1);
+                                                        toConsume--;
+                                                    }
+                                                }
+                                                if (perm.producedMana.length === 0) {
+                                                    perm.producedMana = null;
+                                                }
+                                            }
+                                        }
+                                    }
                                     if (remaining <= 0) break;
                                 }
                             }
+                        },
+                        tapMana(cost) {
+                            this.deductMana(cost);
                         },
                         getCardCost(card) {
                             return card.cmc !== undefined ? card.cmc : 0;
@@ -540,6 +638,57 @@
             return this.players[this.activePlayerIndex] || this.players[0];
         }
 
+        drawForTurnPlayer0() {
+            const p1 = this.players[0];
+            if (!p1 || this.activePlayerIndex !== 0) return [];
+            const turnKey = Number(this.turn) || 1;
+            if (this._lastDrawnTurnPlayer0 === turnKey) {
+                return [];
+            }
+            this._lastDrawnTurnPlayer0 = turnKey;
+            this._turnDrewPlayer0 = true;
+            const drawn = typeof p1.draw === 'function' ? p1.draw(1) : [];
+            if (drawn && drawn.length > 0) {
+                this.logs.push({
+                    type: 'DRAW',
+                    message: `📜 **${p1.name}** drew **${drawn[0].name}** for Turn ${turnKey} (Draw Step).`
+                });
+            }
+            return drawn;
+        }
+
+        discardCardsFromHand(cardIds = []) {
+            const p1 = this.players[0];
+            if (!p1 || !Array.isArray(p1.hand) || !Array.isArray(cardIds) || cardIds.length === 0) return [];
+            const idSet = new Set(cardIds.map(id => String(id)));
+            const discarded = [];
+            p1.hand = p1.hand.filter(c => {
+                if (c && idSet.has(String(c.id))) {
+                    discarded.push(c);
+                    return false;
+                }
+                return true;
+            });
+            if (Array.isArray(p1.keptHandCards)) {
+                p1.keptHandCards = p1.keptHandCards.filter(c => !c || !idSet.has(String(c.id)));
+            }
+            if (!Array.isArray(p1.graveyard)) p1.graveyard = [];
+            discarded.forEach(c => {
+                if (!p1.graveyard.some(g => String(g.id) === String(c.id))) {
+                    p1.graveyard.push(c);
+                }
+            });
+            p1.handCount = p1.hand.length;
+            p1.graveyardCount = p1.graveyard.length;
+            if (discarded.length > 0) {
+                this.logs.push({
+                    type: 'CLEANUP_DISCARD',
+                    message: `🗑️ **${p1.name}** discarded **${discarded.map(c => c.name).join(', ')}** during Cleanup Step (MTG Rule 514.1).`
+                });
+            }
+            return discarded;
+        }
+
         async stepPhase() {
             if (this.isBusy || this.isGameOver) return { logs: [] };
             this.isBusy = true;
@@ -590,24 +739,13 @@
                     this.currentPhase = nextPhase;
                 }
 
-                // If active player is Player 0 and passing through DRAW phase, handle turn draw (Rule 504.1)
+                // If active player is Player 0 and passing through DRAW phase (or entering MAIN_1), handle turn draw strictly ONCE per turn (Rule 504.1)
                 const p1 = this.players[0];
                 if (p1 && this.activePlayerIndex === 0) {
-                    const isDrawStep = this.currentPhase === 'DRAW' || prevPhase === 'DRAW' || (prevPhase === 'UPKEEP' && (this.currentPhase === 'MAIN_1' || this.currentPhase === 'MAIN1'));
-                    if (isDrawStep && !this._turnDrewPlayer0) {
-                        this._turnDrewPlayer0 = true;
-                        const drawn = typeof p1.draw === 'function' ? p1.draw(1) : [];
-                        if (drawn && drawn.length > 0) {
-                            this.logs.push({
-                                type: 'DRAW',
-                                message: `📜 **${p1.name}** drew **${drawn[0].name}** for Turn ${this.turn}.`
-                            });
-                        } else {
-                            this.logs.push({
-                                type: 'DRAW',
-                                message: `📜 **${p1.name}** drew for Turn ${this.turn}.`
-                            });
-                        }
+                    const isDrawStep = this.currentPhase === 'DRAW' || prevPhase === 'DRAW' ||
+                        ((prevPhase === 'UPKEEP' || prevPhase === 'UNTAP') && (this.currentPhase === 'MAIN_1' || this.currentPhase === 'MAIN1'));
+                    if (isDrawStep) {
+                        this.drawForTurnPlayer0();
                     }
                 }
                 if (this.turn !== prevTurn) {
@@ -739,19 +877,12 @@
                 }
 
                 if (this.activePlayerIndex === 0) {
+                    // Ensure all permanents untap on Player 0's new turn and draw strictly 1 card for the turn
                     const p1 = this.players[0];
-                    if (p1 && !this._turnDrewPlayer0) {
-                        this._turnDrewPlayer0 = true;
-                        if (typeof p1.draw === 'function') {
-                            const drawn = p1.draw(1);
-                            if (drawn && drawn.length > 0) {
-                                this.logs.push({
-                                    type: 'DRAW',
-                                    message: `📜 **${p1.name}** drew **${drawn[0].name}** for Turn ${this.turn}.`
-                                });
-                            }
-                        }
+                    if (p1 && typeof p1.untapAll === 'function') {
+                        p1.untapAll();
                     }
+                    this.drawForTurnPlayer0();
                 } else {
                     this._turnDrewPlayer0 = false;
                     // If AI player in fallback simulation mode, simulate their turn actions with logs
@@ -818,8 +949,8 @@
 
         async playCard(cardId) {
             try {
-                const p = this.players[0];
-                const card = p && p.hand ? p.hand.find(c => String(c.id) === String(cardId) || c.name === String(cardId)) : null;
+                const pBefore = this.players[0];
+                const card = pBefore && pBefore.hand ? pBefore.hand.find(c => String(c.id) === String(cardId) || c.name === String(cardId)) : null;
                 const isLand = card ? (card.isLand || (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(card))) : false;
                 if (isLand && card) {
                     card.isLand = true;
@@ -828,6 +959,16 @@
                     if (!card.typeLine || !card.typeLine.toLowerCase().includes('land')) card.typeLine = 'Land';
                 }
                 const cost = card && !isLand ? (card.cmc || 0) : 0;
+                const cardNameLower = (card && card.name ? card.name : '').toLowerCase();
+                const sameNameOnFieldBefore = pBefore && Array.isArray(pBefore.battlefield) && cardNameLower
+                    ? pBefore.battlefield.filter(c => (c.name || '').toLowerCase() === cardNameLower).length
+                    : 0;
+
+                // Deduct mana BEFORE bridge call so updateFromRawJson preserves spent mana and tapped lands
+                if (pBefore && cost > 0 && typeof pBefore.deductMana === 'function') {
+                    pBefore.deductMana(cost);
+                }
+
                 const numId = parseInt(cardId, 10);
                 const logsBefore = this.logs.length;
                 try {
@@ -854,15 +995,54 @@
                     if (activePlayer.keptHandCards) {
                         activePlayer.keptHandCards = activePlayer.keptHandCards.filter(c => String(c.id) !== String(card.id));
                     }
-                    if (!activePlayer.battlefield.some(c => String(c.id) === String(card.id))) {
-                        activePlayer.battlefield.push(card);
+
+                    const typeLower = (card.typeLine || '').toLowerCase();
+                    const isInstantOrSorcery = !isLand && Boolean(card.isInstant || card.isSorcery || typeLower.includes('instant') || typeLower.includes('sorcery'));
+
+                    if (isInstantOrSorcery) {
+                        if (!Array.isArray(activePlayer.graveyard)) activePlayer.graveyard = [];
+                        if (!activePlayer.graveyard.some(c => String(c.id) === String(card.id))) {
+                            activePlayer.graveyard.push(card);
+                        }
+                        activePlayer.graveyardCount = activePlayer.graveyard.length;
+                    } else {
+                        const sameNameOnFieldAfter = Array.isArray(activePlayer.battlefield) && cardNameLower
+                            ? activePlayer.battlefield.filter(c => (c.name || '').toLowerCase() === cardNameLower).length
+                            : 0;
+                        const addedByBridge = sameNameOnFieldAfter > sameNameOnFieldBefore;
+                        if (!addedByBridge && !activePlayer.battlefield.some(c => String(c.id) === String(card.id))) {
+                            activePlayer.battlefield.push(card);
+                        }
                     }
+
+                    // Handle card draw effects on cast spells or ETB permanents so authoritative JS hand draws from libraryCards
+                    const oracleLower = (card.oracleText || '').toLowerCase();
+                    if (oracleLower && typeof activePlayer.draw === 'function') {
+                        const isDirectSpellDraw = isInstantOrSorcery && /draw\s+(a|one|two|three|four|\d+)\s+card/i.test(oracleLower);
+                        const isEtbDraw = !isInstantOrSorcery && /when\s+(?:this|~|it|[a-z\s,']+)\s+enters[\s\S]*?draw\s+(a|one|two|three|four|\d+)\s+card/i.test(oracleLower);
+                        if (isDirectSpellDraw || isEtbDraw) {
+                            const m = oracleLower.match(/draw\s+(a|one|two|three|four|\d+)\s+card/i);
+                            if (m) {
+                                let drawNum = 1;
+                                const tok = m[1].toLowerCase();
+                                if (tok === 'two' || tok === '2') drawNum = 2;
+                                else if (tok === 'three' || tok === '3') drawNum = 3;
+                                else if (tok === 'four' || tok === '4') drawNum = 4;
+                                else if (!isNaN(parseInt(tok, 10))) drawNum = parseInt(tok, 10);
+                                const drawnCards = activePlayer.draw(drawNum);
+                                if (drawnCards && drawnCards.length > 0) {
+                                    this.logs.push({
+                                        type: 'DRAW',
+                                        message: `📜 **${activePlayer.name}** drew **${drawnCards.length}** card(s) from **${card.name}** (${drawnCards.map(d => d.name).join(', ')}).`
+                                    });
+                                }
+                            }
+                        }
+                    }
+
                     if (isLand) {
                         activePlayer.landPlayedThisTurn = true;
                         activePlayer.landsPlayedCount = (activePlayer.landsPlayedCount || 0) + 1;
-                    }
-                    if (cost > 0 && typeof activePlayer.deductMana === 'function') {
-                        activePlayer.deductMana(cost);
                     }
                 }
 
@@ -888,12 +1068,22 @@
             }
         }
 
-        async executeFetchLand(cardIdOrName, chosenLandName) {
+        async executeFetchLand(cardIdOrName, chosenLandName, fetchMeta = null) {
             try {
                 const logsBefore = this.logs.length;
-                const p = this.players[0];
-                const card = p && p.battlefield ? p.battlefield.find(c => String(c.id) === String(cardIdOrName) || c.name === String(cardIdOrName)) : null;
+                const pBefore = this.players[0];
+                const card = pBefore && pBefore.battlefield
+                    ? pBefore.battlefield.find(c => String(c.id) === String(cardIdOrName) || c.name === String(cardIdOrName))
+                    : null;
+                const cardName = card ? card.name : String(cardIdOrName);
                 const numId = parseInt(cardIdOrName, 10);
+                const fetchCount = (fetchMeta && fetchMeta.fetchCount && fetchMeta.fetchCount > 1) ? fetchMeta.fetchCount : 1;
+
+                // Track how many copies of chosenLandName were already on the battlefield before fetching
+                const chosenLower = String(chosenLandName || '').toLowerCase();
+                const chosenOnFieldBefore = pBefore && Array.isArray(pBefore.battlefield)
+                    ? pBefore.battlefield.filter(c => (c.name || '').toLowerCase() === chosenLower).length
+                    : 0;
 
                 if (this.bridge && typeof this.bridge.fetchLand === 'function') {
                     try {
@@ -901,7 +1091,7 @@
                         if (!isNaN(numId)) {
                             resJson = await this.bridge.fetchLand(numId, chosenLandName);
                         } else {
-                            resJson = await this.bridge.fetchLand(String(card ? card.name : cardIdOrName), chosenLandName);
+                            resJson = await this.bridge.fetchLand(cardName, chosenLandName);
                         }
                         if (resJson) this.updateFromRawJson(resJson);
                     } catch (eBridge) {
@@ -909,10 +1099,11 @@
                     }
                 }
 
-                // Resilient local state sync
+                // Resilient local state sync on current this.players[0]
+                const p = this.players[0];
                 if (p) {
                     if (p.battlefield) {
-                        const idx = p.battlefield.findIndex(c => String(c.id) === String(cardIdOrName) || (card && c.id === card.id));
+                        const idx = p.battlefield.findIndex(c => String(c.id) === String(cardIdOrName) || (card && String(c.id) === String(card.id)));
                         if (idx !== -1) {
                             const [sacrificed] = p.battlefield.splice(idx, 1);
                             if (!p.graveyard) p.graveyard = [];
@@ -924,32 +1115,55 @@
                     }
 
                     const lib = p.libraryCards || [];
-                    const foundIdx = lib.findIndex(c => {
-                        const n = (c.name || '').toLowerCase();
-                        return n === chosenLandName.toLowerCase() || n.includes(chosenLandName.toLowerCase());
-                    });
+                    const nameLower = cardName.toLowerCase();
+                    const totalLandsNow = p.battlefield ? p.battlefield.filter(c => c.isLand).length : 0;
+                    const isUntapped = nameLower.includes('prismatic vista') ||
+                        (nameLower.includes('fabled passage') && totalLandsNow >= 3);
 
-                    let fetchedLand = null;
-                    if (foundIdx !== -1) {
-                        fetchedLand = lib.splice(foundIdx, 1)[0];
-                    } else {
-                        fetchedLand = enrichCard({
-                            name: chosenLandName,
-                            isLand: true,
-                            typeLine: `Basic Land — ${chosenLandName}`
+                    const chosenOnFieldAfter = p.battlefield
+                        ? p.battlefield.filter(c => (c.name || '').toLowerCase() === chosenLower).length
+                        : 0;
+                    const addedByBridge = Math.max(0, chosenOnFieldAfter - chosenOnFieldBefore);
+
+                    // Remove fetched card(s) from libraryCards so deck counts stay accurate
+                    const totalToFetch = Math.max(1, fetchCount);
+                    for (let i = 0; i < totalToFetch; i++) {
+                        const foundIdx = lib.findIndex(c => {
+                            const n = (c.name || '').toLowerCase();
+                            return n === chosenLower || n.includes(chosenLower);
                         });
+                        let fetchedLand = null;
+                        if (foundIdx !== -1) {
+                            fetchedLand = lib.splice(foundIdx, 1)[0];
+                        } else if (i === 0 && addedByBridge === 0) {
+                            fetchedLand = enrichCard({
+                                name: chosenLandName,
+                                isLand: true,
+                                typeLine: `Basic Land — ${chosenLandName}`
+                            });
+                        }
+
+                        // Only push onto p.battlefield if the Java bridge didn't already add this copy
+                        if (i >= addedByBridge && fetchedLand) {
+                            fetchedLand.tapped = !isUntapped;
+                            fetchedLand.isLand = true;
+                            if (!p.battlefield.some(c => String(c.id) === String(fetchedLand.id))) {
+                                p.battlefield.push(fetchedLand);
+                            }
+                        }
                     }
 
-                    if (fetchedLand) {
-                        const nameLower = (card ? card.name : '').toLowerCase();
-                        const isUntapped = nameLower.includes('prismatic vista') || (nameLower.includes('fabled passage') && p.battlefield.filter(c => c.isLand).length >= 3);
-                        fetchedLand.tapped = !isUntapped;
-                        fetchedLand.isLand = true;
-                        if (!p.battlefield.some(c => String(c.id) === String(fetchedLand.id))) {
-                            p.battlefield.push(fetchedLand);
+                    // Ensure any newly fetched land added by the bridge has the right tapped status
+                    if (addedByBridge > 0 && p.battlefield) {
+                        const matchingLands = p.battlefield.filter(c => (c.name || '').toLowerCase() === chosenLower);
+                        const newestLand = matchingLands[matchingLands.length - 1];
+                        if (newestLand) {
+                            newestLand.tapped = !isUntapped;
+                            newestLand.isLand = true;
                         }
-                        p.libraryCount = lib.length;
                     }
+
+                    p.libraryCount = lib.length;
                 }
 
                 const newLogs = this.logs.slice(logsBefore);
@@ -962,15 +1176,15 @@
 
         async castCommander() {
             try {
-                const p = this.players[0];
-                const cmdr = p ? p.getCommander() : null;
-                const cost = cmdr ? ((cmdr.cmc || 0) + (p.commanderTax || 0)) : 0;
+                const pBefore = this.players[0];
+                const cmdr = pBefore ? pBefore.getCommander() : null;
+                const cost = cmdr ? ((cmdr.cmc || 0) + (pBefore.commanderTax || 0)) : 0;
+                if (pBefore && cost > 0 && typeof pBefore.deductMana === 'function') {
+                    pBefore.deductMana(cost);
+                }
                 const logsBefore = this.logs.length;
                 const newJson = await this.bridge.castCommander();
                 this.updateFromRawJson(newJson);
-                if (p && cost > 0 && typeof p.deductMana === 'function') {
-                    p.deductMana(cost);
-                }
                 return { success: true, logs: this.logs.slice(logsBefore) };
             } catch (e) {
                 console.error("castCommander error:", e);
