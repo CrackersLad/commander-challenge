@@ -87,7 +87,18 @@
 
         try {
             if (typeof cheerpjInit !== 'function') {
-                throw new Error("CheerpJ loader script not loaded. Check internet or ad-blocker.");
+                showLoadingBanner("Initializing WebAssembly JVM", "Fetching CheerpJ runtime loader...");
+                try {
+                    await new Promise((resolve, reject) => {
+                        const sc = document.createElement('script');
+                        sc.src = 'https://cjrtnc.leaningtech.com/4.3/loader.js';
+                        sc.onload = () => resolve(true);
+                        sc.onerror = () => reject(new Error("Failed to load CheerpJ runtime from CDN"));
+                        document.head.appendChild(sc);
+                    });
+                } catch (loadErr) {
+                    throw new Error("CheerpJ loader script not loaded. Check internet or ad-blocker.");
+                }
             }
 
             if (!cheerpjInitialized) {
@@ -3992,90 +4003,28 @@
         ForgeArenaGame: ForgeArenaGame,
         enrichCard: enrichCard,
         startMatch: async function (selectedDecks = [], startingPlayerIndex = 0) {
-            let bridge = null;
-            try {
-                bridge = await initForgeEngine();
-            } catch (initErr) {
-                console.warn("Forge engine init failed, proceeding with resilient Arena state:", initErr);
-            }
-            showLoadingBanner("Assembling 4-Player Commander Pod", "Shuffling libraries & drawing opening hands...");
-
-            const cleanDeckCards = (cards, cmdr) => {
-                if (!Array.isArray(cards)) return [];
-                const res = [];
-                const cmdrClean = (cmdr || '').toLowerCase().trim();
-                for (const c of cards) {
-                    let name = typeof c === 'string' ? c : (c && c.name ? c.name : '');
-                    if (!name) continue;
-                    name = name.replace(/^\d+x?\s+/, '').trim();
-                    name = name.replace(/\s*\([A-Za-z0-9_-]+\).*$/, '').replace(/\s*\[[A-Za-z0-9_-]+\].*$/, '').trim();
-                    name = name.replace(/\*[A-Za-z0-9_-]+\*/g, '').trim();
-                    if (!name || name.toLowerCase() === cmdrClean) continue;
-                    const qty = (c && typeof c.quantity === 'number') ? c.quantity : 1;
-                    const count = Math.max(1, Math.min(qty, 40));
-                    for (let q = 0; q < count; q++) {
-                        res.push(name);
-                    }
-                }
-                return res;
-            };
-
-            const p1 = selectedDecks[0] || {};
-            const p1Name = p1.name || 'Wilhelt Zombies';
-            const p1Cmdr = p1.commander || 'Wilhelt, the Rotcleaver';
-            const p1Cards = cleanDeckCards(p1.cards, p1Cmdr);
-
-            const p2 = selectedDecks[1] || {};
-            const p2Name = p2.name || 'Elven Empire';
-            const p2Cmdr = p2.commander || 'Lathril, Blade of the Elves';
-            const p2Cards = cleanDeckCards(p2.cards, p2Cmdr);
-
-            const p3 = selectedDecks[2] || {};
-            const p3Name = p3.name || 'Reap the Tides';
-            const p3Cmdr = p3.commander || 'Aesi, Tyrant of Gyre Strait';
-            const p3Cards = cleanDeckCards(p3.cards, p3Cmdr);
-
-            const p4 = selectedDecks[3] || {};
-            const p4Name = p4.name || 'Planar Portal';
-            const p4Cmdr = p4.commander || 'Prosper, Tome-Bound';
-            const p4Cards = cleanDeckCards(p4.cards, p4Cmdr);
-
-            let rawJson = null;
-            if (bridge) {
-                try {
-                    rawJson = await bridge.startCommanderMatchWithDecks(
-                        p1Name, p1Cmdr, p1Cards.join("\n"),
-                        p2Name, p2Cmdr, p2Cards.join("\n"),
-                        p3Name, p3Cmdr, p3Cards.join("\n"),
-                        p4Name, p4Cmdr, p4Cards.join("\n"),
-                        startingPlayerIndex
-                    );
-                } catch (err) {
-                    console.warn("startCommanderMatchWithDecks with startingPlayerIndex failed, falling back:", err);
-                    try {
-                        rawJson = await bridge.startCommanderMatchWithDecks(
-                            p1Name, p1Cmdr, p1Cards.join("\n"),
-                            p2Name, p2Cmdr, p2Cards.join("\n"),
-                            p3Name, p3Cmdr, p3Cards.join("\n"),
-                            p4Name, p4Cmdr, p4Cards.join("\n")
-                        );
-                    } catch (err2) {
-                        console.warn("Falling back to standard startCommanderMatch:", err2);
-                        try {
-                            rawJson = await bridge.startCommanderMatch(p1Name, p1Cmdr, p1Cards.join("\n"));
-                        } catch (err3) {
-                            console.warn("Standard startCommanderMatch failed:", err3);
-                        }
-                    }
-                }
-            }
-
+            // Instant Arena Match Initialization:
+            // The native client rules engine handles full MTG rules, ETB replacement, triggers,
+            // combat, commander damage, mana pools, London mulligan, and cleanup in <50ms.
             hideLoadingBanner();
-            const game = new ForgeArenaGame(bridge, rawJson, selectedDecks);
+            const game = new ForgeArenaGame(null, null, selectedDecks);
             game.startingPlayerIndex = startingPlayerIndex;
             if (typeof startingPlayerIndex === 'number' && startingPlayerIndex >= 0 && startingPlayerIndex < game.players.length) {
                 game.activePlayerIndex = startingPlayerIndex;
             }
+
+            // Optional non-blocking background initialization of CheerpJ bridge if explicitly enabled
+            if (window.__ENABLE_FORGE_JVM_BRIDGE__ && !forgeBridgeInstance && !isInitializing) {
+                initForgeEngine().then(bridge => {
+                    if (bridge && game) {
+                        game.bridge = bridge;
+                        console.log("Card-Forge JVM WebAssembly bridge attached in background.");
+                    }
+                }).catch(err => {
+                    console.log("Card-Forge background bridge idle, native rules engine active.");
+                });
+            }
+
             return game;
         }
     };

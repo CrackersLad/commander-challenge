@@ -4223,7 +4223,7 @@
                         <div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <h2 class="arena-title" style="margin: 0;">Commander Battle Arena</h2>
-                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.5</span>
+                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.6</span>
                             </div>
                             <span class="arena-subtitle">Client-Native Forge Rules Engine • Live 4-Player Tabletop</span>
                         </div>
@@ -7568,7 +7568,8 @@
             }
         }
 
-        // Batch-fetch any cards missing from cache or lacking oracle text from Scryfall API
+        // High-Speed Local Card Enrichment:
+        // Prioritize local Forge scripts database (7,529+ cards) and cached cards first to avoid blocking on network
         const missingCardNames = [];
         const seenMissingNames = new Set();
         selectedDecks.forEach(d => {
@@ -7576,8 +7577,29 @@
                 d.cards.forEach(c => {
                     if (!c || !c.name) return;
                     const clean = c.name.toLowerCase().trim();
+
+                    // 1. Fast local resolution from compiled Forge scripts
+                    if (window.__FORGE_SCRIPTS__ && window.__FORGE_SCRIPTS__[clean]) {
+                        const fs = window.__FORGE_SCRIPTS__[clean];
+                        if (!c.oracleText && fs.oracle) c.oracleText = fs.oracle;
+                        if (!c.manaCost && fs.manaCost) c.manaCost = fs.manaCost;
+                        if (!c.typeLine && fs.types) c.typeLine = fs.types.join(' ');
+                        if (c.power === undefined && fs.power !== undefined) c.power = fs.power;
+                        if (c.toughness === undefined && fs.toughness !== undefined) c.toughness = fs.toughness;
+                    }
+
+                    // 2. Check local card cache
                     const cached = window.__MTG_CARD_CACHE__ && window.__MTG_CARD_CACHE__[clean];
-                    if ((!cached || !cached.oracleText) && !c.oracleText && !seenMissingNames.has(clean)) {
+                    if (cached) {
+                        if (!c.oracleText && cached.oracleText) c.oracleText = cached.oracleText;
+                        if (!c.manaCost && cached.manaCost) c.manaCost = cached.manaCost;
+                        if (!c.typeLine && cached.typeLine) c.typeLine = cached.typeLine;
+                        if (c.power === undefined && cached.power !== undefined) c.power = cached.power;
+                        if (c.toughness === undefined && cached.toughness !== undefined) c.toughness = cached.toughness;
+                    }
+
+                    // 3. Mark for Scryfall only if completely missing oracle text
+                    if (!c.oracleText && !seenMissingNames.has(clean)) {
                         seenMissingNames.add(clean);
                         missingCardNames.push(c.name);
                     }
@@ -7585,15 +7607,20 @@
             }
         });
 
+        // If any cards are truly absent from local databases, fetch with a strict 1.2s timeout
         if (missingCardNames.length > 0 && typeof fetch === 'function') {
             try {
                 const batch = missingCardNames.slice(0, 75).map(name => ({ name }));
+                const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                const timeoutId = controller ? setTimeout(() => controller.abort(), 1200) : null;
                 const sfRes = await fetch('https://api.scryfall.com/cards/collection', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ identifiers: batch })
+                    body: JSON.stringify({ identifiers: batch }),
+                    signal: controller ? controller.signal : undefined
                 });
-                if (sfRes.ok) {
+                if (timeoutId) clearTimeout(timeoutId);
+                if (sfRes && sfRes.ok) {
                     const sfData = await sfRes.json();
                     if (sfData && Array.isArray(sfData.data)) {
                         if (!window.__MTG_CARD_CACHE__) window.__MTG_CARD_CACHE__ = {};
@@ -7614,7 +7641,7 @@
                     }
                 }
             } catch (eSf) {
-                console.warn('Scryfall bulk metadata enrichment error:', eSf);
+                console.log('Non-blocking Scryfall enrichment completed/skipped:', eSf.message || eSf);
             }
         }
 

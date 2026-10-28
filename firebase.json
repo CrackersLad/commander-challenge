@@ -26,6 +26,15 @@
         ]
       },
       {
+        "source": "**/forge-card-scripts*.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
         "source": "**/*.@(css|js|json|webp|png|jpg|mp3)",
         "headers": [
           {
