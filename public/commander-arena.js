@@ -50,6 +50,18 @@
         const oracle = (card.oracleText || '').trim();
         const typeLine = (card.typeLine || '').toLowerCase();
 
+        // 0. Treasure Tokens (Tap & Sacrifice this artifact: Add one mana of any color)
+        if (/treasure/i.test(name) || typeLine.includes('treasure')) {
+            return {
+                isMulti: true,
+                options: ['W', 'U', 'B', 'R', 'G'].map(c => ({
+                    colors: [c],
+                    cost: { sacrificeSelf: true },
+                    desc: `Sacrifice ${name}: Add {${c}}`
+                }))
+            };
+        }
+
         // 1. Basic Lands
         if (name === 'Plains' || (typeLine.includes('plains') && !typeLine.includes('swamp') && !typeLine.includes('island') && !typeLine.includes('mountain') && !typeLine.includes('forest') && !oracle)) {
             return { isMulti: false, options: [{ colors: ['W'], cost: null, desc: 'Add {W}' }] };
@@ -4537,6 +4549,30 @@
                     </div>
                 </div>
 
+                <!-- Interactive Spell & Ability Target Picker Modal -->
+                <div class="arena-ability-modal" id="arenaSpellTargetModal" style="display: none; z-index: 10007;">
+                    <div class="arena-ability-card" style="max-width: 620px; border: 1px solid rgba(168, 85, 247, 0.5); box-shadow: 0 20px 50px rgba(0,0,0,0.85), 0 0 30px rgba(168, 85, 247, 0.25);">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                <img id="spellTargetThumb" class="setup-seat-thumb" src="" alt="Card Art" style="width: 52px; height: 52px; border-radius: 8px; border: 1px solid #a855f7;" />
+                                <div>
+                                    <h3 id="spellTargetTitle" style="margin: 0; color: #fff; font-size: 1.15rem; font-weight: 800;">Choose Target</h3>
+                                    <div id="spellTargetSubtitle" style="font-size: 0.78rem; color: #c084fc; font-weight: 700; margin-top: 2px;">Select a legal target for this spell or ability</div>
+                                    <div id="spellTargetEffectDesc" style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;"></div>
+                                </div>
+                            </div>
+                            <button class="arena-btn" onclick="window.closeSpellTargetModal()">✕</button>
+                        </div>
+
+                        <div id="spellTargetOptionsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; padding: 4px;">
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+                            <button class="arena-btn" onclick="window.closeSpellTargetModal()">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Cleanup Step: Discard to Maximum Hand Size Modal (MTG Rule 514.1) -->
                 <div class="arena-ability-modal" id="arenaCleanupDiscardModal" style="display: none; z-index: 10006;">
                     <div class="arena-ability-card" style="max-width: 680px; border: 1px solid rgba(245, 158, 11, 0.5); box-shadow: 0 20px 50px rgba(0,0,0,0.85), 0 0 30px rgba(245, 158, 11, 0.2);">
@@ -5279,12 +5315,240 @@
     // USER ACTIONS & INTERACTIVE CONTROLS
     // ============================================================================
 
-    window.playCardFromHand = async function (cardId) {
+    let pendingSpellTargetContext = null;
+
+    function getCardTargetRequirement(card, abilityObj = null) {
+        if (!card) return null;
+        const nameLower = (card.name || '').toLowerCase();
+        const textLower = abilityObj
+            ? ((abilityObj.effectText || abilityObj.raw || '').toLowerCase())
+            : ((card.oracleText || '').toLowerCase());
+
+        if (abilityObj && abilityObj.type === 'EQUIP') {
+            return {
+                mode: 'FRIENDLY_CREATURE',
+                title: `Equip ${card.name}`,
+                subtitle: 'Choose a creature you control to attach this Equipment to:',
+                effectDesc: card.oracleText || ''
+            };
+        }
+
+        if (!abilityObj && (
+            nameLower === 'reanimate' ||
+            nameLower === 'zombify' ||
+            nameLower === 'dread return' ||
+            nameLower === 'victimize' ||
+            nameLower === 'animate dead' ||
+            nameLower === 'mortuary mire' ||
+            /return target creature card from (?:your|a) graveyard/i.test(textLower)
+        )) {
+            const anyGy = nameLower === 'reanimate' || nameLower === 'animate dead' || /from a graveyard/i.test(textLower);
+            return {
+                mode: anyGy ? 'ANY_GRAVEYARD_CREATURE' : 'OWN_GRAVEYARD_CREATURE',
+                title: `Target Graveyard Card — ${card.name}`,
+                subtitle: anyGy ? 'Choose a creature card from any graveyard:' : 'Choose a creature card from your graveyard:',
+                effectDesc: card.oracleText || ''
+            };
+        }
+
+        if (abilityObj && /return target creature card from your graveyard/i.test(textLower)) {
+            return {
+                mode: 'OWN_GRAVEYARD_CREATURE',
+                title: `Target Graveyard Creature — ${card.name}`,
+                subtitle: 'Choose a creature card in your graveyard to return to the battlefield:',
+                effectDesc: abilityObj.effectText || ''
+            };
+        }
+
+        if (
+            nameLower === 'swords to plowshares' ||
+            nameLower === 'path to exile' ||
+            nameLower === 'go for the throat' ||
+            nameLower === 'infernal grasp' ||
+            nameLower === 'murder' ||
+            nameLower === 'terminate' ||
+            nameLower === 'hurl through hell' ||
+            nameLower === 'overseer of the damned' ||
+            nameLower === 'ravenous chupacabra' ||
+            nameLower === 'eater of hope' ||
+            nameLower === 'dark salvation' ||
+            (!abilityObj && /destroy target (?:non[a-z-]+ )?creature|exile target creature/i.test(textLower))
+        ) {
+            return {
+                mode: 'OPPONENT_CREATURE',
+                title: `Choose Target Creature — ${card.name}`,
+                subtitle: 'Select an opponent\'s creature to target:',
+                effectDesc: abilityObj ? abilityObj.effectText : (card.oracleText || '')
+            };
+        }
+
+        if (nameLower === 'feed the swarm') {
+            return {
+                mode: 'OPPONENT_CREATURE_OR_ENCHANTMENT',
+                title: `Choose Target — ${card.name}`,
+                subtitle: 'Select target creature or enchantment an opponent controls:',
+                effectDesc: card.oracleText || ''
+            };
+        }
+
+        if (nameLower === 'reclamation sage' || /destroy target artifact or enchantment/i.test(textLower)) {
+            return {
+                mode: 'OPPONENT_ARTIFACT_OR_ENCHANTMENT',
+                title: `Choose Target — ${card.name}`,
+                subtitle: 'Select target artifact or enchantment an opponent controls:',
+                effectDesc: card.oracleText || ''
+            };
+        }
+
+        if (
+            nameLower === 'beast within' ||
+            nameLower === 'generous gift' ||
+            nameLower === 'chaos warp' ||
+            nameLower === 'meteor golem' ||
+            nameLower === 'cyclonic rift' ||
+            nameLower === 'putrefy' ||
+            nameLower === 'mortify' ||
+            nameLower === 'bedevil' ||
+            nameLower === 'abrupt decay' ||
+            nameLower === 'assassin\'s trophy' ||
+            nameLower === 'hero\'s downfall' ||
+            nameLower === 'dreadbore'
+        ) {
+            return {
+                mode: 'OPPONENT_PERMANENT',
+                title: `Choose Target Permanent — ${card.name}`,
+                subtitle: 'Select an opponent\'s permanent to target:',
+                effectDesc: card.oracleText || ''
+            };
+        }
+
+        return null;
+    }
+    window.getCardTargetRequirement = getCardTargetRequirement;
+
+    function getLegalTargetsForRequirement(req) {
+        if (!currentGame || !req) return [];
+        const p0 = currentGame.players[0];
+        const targets = [];
+
+        if (req.mode === 'FRIENDLY_CREATURE') {
+            (p0.battlefield || []).filter(c => c.isCreature).forEach(c => {
+                targets.push({
+                    cardId: c.id,
+                    playerIndex: 0,
+                    label: `${c.name} (${p0.getEffectivePower ? p0.getEffectivePower(c) : c.power}/${p0.getEffectiveToughness ? p0.getEffectiveToughness(c) : c.toughness})`,
+                    sublabel: `Your Creature • ${c.typeLine || 'Creature'}`,
+                    cardName: c.name
+                });
+            });
+            return targets;
+        }
+
+        if (req.mode === 'OWN_GRAVEYARD_CREATURE' || req.mode === 'ANY_GRAVEYARD_CREATURE') {
+            const pools = req.mode === 'ANY_GRAVEYARD_CREATURE' ? currentGame.players : [p0];
+            pools.forEach((pl, idx) => {
+                (pl.graveyard || []).filter(c => c.isCreature).forEach(c => {
+                    targets.push({
+                        cardId: c.id,
+                        playerIndex: idx,
+                        label: `${c.name} (${c.power || 0}/${c.toughness || 0})`,
+                        sublabel: `${pl.name}'s Graveyard • ${c.typeLine || 'Creature'}`,
+                        cardName: c.name
+                    });
+                });
+            });
+            return targets;
+        }
+
+        currentGame.players.forEach((pl, idx) => {
+            if (!pl || !pl.isAlive || idx === 0) return;
+            (pl.battlefield || []).forEach(c => {
+                let valid = false;
+                if (req.mode === 'OPPONENT_CREATURE') valid = Boolean(c.isCreature);
+                else if (req.mode === 'OPPONENT_CREATURE_OR_ENCHANTMENT') valid = Boolean(c.isCreature || c.isEnchantment);
+                else if (req.mode === 'OPPONENT_ARTIFACT_OR_ENCHANTMENT') valid = Boolean(c.isArtifact || c.isEnchantment);
+                else if (req.mode === 'OPPONENT_PERMANENT') valid = !c.isLand || /beast within|generous gift|chaos warp|assassin's trophy/i.test(req.title);
+                if (valid) {
+                    const stats = c.isCreature ? ` (${pl.getEffectivePower ? pl.getEffectivePower(c) : c.power}/${pl.getEffectiveToughness ? pl.getEffectiveToughness(c) : c.toughness})` : '';
+                    targets.push({
+                        cardId: c.id,
+                        playerIndex: idx,
+                        label: `${c.name}${stats}`,
+                        sublabel: `Controlled by ${pl.name} • ${c.typeLine || 'Permanent'}`,
+                        cardName: c.name
+                    });
+                }
+            });
+        });
+        return targets;
+    }
+
+    window.openSpellTargetModal = function (card, req, onSelectCallback) {
+        const targets = getLegalTargetsForRequirement(req);
+        if (targets.length === 0) {
+            // If no explicit targets on board (e.g. ETB creature cast onto empty opponent board), proceed without target
+            onSelectCallback(null);
+            return;
+        }
+        pendingSpellTargetContext = { card, req, targets, onSelectCallback };
+        const modal = document.getElementById('arenaSpellTargetModal');
+        const thumb = document.getElementById('spellTargetThumb');
+        const titleEl = document.getElementById('spellTargetTitle');
+        const subEl = document.getElementById('spellTargetSubtitle');
+        const descEl = document.getElementById('spellTargetEffectDesc');
+        const listEl = document.getElementById('spellTargetOptionsList');
+
+        if (!modal || !listEl) {
+            onSelectCallback(targets[0]);
+            return;
+        }
+
+        if (thumb) thumb.src = getCardArtCropUrl(card.name);
+        if (titleEl) titleEl.textContent = req.title || `Target for ${card.name}`;
+        if (subEl) subEl.textContent = req.subtitle || 'Select a target:';
+        if (descEl) descEl.textContent = req.effectDesc || '';
+
+        listEl.innerHTML = targets.map((t, i) => `
+            <div onclick="window.confirmSpellTargetSelection(${i})"
+                 style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 10px; cursor: pointer; transition: all 0.15s;"
+                 onmouseenter="this.style.borderColor='#c084fc'; this.style.background='rgba(88, 28, 135, 0.35)';"
+                 onmouseleave="this.style.borderColor='rgba(168, 85, 247, 0.4)'; this.style.background='rgba(30, 41, 59, 0.85)';">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="${getCardArtCropUrl(t.cardName)}" style="width: 42px; height: 42px; border-radius: 6px; object-fit: cover; border: 1px solid #64748b;" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
+                    <div>
+                        <div style="font-weight: 800; font-size: 0.92rem; color: #f8fafc;">🎯 ${escapeHtml(t.label)}</div>
+                        <div style="font-size: 0.74rem; color: #cbd5e1;">${escapeHtml(t.sublabel)}</div>
+                    </div>
+                </div>
+                <button class="arena-btn arena-btn-gold" style="font-size: 0.76rem; padding: 5px 12px;">Select Target</button>
+            </div>
+        `).join('');
+
+        modal.style.display = 'flex';
+    };
+
+    window.closeSpellTargetModal = function () {
+        const modal = document.getElementById('arenaSpellTargetModal');
+        if (modal) modal.style.display = 'none';
+        pendingSpellTargetContext = null;
+    };
+
+    window.confirmSpellTargetSelection = function (idx) {
+        if (!pendingSpellTargetContext) return;
+        const chosen = pendingSpellTargetContext.targets[idx] || null;
+        const cb = pendingSpellTargetContext.onSelectCallback;
+        window.closeSpellTargetModal();
+        if (typeof cb === 'function') {
+            cb(chosen);
+        }
+    };
+
+    window.playCardFromHand = async function (cardId, preselectedTarget = undefined) {
         if (!currentGame) return;
         const player = currentGame.players[0];
         const activePlayer = currentGame.getActivePlayer();
 
-        const card = player.hand.find(c => c.id === cardId);
+        const card = player.hand.find(c => c.id === cardId || String(c.id) === String(cardId));
         if (!card) return;
 
         const isLand = card.isLand || (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(card));
@@ -5333,6 +5597,23 @@
             }
         }
 
+        // Check if this spell or ETB permanent requires interactive target selection
+        if (preselectedTarget === undefined) {
+            const targetReq = getCardTargetRequirement(card);
+            if (targetReq) {
+                const legalTargets = getLegalTargetsForRequirement(targetReq);
+                if (legalTargets.length > 0) {
+                    window.openSpellTargetModal(card, targetReq, (chosenTarget) => {
+                        window.playCardFromHand(cardId, chosenTarget);
+                    });
+                    return;
+                } else if (card.isInstant || card.isSorcery) {
+                    alert(`Cannot cast ${card.name}: No legal targets on the battlefield or in graveyards!`);
+                    return;
+                }
+            }
+        }
+
         // Auto-pause bot runner if playing an instant during bot turn so user can observe the resolution
         if (activePlayer.id !== player.id && !isPaused) {
             window.toggleArenaPlayPause();
@@ -5354,9 +5635,9 @@
         const spellCost = !isLand ? player.getCardCost(card, currentGame) : 0;
         let res = null;
         if (currentGame.playCard) {
-            res = await currentGame.playCard(cardId);
+            res = await currentGame.playCard(cardId, { targetInfo: preselectedTarget || null });
         } else {
-            res = player.castCard(cardId, currentGame);
+            res = player.castCard(cardId, currentGame, { targetInfo: preselectedTarget || null });
             if (spellCost > 0 && typeof player.deductMana === 'function') {
                 player.deductMana(spellCost);
             }
@@ -5376,6 +5657,52 @@
         }
 
         if (res && res.logs) appendArenaLogs(res.logs);
+
+        // If this card is a ramp spell, ETB land-fetcher (Solemn Simulacrum, Farhaven Elf, Wood Elves, Springbloom Druid), or Tutor, open the interactive Library Search Modal!
+        const cNameLower = (card.name || '').toLowerCase();
+        const cOracleLower = (card.oracleText || '').toLowerCase();
+        const isRampOrFetchETB = !isLand && (
+            card.isRampSpell ||
+            /cultivate|kodama's reach|rampant growth|farseek|nature's lore|three visits|migration path|skyshroud claim|solemn simulacrum|farhaven elf|springbloom druid|wood elves/i.test(cNameLower) ||
+            (/search your library for a.*land card/i.test(cOracleLower) && !card.isArtifact)
+        );
+        const isTutor = !isLand && !isRampOrFetchETB && (
+            card.isTutorSpell ||
+            /demonic tutor|diabolic tutor|grim tutor|vampiric tutor|profane tutor/i.test(cNameLower)
+        );
+
+        if (isRampOrFetchETB) {
+            const isCultivateLike = /cultivate|kodama's reach/i.test(cNameLower);
+            const isTwoToField = /migration path|skyshroud claim/i.test(cNameLower);
+            const isUntappedRamp = /nature's lore|three visits|skyshroud claim/i.test(cNameLower);
+            window.openFetchLandModal(card.id, {
+                manaCostNum: 0,
+                lifeCostNum: 0,
+                fetchCount: (isCultivateLike || isTwoToField) ? 2 : 1,
+                toBattlefieldCount: isTwoToField ? 2 : 1,
+                toHandCount: isCultivateLike ? 1 : 0,
+                entersTapped: !isUntappedRamp,
+                isSpellSearch: true,
+                sourceName: card.name,
+                costText: '',
+                effectText: card.oracleText || ''
+            });
+        } else if (isTutor) {
+            window.openFetchLandModal(card.id, {
+                manaCostNum: 0,
+                lifeCostNum: 0,
+                fetchCount: 1,
+                toBattlefieldCount: 0,
+                toHandCount: 1,
+                isTutorToHand: true,
+                toTopOfLibrary: cNameLower.includes('vampiric tutor'),
+                isSpellSearch: true,
+                sourceName: card.name,
+                costText: '',
+                effectText: card.oracleText || ''
+            });
+        }
+
         updateArenaDOM();
     };
 
@@ -5472,6 +5799,7 @@
             if (opt.cost) {
                 if (opt.cost.life) costBadge = `<span class="mana-choice-cost-badge">Pay ${opt.cost.life} Life</span>`;
                 if (opt.cost.mana) costBadge = `<span class="mana-choice-cost-badge">Pay {${opt.cost.mana}} Mana</span>`;
+                if (opt.cost.sacrificeSelf) costBadge = `<span class="mana-choice-cost-badge">Sacrifice</span>`;
             }
             const pipsHtml = (opt.colors || []).map(col => `<span class="mana-pip mana-pip-${col.toLowerCase()}">${col}</span>`).join('');
 
@@ -5532,11 +5860,20 @@
                     message: `💎 **${player.name}** paid **{${option.cost.mana}} mana** to filter with **${card.name}**.`
                 }]);
             }
+            if (option.cost.sacrificeSelf) {
+                if (typeof player.sendToGraveyardOrCommandZone === 'function') {
+                    player.sendToGraveyardOrCommandZone(card, currentGame, false);
+                } else if (Array.isArray(player.battlefield)) {
+                    player.battlefield = player.battlefield.filter(c => String(c.id) !== String(card.id));
+                }
+            }
         }
 
         // 2. Tap card and add mana
         card.tapped = true;
-        card.producedMana = [...option.colors];
+        if (!option.cost || !option.cost.sacrificeSelf) {
+            card.producedMana = [...option.colors];
+        }
 
         if (!player.manaPool) {
             player.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
@@ -5550,7 +5887,7 @@
         const pipsStr = option.colors.map(c => `{${c}}`).join('');
         appendArenaLogs([{
             type: 'MANA_TAPPED',
-            message: `💎 **${player.name}** tapped **${card.name}** and added **${pipsStr}** to mana pool.`
+            message: `💎 **${player.name}** ${option.cost && option.cost.sacrificeSelf ? 'sacrificed' : 'tapped'} **${card.name}** and added **${pipsStr}** to mana pool.`
         }]);
 
         updateArenaDOM();
@@ -5626,11 +5963,16 @@
                     canPay = false;
                     disabledReason = `Need {${ab.manaCostNum}} mana (Have {${availMana}})`;
                 }
-                if (ab.type === 'LOYALTY' && ab.loyaltyDelta < 0) {
-                    const curLoyalty = card.loyalty !== undefined ? card.loyalty : 0;
-                    if (curLoyalty + ab.loyaltyDelta < 0) {
+                if (ab.type === 'LOYALTY') {
+                    if (card._loyaltyUsedThisTurn) {
                         canPay = false;
-                        disabledReason = `Not enough loyalty counters`;
+                        disabledReason = 'Loyalty ability already used this turn';
+                    } else if (ab.loyaltyDelta < 0) {
+                        const curLoyalty = card.loyalty !== undefined ? card.loyalty : 0;
+                        if (curLoyalty + ab.loyaltyDelta < 0) {
+                            canPay = false;
+                            disabledReason = `Not enough loyalty counters`;
+                        }
                     }
                 }
 
@@ -5664,15 +6006,15 @@
         currentCardAbilities = [];
     };
 
-    window.executeCardAbility = async function (abilityIndex) {
-        if (!currentGame || !currentAbilityCard || !currentCardAbilities[abilityIndex]) {
+    window.executeCardAbility = async function (abilityIndex, preselectedTarget = undefined, savedCardRef = null, savedAbRef = null) {
+        const card = savedCardRef || currentAbilityCard;
+        const ab = savedAbRef || (currentCardAbilities ? currentCardAbilities[abilityIndex] : null);
+        if (!currentGame || !card || !ab) {
             window.closeCardAbilityModal();
             return;
         }
 
         const player = currentGame.players[0];
-        const card = currentAbilityCard;
-        const ab = currentCardAbilities[abilityIndex];
 
         // 1. Validate requirements
         if (ab.requiresTap && card.tapped) {
@@ -5694,7 +6036,7 @@
         // Close modal immediately
         window.closeCardAbilityModal();
 
-        // Check if this is a fetchland/search library ability (e.g. Terramorphic Expanse, Evolving Wilds, Shire Terrace, Myriad Landscape, etc.)
+        // Check if this is a fetchland/search library ability (e.g. Terramorphic Expanse, Evolving Wilds, Shire Terrace, Myriad Landscape, Wayfarer's Bauble, etc.)
         const effectLower = (ab.effectText || '').toLowerCase();
         const costLower = (ab.costText || '').toLowerCase();
         const isFetchAbility = (ab.requiresSacrifice || costLower.includes('sacrifice')) &&
@@ -5704,7 +6046,7 @@
         if (isFetchAbility) {
             const lifeCostMatch = costLower.match(/pay\s+(\d+)\s+life/i);
             const lifeCostNum = lifeCostMatch ? (parseInt(lifeCostMatch[1], 10) || 0) : 0;
-            const fetchCount = /two\s+basic\s+land/i.test(effectLower) ? 2 : 1;
+            const fetchCount = /two\s+basic\s+land/i.test(effectLower) || /forest card and a basic plains/i.test(effectLower) ? 2 : 1;
             window.openFetchLandModal(card.id, {
                 manaCostNum: ab.manaCostNum || 0,
                 lifeCostNum,
@@ -5713,6 +6055,22 @@
                 effectText: ab.effectText || ''
             });
             return;
+        }
+
+        // Check if this ability requires interactive target selection (e.g. Equip, Liliana -3, Targeted removal)
+        if (preselectedTarget === undefined) {
+            const targetReq = getCardTargetRequirement(card, ab);
+            if (targetReq) {
+                const legalTargets = getLegalTargetsForRequirement(targetReq);
+                if (legalTargets.length === 0) {
+                    alert(`Cannot activate ${card.name}: No legal target available!`);
+                    return;
+                }
+                window.openSpellTargetModal(card, targetReq, (chosenTarget) => {
+                    window.executeCardAbility(abilityIndex, chosenTarget, card, ab);
+                });
+                return;
+            }
         }
 
         // Visual stack popup animation (MTG Stack Resolution)
@@ -5727,7 +6085,6 @@
 
         // Delegate to Forge Engine if active
         if (typeof currentGame.activateAbility === 'function') {
-            // Deduct mana and mark tapped BEFORE calling bridge so updateFromRawJson preserves paid state
             if (ab.manaCostNum > 0) {
                 if (typeof player.deductMana === 'function') player.deductMana(ab.manaCostNum);
                 else if (typeof player.tapMana === 'function') player.tapMana(ab.manaCostNum);
@@ -5735,7 +6092,11 @@
             if (ab.requiresTap) {
                 card.tapped = true;
             }
-            const res = await currentGame.activateAbility(card.id, abilityIndex);
+            const res = await currentGame.activateAbility(card.id, abilityIndex, {
+                isEquip: ab.type === 'EQUIP',
+                targetInfo: preselectedTarget || null,
+                abilityObj: ab
+            });
             if (res && res.logs && res.logs.length > 0) {
                 appendArenaLogs(res.logs);
             }
@@ -5756,167 +6117,13 @@
                 card.loyalty = (card.loyalty !== undefined ? card.loyalty : 4) + ab.loyaltyDelta;
             }
 
-            const effectLower = (ab.effectText || '').toLowerCase();
-            const logs = [];
-
-            logs.push({
+            const logs = [{
                 type: 'ABILITY_ACTIVATED',
                 message: `⚡ **${player.name}** activated ability of **${card.name}** [${ab.costText}]: *${ab.effectText}*`
-            });
-
-            // Effect A: Card Draw
-            const drawMatch = effectLower.match(/draw\s+(\d+|a|two|three)\s+card/i);
-            if (drawMatch) {
-                let num = 1;
-                if (drawMatch[1] === 'two' || drawMatch[1] === '2') num = 2;
-                else if (drawMatch[1] === 'three' || drawMatch[1] === '3') num = 3;
-                else if (!isNaN(parseInt(drawMatch[1], 10))) num = parseInt(drawMatch[1], 10);
-
-                const drawn = player.draw(num);
-                logs.push({
-                    type: 'DRAW',
-                    message: `📜 **${player.name}** drew **${drawn.length}** card(s).`
-                });
-            }
-
-            // Effect B: Life gain / loss
-            const lifeGainMatch = effectLower.match(/gain\s+(\d+)\s+life/i);
-            if (lifeGainMatch) {
-                const lifeAmt = parseInt(lifeGainMatch[1], 10) || 1;
-                player.life += lifeAmt;
-                logs.push({
-                    type: 'LIFE_GAIN',
-                    message: `❤️ **${player.name}** gained **${lifeAmt}** life (Total: ${player.life}).`
-                });
-            }
-            const lifeDrainMatch = effectLower.match(/each opponent loses\s+(\d+)\s+life/i);
-            if (lifeDrainMatch) {
-                const drainAmt = parseInt(lifeDrainMatch[1], 10) || 1;
-                currentGame.players.slice(1).forEach(opp => {
-                    if (opp.isAlive) opp.life = Math.max(0, opp.life - drainAmt);
-                });
-                logs.push({
-                    type: 'DAMAGE',
-                    message: `💥 Each opponent lost **${drainAmt}** life!`
-                });
-            }
-
-            // Effect C: +1/+1 counters
-            if (effectLower.includes('+1/+1 counter')) {
-                if (Array.isArray(card.counters)) {
-                    let entry = card.counters.find(c => c.type === '+1/+1' || c.type === 'P1P1');
-                    if (entry) entry.count = (entry.count || 0) + 1;
-                    else card.counters.push({ type: '+1/+1', count: 1 });
-                } else {
-                    if (!card.counters) card.counters = {};
-                    card.counters['+1/+1'] = (card.counters['+1/+1'] || 0) + 1;
-                }
-                card.power = (parseInt(card.power, 10) || 0) + 1;
-                card.toughness = (parseInt(card.toughness, 10) || 0) + 1;
-                logs.push({
-                    type: 'COUNTER',
-                    message: `✨ Placed a +1/+1 counter on **${card.name}**!`
-                });
-            }
-
-            // Effect D: Create tokens
-            if (effectLower.includes('create') && effectLower.includes('token')) {
-                let tokName = 'Creature Token';
-                let tokP = 1, tokT = 1;
-                let tokColors = ['G'];
-                if (effectLower.includes('zombie')) { tokName = 'Zombie Token'; tokP = 2; tokT = 2; tokColors = ['B']; }
-                else if (effectLower.includes('soldier')) { tokName = 'Soldier Token'; tokP = 1; tokT = 1; tokColors = ['W']; }
-                else if (effectLower.includes('goblin')) { tokName = 'Goblin Token'; tokP = 1; tokT = 1; tokColors = ['R']; }
-                else if (effectLower.includes('saproling')) { tokName = 'Saproling Token'; tokP = 1; tokT = 1; tokColors = ['G']; }
-                else if (effectLower.includes('treasure')) { tokName = 'Treasure Token'; tokP = 0; tokT = 0; tokColors = []; }
-
-                const tok = {
-                    id: `tok_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-                    name: tokName,
-                    isCreature: !effectLower.includes('treasure'),
-                    isArtifact: effectLower.includes('treasure'),
-                    isToken: true,
-                    power: tokP,
-                    toughness: tokT,
-                    basePower: tokP,
-                    baseToughness: tokT,
-                    manaCost: '{0}',
-                    typeLine: effectLower.includes('treasure') ? 'Artifact — Treasure' : `Creature — ${tokName}`,
-                    colors: tokColors,
-                    keywords: new Set(),
-                    counters: [],
-                    tapped: false,
-                    summoningSick: !effectLower.includes('treasure')
-                };
-                player.battlefield.push(tok);
-                logs.push({
-                    type: 'TOKEN_CREATED',
-                    message: `🪙 **${player.name}** created a **${tokName}**!`
-                });
-            }
-
-            // Effect E: Sacrifice self
-            if (ab.requiresSacrifice || /sacrifice\s+(?:this|it|self)/i.test(ab.costText) || ab.costText.toLowerCase().includes(`sacrifice ${card.name.toLowerCase()}`)) {
-                const bIdx = player.battlefield.findIndex(c => c.id === card.id);
-                if (bIdx !== -1) {
-                    player.battlefield.splice(bIdx, 1);
-                    player.graveyard.push(card);
-                    logs.push({
-                        type: 'SACRIFICE',
-                        message: `⚰️ **${card.name}** was sacrificed as part of its activation cost.`
-                    });
-                }
-            }
-
-            // Effect F: Fetch Land (Search library for basic land card e.g. Fabled Passage, Evolving Wilds)
-            if (effectLower.includes('search your library') && (effectLower.includes('basic land') || effectLower.includes('land card'))) {
-                const lib = player.deck || player.library || [];
-                const basicLandIdx = lib.findIndex(c => {
-                    const n = (c.name || '').toLowerCase();
-                    const tl = (c.typeLine || '').toLowerCase();
-                    return /plains|island|swamp|mountain|forest|wastes/i.test(n) || (tl.includes('basic') && tl.includes('land'));
-                });
-
-                if (basicLandIdx !== -1) {
-                    const fetchedCard = lib.splice(basicLandIdx, 1)[0];
-                    const numLands = player.battlefield.filter(c => c.isLand).length;
-                    // Fabled Passage: If you control four or more lands, untap that land; else enters tapped
-                    const entersUntapped = effectLower.includes('four or more lands') && numLands >= 4;
-                    fetchedCard.tapped = !entersUntapped;
-                    fetchedCard.isLand = true;
-                    player.battlefield.push(fetchedCard);
-
-                    if (Array.isArray(lib)) {
-                        lib.sort(() => Math.random() - 0.5);
-                    }
-
-                    logs.push({
-                        type: 'FETCH_LAND',
-                        message: `🏞️ **${player.name}** searched library, put **${fetchedCard.name}** onto the battlefield (${fetchedCard.tapped ? 'tapped' : 'untapped'}) and shuffled.`
-                    });
-                } else {
-                    logs.push({
-                        type: 'INFO',
-                        message: `🔍 **${player.name}** searched library for a basic land, but none remained.`
-                    });
-                }
-            }
-            if (card.isPlaneswalker && card.loyalty !== undefined && card.loyalty <= 0) {
-                const pIdx = player.battlefield.findIndex(c => c.id === card.id);
-                if (pIdx !== -1) {
-                    player.battlefield.splice(pIdx, 1);
-                    player.graveyard.push(card);
-                    logs.push({
-                        type: 'PLANESWALKER_DIED',
-                        message: `☠️ **${card.name}** ran out of loyalty counters and was placed into the graveyard.`
-                    });
-                }
-            }
-
+            }];
             appendArenaLogs(logs);
         }
 
-        // Allow visual stack animation to be observed
         await new Promise(resolve => setTimeout(resolve, 650));
         if (stackBox) stackBox.style.display = 'none';
 
@@ -5959,7 +6166,6 @@
 
         // If already tapped, permanents CANNOT be arbitrarily untapped!
         if (card.tapped) {
-            // Allow undoing floating mana only if this permanent produced mana that is currently still unspent in player.manaPool
             const hasUnspentFloatingMana = card.producedMana && card.producedMana.length > 0 &&
                 player.manaPool && card.producedMana.every(col => (player.manaPool[col] || 0) > 0);
 
@@ -5979,7 +6185,6 @@
                 return;
             }
 
-            // Otherwise, strictly prevent untapping per MTG Rule 502.2
             alert(`⚠️ **${card.name}** is tapped!\n\nIn Magic: The Gathering (Rule 502.2), permanents remain tapped until your next Untap Step, unless untapped by a spell or card ability.`);
             return;
         }
@@ -6031,7 +6236,6 @@
             return;
         }
 
-        // If not a mana source and has no activated abilities, do not toggle tap
         alert(`**${card.name}** does not have a tap ability.`);
     };
 
@@ -6043,12 +6247,15 @@
     window.openFetchLandModal = function (cardId, fetchMeta = null) {
         if (!currentGame) return;
         const player = currentGame.players[0];
-        const card = player.battlefield.find(c => c.id === cardId || String(c.id) === String(cardId));
-        if (!card) return;
+        const card = player.battlefield.find(c => c.id === cardId || String(c.id) === String(cardId))
+            || player.graveyard.find(c => c.id === cardId || String(c.id) === String(cardId))
+            || { id: cardId, name: (fetchMeta && fetchMeta.sourceName) || 'Library Search', oracleText: '' };
 
-        if (card.tapped) {
-            alert(`⚠️ **${card.name}** is already tapped and cannot be sacrificed right now!`);
-            return;
+        if (!fetchMeta || !fetchMeta.isSpellSearch) {
+            if (card.tapped) {
+                alert(`⚠️ **${card.name}** is already tapped and cannot be sacrificed right now!`);
+                return;
+            }
         }
 
         // Resolve fetch ability metadata (mana cost, life cost, fetch count) if not explicitly provided
@@ -6103,11 +6310,45 @@
             const costSuffix = resolvedMeta.manaCostNum > 0
                 ? ` (Cost: {${resolvedMeta.manaCostNum}}, {T}, Sacrifice)`
                 : (resolvedMeta.lifeCostNum > 0 ? ` (Cost: Pay ${resolvedMeta.lifeCostNum} life, {T}, Sacrifice)` : '');
-            nameEl.textContent = `⚡ Crack ${card.name}${costSuffix}`;
+            nameEl.textContent = resolvedMeta.isTutorToHand
+                ? `🔍 Tutor Library — ${card.name}`
+                : (resolvedMeta.isSpellSearch ? `🌲 Search Library — ${card.name}` : `⚡ Crack ${card.name}${costSuffix}`);
+        }
+
+        const lib = player.libraryCards || [];
+
+        // If this is a Tutor for any card in library (e.g. Demonic Tutor, Diabolic Tutor, Grim Tutor, Vampiric Tutor)
+        if (resolvedMeta.isTutorToHand) {
+            const uniqueCards = [];
+            const seen = new Set();
+            lib.forEach(c => {
+                if (!c || !c.name) return;
+                const key = c.name.toLowerCase();
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    uniqueCards.push(c);
+                }
+            });
+            list.style.gridTemplateColumns = 'repeat(2, 1fr)';
+            list.style.maxHeight = '320px';
+            list.style.overflowY = 'auto';
+            list.innerHTML = uniqueCards.slice(0, 40).map(c => `
+                <div onclick="window.confirmFetchLandChoice('${escapeHtml(card.id)}', '${escapeHtml(c.name)}')"
+                     style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 10px; cursor: pointer;"
+                     onmouseenter="this.style.borderColor='#c084fc';"
+                     onmouseleave="this.style.borderColor='rgba(168, 85, 247, 0.4)';">
+                    <img src="${getCardArtCropUrl(c.name)}" style="width: 38px; height: 38px; border-radius: 6px; object-fit: cover;" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
+                    <div style="min-width: 0; flex: 1;">
+                        <div style="font-weight: 800; font-size: 0.86rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(c.name)}</div>
+                        <div style="font-size: 0.7rem; color: #cbd5e1;">${escapeHtml(c.typeLine || 'Spell')} ${c.manaCost || ''}</div>
+                    </div>
+                </div>
+            `).join('');
+            modal.style.display = 'flex';
+            return;
         }
 
         // Count basic lands in player's library
-        const lib = player.libraryCards || [];
         const counts = {
             'Plains': 0,
             'Island': 0,
@@ -6136,7 +6377,6 @@
             { name: 'Wastes', icon: '⏳', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.15)', border: 'rgba(203, 213, 225, 0.4)' }
         ];
 
-        // Sort so basics with cards available come first
         landDefs.sort((a, b) => (counts[b.name] || 0) - (counts[a.name] || 0));
 
         list.innerHTML = landDefs.map(l => {
@@ -6151,7 +6391,7 @@
                         <span style="font-size: 1.5rem;">${l.icon}</span>
                         <div>
                             <div style="font-weight: 800; font-size: 0.95rem; color: #fff;">${l.name}</div>
-                            <div style="font-size: 0.72rem; color: ${l.color}; font-weight: 600;">Basic Land${resolvedMeta.fetchCount > 1 ? ` (Fetches up to ${resolvedMeta.fetchCount})` : ''}</div>
+                            <div style="font-size: 0.72rem; color: ${l.color}; font-weight: 600;">Basic Land${resolvedMeta.fetchCount > 1 ? ` (Fetches ${resolvedMeta.fetchCount})` : ''}</div>
                         </div>
                     </div>
                     <span style="font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; ${badgeStyle}">
@@ -6177,7 +6417,7 @@
         if (!currentGame) return;
         const player = currentGame.players[0];
         const card = player.battlefield.find(c => c.id === cardId || String(c.id) === String(cardId));
-        const fetchName = card ? card.name : 'Fetchland';
+        const fetchName = card ? card.name : (fetchMeta.sourceName || 'Fetchland');
 
         // 1. Deduct activation mana cost and life cost BEFORE calling executeFetchLand so updateFromRawJson preserves the paid state
         if (fetchMeta.manaCostNum > 0) {
@@ -6205,9 +6445,21 @@
         const stackName = document.getElementById('stackSpellName');
         if (stackBox && stackThumb && stackName) {
             stackThumb.src = getCardArtCropUrl(fetchName);
-            stackName.textContent = `⚡ Crack: ${fetchName} ➔ ${chosenBasicName}`;
+            stackName.textContent = `⚡ Search: ${fetchName} ➔ ${chosenBasicName}`;
             stackBox.style.display = 'flex';
             setTimeout(() => { if (stackBox) stackBox.style.display = 'none'; }, 650);
+        }
+
+        if (fetchMeta.isSpellSearch && typeof currentGame.executeLibrarySearch === 'function') {
+            const chosenNames = (fetchMeta.fetchCount && fetchMeta.fetchCount > 1)
+                ? [chosenBasicName, chosenBasicName]
+                : [chosenBasicName];
+            const res = await currentGame.executeLibrarySearch(fetchName, chosenNames, fetchMeta);
+            if (res && res.logs && res.logs.length > 0) {
+                appendArenaLogs(res.logs);
+            }
+            updateArenaDOM();
+            return;
         }
 
         if (typeof currentGame.executeFetchLand === 'function') {
