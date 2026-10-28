@@ -797,9 +797,23 @@
         const AppStorage = {
             saveCsv(csvData) {
                 try {
-                    localStorage.setItem('archidekt_cachedCsvData', JSON.stringify(csvData));
+                    if (!csvData) return;
+                    if (typeof idbSet === 'function') {
+                        idbSet('archidekt_cachedCsvData', csvData).catch(() => {});
+                    }
+                    try {
+                        const str = JSON.stringify(csvData);
+                        // Only cache in localStorage if under 1MB to prevent quota exhaustion
+                        if (str.length < 1000000) {
+                            localStorage.setItem('archidekt_cachedCsvData', str);
+                        } else {
+                            localStorage.removeItem('archidekt_cachedCsvData');
+                        }
+                    } catch (e) {
+                        console.warn("Could not cache CSV in localStorage (size limit):", e);
+                    }
                 } catch (e) {
-                    console.warn("Could not cache CSV in localStorage (size limit):", e);
+                    console.warn("Could not cache CSV:", e);
                 }
             },
             loadCsv() {
@@ -829,13 +843,27 @@
                     return null;
                 }
             },
+            async loadCsvAsync() {
+                try {
+                    if (typeof idbGet === 'function') {
+                        const stored = await idbGet('archidekt_cachedCsvData');
+                        if (Array.isArray(stored) && stored.length > 0) return stored;
+                    }
+                } catch (e) {}
+                return this.loadCsv();
+            },
             saveArchidektCollection(id, cards) {
                 try {
                     if (!id || !Array.isArray(cards)) return;
                     const cleanId = String(id).trim();
                     const key = `archidekt_coll_${cleanId}`;
                     try {
-                        localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), cards }));
+                        const str = JSON.stringify({ timestamp: Date.now(), cards });
+                        if (str.length < 1000000) {
+                            localStorage.setItem(key, str);
+                        } else {
+                            localStorage.removeItem(key);
+                        }
                     } catch (e) {
                         console.warn("Could not cache Archidekt collection in localStorage (quota):", e);
                     }
@@ -923,7 +951,12 @@
             },
             saveTradeBinder(binder) {
                 try {
-                    localStorage.setItem('archidekt_tradeBinder', JSON.stringify(binder));
+                    if (typeof idbSet === 'function') {
+                        idbSet('archidekt_tradeBinder', binder).catch(() => {});
+                    }
+                    try {
+                        localStorage.setItem('archidekt_tradeBinder', JSON.stringify(binder));
+                    } catch (e) {}
                     syncTradeBinderToCloud(binder);
                 } catch (e) {}
             },
@@ -960,6 +993,49 @@
                 await idbDelete('deck_comparison_cache');
                 try {
                     localStorage.removeItem('archidekt_comparison_cache');
+                } catch (e) {}
+            },
+            async saveInsights(data) {
+                if (!data) return;
+                try {
+                    if (typeof idbSet === 'function') {
+                        await idbSet('archidekt_cachedInsights', data);
+                    }
+                } catch (e) {
+                    console.warn("Could not cache insights in IndexedDB:", e);
+                }
+                try {
+                    const str = JSON.stringify(data);
+                    if (str.length < 1000000) {
+                        localStorage.setItem('archidekt_cachedInsights', str);
+                    } else {
+                        localStorage.removeItem('archidekt_cachedInsights');
+                    }
+                } catch (e) {
+                    console.warn("Could not cache insights in localStorage (quota):", e);
+                }
+            },
+            async loadInsights() {
+                try {
+                    if (typeof idbGet === 'function') {
+                        const idbData = await idbGet('archidekt_cachedInsights');
+                        if (idbData) return idbData;
+                    }
+                } catch (e) {}
+                try {
+                    const raw = localStorage.getItem('archidekt_cachedInsights');
+                    if (raw) return JSON.parse(raw);
+                } catch (e) {}
+                return null;
+            },
+            async clearInsights() {
+                try {
+                    if (typeof idbDelete === 'function') {
+                        await idbDelete('archidekt_cachedInsights');
+                    }
+                } catch (e) {}
+                try {
+                    localStorage.removeItem('archidekt_cachedInsights');
                 } catch (e) {}
             }
         };
@@ -1565,7 +1641,7 @@
             if (cleanId) AppStorage.clearArchidektCollection(cleanId);
             localStorage.removeItem('archidekt_collectionId');
             localStorage.removeItem('archidekt_cachedCsvData');
-            localStorage.removeItem('archidekt_cachedInsights');
+            await AppStorage.clearInsights();
             localStorage.removeItem('archidekt_collection_meta');
             if (typeof idbDelete === 'function') {
                 await idbDelete('archidekt_collection_meta');
@@ -2724,7 +2800,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=10.19');
+                    const res = await fetch('./commander-precons.json?v=10.20');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2760,7 +2836,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=10.19');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=10.20');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -4807,14 +4883,14 @@
             if (forceFresh) {
                 cachedInsightsData = null;
                 try {
-                    localStorage.removeItem('archidekt_cachedInsights');
+                    await AppStorage.clearInsights();
                 } catch (e) {}
             } else if (cachedInsightsData) {
                 renderCollectionInsights(cachedInsightsData);
                 return;
             }
 
-            let collectionId = document.getElementById('collectionId').value.trim();
+            let collectionId = (document.getElementById('collectionId')?.value || '').trim();
             const collMatch = collectionId.match(/(?:archidekt\.com\/collections?\/)(\d+)/i);
             if (collMatch) collectionId = collMatch[1];
             else {
@@ -4831,10 +4907,28 @@
                     const csvText = await readCSVFile(csvFile);
                     collectionCsvData = parseCSV(csvText);
                     cachedParsedCsv = collectionCsvData;
-                    localStorage.setItem('archidekt_cachedCsvData', JSON.stringify(collectionCsvData));
+                    AppStorage.saveCsv(collectionCsvData);
                 } catch (e) {
                     alert("Error parsing CSV: " + e.message);
                     return;
+                }
+            }
+
+            // Also check active saved collection in memory / storage
+            if (!collectionCsvData && !collectionId) {
+                if (Array.isArray(currentCollectionData) && currentCollectionData.length > 0) {
+                    collectionCsvData = currentCollectionData;
+                } else {
+                    const meta = typeof getCollectionMetadata === 'function' ? getCollectionMetadata() : null;
+                    if (meta && meta.sourceType === 'csv') {
+                        collectionCsvData = await AppStorage.loadCsvAsync();
+                        if (collectionCsvData) {
+                            cachedParsedCsv = collectionCsvData;
+                            currentCollectionData = collectionCsvData;
+                        }
+                    } else if (meta && meta.sourceType === 'archidekt' && meta.collectionId) {
+                        collectionId = meta.collectionId;
+                    }
                 }
             }
 
@@ -5041,7 +5135,11 @@
                 await new Promise(r => setTimeout(r, 350));
 
                 cachedInsightsData = finalData;
-                localStorage.setItem('archidekt_cachedInsights', JSON.stringify(finalData));
+                try {
+                    await AppStorage.saveInsights(finalData);
+                } catch (saveErr) {
+                    console.warn("Could not persist insights cache:", saveErr);
+                }
                 renderCollectionInsights(finalData);
             } catch (err) {
                 clearInterval(tickerInterval);
@@ -9816,8 +9914,8 @@
 
             // Restore cached insights
             try {
-                const rawInsights = localStorage.getItem('archidekt_cachedInsights');
-                if (rawInsights) cachedInsightsData = JSON.parse(rawInsights);
+                const storedInsights = await AppStorage.loadInsights();
+                if (storedInsights) cachedInsightsData = storedInsights;
             } catch (e) {}
 
             // Update trade badge
@@ -10107,7 +10205,9 @@
                 localStorage.removeItem('archidekt_customDecks');
             }
 
-            localStorage.removeItem('archidekt_cachedInsights');
+            if (typeof AppStorage !== 'undefined' && AppStorage.clearInsights) {
+                AppStorage.clearInsights().catch(() => {});
+            }
             if (typeof cachedParsedCsv !== 'undefined') cachedParsedCsv = null;
             if (typeof cachedInsightsData !== 'undefined') cachedInsightsData = null;
 
