@@ -76,6 +76,123 @@
     }
     window.isCreatureCard = isCreatureCard;
 
+    function parseManaCostDetailed(manaCostStr) {
+        if (!manaCostStr || typeof manaCostStr !== 'string' || manaCostStr.trim().toLowerCase() === 'no cost') {
+            return { cmc: 0, generic: 0, pips: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }, hybrids: [], colors: [] };
+        }
+        let raw = manaCostStr.trim();
+        if (!raw.includes('{')) {
+            raw = raw.split(/\s+/).filter(Boolean).map(t => `{${t}}`).join('');
+        }
+        const matches = raw.match(/\{([^}]+)\}/g) || [];
+        let generic = 0;
+        const pips = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        const hybrids = [];
+        const colorSet = new Set();
+        let cmc = 0;
+
+        for (const m of matches) {
+            const inner = m.replace(/[{}]/g, '').trim().toUpperCase();
+            if (/^\d+$/.test(inner)) {
+                const num = parseInt(inner, 10);
+                generic += num;
+                cmc += num;
+            } else if (['W', 'U', 'B', 'R', 'G', 'C'].includes(inner)) {
+                pips[inner] = (pips[inner] || 0) + 1;
+                cmc += 1;
+                if (inner !== 'C') colorSet.add(inner);
+            } else if (inner.includes('/')) {
+                const parts = inner.split('/');
+                cmc += 1;
+                if (parts.includes('P')) {
+                    const col = parts.find(p => ['W', 'U', 'B', 'R', 'G'].includes(p));
+                    if (col) {
+                        hybrids.push({ options: [col], isPhyrexian: true });
+                        colorSet.add(col);
+                    }
+                } else {
+                    const validCols = parts.filter(p => ['W', 'U', 'B', 'R', 'G', 'C'].includes(p));
+                    if (validCols.length > 0) {
+                        hybrids.push({ options: validCols, isPhyrexian: false });
+                        validCols.forEach(c => { if (c !== 'C') colorSet.add(c); });
+                    }
+                }
+            }
+        }
+        return { cmc, generic, pips, hybrids, colors: Array.from(colorSet), raw };
+    }
+    window.parseManaCostDetailed = parseManaCostDetailed;
+
+    function canPayManaCost(cardOrCost, manaPool, genericReduction = 0, extraGenericTax = 0) {
+        let costStr = typeof cardOrCost === 'string' ? cardOrCost : (cardOrCost && cardOrCost.manaCost ? cardOrCost.manaCost : '');
+        const isLand = cardOrCost && typeof cardOrCost === 'object' && Boolean(cardOrCost.isLand);
+        if (isLand) return { canPay: true, missing: [], reason: '' };
+
+        if (!costStr && cardOrCost && typeof cardOrCost === 'object') {
+            const nameLower = (cardOrCost.name || '').toLowerCase().trim();
+            if (cardOrCost.forgeScript && cardOrCost.forgeScript.manaCost) costStr = cardOrCost.forgeScript.manaCost;
+            else if (typeof window !== 'undefined' && window.__FORGE_SCRIPTS__ && window.__FORGE_SCRIPTS__[nameLower] && window.__FORGE_SCRIPTS__[nameLower].manaCost) costStr = window.__FORGE_SCRIPTS__[nameLower].manaCost;
+            else if (typeof window !== 'undefined' && window.__MTG_CARD_CACHE__ && window.__MTG_CARD_CACHE__[nameLower] && window.__MTG_CARD_CACHE__[nameLower].manaCost) costStr = window.__MTG_CARD_CACHE__[nameLower].manaCost;
+        }
+        if (!costStr) return { canPay: true, missing: [], reason: '' };
+
+        const parsed = parseManaCostDetailed(costStr);
+        const pool = {
+            W: (manaPool && manaPool.W) || 0,
+            U: (manaPool && manaPool.U) || 0,
+            B: (manaPool && manaPool.B) || 0,
+            R: (manaPool && manaPool.R) || 0,
+            G: (manaPool && manaPool.G) || 0,
+            C: (manaPool && manaPool.C) || 0
+        };
+        const missing = [];
+
+        // 1. Specific colored pips
+        const COLORS = ['W', 'U', 'B', 'R', 'G', 'C'];
+        for (const col of COLORS) {
+            const req = (parsed.pips && parsed.pips[col]) || 0;
+            if (req > 0) {
+                if (pool[col] < req) {
+                    missing.push(`${req - pool[col]} {${col}}`);
+                    pool[col] = 0;
+                } else {
+                    pool[col] -= req;
+                }
+            }
+        }
+
+        // 2. Hybrids
+        if (Array.isArray(parsed.hybrids)) {
+            for (const h of parsed.hybrids) {
+                const opts = h.options || [];
+                const foundCol = opts.find(c => pool[c] > 0);
+                if (foundCol) {
+                    pool[foundCol]--;
+                } else if (!h.isPhyrexian) {
+                    missing.push(`1 {${opts.join('/')}}`);
+                }
+            }
+        }
+
+        // 3. Generic mana requirement (generic reduction applied)
+        const genericNeeded = Math.max(0, (parsed.generic || 0) + extraGenericTax - genericReduction);
+        const remainingPoolTotal = COLORS.reduce((sum, col) => sum + pool[col], 0);
+
+        if (remainingPoolTotal < genericNeeded) {
+            missing.push(`${genericNeeded - remainingPoolTotal} generic mana`);
+        }
+
+        if (missing.length > 0) {
+            return {
+                canPay: false,
+                missing: missing,
+                reason: `Need ${missing.join(', ')}`
+            };
+        }
+        return { canPay: true, missing: [], reason: '' };
+    }
+    window.canPayManaCost = canPayManaCost;
+
     function getPermanentManaAbilities(card) {
         if (!card) return null;
         const name = (card.name || '').trim();
@@ -4264,7 +4381,7 @@
                         <div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <h2 class="arena-title" style="margin: 0;">Commander Battle Arena</h2>
-                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.7</span>
+                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.8</span>
                             </div>
                             <span class="arena-subtitle">Client-Native Forge Rules Engine • Live 4-Player Tabletop</span>
                         </div>
@@ -4887,7 +5004,8 @@
         const availableMana = player.getAvailableMana().total;
         const isCmdrInZone = player.isCommanderInCommandZone();
         const isCmdrOnField = player.isCommanderOnBattlefield();
-        const canCastCmdr = isMyTurn && currentPhase.includes('MAIN') && isCmdrInZone && (availableMana >= cmdrCastCost);
+        const cmdrPayCheck = cmdr ? (player.canPayCardCost ? player.canPayCardCost(cmdr, player.commanderTax) : canPayManaCost(cmdr, player.manaPool, 0, player.commanderTax)) : { canPay: false, missing: [] };
+        const canCastCmdr = isMyTurn && currentPhase.includes('MAIN') && isCmdrInZone && cmdrPayCheck.canPay;
 
         const pool = player.manaPool || { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
         const totalFloating = (pool.W || 0) + (pool.U || 0) + (pool.B || 0) + (pool.R || 0) + (pool.G || 0) + (pool.C || 0);
@@ -5008,19 +5126,24 @@
                 }
                 const isInstantOrFlash = !isLand && (c.isInstant || (c.keywords && c.keywords.has('flash')));
                 const cost = isLand ? 0 : player.getCardCost(c, currentGame);
+                const genericReduction = Math.max(0, (c.cmc || 0) - cost);
+                const payCheck = isLand ? { canPay: true, missing: [] } : (player.canPayCardCost ? player.canPayCardCost(c) : canPayManaCost(c, player.manaPool, genericReduction));
+                const canAffordMana = payCheck.canPay;
                 let isPlayable = false;
                 let tagText = '';
+
+                const displayCost = c.manaCost || (cost > 0 ? `{${cost}}` : '{0}');
 
                 if (isLand) {
                     const hasPlayedLand = Boolean(player.landPlayedThisTurn) || Boolean(player.landsPlayedCount && player.landsPlayedCount >= 1);
                     isPlayable = isMyTurn && currentPhase.includes('MAIN') && !hasPlayedLand;
                     tagText = isPlayable ? 'Play Land' : (hasPlayedLand ? 'Land Played' : 'Land');
                 } else if (isInstantOrFlash) {
-                    isPlayable = availableMana >= cost;
-                    tagText = isPlayable ? (isMyTurn ? `Cast {${cost}}` : `⚡ Flash {${cost}}`) : (cost > 0 ? `Need {${cost}} in Pool` : 'Cast {0}');
+                    isPlayable = canAffordMana;
+                    tagText = isPlayable ? (isMyTurn ? `Cast ${displayCost}` : `⚡ Flash ${displayCost}`) : (payCheck.missing && payCheck.missing.length > 0 ? `Need ${payCheck.missing[0]}` : (cost > 0 ? `Need {${cost}}` : 'Cast {0}'));
                 } else {
-                    isPlayable = isMyTurn && currentPhase.includes('MAIN') && availableMana >= cost;
-                    tagText = isPlayable ? `Cast {${cost}}` : (cost > 0 ? `Need {${cost}} in Pool` : 'Cast {0}');
+                    isPlayable = isMyTurn && currentPhase.includes('MAIN') && canAffordMana;
+                    tagText = isPlayable ? `Cast ${displayCost}` : (payCheck.missing && payCheck.missing.length > 0 ? `Need ${payCheck.missing[0]}` : (cost > 0 ? `Need {${cost}}` : 'Cast {0}'));
                 }
 
                 const cardClasses = ['hand-card'];
@@ -5106,8 +5229,8 @@
                             <button class="cmdr-cast-cta" disabled style="opacity: 0.7; cursor: default;">👑 On Field</button>
                         ` : canCastCmdr ? `
                             <button class="cmdr-cast-cta ready" onclick="window.castPlayerCommander()">🚀 Cast Commander {${cmdrCastCost}}</button>
-                        ` : (isCmdrInZone && availableMana < cmdrCastCost) ? `
-                            <button class="cmdr-cast-cta need-mana" onclick="window.castPlayerCommander()">Need {${cmdrCastCost}} in Pool (Have {${availableMana}})</button>
+                        ` : isCmdrInZone ? `
+                            <button class="cmdr-cast-cta need-mana" onclick="window.castPlayerCommander()" title="${escapeHtml(cmdrPayCheck.reason || '')}">Need {${cmdrCastCost}}${cmdrPayCheck.missing && cmdrPayCheck.missing.length > 0 ? ` (${cmdrPayCheck.missing[0]})` : ''}</button>
                         ` : `
                             <button class="cmdr-cast-cta" onclick="window.castPlayerCommander()" ${!isMyTurn ? 'disabled' : ''}>Cast Commander {${cmdrCastCost}}</button>
                         `}
@@ -5635,10 +5758,26 @@
         }
 
         if (!isLand) {
-            const cost = player.getCardCost(card, currentGame);
-            const available = player.getAvailableMana().total;
-            if (available < cost) {
-                alert(`Cannot cast ${card.name}: Need {${cost}} mana in floating pool, but you currently have only {${available}}!\n\n💡 Tap your lands or mana rocks in the "Mana & Support Line" to produce mana first.`);
+            let genericReduction = 0;
+            if ((card.typeLine || '').toLowerCase().includes('dragon')) {
+                const hasUrDragon = player.commanders?.some(c => (c.name || '').toLowerCase().includes('the ur-dragon')) ||
+                    player.battlefield?.some(c => (c.name || '').toLowerCase().includes('the ur-dragon'));
+                if (hasUrDragon) genericReduction += 1;
+            }
+            player.battlefield?.forEach(bfCard => {
+                const bfName = (bfCard.name || '').toLowerCase();
+                if (bfName.includes('dragonspeaker shaman') && (card.typeLine || '').toLowerCase().includes('dragon')) genericReduction += 2;
+                if (bfName.includes('dragonlord\'s servant') && (card.typeLine || '').toLowerCase().includes('dragon')) genericReduction += 1;
+                if (bfName.includes('goblin electromancer') && ((card.typeLine || '').toLowerCase().includes('instant') || (card.typeLine || '').toLowerCase().includes('sorcery'))) genericReduction += 1;
+                if (bfName.includes('cloud key') || bfName.includes('herald\'s horn') || bfName.includes('ruby medallion')) genericReduction += 1;
+            });
+
+            const payCheck = player.canPayCardCost ?
+                player.canPayCardCost(card, 0, genericReduction) :
+                (window.canPayManaCost ? window.canPayManaCost(card, player.manaPool, genericReduction) : { canPay: player.getAvailableMana().total >= player.getCardCost(card, currentGame), reason: 'Insufficient mana' });
+
+            if (!payCheck.canPay) {
+                alert(`Cannot cast ${card.name}: ${payCheck.reason}\n\n💡 Tap your lands or mana rocks in the "Mana & Support Line" to produce the required mana colors first.`);
                 return;
             }
         }
@@ -5696,8 +5835,8 @@
             res = await currentGame.playCard(cardId, { targetInfo: preselectedTarget || null, payShockLife });
         } else {
             res = player.castCard(cardId, currentGame, { targetInfo: preselectedTarget || null });
-            if (spellCost > 0 && typeof player.deductMana === 'function') {
-                player.deductMana(spellCost);
+            if (!isLand && typeof player.deductMana === 'function') {
+                player.deductMana(card);
             }
         }
         if (res && !res.success) {
@@ -5789,10 +5928,12 @@
             return;
         }
 
-        const totalCost = (cmdr.cmc || 0) + player.commanderTax;
-        const available = player.getAvailableMana().total;
-        if (available < totalCost) {
-            alert(`Need {${totalCost}} mana to cast ${cmdr.name} (Base: {${cmdr.cmc || 0}}, Tax: {${player.commanderTax}}), but you currently have only {${available}} floating mana in your pool!\n\n💡 Tap your lands or rocks first to add mana to your pool.`);
+        const cmdrPayCheck = player.canPayCardCost ?
+            player.canPayCardCost(cmdr, player.commanderTax || 0) :
+            (window.canPayManaCost ? window.canPayManaCost(cmdr, player.manaPool, 0, player.commanderTax || 0) : { canPay: player.getAvailableMana().total >= ((cmdr.cmc || 0) + (player.commanderTax || 0)), reason: 'Insufficient mana' });
+
+        if (!cmdrPayCheck.canPay) {
+            alert(`Cannot cast ${cmdr.name}: ${cmdrPayCheck.reason}\n\n💡 Tap your lands or rocks first to add the required mana colors to your pool.`);
             return;
         }
 
@@ -5814,8 +5955,8 @@
             res = await currentGame.castCommander();
         } else {
             res = player.castCommander(currentGame);
-            if (totalCost > 0 && typeof player.deductMana === 'function') {
-                player.deductMana(totalCost);
+            if (typeof player.deductMana === 'function') {
+                player.deductMana(cmdr, player.commanderTax || 0);
             }
         }
         if (res && !res.success) {

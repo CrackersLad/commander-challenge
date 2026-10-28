@@ -210,37 +210,44 @@
             }
             return { total: Math.max(poolTotal, 0) };
         };
-        p.deductMana = function (cost) {
-            if (!this.manaPool || cost <= 0) return;
-            let remaining = cost;
-            const colors = ['C', 'G', 'R', 'B', 'U', 'W'];
-            for (const col of colors) {
-                if (this.manaPool[col] > 0) {
-                    const spend = Math.min(this.manaPool[col], remaining);
-                    this.manaPool[col] -= spend;
-                    remaining -= spend;
-                    // Consume producedMana pips on tapped permanents so spent mana cannot be undone
-                    let toConsume = spend;
-                    if (Array.isArray(this.battlefield)) {
-                        for (const perm of this.battlefield) {
-                            if (toConsume <= 0) break;
-                            if (perm && Array.isArray(perm.producedMana) && perm.producedMana.length > 0) {
-                                for (let i = perm.producedMana.length - 1; i >= 0 && toConsume > 0; i--) {
-                                    if (perm.producedMana[i] === col) {
-                                        perm.producedMana.splice(i, 1);
-                                        toConsume--;
-                                    }
-                                }
-                                if (perm.producedMana.length === 0) {
-                                    perm.producedMana = null;
-                                }
-                            }
-                        }
-                    }
-                    if (remaining <= 0) break;
-                }
-            }
+
+        p.canPayCardCost = function (card, extraTax = 0) {
+            if (!card) return { canPay: true, missing: [], reason: '' };
+            if (card.isLand) return { canPay: true, missing: [], reason: '' };
+            const effectiveCost = this.getCardCost(card);
+            const genericReduction = Math.max(0, (card.cmc || 0) - effectiveCost);
+            return canPayManaCost(card, this.manaPool, genericReduction, extraTax);
         };
+
+        p.deductMana = function (costOrCard, extraTax = 0) {
+            if (!this.manaPool) return;
+            const card = (typeof costOrCard === 'object' && costOrCard !== null) ? costOrCard : null;
+            if (card && card.isLand) return;
+
+            if (!card && (typeof costOrCard === 'number' || /^\d+$/.test(String(costOrCard).trim()))) {
+                let remaining = typeof costOrCard === 'number' ? costOrCard : parseInt(costOrCard, 10);
+                if (remaining <= 0) return;
+                const colors = ['C', 'W', 'G', 'R', 'U', 'B'];
+                for (const col of colors) {
+                    if (this.manaPool[col] > 0 && remaining > 0) {
+                        const spend = Math.min(this.manaPool[col], remaining);
+                        this.manaPool[col] -= spend;
+                        remaining -= spend;
+                        consumeBattlefieldPips(this.battlefield, col, spend);
+                    }
+                }
+                return;
+            }
+
+            const effectiveCost = card ? this.getCardCost(card) : 0;
+            const genericReduction = card ? Math.max(0, (card.cmc || 0) - effectiveCost) : 0;
+            deductDetailedMana(costOrCard, this.manaPool, this.battlefield, genericReduction, extraTax);
+        };
+
+        p.deductCardMana = function (card, extraTax = 0) {
+            this.deductMana(card, extraTax);
+        };
+
         p.tapMana = function (cost) {
             this.deductMana(cost);
         };
@@ -572,6 +579,193 @@
             }
         };
         return p;
+    }
+
+    function parseManaCostDetailed(manaCostStr) {
+        if (!manaCostStr || typeof manaCostStr !== 'string' || manaCostStr.trim().toLowerCase() === 'no cost') {
+            return { cmc: 0, generic: 0, pips: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }, hybrids: [], colors: [] };
+        }
+        let raw = manaCostStr.trim();
+        if (!raw.includes('{')) {
+            raw = raw.split(/\s+/).filter(Boolean).map(t => `{${t}}`).join('');
+        }
+        const matches = raw.match(/\{([^}]+)\}/g) || [];
+        let generic = 0;
+        const pips = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        const hybrids = [];
+        const colorSet = new Set();
+        let cmc = 0;
+
+        for (const m of matches) {
+            const inner = m.replace(/[{}]/g, '').trim().toUpperCase();
+            if (/^\d+$/.test(inner)) {
+                const num = parseInt(inner, 10);
+                generic += num;
+                cmc += num;
+            } else if (['W', 'U', 'B', 'R', 'G', 'C'].includes(inner)) {
+                pips[inner] = (pips[inner] || 0) + 1;
+                cmc += 1;
+                if (inner !== 'C') colorSet.add(inner);
+            } else if (inner.includes('/')) {
+                const parts = inner.split('/');
+                cmc += 1;
+                if (parts.includes('P')) {
+                    const col = parts.find(p => ['W', 'U', 'B', 'R', 'G'].includes(p));
+                    if (col) {
+                        hybrids.push({ options: [col], isPhyrexian: true });
+                        colorSet.add(col);
+                    }
+                } else {
+                    const validCols = parts.filter(p => ['W', 'U', 'B', 'R', 'G', 'C'].includes(p));
+                    if (validCols.length > 0) {
+                        hybrids.push({ options: validCols, isPhyrexian: false });
+                        validCols.forEach(c => { if (c !== 'C') colorSet.add(c); });
+                    }
+                }
+            }
+        }
+        return { cmc, generic, pips, hybrids, colors: Array.from(colorSet), raw };
+    }
+
+    function canPayManaCost(cardOrCost, manaPool, genericReduction = 0, extraGenericTax = 0) {
+        const costStr = typeof cardOrCost === 'string' ? cardOrCost : (cardOrCost && cardOrCost.manaCost ? cardOrCost.manaCost : '');
+        const isLand = cardOrCost && typeof cardOrCost === 'object' && Boolean(cardOrCost.isLand);
+        if (isLand || !costStr) return { canPay: true, missing: [], reason: '' };
+
+        const parsed = parseManaCostDetailed(costStr);
+        const pool = {
+            W: (manaPool && manaPool.W) || 0,
+            U: (manaPool && manaPool.U) || 0,
+            B: (manaPool && manaPool.B) || 0,
+            R: (manaPool && manaPool.R) || 0,
+            G: (manaPool && manaPool.G) || 0,
+            C: (manaPool && manaPool.C) || 0
+        };
+        const missing = [];
+
+        // 1. Specific colored pips
+        const COLORS = ['W', 'U', 'B', 'R', 'G', 'C'];
+        for (const col of COLORS) {
+            const req = (parsed.pips && parsed.pips[col]) || 0;
+            if (req > 0) {
+                if (pool[col] < req) {
+                    missing.push(`${req - pool[col]} {${col}}`);
+                    pool[col] = 0;
+                } else {
+                    pool[col] -= req;
+                }
+            }
+        }
+
+        // 2. Hybrids
+        if (Array.isArray(parsed.hybrids)) {
+            for (const h of parsed.hybrids) {
+                const opts = h.options || [];
+                const foundCol = opts.find(c => pool[c] > 0);
+                if (foundCol) {
+                    pool[foundCol]--;
+                } else if (!h.isPhyrexian) {
+                    missing.push(`1 {${opts.join('/')}}`);
+                }
+            }
+        }
+
+        // 3. Generic mana requirement (generic cost reduction applied)
+        const genericNeeded = Math.max(0, (parsed.generic || 0) + extraGenericTax - genericReduction);
+        const remainingPoolTotal = COLORS.reduce((sum, col) => sum + pool[col], 0);
+
+        if (remainingPoolTotal < genericNeeded) {
+            missing.push(`${genericNeeded - remainingPoolTotal} generic mana`);
+        }
+
+        if (missing.length > 0) {
+            return {
+                canPay: false,
+                missing: missing,
+                reason: `Need ${missing.join(', ')}`
+            };
+        }
+        return { canPay: true, missing: [], reason: '' };
+    }
+
+    function deductDetailedMana(cardOrCost, manaPool, battlefield = [], genericReduction = 0, extraGenericTax = 0) {
+        if (!manaPool) return;
+        const costStr = typeof cardOrCost === 'string' ? cardOrCost : (cardOrCost && cardOrCost.manaCost ? cardOrCost.manaCost : '');
+        const isLand = cardOrCost && typeof cardOrCost === 'object' && Boolean(cardOrCost.isLand);
+        if (isLand) return;
+
+        // Numeric cost fallback
+        if (typeof cardOrCost === 'number' || (/^\d+$/.test(String(costStr).trim()))) {
+            let remaining = typeof cardOrCost === 'number' ? cardOrCost : parseInt(costStr, 10);
+            remaining = Math.max(0, remaining + extraGenericTax - genericReduction);
+            const order = ['C', 'W', 'G', 'R', 'U', 'B'];
+            for (const col of order) {
+                if (manaPool[col] > 0 && remaining > 0) {
+                    const spend = Math.min(manaPool[col], remaining);
+                    manaPool[col] -= spend;
+                    remaining -= spend;
+                    consumeBattlefieldPips(battlefield, col, spend);
+                }
+            }
+            return;
+        }
+
+        const parsed = parseManaCostDetailed(costStr);
+        const COLORS = ['W', 'U', 'B', 'R', 'G', 'C'];
+
+        // 1. Deduct exact colored pips
+        for (const col of COLORS) {
+            const req = (parsed.pips && parsed.pips[col]) || 0;
+            if (req > 0 && manaPool[col] > 0) {
+                const spend = Math.min(manaPool[col], req);
+                manaPool[col] -= spend;
+                consumeBattlefieldPips(battlefield, col, spend);
+            }
+        }
+
+        // 2. Deduct hybrids
+        if (Array.isArray(parsed.hybrids)) {
+            for (const h of parsed.hybrids) {
+                const opts = h.options || [];
+                const foundCol = opts.find(c => manaPool[c] > 0);
+                if (foundCol) {
+                    manaPool[foundCol]--;
+                    consumeBattlefieldPips(battlefield, foundCol, 1);
+                }
+            }
+        }
+
+        // 3. Deduct generic mana
+        let genericNeeded = Math.max(0, (parsed.generic || 0) + extraGenericTax - genericReduction);
+        const genericOrder = ['C', 'W', 'G', 'R', 'U', 'B'];
+        for (const col of genericOrder) {
+            if (genericNeeded <= 0) break;
+            if (manaPool[col] > 0) {
+                const spend = Math.min(manaPool[col], genericNeeded);
+                manaPool[col] -= spend;
+                genericNeeded -= spend;
+                consumeBattlefieldPips(battlefield, col, spend);
+            }
+        }
+    }
+
+    function consumeBattlefieldPips(battlefield, color, count) {
+        if (!Array.isArray(battlefield) || count <= 0) return;
+        let toConsume = count;
+        for (const perm of battlefield) {
+            if (toConsume <= 0) break;
+            if (perm && Array.isArray(perm.producedMana) && perm.producedMana.length > 0) {
+                for (let i = perm.producedMana.length - 1; i >= 0 && toConsume > 0; i--) {
+                    if (perm.producedMana[i] === color) {
+                        perm.producedMana.splice(i, 1);
+                        toConsume--;
+                    }
+                }
+                if (perm.producedMana.length === 0) {
+                    perm.producedMana = null;
+                }
+            }
+        }
     }
 
     class ForgeArenaGame {
@@ -2979,8 +3173,8 @@
                     : 0;
 
                 // Deduct mana BEFORE bridge call so updateFromRawJson preserves spent mana and tapped lands
-                if (pBefore && cost > 0 && typeof pBefore.deductMana === 'function') {
-                    pBefore.deductMana(cost);
+                if (pBefore && !isLand && typeof pBefore.deductMana === 'function') {
+                    pBefore.deductMana(card);
                 }
 
                 const numId = parseInt(cardId, 10);
@@ -3432,8 +3626,8 @@
                 const pBefore = this.players[0];
                 const cmdr = pBefore ? pBefore.getCommander() : null;
                 const cost = cmdr ? ((cmdr.cmc || 0) + (pBefore.commanderTax || 0)) : 0;
-                if (pBefore && cost > 0 && typeof pBefore.deductMana === 'function') {
-                    pBefore.deductMana(cost);
+                if (pBefore && cmdr && typeof pBefore.deductMana === 'function') {
+                    pBefore.deductMana(cmdr, pBefore.commanderTax || 0);
                 }
                 const logsBefore = this.logs.length;
                 if (this.bridge && typeof this.bridge.castCommander === 'function') {
@@ -4019,6 +4213,9 @@
         initEngine: initForgeEngine,
         ForgeArenaGame: ForgeArenaGame,
         enrichCard: enrichCard,
+        canPayManaCost: canPayManaCost,
+        parseManaCostDetailed: parseManaCostDetailed,
+        deductDetailedMana: deductDetailedMana,
         startMatch: async function (selectedDecks = [], startingPlayerIndex = 0) {
             // Instant Arena Match Initialization:
             // The native client rules engine handles full MTG rules, ETB replacement, triggers,
