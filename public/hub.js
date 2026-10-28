@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=11.0';
+import { db, auth } from './firebase-setup.js?v=11.3';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -182,7 +182,7 @@ export function initHubModule(utils, state, coreUi) {
     async function loadPreconData() {
         if (localPrecons && localPrecons.length > 0) return localPrecons;
         try {
-            const res = await fetch('./commander-precons.json?v=11.0');
+            const res = await fetch('./commander-precons.json?v=11.3');
             if (res.ok) {
                 localPrecons = await res.json();
                 return localPrecons;

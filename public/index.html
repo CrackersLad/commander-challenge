@@ -78,9 +78,9 @@
             }
         };
     </script>
-    <link rel="stylesheet" href="styles.css?v=11.0">
-    <link rel="stylesheet" href="collection-hub.css?v=11.0">
-    <link rel="stylesheet" href="commander-arena.css?v=11.0">
+    <link rel="stylesheet" href="styles.css?v=11.3">
+    <link rel="stylesheet" href="collection-hub.css?v=11.3">
+    <link rel="stylesheet" href="commander-arena.css?v=11.3">
 </head>
 <body>
     <!-- Top Master Glass Navigation Bar -->
@@ -2962,7 +2962,7 @@
         </div>
         <p>Commander Draft Challenge is unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy. Not approved or endorsed by Wizards of the Coast. Portions of materials used are property of Wizards of the Coast LLC. © Wizards of the Coast LLC.</p>
         <p class="footer-subtext">Card data, symbols, and high-resolution imagery provided by the <a href="https://scryfall.com" target="_blank" rel="noopener">Scryfall API</a> under Community Guidelines. Non-commercial community tool.</p>
-        <span id="appVersion" class="version-tag" onclick="window.openChangelogModal()" title="View Changelog">v11.0</span>
+        <span id="appVersion" class="version-tag" onclick="window.openChangelogModal()" title="View Changelog">v11.3</span>
     </footer>
 
     <!-- Feedback & Bug Report Modal -->
@@ -3020,10 +3020,23 @@
             </div>
             
             <div style="font-size: 0.86rem; line-height: 1.6; color: var(--text-secondary); max-height: 65vh; overflow-y: auto; padding-right: 8px;">
-                <div style="background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.45); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+                <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.45); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <span style="font-weight: 800; color: #f59e0b; font-size: 1.05rem;">🚀 Version 11.0 — Ultimate Command Center Upgrade</span>
-                        <span style="font-size: 0.72rem; color: #a855f7; font-weight: 700; background: rgba(168, 85, 247, 0.2); padding: 2px 8px; border-radius: 4px;">CURRENT</span>
+                        <span style="font-weight: 800; color: #34d399; font-size: 1.05rem;">⚔️ Version 11.3 — Complete Commander Battle Arena Overhaul</span>
+                        <span style="font-size: 0.72rem; color: #34d399; font-weight: 700; background: rgba(16, 185, 129, 0.2); padding: 2px 8px; border-radius: 4px;">CURRENT</span>
+                    </div>
+                    <div style="font-weight: 700; color: #e2e8f0; margin-bottom: 8px;">End-to-End Rules Engine, Triggers, Targeting, Library Search & Turn Sequence</div>
+                    <ul style="margin: 0; padding-left: 18px; font-size: 0.82rem; color: #cbd5e1; display: flex; flex-direction: column; gap: 6px;">
+                        <li><strong>Turn &amp; Phase Sequence (MTG Rule 504.1 &amp; 514.1)</strong>: Strictly 1 card drawn on Draw Step, interactive Cleanup Step discard modal down to max hand size (7 or unlimited with Reliquary Tower / Thought Vessel), and summoning sickness automatically cleared on Untap.</li>
+                        <li><strong>Fetchlands, Ramp Spells &amp; Library Tutors</strong>: Fixed mana cost payment and tap-state persistence on paid fetchlands (Shire Terrace, Myriad Landscape, Blighted Woodland, Wayfarer's Bauble), added interactive library search for Ramp spells (Cultivate, Kodama's Reach, Rampant Growth, Nature's Lore) and Tutors (Demonic Tutor, Diabolic Tutor, Vampiric Tutor).</li>
+                        <li><strong>Interactive Spell &amp; Ability Target Picker</strong>: Choose exact targets for single-target removal, bounce, graveyard reanimation, Planeswalker abilities, and Equipment attachment.</li>
+                        <li><strong>Comprehensive Card Triggers &amp; Lord Buffs</strong>: Full Cast, ETB, Landfall, Upkeep, Attack, Combat Damage, Death, and End Step triggers plus continuous Lord/Anthem &amp; Equipment stat/keyword calculation.</li>
+                    </ul>
+                </div>
+
+                <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-weight: 800; color: #f59e0b; font-size: 1.0rem;">🚀 Version 11.0 — Ultimate Command Center Upgrade</span>
                     </div>
                     <div style="font-weight: 700; color: #e2e8f0; margin-bottom: 8px;">Top 10 End-to-End Site, UI, UX & Gameplay Enhancements</div>
                     <ul style="margin: 0; padding-left: 18px; font-size: 0.82rem; color: #cbd5e1; display: flex; flex-direction: column; gap: 6px;">
@@ -3122,14 +3135,14 @@
     </nav>
 
     <!-- Official MTG Lands Knowledge Base -->
-    <script src="./mtg-lands.js?v=11.2"></script>
+    <script src="./mtg-lands.js?v=11.3"></script>
     <!-- CheerpJ WebAssembly Runtime for Card-Forge Engine -->
     <script src="https://cjrtnc.leaningtech.com/4.3/loader.js"></script>
-    <script src="./forge-card-scripts.js?v=11.2"></script>
-    <script src="./forge-adapter.js?v=11.2"></script>
-    <script src="./commander-engine.js?v=11.2"></script>
-    <script src="./commander-arena.js?v=11.2"></script>
-    <script src="./collection-hub.js?v=11.2"></script>
-    <script type="module" src="./script.js?v=11.2"></script>
+    <script src="./forge-card-scripts.js?v=11.3"></script>
+    <script src="./forge-adapter.js?v=11.3"></script>
+    <script src="./commander-engine.js?v=11.3"></script>
+    <script src="./commander-arena.js?v=11.3"></script>
+    <script src="./collection-hub.js?v=11.3"></script>
+    <script type="module" src="./script.js?v=11.3"></script>
 </body>
 </html>
