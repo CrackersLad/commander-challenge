@@ -800,25 +800,34 @@
                                         }
                                     }
                                     if (oldC) {
-                                        if (!isNewTurnOrActive && idx === 0) {
+                                        const isThisPlayerUntap = isNewTurnOrActive && this.activePlayerIndex === idx;
+                                        if (!isThisPlayerUntap && idx === 0) {
                                             const isLandOrRock = Boolean(oldC.isLand || oldC.isManaRock || c.isLand || c.isManaRock);
                                             c.tapped = isLandOrRock ? Boolean(oldC.tapped) : Boolean(oldC.tapped || c.tapped);
                                             c.producedMana = (c.tapped && Array.isArray(oldC.producedMana) && oldC.producedMana.length > 0)
                                                 ? [...oldC.producedMana]
                                                 : null;
                                             c.paidLifeCost = oldC.paidLifeCost || null;
+                                            c._enteredTappedTurn = oldC._enteredTappedTurn || null;
+                                        } else if (!isThisPlayerUntap) {
+                                            c.tapped = Boolean(oldC.tapped || c.tapped);
+                                        } else if (isThisPlayerUntap) {
+                                            c.tapped = false;
+                                            c.producedMana = null;
+                                            c.paidLifeCost = null;
+                                            c._enteredTappedTurn = null;
                                         }
                                         if (Array.isArray(oldC.counters) && oldC.counters.length > 0) c.counters = oldC.counters;
                                         if (oldC.loyalty !== undefined) c.loyalty = oldC.loyalty;
                                         if (oldC.attachedTo) c.attachedTo = oldC.attachedTo;
-                                        if (!isNewTurnOrActive) {
+                                        if (!isThisPlayerUntap) {
                                             c.summoningSick = Boolean(oldC.summoningSick);
                                             c.damageReceived = oldC.damageReceived || 0;
                                             c.tempPower = oldC.tempPower || 0;
                                             c.tempToughness = oldC.tempToughness || 0;
                                             c.tempKeywords = oldC.tempKeywords || [];
                                             c._loyaltyUsedThisTurn = Boolean(oldC._loyaltyUsedThisTurn);
-                                        } else if (this.activePlayerIndex === idx) {
+                                        } else {
                                             c.summoningSick = false;
                                             c.damageReceived = 0;
                                             c.tempPower = 0;
@@ -1091,15 +1100,490 @@
                         type: 'TRIGGER',
                         message: `🍄 **${perm.name}** Landfall triggered: Created a 1/1 green Saproling creature token!`
                     });
+                } else if (pName.includes('tireless provisioner')) {
+                    this.createTokenPermanent(controller, {
+                        name: 'Treasure Token',
+                        typeLine: 'Token Artifact — Treasure',
+                        isArtifact: true,
+                        isManaRock: true,
+                        oracleText: '{T}, Sacrifice this artifact: Add one mana of any color.'
+                    });
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `🪙 **${perm.name}** Landfall triggered: Created a Treasure token!`
+                    });
+                } else if (pName.includes('lotus cobra')) {
+                    if (controller.manaPool) {
+                        controller.manaPool.G = (controller.manaPool.G || 0) + 1;
+                    }
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `🐍 **${perm.name}** Landfall triggered: Added {G} to **${controller.name}**'s mana pool!`
+                    });
+                } else if (pName.includes('felidar retreat')) {
+                    this.createTokenPermanent(controller, {
+                        name: 'Cat Beast Token',
+                        typeLine: 'Token Creature — Cat Beast',
+                        power: 2,
+                        toughness: 2,
+                        isCreature: true
+                    });
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `🐾 **${perm.name}** Landfall triggered: Created a 2/2 white Cat Beast creature token!`
+                    });
+                } else if (pName.includes('curse of the restless dead') || pName.includes('field of the dead')) {
+                    this.createTokenPermanent(controller, {
+                        name: 'Zombie Token',
+                        typeLine: 'Token Creature — Zombie',
+                        power: 2,
+                        toughness: 2,
+                        tapped: true,
+                        isCreature: true
+                    });
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `🧟 **${perm.name}** Landfall triggered: Created a tapped 2/2 black Zombie creature token!`
+                    });
                 }
             }
         }
 
+        hasSubtype(card, subtype) {
+            if (!card || !subtype) return false;
+            const target = String(subtype).trim().toLowerCase();
+            if (!target) return false;
+            const nameLower = (card.name || '').trim().toLowerCase();
+            if (nameLower === target || nameLower === `snow-covered ${target}`) return true;
+            if (card.subtypes instanceof Set) {
+                for (const s of card.subtypes) {
+                    if (String(s).toLowerCase() === target) return true;
+                }
+            } else if (Array.isArray(card.subtypes)) {
+                if (card.subtypes.some(s => String(s).toLowerCase() === target)) return true;
+            }
+            if (card.forgeScript && Array.isArray(card.forgeScript.subtypes)) {
+                if (card.forgeScript.subtypes.some(s => String(s).toLowerCase() === target)) return true;
+            }
+            const tl = (card.typeLine || '').toLowerCase();
+            const subtypeRegex = new RegExp(`\\b${target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+            if (subtypeRegex.test(tl)) return true;
+            // Check changeling keyword for creature subtypes
+            const basicLandTypes = new Set(['plains', 'island', 'swamp', 'mountain', 'forest', 'wastes']);
+            if (!basicLandTypes.has(target)) {
+                const oLower = (card.oracleText || '').toLowerCase();
+                if (oLower.includes('changeling') || (card.keywords instanceof Set && card.keywords.has('changeling'))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        isBasicLand(card) {
+            if (!card) return false;
+            if (card.isBasicLand) return true;
+            const nameLower = (card.name || '').trim().toLowerCase();
+            const basicNames = new Set([
+                'plains', 'island', 'swamp', 'mountain', 'forest', 'wastes',
+                'snow-covered plains', 'snow-covered island', 'snow-covered swamp',
+                'snow-covered mountain', 'snow-covered forest', 'snow-covered wastes'
+            ]);
+            if (basicNames.has(nameLower)) return true;
+            const tl = (card.typeLine || '').toLowerCase();
+            if (tl.includes('basic') && tl.includes('land')) return true;
+            if (card.forgeScript && Array.isArray(card.forgeScript.supertypes) && card.forgeScript.supertypes.includes('Basic')) {
+                return true;
+            }
+            return false;
+        }
+
+        evaluateETBReplacement(card, controller, options = {}) {
+            const result = {
+                entersTapped: false,
+                reason: '',
+                counters: [],
+                paidShockLife: false,
+                revealedCardName: null,
+                isShockLand: false
+            };
+            if (!card || !controller) return result;
+
+            const nameLower = (card.name || '').trim().toLowerCase();
+            const oracle = String(card.oracleText || (card.forgeScript && card.forgeScript.oracle) || '');
+            const oracleLower = oracle.toLowerCase();
+            const tl = (card.typeLine || '').toLowerCase();
+            const otherBf = (controller.battlefield || []).filter(c => c && c !== card && (card.id !== undefined && card.id !== null ? String(c.id) !== String(card.id) : true));
+            const otherLands = otherBf.filter(c => c.isLand || (c.typeLine || '').toLowerCase().includes('land'));
+            const handOther = (controller.hand || []).filter(c => c && c !== card && (card.id !== undefined && card.id !== null ? String(c.id) !== String(card.id) : true));
+
+            // 1. Check Lands (1+ land of required basic subtype(s) controlled)
+            const checkLandMap = {
+                'drowned catacomb': ['Island', 'Swamp'],
+                'dragonskull summit': ['Swamp', 'Mountain'],
+                'woodland cemetery': ['Swamp', 'Forest'],
+                'rootbound crag': ['Mountain', 'Forest'],
+                'hinterland harbor': ['Forest', 'Island'],
+                'glacial fortress': ['Plains', 'Island'],
+                'isolated chapel': ['Plains', 'Swamp'],
+                'sulfur falls': ['Island', 'Mountain'],
+                'clifftop retreat': ['Mountain', 'Plains'],
+                'sunpetal grove': ['Forest', 'Plains'],
+                'castle locthwain': ['Swamp'],
+                'castle vantress': ['Island'],
+                'castle garenbrig': ['Forest'],
+                'castle ardenvale': ['Plains'],
+                'castle embereth': ['Mountain']
+            };
+            let checkSubtypes = checkLandMap[nameLower] || null;
+            if (!checkSubtypes && !oracleLower.includes('three or more')) {
+                const mCheck = oracleLower.match(/enters(?: the battlefield)? tapped unless you control a[n]?\s+(plains|island|swamp|mountain|forest)(?:\s+or\s+a[n]?\s+(plains|island|swamp|mountain|forest))?/i);
+                if (mCheck) {
+                    checkSubtypes = [mCheck[1], mCheck[2]].filter(Boolean).map(s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase());
+                }
+            }
+            if (checkSubtypes && checkSubtypes.length > 0) {
+                const matchingLand = otherBf.find(p => checkSubtypes.some(sub => this.hasSubtype(p, sub)));
+                if (matchingLand) {
+                    result.entersTapped = false;
+                    result.reason = `enters untapped (controls ${matchingLand.name})`;
+                } else {
+                    result.entersTapped = true;
+                    result.reason = `enters tapped (requires ${checkSubtypes.join(' or ')})`;
+                }
+                return result;
+            }
+
+            if (nameLower === 'archway of innovation' || /enters(?: the battlefield)? tapped unless you control an artifact/i.test(oracleLower)) {
+                const hasArt = otherBf.some(p => p.isArtifact || (p.typeLine || '').toLowerCase().includes('artifact'));
+                result.entersTapped = !hasArt;
+                result.reason = hasArt ? 'enters untapped (controls an artifact)' : 'enters tapped (no artifact controlled)';
+                return result;
+            }
+
+            // 2. 3+ Same-Subtype Check Lands (Witch's Cottage, Mystic Sanctuary, Dwarven Mine, Gingerbread Cabin, Idyllic Grange)
+            const threeSubtypeMap = {
+                "witch's cottage": 'Swamp',
+                'mystic sanctuary': 'Island',
+                'dwarven mine': 'Mountain',
+                'gingerbread cabin': 'Forest',
+                'idyllic grange': 'Plains'
+            };
+            let threeSub = threeSubtypeMap[nameLower] || null;
+            if (!threeSub) {
+                const mThree = oracleLower.match(/enters(?: the battlefield)? tapped unless you control three or more other (plains|islands|swamps|mountains|forests)/i);
+                if (mThree) {
+                    const rawSub = mThree[1].toLowerCase().replace(/s$/, '');
+                    threeSub = rawSub === 'plain' ? 'Plains' : (rawSub.charAt(0).toUpperCase() + rawSub.slice(1));
+                }
+            }
+            if (threeSub) {
+                const matchingCount = otherBf.filter(p => this.hasSubtype(p, threeSub)).length;
+                if (matchingCount >= 3) {
+                    result.entersTapped = false;
+                    result.reason = `enters untapped (controls ${matchingCount} other ${threeSub}s)`;
+                } else {
+                    result.entersTapped = true;
+                    result.reason = `enters tapped (controls ${matchingCount}/3 other ${threeSub}s)`;
+                }
+                return result;
+            }
+
+            // 3. Battle / Tango Lands (enters tapped unless you control two or more basic lands)
+            const tangoLands = new Set([
+                'sunken hollow', 'smoldering marsh', 'cinder glade', 'canopy vista', 'prairie stream',
+                'radiant summit', 'sodden verdure', 'vernal fen'
+            ]);
+            if (tangoLands.has(nameLower) || /enters(?: the battlefield)? tapped unless you control two or more basic lands/i.test(oracleLower)) {
+                const basicCount = otherLands.filter(p => this.isBasicLand(p)).length;
+                if (basicCount >= 2) {
+                    result.entersTapped = false;
+                    result.reason = `enters untapped (controls ${basicCount} basic lands)`;
+                } else {
+                    result.entersTapped = true;
+                    result.reason = `enters tapped (controls ${basicCount}/2 basic lands)`;
+                }
+                return result;
+            }
+
+            // 4. Reveal / Snarl / Tribal Lands (reveal a card of subtype X or Y from hand)
+            const revealLandMap = {
+                'choked estuary': ['Island', 'Swamp'],
+                'foreboding ruins': ['Mountain', 'Swamp'],
+                'game trail': ['Mountain', 'Forest'],
+                'fortified village': ['Forest', 'Plains'],
+                'port town': ['Plains', 'Island'],
+                'vineglimmer snarl': ['Forest', 'Island'],
+                'necroblossom snarl': ['Swamp', 'Forest'],
+                'furycalm snarl': ['Mountain', 'Plains'],
+                'frostboil snarl': ['Island', 'Mountain'],
+                'shineshadow snarl': ['Plains', 'Swamp'],
+                'gilt-leaf palace': ['Elf'],
+                "auntie's hovel": ['Goblin'],
+                'secluded glen': ['Faerie'],
+                'wanderwine hub': ['Merfolk'],
+                'ancient amphitheater': ['Giant'],
+                'rustic clachan': ['Kithkin'],
+                'murmuring bosk': ['Treefolk'],
+                'flamekin village': ['Elemental'],
+                'fortified beachhead': ['Soldier'],
+                'temple of the dragon queen': ['Dragon']
+            };
+            let revealSubtypes = revealLandMap[nameLower] || null;
+            if (!revealSubtypes) {
+                const mRev = oracleLower.match(/as .* enters(?: the battlefield)?, you may reveal a[n]?\s+([a-z]+)(?:\s+or\s+([a-z]+))?\s+card from your hand/i);
+                if (mRev) {
+                    revealSubtypes = [mRev[1], mRev[2]].filter(Boolean).map(s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase());
+                }
+            }
+            if (revealSubtypes && revealSubtypes.length > 0) {
+                const revealable = handOther.find(h => revealSubtypes.some(sub => this.hasSubtype(h, sub)));
+                if (revealable && options.declineReveal !== true) {
+                    result.entersTapped = false;
+                    result.revealedCardName = revealable.name;
+                    result.reason = `enters untapped (revealed ${revealable.name} from hand)`;
+                } else {
+                    result.entersTapped = true;
+                    result.reason = `enters tapped (no ${revealSubtypes.join(' or ')} card revealed from hand)`;
+                }
+                return result;
+            }
+
+            // 5. Fast Lands (enters tapped unless you control two or fewer other lands)
+            const fastLands = new Set([
+                'darkslick shores', 'blackcleave cliffs', 'copperline gorge', 'seachrome coast', 'razorverge thicket',
+                'blooming marsh', 'spirebluff canal', 'botanical sanctum', 'concealed courtyard', 'inspiring vantage'
+            ]);
+            if (fastLands.has(nameLower) || /enters(?: the battlefield)? tapped unless you control two or fewer other lands/i.test(oracleLower)) {
+                if (otherLands.length <= 2) {
+                    result.entersTapped = false;
+                    result.reason = `enters untapped (controls ${otherLands.length} other lands, <= 2)`;
+                } else {
+                    result.entersTapped = true;
+                    result.reason = `enters tapped (controls ${otherLands.length} other lands, > 2)`;
+                }
+                return result;
+            }
+
+            // 6. Slow Lands (enters tapped unless you control two or more other lands)
+            const slowLands = new Set([
+                'shipwreck marsh', 'haunted ridge', 'rockfall vale', 'dreamroot cascade', 'deserted beach',
+                'shattered sanctum', 'stormcarved coast', 'deathcap glade', 'overgrown farmland', 'sundown pass'
+            ]);
+            if (slowLands.has(nameLower) || /enters(?: the battlefield)? tapped unless you control two or more other lands/i.test(oracleLower)) {
+                if (otherLands.length >= 2) {
+                    result.entersTapped = false;
+                    result.reason = `enters untapped (controls ${otherLands.length} other lands, >= 2)`;
+                } else {
+                    result.entersTapped = true;
+                    result.reason = `enters tapped (controls ${otherLands.length}/2 other lands)`;
+                }
+                return result;
+            }
+
+            // 7. Crowd / Bond Lands (enters tapped unless you have two or more opponents)
+            const crowdLands = new Set([
+                'morphic pool', 'luxury suite', 'spire garden', 'bountiful promenade', 'sea of clouds',
+                'undergrowth stadium', 'rejuvenating springs', 'spectator seating', 'training center', 'vault of champions'
+            ]);
+            if (crowdLands.has(nameLower) || /enters(?: the battlefield)? tapped unless you have two or more opponents/i.test(oracleLower)) {
+                const aliveOpponents = (this.players || []).filter(pl => pl && pl !== controller && pl.isAlive).length;
+                if (aliveOpponents >= 2) {
+                    result.entersTapped = false;
+                    result.reason = `enters untapped (${aliveOpponents} opponents)`;
+                } else {
+                    result.entersTapped = true;
+                    result.reason = `enters tapped (only ${aliveOpponents} opponent)`;
+                }
+                return result;
+            }
+
+            // 8. Shock Lands (pay 2 life or enters tapped)
+            const shockLands = new Set([
+                'watery grave', 'blood crypt', 'stomping ground', 'breeding pool', 'overgrown tomb',
+                'hallowed fountain', 'godless shrine', 'steam vents', 'sacred foundry', 'temple garden'
+            ]);
+            if (shockLands.has(nameLower) || /as .* enters(?: the battlefield)?, you may pay 2 life\. if you don't, it enters(?: the battlefield)? tapped/i.test(oracleLower)) {
+                result.isShockLand = true;
+                const shouldPay = options.payShockLife !== undefined
+                    ? Boolean(options.payShockLife)
+                    : Boolean(controller.isAI && controller.life > 10);
+                if (shouldPay && controller.life > 2) {
+                    result.entersTapped = false;
+                    result.paidShockLife = true;
+                    result.reason = 'enters untapped (paid 2 life)';
+                } else {
+                    result.entersTapped = true;
+                    result.reason = 'enters tapped (did not pay 2 life)';
+                }
+                return result;
+            }
+
+            // 9. Unconditional Taplands & Tapped Artifacts / Creatures
+            const unconditionalTappedNames = new Set([
+                'bojuka bog', 'mortuary mire', 'path of ancestry', 'myriad landscape', 'command bridge',
+                'dimir aqueduct', 'golgari rot farm', 'rakdos carnarium', 'simic growth chamber', 'gruul turf',
+                'azorius chancery', 'boros garrison', 'izzet boilerworks', 'orzhov basilica', 'selesnya sanctuary',
+                'guildless commons', 'arid archway', 'jungle basin', 'everglades', 'coral atoll', 'dormant volcano', 'karoo',
+                'opulent palace', 'crumbling necropolis', 'savage lands', 'jungle shrine', 'arcane sanctum',
+                'seaside citadel', 'sandsteppe citadel', 'nomad outpost', 'mystic monastery', 'frontier bivouac',
+                'zagoth triome', 'indatha triome', 'ketria triome', 'raugrin triome', 'savai triome',
+                "raffine's tower", "xander's lounge", "ziatora's proving ground", "jetmir's garden", "spara's headquarters",
+                'dismal backwater', 'jungle hollow', 'bloodfell caves', 'thornwood falls', 'rugged highlands',
+                'tranquil cove', 'scoured barrens', 'swiftwater cliffs', 'wind-scarred crag', 'blossoming sands',
+                'jwar isle refuge', 'kazandu refuge', 'akoum refuge', 'graypelt refuge', 'sejiri refuge',
+                'foul orchard', 'submerged boneyard', 'cinder barrens', 'woodland stream', 'timber gorge',
+                'meandering river', 'forsaken sanctuary', 'highland lake', 'stone quarry', 'tranquil expanse',
+                'dimir guildgate', 'golgari guildgate', 'rakdos guildgate', 'simic guildgate', 'gruul guildgate',
+                'azorius guildgate', 'boros guildgate', 'izzet guildgate', 'orzhov guildgate', 'selesnya guildgate',
+                'temple of deceit', 'temple of malice', 'temple of malady', 'temple of mystery', 'temple of abandon',
+                'temple of enlightenment', 'temple of silence', 'temple of epiphany', 'temple of triumph', 'temple of plenty',
+                'barren moor', 'lonely sandbar', 'forgotten cave', 'tranquil thicket', 'secluded steppe',
+                'polluted mire', 'remote isle', 'smoldering crater', 'slippery karst', 'drifting meadow',
+                'dakmor salvage', 'halimar depths', 'khalni garden', 'piranha marsh', 'soaring seacliff', 'turntimber grove',
+                'vivid marsh', 'vivid creek', 'vivid crag', 'vivid grove', 'vivid meadow',
+                'thriving moor', 'thriving isle', 'thriving bluff', 'thriving grove', 'thriving heath',
+                'black dragon gate', 'sea gate', 'cliffgate', 'manor gate', 'citadel gate', 'gond gate', 'heap gate', 'basilisk gate',
+                'mistvault bridge', 'darkmoss bridge', 'drossforge bridge', 'tanglepool bridge', 'slagwoods bridge',
+                'razortide bridge', 'goldmire bridge', 'silverbluff bridge', 'rustvale bridge', 'thornglint bridge',
+                'witherbloom campus', 'prismari campus', 'quandrix campus', 'lorehold campus', 'silverquill campus',
+                'obscura storefront', 'maestros theater', 'riveteers overlook', 'cabaretti courtyard', 'brokers hideout',
+                'terramorphic expanse', 'evolving wilds',
+                'worn powerstone', 'charcoal diamond', 'sky diamond', 'fire diamond', 'moss diamond', 'marble diamond',
+                'coldsteel heart', 'firemind vessel', 'nyx lotus', 'ebony fly', 'diregraf ghoul'
+            ]);
+            // Note: Terramorphic Expanse and Evolving Wilds do NOT enter tapped themselves, their fetched land does! Remove them from unconditionalTappedNames:
+            unconditionalTappedNames.delete('terramorphic expanse');
+            unconditionalTappedNames.delete('evolving wilds');
+
+            let isUnconditionalTap = unconditionalTappedNames.has(nameLower);
+            if (!isUnconditionalTap) {
+                const reps = card.forgeReplacements || (card.forgeScript && card.forgeScript.replacements) || [];
+                for (const r of reps) {
+                    if (r.ReplaceWith === 'ETBTapped' && !r.Condition && !r.CheckSVar && !r.ValidCard) {
+                        isUnconditionalTap = true;
+                        break;
+                    }
+                    if (r.Description && /enters(?: the battlefield)? tapped/i.test(r.Description) && !/unless|if you don't/i.test(r.Description)) {
+                        isUnconditionalTap = true;
+                        break;
+                    }
+                }
+            }
+            if (!isUnconditionalTap && card.keywords instanceof Set) {
+                if (card.keywords.has('etbtapped') || card.keywords.has('card.enters.tapped')) {
+                    isUnconditionalTap = true;
+                }
+            }
+            if (!isUnconditionalTap && oracleLower) {
+                // Match "<Cardname/This land/This artifact/This creature/~> enters [the battlefield] tapped" without "unless" or "if you don't"
+                const sentences = oracleLower.split(/(?<=\.)\s+|\n+/);
+                for (const s of sentences) {
+                    if (/^(?:~|this\s+\w+|it|[a-z0-9', -]+)\s+enters(?:\s+the\s+battlefield)?\s+tapped(?:\s+and\b|\s+with\b|\.)/i.test(s.trim()) && !/unless|if you don't|if it wasn't/i.test(s)) {
+                        isUnconditionalTap = true;
+                        break;
+                    }
+                }
+            }
+            if (isUnconditionalTap) {
+                result.entersTapped = true;
+                result.reason = 'enters the battlefield tapped';
+            }
+
+            // 10. Enters-With-Counters Replacement Effects
+            if (nameLower === 'diregraf colossus') {
+                const zombiesInGy = (controller.graveyard || []).filter(c => this.hasSubtype(c, 'Zombie')).length;
+                if (zombiesInGy > 0) {
+                    result.counters.push({ type: '+1/+1', count: zombiesInGy });
+                }
+            } else if (nameLower === 'unbreathing horde') {
+                const zombiesInGy = (controller.graveyard || []).filter(c => this.hasSubtype(c, 'Zombie')).length;
+                const zombiesOnBf = otherBf.filter(c => this.hasSubtype(c, 'Zombie')).length;
+                const totalZ = zombiesInGy + zombiesOnBf;
+                if (totalZ > 0) {
+                    result.counters.push({ type: '+1/+1', count: totalZ });
+                }
+            } else if (nameLower.startsWith('vivid ')) {
+                result.counters.push({ type: 'charge', count: 2 });
+            } else if (tl.includes('saga')) {
+                result.counters.push({ type: 'lore', count: 1 });
+            } else {
+                // Generic K:etbCounter:P1P1:N or oracle "enters with N +1/+1 counters"
+                if (card.keywords instanceof Set) {
+                    for (const kw of card.keywords) {
+                        if (kw.startsWith('etbcounter:')) {
+                            const parts = kw.split(':');
+                            const cType = parts[1] === 'p1p1' ? '+1/+1' : (parts[1] || '+1/+1');
+                            const cNum = parseInt(parts[2], 10);
+                            if (!isNaN(cNum) && cNum > 0) {
+                                result.counters.push({ type: cType, count: cNum });
+                            }
+                        }
+                    }
+                }
+                if (result.counters.length === 0 && oracleLower) {
+                    const mCnt = oracleLower.match(/enters(?:\s+the\s+battlefield)?(?:\s+tapped\s+and)?\s+with\s+(a|one|two|three|four|five|six|\d+)\s+(\+1\/\+1|charge|lore|oil|shield|stun|storage|fade|vanishing)\s+counter/i);
+                    if (mCnt) {
+                        const numMap = { a: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+                        const n = numMap[mCnt[1].toLowerCase()] || parseInt(mCnt[1], 10) || 1;
+                        result.counters.push({ type: mCnt[2].toLowerCase(), count: n });
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        applyETBReplacements(card, controller, options = {}) {
+            if (!card || !controller) return { entersTapped: false };
+            const rep = this.evaluateETBReplacement(card, controller, options);
+            if (options.forceTapped !== undefined) {
+                rep.entersTapped = Boolean(options.forceTapped);
+                rep.reason = rep.entersTapped ? 'enters the battlefield tapped' : 'enters untapped';
+            }
+            card.tapped = Boolean(rep.entersTapped);
+            if (card.tapped) {
+                card.producedMana = null;
+                card.paidLifeCost = null;
+                card._enteredTappedTurn = this.turn || 1;
+            } else {
+                card._enteredTappedTurn = null;
+            }
+            if (rep.paidShockLife) {
+                controller.life -= 2;
+            }
+            if (Array.isArray(rep.counters) && rep.counters.length > 0) {
+                for (const cObj of rep.counters) {
+                    if (cObj.count > 0 && typeof controller.addCounter === 'function') {
+                        controller.addCounter(card, cObj.type, cObj.count);
+                    }
+                }
+            }
+            if (rep.entersTapped) {
+                this.logs.push({
+                    type: 'ETB_RULE',
+                    message: `🔒 **${card.name}** ${rep.reason || 'entered the battlefield tapped'}.`
+                });
+            } else if (rep.reason) {
+                this.logs.push({
+                    type: 'ETB_RULE',
+                    message: `🔓 **${card.name}** ${rep.reason}.`
+                });
+            }
+            if (rep.counters && rep.counters.length > 0) {
+                for (const cObj of rep.counters) {
+                    this.logs.push({
+                        type: 'ETB_RULE',
+                        message: `✨ **${card.name}** entered with **${cObj.count}** ${cObj.type} counter(s)!`
+                    });
+                }
+            }
+            return rep;
+        }
+
         triggerSpellCast(card, caster) {
             if (!card || !caster) return;
-            const tl = (card.typeLine || '').toLowerCase();
-            const isZombie = tl.includes('zombie') || (card.subtypes instanceof Set && card.subtypes.has('Zombie'));
-            const isElf = tl.includes('elf') || (card.subtypes instanceof Set && card.subtypes.has('Elf'));
+            const isZombie = this.hasSubtype(card, 'Zombie');
+            const isElf = this.hasSubtype(card, 'Elf');
             for (const perm of [...(caster.battlefield || [])]) {
                 if (!perm || String(perm.id) === String(card.id)) continue;
                 const pName = (perm.name || '').toLowerCase();
@@ -1143,27 +1627,33 @@
         triggerETB(card, controller, targetInfo = null) {
             if (!card || !controller) return;
             const nameLower = (card.name || '').toLowerCase();
-            const oracleLower = (card.oracleText || '').toLowerCase();
+            const oracleLower = (card.oracleText || (card.forgeScript && card.forgeScript.oracle) || '').toLowerCase();
             const tl = (card.typeLine || '').toLowerCase();
 
             if (card.isLand) {
+                // 1. Bojuka Bog: Exile target player's graveyard (always log!)
                 if (nameLower === 'bojuka bog') {
                     const opp = (targetInfo && targetInfo.playerIndex !== undefined && this.players[targetInfo.playerIndex])
-                        || this.players.find((pl, i) => i !== 0 && pl.isAlive && (pl.graveyard || []).length > 0)
+                        || this.players.find((pl, i) => pl !== controller && pl.isAlive && (pl.graveyard || []).length > 0)
+                        || this.players.find(pl => pl !== controller && pl.isAlive)
                         || this.players[1];
-                    if (opp && Array.isArray(opp.graveyard) && opp.graveyard.length > 0) {
-                        const count = opp.graveyard.length;
-                        if (!Array.isArray(opp.exile)) opp.exile = [];
-                        opp.exile.push(...opp.graveyard);
-                        opp.graveyard = [];
-                        opp.graveyardCount = 0;
+                    if (opp) {
+                        const count = Array.isArray(opp.graveyard) ? opp.graveyard.length : 0;
+                        if (count > 0) {
+                            if (!Array.isArray(opp.exile)) opp.exile = [];
+                            opp.exile.push(...opp.graveyard);
+                            opp.graveyard = [];
+                            opp.graveyardCount = 0;
+                        }
                         this.logs.push({
                             type: 'TRIGGER',
                             message: `🌑 **Bojuka Bog** ETB triggered: Exiled all **${count}** card(s) from **${opp.name}**'s graveyard!`
                         });
                     }
-                } else if (nameLower === 'mortuary mire') {
-                    const creaturesInGy = (controller.graveyard || []).filter(c => c.isCreature);
+                }
+                // 2. Mortuary Mire & Witch's Cottage (when Witch's Cottage enters untapped)
+                else if (nameLower === 'mortuary mire' || (nameLower === "witch's cottage" && !card.tapped)) {
+                    const creaturesInGy = (controller.graveyard || []).filter(c => c.isCreature || (c.typeLine || '').toLowerCase().includes('creature'));
                     let targetCard = null;
                     if (targetInfo && targetInfo.cardId) {
                         targetCard = creaturesInGy.find(c => String(c.id) === String(targetInfo.cardId));
@@ -1179,25 +1669,141 @@
                         controller.libraryCount = controller.libraryCards.length;
                         this.logs.push({
                             type: 'TRIGGER',
-                            message: `⚰️ **Mortuary Mire** ETB triggered: Put **${targetCard.name}** from graveyard on top of **${controller.name}**'s library.`
+                            message: `⚰️ **${card.name}** ETB triggered: Put **${targetCard.name}** from graveyard on top of **${controller.name}**'s library.`
+                        });
+                    } else {
+                        this.logs.push({
+                            type: 'TRIGGER',
+                            message: `⚰️ **${card.name}** ETB triggered (no creature cards in **${controller.name}**'s graveyard).`
                         });
                     }
                 }
+                // 3. Mystic Sanctuary (when it enters untapped)
+                else if (nameLower === 'mystic sanctuary' && !card.tapped) {
+                    const spellsInGy = (controller.graveyard || []).filter(c => c.isInstant || c.isSorcery || /instant|sorcery/i.test(c.typeLine || ''));
+                    if (spellsInGy.length > 0) {
+                        const targetSpell = spellsInGy[spellsInGy.length - 1];
+                        controller.graveyard = controller.graveyard.filter(c => String(c.id) !== String(targetSpell.id));
+                        controller.graveyardCount = controller.graveyard.length;
+                        if (!Array.isArray(controller.libraryCards)) controller.libraryCards = [];
+                        controller.libraryCards.unshift(targetSpell);
+                        controller.libraryCount = controller.libraryCards.length;
+                        this.logs.push({
+                            type: 'TRIGGER',
+                            message: `🌊 **Mystic Sanctuary** ETB triggered: Put **${targetSpell.name}** from graveyard on top of **${controller.name}**'s library.`
+                        });
+                    }
+                }
+                // 4. Bounce Lands (Dimir Aqueduct, Golgari Rot Farm, Rakdos Carnarium, Simic Growth Chamber, etc.)
+                else if (
+                    [
+                        'dimir aqueduct', 'golgari rot farm', 'rakdos carnarium', 'simic growth chamber', 'gruul turf',
+                        'azorius chancery', 'boros garrison', 'izzet boilerworks', 'orzhov basilica', 'selesnya sanctuary',
+                        'guildless commons', 'arid archway'
+                    ].includes(nameLower) ||
+                    /when .* enters(?: the battlefield)?, return a land you control to its owner's hand/i.test(oracleLower)
+                ) {
+                    const landsOnBf = (controller.battlefield || []).filter(c => c && c.isLand);
+                    const otherLands = landsOnBf.filter(c => String(c.id) !== String(card.id));
+                    // Prefer returning a tapped land first, otherwise another land, otherwise itself
+                    const bounceTarget = otherLands.find(c => c.tapped) || otherLands[0] || card;
+                    if (bounceTarget) {
+                        controller.battlefield = (controller.battlefield || []).filter(c => String(c.id) !== String(bounceTarget.id));
+                        bounceTarget.tapped = false;
+                        bounceTarget.producedMana = null;
+                        bounceTarget._enteredTappedTurn = null;
+                        if (!Array.isArray(controller.hand)) controller.hand = [];
+                        controller.hand.push(bounceTarget);
+                        if (Array.isArray(controller.keptHandCards) && !controller.keptHandCards.some(c => String(c.id) === String(bounceTarget.id))) {
+                            controller.keptHandCards.push(bounceTarget);
+                        }
+                        controller.handCount = controller.hand.length;
+                        this.logs.push({
+                            type: 'TRIGGER',
+                            message: `🔄 **${card.name}** ETB triggered: Returned **${bounceTarget.name}** to **${controller.name}**'s hand.`
+                        });
+                    }
+                }
+                // 5. Gain Lands & Refuges (+1 or +2 life on ETB)
+                else if (/when .* enters(?: the battlefield)?,[\s\S]*?you gain (\d+) life/i.test(oracleLower)) {
+                    const mLife = oracleLower.match(/you gain (\d+) life/i);
+                    const lifeGain = mLife ? (parseInt(mLife[1], 10) || 1) : 1;
+                    controller.life += lifeGain;
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `💚 **${card.name}** ETB triggered: **${controller.name}** gained **${lifeGain}** life (now at ${controller.life}).`
+                    });
+                }
+                // 6. Scry Temples & Surveil Lands
+                else if (nameLower.startsWith('temple of ') || /when .* enters(?: the battlefield)?, scry 1/i.test(oracleLower)) {
+                    const topCard = controller.libraryCards && controller.libraryCards[0];
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `🔮 **${card.name}** ETB triggered: Scry 1${topCard ? ` (inspected top card: **${topCard.name}**)` : ''}.`
+                    });
+                } else if (/when .* enters(?: the battlefield)?, surveil 1/i.test(oracleLower)) {
+                    const topCard = controller.libraryCards && controller.libraryCards[0];
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `👁️ **${card.name}** ETB triggered: Surveil 1${topCard ? ` (inspected top card: **${topCard.name}**)` : ''}.`
+                    });
+                }
+                // 7. Khalni Garden (0/1 green Plant token) & Dwarven Mine (1/1 red Dwarf token if untapped)
+                else if (nameLower === 'khalni garden') {
+                    this.createTokenPermanent(controller, {
+                        name: 'Plant Token',
+                        typeLine: 'Token Creature — Plant',
+                        power: 0,
+                        toughness: 1,
+                        isCreature: true
+                    });
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `🌱 **Khalni Garden** ETB triggered: Created a 0/1 green Plant creature token!`
+                    });
+                } else if (nameLower === 'dwarven mine' && !card.tapped) {
+                    this.createTokenPermanent(controller, {
+                        name: 'Dwarf Token',
+                        typeLine: 'Token Creature — Dwarf',
+                        power: 1,
+                        toughness: 1,
+                        isCreature: true
+                    });
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `⛏️ **Dwarven Mine** ETB triggered: Created a 1/1 red Dwarf creature token!`
+                    });
+                } else if (nameLower === 'gingerbread cabin' && !card.tapped) {
+                    this.createTokenPermanent(controller, {
+                        name: 'Food Token',
+                        typeLine: 'Token Artifact — Food',
+                        isArtifact: true,
+                        oracleText: '{2}, {T}, Sacrifice this artifact: You gain 3 life.'
+                    });
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `🍪 **Gingerbread Cabin** ETB triggered: Created a Food token!`
+                    });
+                }
+                // 8. Ping Lands (Piranha Marsh, Sunscorched Desert, Outlaws of Thunder Junction Crime Deserts)
+                else if (nameLower === 'piranha marsh' || nameLower === 'sunscorched desert' || /when .* enters(?: the battlefield)?, it deals 1 damage to target opponent/i.test(oracleLower) || /when .* enters(?: the battlefield)?, target player loses 1 life/i.test(oracleLower)) {
+                    const opp = (targetInfo && targetInfo.playerIndex !== undefined && this.players[targetInfo.playerIndex])
+                        || this.players.find(pl => pl !== controller && pl.isAlive);
+                    if (opp) {
+                        opp.life -= 1;
+                        this.logs.push({
+                            type: 'TRIGGER',
+                            message: `🎯 **${card.name}** ETB triggered: **${opp.name}** lost 1 life (now at ${opp.life})!`
+                        });
+                    }
+                }
+
                 this.triggerLandfall(card, controller);
                 return;
             }
 
-            // Card-specific ETB effects
-            if (nameLower === 'diregraf colossus') {
-                const zombiesInGy = (controller.graveyard || []).filter(c => (c.typeLine || '').toLowerCase().includes('zombie')).length;
-                if (zombiesInGy > 0 && typeof controller.addCounter === 'function') {
-                    controller.addCounter(card, '+1/+1', zombiesInGy);
-                    this.logs.push({
-                        type: 'TRIGGER',
-                        message: `🧟 **Diregraf Colossus** enters with **${zombiesInGy}** +1/+1 counter(s) for Zombies in **${controller.name}**'s graveyard!`
-                    });
-                }
-            } else if (nameLower === 'grave titan') {
+            // Non-Land Card-specific ETB effects
+            if (nameLower === 'grave titan') {
                 for (let i = 0; i < 2; i++) {
                     this.createTokenPermanent(controller, {
                         name: 'Zombie Token',
@@ -1212,7 +1818,7 @@
                     message: `🧟 **Grave Titan** ETB triggered: Created two 2/2 black Zombie creature tokens!`
                 });
             } else if (nameLower === 'eternal skylord' || nameLower === 'gleaming overseer' || nameLower === 'dreadhorde invasion' || nameLower === 'lazotep plating') {
-                const existingArmy = (controller.battlefield || []).find(c => (c.typeLine || '').toLowerCase().includes('army'));
+                const existingArmy = (controller.battlefield || []).find(c => this.hasSubtype(c, 'Army'));
                 if (existingArmy && typeof controller.addCounter === 'function') {
                     controller.addCounter(existingArmy, '+1/+1', 2);
                 } else {
@@ -1246,7 +1852,7 @@
                     type: 'TRIGGER',
                     message: `🌱 **Avenger of Zendikar** ETB triggered: Created **${landCount}** 0/1 green Plant creature tokens!`
                 });
-            } else if (nameLower === 'overseer of the damned' || nameLower === 'ravenous chupacabra' || nameLower === 'meteor golem' || nameLower === 'reclamation sage') {
+            } else if (nameLower === 'overseer of the damned' || nameLower === 'ravenous chupacabra' || nameLower === 'meteor golem' || nameLower === 'reclamation sage' || nameLower === 'binding the old gods') {
                 this.resolveTargetedEffect(card, controller, targetInfo, { isETB: true });
             } else if (nameLower === 'fleshbag marauder' || nameLower === 'merciless executioner' || nameLower === 'plaguecrafter') {
                 for (const pl of (this.players || [])) {
@@ -1274,27 +1880,120 @@
                     type: 'TRIGGER',
                     message: `🖤 **Gray Merchant of Asphodel** ETB triggered: Each opponent lost **${devotion}** life and **${controller.name}** gained **${drainTotal}** life!`
                 });
-            } else if (nameLower === 'shaman of the pack') {
-                const elfCount = (controller.battlefield || []).filter(c => (c.typeLine || '').toLowerCase().includes('elf')).length;
-                const opp = (targetInfo && targetInfo.playerIndex !== undefined && this.players[targetInfo.playerIndex])
-                    || this.players.find((pl, i) => pl !== controller && pl.isAlive);
-                if (opp && elfCount > 0) {
-                    opp.life -= elfCount;
+            } else if (nameLower === 'shaman of the pack' || nameLower === 'skemfar shadowsage') {
+                const elfCount = (controller.battlefield || []).filter(c => this.hasSubtype(c, 'Elf')).length;
+                if (nameLower === 'skemfar shadowsage') {
+                    for (const pl of (this.players || [])) {
+                        if (!pl || !pl.isAlive || pl === controller) continue;
+                        pl.life -= elfCount;
+                    }
                     this.logs.push({
                         type: 'TRIGGER',
-                        message: `🏹 **Shaman of the Pack** ETB triggered: **${opp.name}** lost **${elfCount}** life!`
+                        message: `🏹 **Skemfar Shadowsage** ETB triggered: Each opponent lost **${elfCount}** life!`
+                    });
+                } else {
+                    const opp = (targetInfo && targetInfo.playerIndex !== undefined && this.players[targetInfo.playerIndex])
+                        || this.players.find((pl, i) => pl !== controller && pl.isAlive);
+                    if (opp && elfCount > 0) {
+                        opp.life -= elfCount;
+                        this.logs.push({
+                            type: 'TRIGGER',
+                            message: `🏹 **Shaman of the Pack** ETB triggered: **${opp.name}** lost **${elfCount}** life!`
+                        });
+                    }
+                }
+            } else if (nameLower === 'mire triton') {
+                const milled = typeof controller.mill === 'function' ? controller.mill(2) : [];
+                controller.life += 2;
+                this.logs.push({
+                    type: 'TRIGGER',
+                    message: `🌊 **Mire Triton** ETB triggered: Milled **${milled.length}** card(s) and **${controller.name}** gained 2 life!`
+                });
+            } else if (nameLower === "stitcher's supplier" || nameLower === 'gisa and geralf') {
+                const millCount = nameLower === 'gisa and geralf' ? 4 : 3;
+                const milled = typeof controller.mill === 'function' ? controller.mill(millCount) : [];
+                this.logs.push({
+                    type: 'TRIGGER',
+                    message: `⚰️ **${card.name}** ETB triggered: Milled **${milled.length}** card(s)${milled.length ? ` (${milled.map(c => c.name).join(', ')})` : ''}.`
+                });
+            } else if (nameLower === 'eternal witness' || nameLower === 'golgari findbroker' || nameLower === 'timeless witness') {
+                const gy = controller.graveyard || [];
+                if (gy.length > 0) {
+                    const returned = gy.pop();
+                    controller.graveyardCount = gy.length;
+                    controller.hand.push(returned);
+                    if (controller.keptHandCards) controller.keptHandCards.push(returned);
+                    controller.handCount = controller.hand.length;
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `♻️ **${card.name}** ETB triggered: Returned **${returned.name}** from graveyard to **${controller.name}**'s hand!`
                     });
                 }
+            } else if (nameLower === 'dwynen\'s elite') {
+                const otherElves = (controller.battlefield || []).filter(c => String(c.id) !== String(card.id) && this.hasSubtype(c, 'Elf'));
+                if (otherElves.length > 0) {
+                    this.createTokenPermanent(controller, {
+                        name: 'Elf Warrior Token',
+                        typeLine: 'Token Creature — Elf Warrior',
+                        power: 1,
+                        toughness: 1,
+                        isCreature: true
+                    });
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `🏹 **Dwynen's Elite** ETB triggered: Created a 1/1 green Elf Warrior creature token!`
+                    });
+                }
+            } else if (nameLower === 'cultivator of blades') {
+                for (let i = 0; i < 2; i++) {
+                    this.createTokenPermanent(controller, {
+                        name: 'Servo Token',
+                        typeLine: 'Token Artifact Creature — Servo',
+                        power: 1,
+                        toughness: 1,
+                        isCreature: true,
+                        isArtifact: true
+                    });
+                }
+                this.logs.push({
+                    type: 'TRIGGER',
+                    message: `⚙️ **Cultivator of Blades** Fabricate 2 triggered: Created two 1/1 colorless Servo artifact creature tokens!`
+                });
+            } else if (nameLower === 'end-raze forerunners' || nameLower === 'craterhoof behemoth') {
+                const creatures = (controller.battlefield || []).filter(c => c.isCreature);
+                const bonus = nameLower === 'craterhoof behemoth' ? creatures.length : 2;
+                creatures.forEach(c => {
+                    if (nameLower === 'end-raze forerunners' && String(c.id) === String(card.id)) return;
+                    c.tempPower = (c.tempPower || 0) + bonus;
+                    c.tempToughness = (c.tempToughness || 0) + bonus;
+                    if (!Array.isArray(c.tempKeywords)) c.tempKeywords = [];
+                    if (!c.tempKeywords.includes('trample')) c.tempKeywords.push('trample');
+                    if (nameLower === 'end-raze forerunners' && !c.tempKeywords.includes('vigilance')) c.tempKeywords.push('vigilance');
+                });
+                this.logs.push({
+                    type: 'TRIGGER',
+                    message: `🐗 **${card.name}** ETB triggered: Creatures **${controller.name}** controls get **+${bonus}/+${bonus}** and trample until end of turn!`
+                });
+            } else if (/when (?:this|~|it|[a-z0-9', -]+) enters(?: the battlefield)?,[\s\S]*?you gain (\d+) life/i.test(oracleLower)) {
+                const mLife = oracleLower.match(/you gain (\d+) life/i);
+                const gain = mLife ? (parseInt(mLife[1], 10) || 1) : 1;
+                controller.life += gain;
+                this.logs.push({
+                    type: 'TRIGGER',
+                    message: `💚 **${card.name}** ETB triggered: **${controller.name}** gained **${gain}** life!`
+                });
             }
 
             // Other permanents on controller's battlefield that trigger when a creature enters
             if (card.isCreature) {
-                const isDragon = tl.includes('dragon') || (card.subtypes instanceof Set && card.subtypes.has('Dragon'));
+                const isDragon = this.hasSubtype(card, 'Dragon');
+                const isZombie = this.hasSubtype(card, 'Zombie');
+                const isElf = this.hasSubtype(card, 'Elf');
                 const isFlying = typeof controller.hasEffectiveKeyword === 'function' ? controller.hasEffectiveKeyword(card, 'flying') : oracleLower.includes('flying');
                 for (const perm of [...(controller.battlefield || [])]) {
                     if (!perm || String(perm.id) === String(card.id)) continue;
                     const pName = (perm.name || '').toLowerCase();
-                    if (pName === 'garruk\'s uprising' || pName === 'elemental bond') {
+                    if (pName === "garruk's uprising" || pName === 'elemental bond') {
                         const effPwr = typeof controller.getEffectivePower === 'function' ? controller.getEffectivePower(card) : (card.power || 0);
                         const minPwr = pName === 'elemental bond' ? 3 : 4;
                         if (effPwr >= minPwr && typeof controller.draw === 'function') {
@@ -1309,7 +2008,7 @@
                             card.summoningSick = false;
                         }
                         if (isDragon) {
-                            const dragonCount = controller.battlefield.filter(c => (c.typeLine || '').toLowerCase().includes('dragon')).length;
+                            const dragonCount = controller.battlefield.filter(c => this.hasSubtype(c, 'Dragon')).length;
                             const opp = this.players.find(pl => pl !== controller && pl.isAlive);
                             if (opp && dragonCount > 0) {
                                 opp.life -= dragonCount;
@@ -1320,7 +2019,7 @@
                             }
                         }
                     } else if (pName === 'scourge of valkas' && isDragon) {
-                        const dragonCount = controller.battlefield.filter(c => (c.typeLine || '').toLowerCase().includes('dragon')).length;
+                        const dragonCount = controller.battlefield.filter(c => this.hasSubtype(c, 'Dragon')).length;
                         const opp = this.players.find(pl => pl !== controller && pl.isAlive);
                         if (opp && dragonCount > 0) {
                             opp.life -= dragonCount;
@@ -1329,6 +2028,52 @@
                                 message: `🔥 **Scourge of Valkas** triggered: Dealt **${dragonCount}** damage to **${opp.name}**!`
                             });
                         }
+                    } else if (pName === 'champion of the perished' && isZombie) {
+                        if (typeof controller.addCounter === 'function') {
+                            controller.addCounter(perm, '+1/+1', 1);
+                            this.logs.push({
+                                type: 'TRIGGER',
+                                message: `🧟 **Champion of the Perished** triggered on **${card.name}** entering: Put a +1/+1 counter on Champion of the Perished!`
+                            });
+                        }
+                    } else if ((pName === 'wayward servant' || pName === 'corpse knight') && isZombie) {
+                        for (const pl of (this.players || [])) {
+                            if (!pl || !pl.isAlive || pl === controller) continue;
+                            pl.life -= 1;
+                        }
+                        if (pName === 'wayward servant') controller.life += 1;
+                        this.logs.push({
+                            type: 'TRIGGER',
+                            message: `🧟 **${perm.name}** triggered on **${card.name}** entering: Each opponent lost 1 life${pName === 'wayward servant' ? ' and you gained 1 life' : ''}!`
+                        });
+                    } else if (pName === 'marwyn, the nurturer' && isElf) {
+                        if (typeof controller.addCounter === 'function') {
+                            controller.addCounter(perm, '+1/+1', 1);
+                            this.logs.push({
+                                type: 'TRIGGER',
+                                message: `🌲 **Marwyn, the Nurturer** triggered on **${card.name}** entering: Put a +1/+1 counter on Marwyn!`
+                            });
+                        }
+                    } else if (pName === 'impact tremors' || pName === 'purphoros, god of the forge') {
+                        const dmg = pName.includes('purphoros') ? 2 : 1;
+                        for (const pl of (this.players || [])) {
+                            if (!pl || !pl.isAlive || pl === controller) continue;
+                            pl.life -= dmg;
+                        }
+                        this.logs.push({
+                            type: 'TRIGGER',
+                            message: `🔥 **${perm.name}** triggered on **${card.name}** entering: Dealt **${dmg}** damage to each opponent!`
+                        });
+                    } else if (pName === "cathars' crusade") {
+                        controller.battlefield.forEach(c => {
+                            if (c.isCreature && typeof controller.addCounter === 'function') {
+                                controller.addCounter(c, '+1/+1', 1);
+                            }
+                        });
+                        this.logs.push({
+                            type: 'TRIGGER',
+                            message: `⚔️ **Cathars' Crusade** triggered: Put a +1/+1 counter on each creature **${controller.name}** controls!`
+                        });
                     }
                 }
             }
@@ -1651,7 +2396,11 @@
                 if (gyRes) {
                     gyRes.owner.graveyard = (gyRes.owner.graveyard || []).filter(c => String(c.id) !== String(gyRes.card.id));
                     gyRes.owner.graveyardCount = gyRes.owner.graveyard.length;
-                    gyRes.card.tapped = false;
+                    this.applyETBReplacements(gyRes.card, controller);
+                    if ( nameLower === 'victimize') {
+                        gyRes.card.tapped = true;
+                        gyRes.card._enteredTappedTurn = this.turn || 1;
+                    }
                     gyRes.card.summoningSick = !controller.hasEffectiveKeyword(gyRes.card, 'haste');
                     gyRes.card._jsPlaced = true;
                     if (this._removedPermanentIds) this._removedPermanentIds.delete(String(gyRes.card.id));
@@ -1752,13 +2501,13 @@
                             placedHand.push(card);
                         }
                     } else {
-                        card.tapped = entersTapped;
+                        const rep = this.evaluateETBReplacement(card, p);
+                        const finalTapped = Boolean(entersTapped || rep.entersTapped);
+                        this.applyETBReplacements(card, p, { forceTapped: finalTapped });
                         card._jsPlaced = true;
                         p.battlefield.push(card);
                         placedBattlefield.push(card);
-                        if (card.isLand) {
-                            this.triggerLandfall(card, p);
-                        }
+                        this.triggerETB(card, p);
                     }
                 });
                 p.handCount = p.hand.length;
@@ -1893,7 +2642,7 @@
                 const landIdx = activeP.hand.findIndex(c => c.isLand || (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(c)));
                 if (landIdx !== -1) {
                     const landCard = activeP.hand.splice(landIdx, 1)[0];
-                    landCard.tapped = false;
+                    this.applyETBReplacements(landCard, activeP);
                     landCard._jsPlaced = true;
                     activeP.battlefield.push(landCard);
                     activeP.landPlayedThisTurn = true;
@@ -1901,7 +2650,7 @@
                     activeP.handCount = activeP.hand.length;
                     this.logs.push({
                         type: 'LAND_PLAY',
-                        message: `🏞️ **${activeP.name}** played **${landCard.name}**.`
+                        message: `🏞️ **${activeP.name}** played **${landCard.name}**${landCard.tapped ? ' (entered tapped)' : ''}.`
                     });
                     this.triggerETB(landCard, activeP);
                 }
@@ -1932,7 +2681,7 @@
                         activeP.graveyard.push(spell);
                         activeP.graveyardCount = activeP.graveyard.length;
                     } else {
-                        spell.tapped = false;
+                        this.applyETBReplacements(spell, activeP);
                         spell.summoningSick = spell.isCreature && !activeP.hasEffectiveKeyword(spell, 'haste');
                         spell._jsPlaced = true;
                         activeP.battlefield.push(spell);
@@ -2138,6 +2887,17 @@
                             const matching = activePlayer.battlefield.filter(c => (c.name || '').toLowerCase() === cardNameLower);
                             placedPerm = matching[matching.length - 1] || card;
                         }
+                        // Ensure placedPerm has full enriched metadata from card
+                        if (placedPerm !== card) {
+                            if (card.forgeScript && !placedPerm.forgeScript) placedPerm.forgeScript = card.forgeScript;
+                            if (card.forgeReplacements && !placedPerm.forgeReplacements) placedPerm.forgeReplacements = card.forgeReplacements;
+                            if (card.oracleText && !placedPerm.oracleText) placedPerm.oracleText = card.oracleText;
+                            if (card.typeLine && (!placedPerm.typeLine || placedPerm.typeLine === 'Land')) placedPerm.typeLine = card.typeLine;
+                            if (card.subtypes instanceof Set && (!(placedPerm.subtypes instanceof Set) || placedPerm.subtypes.size === 0)) placedPerm.subtypes = card.subtypes;
+                        }
+                        this.applyETBReplacements(placedPerm, activePlayer, options);
+                        card.tapped = Boolean(placedPerm.tapped);
+                        card._enteredTappedTurn = placedPerm._enteredTappedTurn;
                         if (placedPerm.isCreature) {
                             const hasHaste = typeof activePlayer.hasEffectiveKeyword === 'function'
                                 ? activePlayer.hasEffectiveKeyword(placedPerm, 'haste')
@@ -2430,7 +3190,7 @@
                 const p = this.players[0];
                 if (p) {
                     if (p.battlefield) {
-                        const idx = p.battlefield.findIndex(c => String(c.id) === String(cardIdOrName) || (card && String(c.id) === String(card.id)));
+                        const idx = p.battlefield.findIndex(c => String(c.id) === String(cardIdOrName) || (card && String(c.id) === String(card.id)) || (c.name || '').toLowerCase() === cardName.toLowerCase());
                         if (idx !== -1) {
                             const [sacrificed] = p.battlefield.splice(idx, 1);
                             if (this._removedPermanentIds) this._removedPermanentIds.add(String(sacrificed.id));
@@ -2474,13 +3234,15 @@
                         }
 
                         if (i >= addedByBridge && fetchedLand) {
-                            fetchedLand.tapped = !isUntapped;
+                            const rep = this.evaluateETBReplacement(fetchedLand, p);
+                            const finalTapped = Boolean(!isUntapped || rep.entersTapped);
+                            this.applyETBReplacements(fetchedLand, p, { forceTapped: finalTapped });
                             fetchedLand.isLand = true;
                             fetchedLand._jsPlaced = true;
                             if (!p.battlefield.some(c => String(c.id) === String(fetchedLand.id))) {
                                 p.battlefield.push(fetchedLand);
                             }
-                            this.triggerLandfall(fetchedLand, p);
+                            this.triggerETB(fetchedLand, p);
                         }
                     }
 
@@ -2488,9 +3250,11 @@
                         const matchingLands = p.battlefield.filter(c => (c.name || '').toLowerCase() === chosenLower);
                         const newestLand = matchingLands[matchingLands.length - 1];
                         if (newestLand) {
-                            newestLand.tapped = !isUntapped;
+                            const rep = this.evaluateETBReplacement(newestLand, p);
+                            const finalTapped = Boolean(!isUntapped || rep.entersTapped);
+                            this.applyETBReplacements(newestLand, p, { forceTapped: finalTapped });
                             newestLand.isLand = true;
-                            this.triggerLandfall(newestLand, p);
+                            this.triggerETB(newestLand, p);
                         }
                     }
 
@@ -2915,6 +3679,7 @@
                 c.forgeAbilities = fScript.abilities || [];
                 c.forgeStatic = fScript.staticAbilities || fScript.static || [];
                 c.forgeSVars = fScript.svars || {};
+                c.forgeReplacements = fScript.replacements || [];
 
                 // Parse raw Forge script lines if not already parsed on fScript
                 if (fScript.raw && !fScript._parsedRaw) {
@@ -2948,11 +3713,21 @@
                             fScript.loyalty = rl.slice(8).trim();
                         } else if (rl.startsWith('Oracle:')) {
                             fScript.oracle = rl.slice(7).trim().replace(/\\n/g, '\n');
+                        } else if (rl.startsWith('R:')) {
+                            const repObj = {};
+                            rl.slice(2).split('|').forEach(seg => {
+                                const idx = seg.indexOf('$');
+                                if (idx !== -1) repObj[seg.slice(0, idx).trim()] = seg.slice(idx + 1).trim();
+                            });
+                            if (!Array.isArray(fScript.replacements)) fScript.replacements = [];
+                            fScript.replacements.push(repObj);
+                            c.forgeReplacements = fScript.replacements;
                         }
                     }
                 }
 
-                if (!c.typeLine && fScript.types) {
+                const existingTlGeneric = !c.typeLine || ['land', 'basic land', 'spell', 'creature', 'artifact', 'enchantment', 'instant', 'sorcery', 'planeswalker'].includes(String(c.typeLine).trim().toLowerCase());
+                if (existingTlGeneric && fScript.types && fScript.types.length > 0) {
                     const sups = (fScript.supertypes || []).join(' ');
                     const typs = (fScript.types || []).join(' ');
                     const subs = (fScript.subtypes || []).join(' ');
@@ -2977,6 +3752,25 @@
                     c.loyalty = parseInt(fScript.loyalty, 10) || 4;
                     c.baseLoyalty = c.loyalty;
                 }
+            }
+        }
+
+        // Ensure basic lands always have full Basic Land — [Subtype] typeLine even if uncached
+        const basicSubtypeMap = {
+            'plains': 'Plains', 'snow-covered plains': 'Plains',
+            'island': 'Island', 'snow-covered island': 'Island',
+            'swamp': 'Swamp', 'snow-covered swamp': 'Swamp',
+            'mountain': 'Mountain', 'snow-covered mountain': 'Mountain',
+            'forest': 'Forest', 'snow-covered forest': 'Forest',
+            'wastes': 'Wastes', 'snow-covered wastes': 'Wastes'
+        };
+        if (basicSubtypeMap[nameLower]) {
+            const sub = basicSubtypeMap[nameLower];
+            const isSnow = nameLower.startsWith('snow-covered');
+            c.isLand = true;
+            c.isBasicLand = true;
+            if (!c.typeLine || !c.typeLine.toLowerCase().includes(sub.toLowerCase())) {
+                c.typeLine = `${isSnow ? 'Basic Snow Land' : 'Basic Land'} — ${sub === 'Wastes' ? '' : sub}`.replace(/\s+—\s*$/, '');
             }
         }
 

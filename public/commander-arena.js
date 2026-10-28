@@ -4223,7 +4223,7 @@
                         <div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <h2 class="arena-title" style="margin: 0;">Commander Battle Arena</h2>
-                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.3</span>
+                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.4</span>
                             </div>
                             <span class="arena-subtitle">Client-Native Forge Rules Engine • Live 4-Player Tabletop</span>
                         </div>
@@ -5899,7 +5899,7 @@
     window.openCardAbilityModal = function (cardId) {
         if (!currentGame) return;
         const player = currentGame.players[0];
-        const card = player.battlefield.find(c => c.id === cardId);
+        const card = player.battlefield.find(c => String(c.id) === String(cardId));
         if (!card) return;
 
         currentAbilityCard = card;
@@ -5925,15 +5925,37 @@
             statusEl.textContent = statusText;
         }
 
+        const manaInfo = getPermanentManaAbilities(card);
+        let manaRowHtml = '';
+        if (manaInfo && !card.tapped) {
+            const opt = manaInfo.options[0] || { colors: ['C'] };
+            const pips = opt.colors.map(c => '{' + c + '}').join('');
+            manaRowHtml = `
+                <div class="ability-option-row" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px;">
+                            <span class="ability-cost-tag tap" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 800; font-size: 0.72rem; padding: 2px 8px; border-radius: 4px;">{T} Mana Ability</span>
+                        </div>
+                        <div class="ability-effect-text" style="font-size: 0.82rem; color: #f1f5f9;">Add <strong>${pips}</strong> to your mana pool.</div>
+                    </div>
+                    <button class="arena-btn arena-btn-gold"
+                            style="white-space: nowrap; font-size: 0.82rem; padding: 6px 14px; font-weight: 800;"
+                            onclick="window.closeCardAbilityModal(); window.applyPermanentManaTap('${card.id}')">
+                        💎 Tap for Mana
+                    </button>
+                </div>
+            `;
+        }
+
         if (abilities.length === 0) {
-            listEl.innerHTML = `
+            listEl.innerHTML = manaRowHtml || `
                 <div style="font-size: 0.85rem; color: #94a3b8; padding: 12px; text-align: center; background: rgba(0,0,0,0.25); border-radius: 8px;">
                     This permanent has no explicit activated abilities.
                 </div>
             `;
         } else {
             const availMana = player.getAvailableMana().total;
-            listEl.innerHTML = abilities.map((ab, idx) => {
+            listEl.innerHTML = manaRowHtml + abilities.map((ab, idx) => {
                 let badgeClass = 'activated';
                 let typeLabel = 'Activated';
                 if (ab.type === 'LOYALTY') {
@@ -6189,8 +6211,28 @@
             return;
         }
 
-        // Tap for mana if mana producer
+        const abilities = parseActivatedAbilities(card);
+        const nameLower = (card.name || '').toLowerCase();
+        const isFetchLand = nameLower.includes('terramorphic') || nameLower.includes('evolving wilds') ||
+            nameLower.includes('fabled passage') || nameLower.includes('prismatic vista') ||
+            nameLower.includes('shire terrace') || nameLower.includes('promising vein') ||
+            nameLower.includes('myriad landscape') ||
+            abilities.some(ab => (ab.effectText || '').toLowerCase().includes('search your library') && (ab.requiresSacrifice || /sacrifice/i.test(ab.costText)));
+
         const manaInfo = getPermanentManaAbilities(card);
+
+        // If card has activated abilities (e.g. Shire Terrace, Myriad Landscape, Planeswalker, Utility artifact/land):
+        if (abilities.length > 0) {
+            window.openCardAbilityModal(cardId);
+            return;
+        }
+
+        if (isFetchLand) {
+            window.openFetchLandModal(cardId);
+            return;
+        }
+
+        // Tap for mana if pure mana producer
         if (manaInfo) {
             const hasCost = manaInfo.options.some(o => o.cost);
             if (manaInfo.isMulti || hasCost || manaInfo.options.length > 1) {
@@ -6219,24 +6261,35 @@
             return;
         }
 
-        // Check if has activated abilities (e.g. Planeswalker, Artifact utility, Fetchlands)
-        const abilities = parseActivatedAbilities(card);
-        const nameLower = (card.name || '').toLowerCase();
-        const isFetchLand = nameLower.includes('terramorphic') || nameLower.includes('evolving wilds') ||
-            nameLower.includes('fabled passage') || nameLower.includes('prismatic vista') ||
-            abilities.some(ab => (ab.effectText || '').toLowerCase().includes('search your library') && (ab.requiresSacrifice || /sacrifice/i.test(ab.costText)));
-
-        if (isFetchLand) {
-            window.openFetchLandModal(cardId);
-            return;
-        }
-
-        if (abilities.length > 0) {
-            window.openCardAbilityModal(cardId);
-            return;
-        }
-
         alert(`**${card.name}** does not have a tap ability.`);
+    };
+
+        window.applyPermanentManaTap = function (cardId) {
+        if (!currentGame) return;
+        const player = currentGame.players[0];
+        const card = player.battlefield.find(c => String(c.id) === String(cardId));
+        if (!card || card.tapped) return;
+        const manaInfo = getPermanentManaAbilities(card);
+        if (!manaInfo) return;
+        if (manaInfo.isMulti || manaInfo.options.length > 1) {
+            window.openManaChoiceModal(card, manaInfo);
+            return;
+        }
+        const option = manaInfo.options[0];
+        card.tapped = true;
+        card.producedMana = [...option.colors];
+        if (!player.manaPool) {
+            player.manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
+        }
+        option.colors.forEach(col => {
+            player.manaPool[col] = (player.manaPool[col] || 0) + 1;
+        });
+        const pipsStr = option.colors.map(c => '{' + c + '}').join('');
+        appendArenaLogs([{
+            type: 'MANA_TAPPED',
+            message: '💎 **' + player.name + '** tapped **' + card.name + '** and added **' + pipsStr + '** to mana pool.'
+        }]);
+        updateArenaDOM();
     };
 
     window.toggleLandTap = window.handlePermanentClick;

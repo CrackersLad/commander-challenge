@@ -1260,7 +1260,7 @@
             const logs = [];
             // MTG Rule 514.1: Discard down to maximum hand size (normally 7)
             const maxHandSize = this.maxHandSize || 7;
-            if (this.hand.length > maxHandSize) {
+            if (this.isAI && this.hand.length > maxHandSize) {
                 const discardedNames = [];
                 while (this.hand.length > maxHandSize) {
                     const discarded = this.hand.pop();
@@ -1421,7 +1421,11 @@
                 return { success: false, message: "Land not found in hand." };
             }
             const land = this.hand.splice(idx, 1)[0];
-            land.tapped = false;
+            const nameLower = (land.name || '').toLowerCase();
+            const oracleLower = (land.oracleText || '').toLowerCase();
+            const entersTapped = /bojuka bog|mortuary mire|path of ancestry|myriad landscape/i.test(nameLower) || oracleLower.includes('enters the battlefield tapped') || (/enters.*tapped unless/i.test(oracleLower) && !this.battlefield.some(c => (c.name || '').toLowerCase().includes('island') || (c.name || '').toLowerCase().includes('swamp')));
+            land.tapped = Boolean(entersTapped);
+            if (land.tapped) land._enteredTappedTurn = game ? game.turn : 1;
             this.battlefield.push(land);
             this.landPlayedThisTurn = true;
 

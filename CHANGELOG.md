@@ -4,6 +4,24 @@ All notable changes, UI/UX enhancements, gameplay engine updates, and infrastruc
 
 ---
 
+## ⚔️ [v11.4] — 2026-10-28 — Commander Arena Full Overhaul (ETB Rules, Check Lands, Land Abilities & Discard Cleanup)
+
+This release addresses all reported issues with the Commander Battle Arena tester:
+1. **ETB Replacements & Tapped Lands (Rule 614.12)**:
+   - Bojuka Bog and unconditional taplands strictly enter tapped and cannot produce mana or activate tap abilities until your next Untap Step.
+   - Drowned Catacomb, Glacial Fortress, Woodland Cemetery, Sulfur Falls, Isolated Chapel, Rootbound Crag, Dragonskull Summit, Hinterland Harbor, Clifftop Retreat, Sunpetal Grove, Castle cycle, etc., strictly verify battlefield subtypes (Island/Swamp) and enter tapped when requirements are unmet.
+2. **Activated Land Abilities & Shire Terrace**:
+   - Shire Terrace, Promising Vein, Myriad Landscape, Blast Zone, Castle Vantress, and all dual-purpose lands now open an explicit choice dialog with buttons for both "💎 Tap for Mana" and "⚡ Activate Ability".
+   - When paying mana for an activated ability (e.g. {1} for Shire Terrace), the paid floating mana is deducted and the source land remains tapped permanently; spent mana never untaps itself after fetching.
+   - Fetched basic lands enter tapped according to their card rules, trigger Landfall, and cannot be used immediately.
+3. **Strict Single Draw & Interactive Cleanup (Rule 504.1 & 514.1)**:
+   - Strictly 1 card is drawn during the Draw Step per turn; all duplicate draws on phase transitions are blocked.
+   - Fixed hand size cleanup: removed auto-popping of excess cards so cards never disappear silently. An interactive cleanup discard modal prompts the player to choose which excess cards to discard when ending their turn with >7 cards in hand.
+4. **Resilient v1 Backup Preserved**:
+   - Complete pre-overhaul state preserved at `public/arena-v1-backup/` with restoration guide.
+
+---
+
 ## 🚀 [v11.0] — 2026-10-28 — Ultimate Command Center End-to-End Upgrade
 
 This major release implements all **Top 10 End-to-End Recommendations** across UI, UX, cross-tool connectivity, tabletop utilities, deckbuilding analytics, and zero-cost infrastructure optimization.
