@@ -3084,5 +3084,41 @@
     "typeLine": "Land",
     "oracleText": "{T}, Sacrifice Escape Tunnel: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.\n{1}, {T}, Sacrifice Escape Tunnel: Target creature with power 2 or less can't be blocked this turn.",
     "colors": []
+  },
+  "march from the black gate": {
+    "name": "March from the Black Gate",
+    "manaCost": "{1}{B}",
+    "cmc": 2,
+    "typeLine": "Enchantment",
+    "oracleText": "When this enchantment enters and whenever an Army you control attacks, amass Orcs 1. (Put a +1/+1 counter on an Army you control. It's also an Orc. If you don't control an Army, create a 0/0 black Orc Army creature token first.)",
+    "colors": [
+      "B"
+    ]
+  },
+  "march on the black gate": {
+    "name": "March from the Black Gate",
+    "manaCost": "{1}{B}",
+    "cmc": 2,
+    "typeLine": "Enchantment",
+    "oracleText": "When this enchantment enters and whenever an Army you control attacks, amass Orcs 1. (Put a +1/+1 counter on an Army you control. It's also an Orc. If you don't control an Army, create a 0/0 black Orc Army creature token first.)",
+    "colors": [
+      "B"
+    ]
+  },
+  "the black gate": {
+    "name": "The Black Gate",
+    "manaCost": "",
+    "cmc": 0,
+    "typeLine": "Legendary Land — Gate",
+    "oracleText": "As The Black Gate enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {B}.\n{1}{B}, {T}: Choose a player with the most life or tied for most life. Target creature can't be blocked by creatures that player controls this turn.",
+    "colors": []
+  },
+  "black gate": {
+    "name": "The Black Gate",
+    "manaCost": "",
+    "cmc": 0,
+    "typeLine": "Legendary Land — Gate",
+    "oracleText": "As The Black Gate enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {B}.\n{1}{B}, {T}: Choose a player with the most life or tied for most life. Target creature can't be blocked by creatures that player controls this turn.",
+    "colors": []
   }
 }

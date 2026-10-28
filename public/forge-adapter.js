@@ -984,6 +984,64 @@
             controller.battlefield.push(tok);
             return tok;
         }
+        amass(controller, count = 1, subtype = 'Orc Army') {
+            if (!controller) return null;
+            const subLower = String(subtype || '').toLowerCase();
+            const tokenType = subLower.includes('orc') ? 'Orc Army' : 'Zombie Army';
+            const isOrc = subLower.includes('orc');
+
+            // Find an existing Army controlled by controller
+            const existingArmy = (controller.battlefield || []).find(c => c && c.isCreature && this.hasSubtype(c, 'Army'));
+            if (existingArmy) {
+                if (isOrc) {
+                    if (existingArmy.subtypes instanceof Set) existingArmy.subtypes.add('Orc');
+                    if (existingArmy.typeLine && !existingArmy.typeLine.toLowerCase().includes('orc')) {
+                        existingArmy.typeLine = existingArmy.typeLine.replace(/Army/i, 'Orc Army');
+                    }
+                } else {
+                    if (existingArmy.subtypes instanceof Set) existingArmy.subtypes.add('Zombie');
+                    if (existingArmy.typeLine && !existingArmy.typeLine.toLowerCase().includes('zombie')) {
+                        existingArmy.typeLine = existingArmy.typeLine.replace(/Army/i, 'Zombie Army');
+                    }
+                }
+                if (typeof controller.addCounter === 'function') {
+                    controller.addCounter(existingArmy, '+1/+1', count);
+                } else {
+                    existingArmy.tempPower = (existingArmy.tempPower || 0) + count;
+                    existingArmy.tempToughness = (existingArmy.tempToughness || 0) + count;
+                }
+                const pwr = typeof controller.getEffectivePower === 'function' ? controller.getEffectivePower(existingArmy) : ((existingArmy.power || 0) + (existingArmy.tempPower || 0));
+                const tgh = typeof controller.getEffectiveToughness === 'function' ? controller.getEffectiveToughness(existingArmy) : ((existingArmy.toughness || 0) + (existingArmy.tempToughness || 0));
+                this.logs.push({
+                    type: 'TRIGGER',
+                    message: `🛡️ **Amass ${isOrc ? 'Orcs' : 'Zombies'} ${count}**: Put **${count}** +1/+1 counter(s) on **${existingArmy.name}** (now ${pwr}/${tgh})!`
+                });
+                return existingArmy;
+            } else {
+                const armyToken = this.createTokenPermanent(controller, {
+                    name: `${tokenType} Token`,
+                    typeLine: `Token Creature — ${tokenType}`,
+                    power: 0,
+                    toughness: 0,
+                    isCreature: true,
+                    colors: ['B']
+                });
+                if (armyToken && typeof controller.addCounter === 'function') {
+                    controller.addCounter(armyToken, '+1/+1', count);
+                } else if (armyToken) {
+                    armyToken.tempPower = count;
+                    armyToken.tempToughness = count;
+                }
+                const pwr = typeof controller.getEffectivePower === 'function' ? controller.getEffectivePower(armyToken) : count;
+                const tgh = typeof controller.getEffectiveToughness === 'function' ? controller.getEffectiveToughness(armyToken) : count;
+                this.logs.push({
+                    type: 'TRIGGER',
+                    message: `🛡️ **Amass ${isOrc ? 'Orcs' : 'Zombies'} ${count}**: Created a **${pwr}/${tgh}** black ${tokenType} token!`
+                });
+                return armyToken;
+            }
+        }
+
 
         checkStateBasedActions() {
             for (const p of (this.players || [])) {
@@ -1418,6 +1476,24 @@
                 return result;
             }
 
+            
+            // 8b. The Black Gate (pay 3 life or enters tapped)
+            if (nameLower === 'the black gate' || nameLower === 'black gate' || /as .* enters(?: the battlefield)?, you may pay 3 life\. if you don't, it enters(?: the battlefield)? tapped/i.test(oracleLower)) {
+                result.isShockLand = true;
+                result.lifeCost = 3;
+                const shouldPay = options.payShockLife !== undefined
+                    ? Boolean(options.payShockLife)
+                    : Boolean(controller.isAI && controller.life > 15);
+                if (shouldPay && controller.life > 3) {
+                    result.entersTapped = false;
+                    result.paidShockLife = true;
+                    result.reason = 'enters untapped (paid 3 life)';
+                } else {
+                    result.entersTapped = true;
+                    result.reason = 'enters tapped (did not pay 3 life)';
+                }
+                return result;
+            }
             // 9. Unconditional Taplands & Tapped Artifacts / Creatures
             const unconditionalTappedNames = new Set([
                 'bojuka bog', 'mortuary mire', 'path of ancestry', 'myriad landscape', 'command bridge',
@@ -1549,7 +1625,7 @@
                 card._enteredTappedTurn = null;
             }
             if (rep.paidShockLife) {
-                controller.life -= 2;
+                controller.life -= (rep.lifeCost || 2);
             }
             if (Array.isArray(rep.counters) && rep.counters.length > 0) {
                 for (const cObj of rep.counters) {
@@ -1803,6 +1879,57 @@
             }
 
             // Non-Land Card-specific ETB effects
+
+            // 1. Amass triggers (e.g. March from the Black Gate, Dreadhorde Invasion, Gleaming Overseer, Eternal Skylord, Lazotep Plating, etc.)
+            const isMarchBlackGate = nameLower.includes('march from the black gate') || nameLower.includes('march on the black gate');
+            const mAmass = oracleLower.match(/(?:when|whenever) (?:this|~|it|[a-z0-9', -]+) enters(?: the battlefield)?,[\s\S]*?amass\s+(orcs|zombies)?\s*(\d+)/i);
+            if (isMarchBlackGate || mAmass) {
+                const subType = (isMarchBlackGate || (mAmass && (mAmass[1] || '').toLowerCase().includes('orc'))) ? 'Orc Army' : 'Zombie Army';
+                const count = mAmass ? (parseInt(mAmass[2], 10) || 1) : 1;
+                this.amass(controller, count, subType);
+            }
+
+            // 2. Generic ETB Token Creation (Creature, Treasure, Food, Clue, etc.)
+            const mTok = oracleLower.match(/when (?:this|~|it|[a-z0-9', -]+) enters(?: the battlefield)?, create (a|an|one|two|three|four|\d+)?\s*(tapped)?\s*(?:and attacking)?\s*(?:(?:a|an)\s+)?(\d+\/\d+)?\s*(colorless|white|blue|black|red|green)?\s*([a-z\s]+?)\s*(?:artifact)?\s*(?:creature)?\s*token/i);
+            if (mTok && !card._etbTokenCreated && !isMarchBlackGate && !mAmass && nameLower !== 'grave titan' && nameLower !== 'khalni garden' && nameLower !== 'avenger of zendikar' && nameLower !== 'cultivator of blades') {
+                card._etbTokenCreated = true;
+                const countMap = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4 };
+                const count = countMap[String(mTok[1] || '').toLowerCase()] || parseInt(mTok[1], 10) || 1;
+                const ptStr = mTok[3] || '1/1';
+                const ptParts = ptStr.split('/');
+                const pwr = parseInt(ptParts[0], 10) || 1;
+                const tgh = parseInt(ptParts[1], 10) || 1;
+                const subType = (mTok[5] || 'Creature').trim();
+                const isArtifact = oracleLower.includes('artifact creature token') || oracleLower.includes('treasure') || oracleLower.includes('food') || oracleLower.includes('clue');
+                for (let i = 0; i < count; i++) {
+                    this.createTokenPermanent(controller, {
+                        name: `${subType.charAt(0).toUpperCase() + subType.slice(1)} Token`,
+                        typeLine: `Token ${isArtifact ? 'Artifact ' : ''}Creature — ${subType}`,
+                        power: pwr,
+                        toughness: tgh,
+                        isCreature: true,
+                        isArtifact: isArtifact
+                    });
+                }
+                this.logs.push({
+                    type: 'TRIGGER',
+                    message: `✨ **${card.name}** ETB triggered: Created **${count}** ${ptStr} ${subType} token(s)!`
+                });
+            }
+
+            // 3. Generic ETB Card Draw
+            const mDraw = oracleLower.match(/when (?:this|~|it|[a-z0-9', -]+) enters(?: the battlefield)?, draw (a|an|one|two|three|\d+)?\s*card/i);
+            if (mDraw && !card._etbDrawTriggered && typeof controller.draw === 'function') {
+                card._etbDrawTriggered = true;
+                const numMap = { a: 1, an: 1, one: 1, two: 2, three: 3 };
+                const num = numMap[String(mDraw[1] || '').toLowerCase()] || parseInt(mDraw[1], 10) || 1;
+                const drawn = controller.draw(num);
+                this.logs.push({
+                    type: 'TRIGGER',
+                    message: `📜 **${card.name}** ETB triggered: **${controller.name}** drew **${drawn.length}** card(s)${drawn.length ? ` (${drawn.map(c => c.name).join(', ')})` : ''}!`
+                });
+            }
+
             if (nameLower === 'grave titan') {
                 for (let i = 0; i < 2; i++) {
                     this.createTokenPermanent(controller, {
@@ -2695,6 +2822,18 @@
             if (!activeP || !activeP.isAI) return;
             const readyAttackers = (activeP.battlefield || []).filter(c => c.isCreature && !c.tapped && !c.summoningSick);
             if (readyAttackers.length > 0) {
+            const hasBotAttackingArmy = readyAttackers.some(c => this.hasSubtype(c, 'Army'));
+            if (hasBotAttackingArmy) {
+                for (const perm of (activeP.battlefield || [])) {
+                    const pName = (perm.name || '').toLowerCase();
+                    const pOracle = (perm.oracleText || '').toLowerCase();
+                    if (pName.includes('march from the black gate') || pName.includes('march on the black gate') ||
+                        (pOracle.includes('whenever an army you control attacks') && pOracle.includes('amass'))) {
+                        this.amass(activeP, 1, 'Orc Army');
+                    }
+                }
+            }
+
                 const defenders = (this.players || []).filter(p => p && p.isAlive && p !== activeP);
                 if (defenders.length === 0) return;
                 defenders.sort((a, b) => b.life - a.life);
@@ -3374,6 +3513,22 @@
 
                         // Attack triggers
                         const aName = (attacker.name || '').toLowerCase();
+                // Army Attack Triggers (e.g. March from the Black Gate)
+                const hasAttackingArmy = attacks.some(atk => {
+                    const attacker = (curP0.battlefield || []).find(c => String(c.id) === String(atk.attackerId));
+                    return attacker && this.hasSubtype(attacker, 'Army');
+                });
+                if (hasAttackingArmy) {
+                    for (const perm of (curP0.battlefield || [])) {
+                        const pName = (perm.name || '').toLowerCase();
+                        const pOracle = (perm.oracleText || '').toLowerCase();
+                        if (pName.includes('march from the black gate') || pName.includes('march on the black gate') ||
+                            (pOracle.includes('whenever an army you control attacks') && pOracle.includes('amass'))) {
+                            this.amass(curP0, 1, 'Orc Army');
+                        }
+                    }
+                }
+
                         const aTl = (attacker.typeLine || '').toLowerCase();
                         if (aName === 'grave titan') {
                             for (let i = 0; i < 2; i++) {

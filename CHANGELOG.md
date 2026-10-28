@@ -4,6 +4,23 @@ All notable changes, UI/UX enhancements, gameplay engine updates, and infrastruc
 
 ---
 
+## ⚔️ [v11.5] — 2026-10-28 — Comprehensive ETB Triggers, Amass & Scryfall Auto-Enrichment
+
+This release adds comprehensive ETB trigger handling and dynamic card metadata enrichment:
+1. **March from the Black Gate & Amass Engine (MTG Rule 701.44)**:
+   - Added full Amass Orcs / Amass Zombies resolution: creates 0/0 black Orc Army token with +1/+1 counters if no Army is controlled, or buffs existing Army with counters and ensures Orc/Zombie subtype.
+   - Triggers on ETB for March from the Black Gate, Dreadhorde Invasion, Gleaming Overseer, Eternal Skylord, and all amass cards.
+   - Triggers whenever an Army attacks while March from the Black Gate is controlled.
+2. **The Black Gate & Shocklands Life Payment**:
+   - Added interactive prompt to pay 3 life for The Black Gate (or 2 life for Shocklands) to have them enter untapped, or enter tapped if declined.
+3. **Scryfall Bulk Auto-Enrichment on Deck Load**:
+   - When launching the Commander Arena with custom, pasted, or imported decks, any cards missing from the local cache are batch-queried from the Scryfall API (/cards/collection).
+   - Guarantees 100% of Magic cards from any set have accurate oracle text, types, mana costs, and ETB triggers.
+4. **Universal Generic ETB Triggers**:
+   - Automatic regex-based ETB resolution for creature/artifact token creation, card draw, life gain/loss, and +1/+1 counter distribution.
+
+---
+
 ## ⚔️ [v11.4] — 2026-10-28 — Commander Arena Full Overhaul (ETB Rules, Check Lands, Land Abilities & Discard Cleanup)
 
 This release addresses all reported issues with the Commander Battle Arena tester:

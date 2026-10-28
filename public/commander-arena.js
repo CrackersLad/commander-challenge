@@ -4223,7 +4223,7 @@
                         <div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <h2 class="arena-title" style="margin: 0;">Commander Battle Arena</h2>
-                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.4</span>
+                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.5</span>
                             </div>
                             <span class="arena-subtitle">Client-Native Forge Rules Engine • Live 4-Player Tabletop</span>
                         </div>
@@ -5632,10 +5632,22 @@
             }, 650);
         }
 
+        let payShockLife = undefined;
+        const cNameLower = (card.name || '').toLowerCase();
+        const cOracleLower = (card.oracleText || '').toLowerCase();
+        const isShock = /watery grave|blood crypt|stomping ground|breeding pool|overgrown tomb|hallowed fountain|godless shrine|steam vents|sacred foundry|temple garden/i.test(cNameLower) ||
+            /you may pay 2 life/i.test(cOracleLower);
+        const isBlackGate = cNameLower.includes('black gate') || /you may pay 3 life/i.test(cOracleLower);
+        if (isShock && player.life > 2) {
+            payShockLife = window.confirm(`⚡ Pay 2 life to have ${card.name} enter the battlefield untapped?\n\n(Click Cancel for ${card.name} to enter tapped)`);
+        } else if (isBlackGate && player.life > 3) {
+            payShockLife = window.confirm(`⚡ Pay 3 life to have ${card.name} enter the battlefield untapped?\n\n(Click Cancel for ${card.name} to enter tapped)`);
+        }
+
         const spellCost = !isLand ? player.getCardCost(card, currentGame) : 0;
         let res = null;
         if (currentGame.playCard) {
-            res = await currentGame.playCard(cardId, { targetInfo: preselectedTarget || null });
+            res = await currentGame.playCard(cardId, { targetInfo: preselectedTarget || null, payShockLife });
         } else {
             res = player.castCard(cardId, currentGame, { targetInfo: preselectedTarget || null });
             if (spellCost > 0 && typeof player.deductMana === 'function') {
@@ -5659,8 +5671,6 @@
         if (res && res.logs) appendArenaLogs(res.logs);
 
         // If this card is a ramp spell, ETB land-fetcher (Solemn Simulacrum, Farhaven Elf, Wood Elves, Springbloom Druid), or Tutor, open the interactive Library Search Modal!
-        const cNameLower = (card.name || '').toLowerCase();
-        const cOracleLower = (card.oracleText || '').toLowerCase();
         const isRampOrFetchETB = !isLand && (
             card.isRampSpell ||
             /cultivate|kodama's reach|rampant growth|farseek|nature's lore|three visits|migration path|skyshroud claim|solemn simulacrum|farhaven elf|springbloom druid|wood elves/i.test(cNameLower) ||
@@ -7555,6 +7565,56 @@
                     d.commander = parsed.commander || d.commander;
                 }
                 selectedDecks.push(d);
+            }
+        }
+
+        // Batch-fetch any cards missing from cache or lacking oracle text from Scryfall API
+        const missingCardNames = [];
+        const seenMissingNames = new Set();
+        selectedDecks.forEach(d => {
+            if (d && Array.isArray(d.cards)) {
+                d.cards.forEach(c => {
+                    if (!c || !c.name) return;
+                    const clean = c.name.toLowerCase().trim();
+                    const cached = window.__MTG_CARD_CACHE__ && window.__MTG_CARD_CACHE__[clean];
+                    if ((!cached || !cached.oracleText) && !c.oracleText && !seenMissingNames.has(clean)) {
+                        seenMissingNames.add(clean);
+                        missingCardNames.push(c.name);
+                    }
+                });
+            }
+        });
+
+        if (missingCardNames.length > 0 && typeof fetch === 'function') {
+            try {
+                const batch = missingCardNames.slice(0, 75).map(name => ({ name }));
+                const sfRes = await fetch('https://api.scryfall.com/cards/collection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifiers: batch })
+                });
+                if (sfRes.ok) {
+                    const sfData = await sfRes.json();
+                    if (sfData && Array.isArray(sfData.data)) {
+                        if (!window.__MTG_CARD_CACHE__) window.__MTG_CARD_CACHE__ = {};
+                        sfData.data.forEach(sc => {
+                            if (!sc || !sc.name) return;
+                            const key = sc.name.toLowerCase().trim();
+                            window.__MTG_CARD_CACHE__[key] = {
+                                name: sc.name,
+                                manaCost: sc.mana_cost || '',
+                                cmc: sc.cmc !== undefined ? sc.cmc : 0,
+                                typeLine: sc.type_line || '',
+                                oracleText: sc.oracle_text || '',
+                                power: sc.power !== undefined ? sc.power : undefined,
+                                toughness: sc.toughness !== undefined ? sc.toughness : undefined,
+                                colors: sc.colors || []
+                            };
+                        });
+                    }
+                }
+            } catch (eSf) {
+                console.warn('Scryfall bulk metadata enrichment error:', eSf);
             }
         }
 
