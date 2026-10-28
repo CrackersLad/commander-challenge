@@ -44,6 +44,38 @@
     }
     window.getCardEngineIssue = getCardEngineIssue;
 
+    function isCreatureCard(c) {
+        if (!c) return false;
+        if (c.isCreature === true) return true;
+        const tl = String(c.typeLine || '').toLowerCase();
+        if (tl.includes('creature')) {
+            c.isCreature = true;
+            return true;
+        }
+        if (c.power !== undefined && c.toughness !== undefined && (c.power !== null && c.toughness !== null) && c.power !== '' && c.toughness !== '') {
+            if (!c.isLand && !tl.includes('land') && !tl.includes('instant') && !tl.includes('sorcery') && !tl.includes('planeswalker')) {
+                c.isCreature = true;
+                return true;
+            }
+        }
+        if (c.forgeScript && Array.isArray(c.forgeScript.types) && c.forgeScript.types.some(t => String(t).toLowerCase() === 'creature')) {
+            c.isCreature = true;
+            return true;
+        }
+        if (typeof window !== 'undefined' && window.__FORGE_SCRIPTS__ && c.name) {
+            const fs = window.__FORGE_SCRIPTS__[String(c.name).toLowerCase().trim()];
+            if (fs && Array.isArray(fs.types) && fs.types.some(t => String(t).toLowerCase() === 'creature')) {
+                c.isCreature = true;
+                if (!c.typeLine) c.typeLine = 'Creature';
+                if (c.power === undefined && fs.power !== undefined) c.power = fs.power;
+                if (c.toughness === undefined && fs.toughness !== undefined) c.toughness = fs.toughness;
+                return true;
+            }
+        }
+        return false;
+    }
+    window.isCreatureCard = isCreatureCard;
+
     function getPermanentManaAbilities(card) {
         if (!card) return null;
         const name = (card.name || '').trim();
@@ -515,21 +547,30 @@
             }
 
             const cached = (typeof window !== 'undefined' && window.__MTG_CARD_CACHE__) ? window.__MTG_CARD_CACHE__[cardName.toLowerCase()] : null;
+            const fs = (typeof window !== 'undefined' && window.__FORGE_SCRIPTS__) ? window.__FORGE_SCRIPTS__[cardName.toLowerCase()] : null;
             const isLand = cached
                 ? Boolean(cached.typeLine && cached.typeLine.toLowerCase().includes('land') && (!cached.manaCost || cached.cmc === 0))
                 : (typeof window !== 'undefined' && typeof window.isLandCard === 'function' ? window.isLandCard(cardName) : false);
+
+            const tl = cached ? cached.typeLine : (fs && fs.types ? fs.types.join(' ') : (isLand ? 'Land' : undefined));
+            const isCreature = Boolean(
+                (tl && tl.toLowerCase().includes('creature')) ||
+                (cached && cached.power !== undefined && cached.toughness !== undefined) ||
+                (fs && (fs.power !== undefined || (fs.types && fs.types.some(t => String(t).toLowerCase() === 'creature'))))
+            );
 
             cards.push({
                 name: cardName,
                 quantity: qty,
                 isCommander: isCmdr,
                 isLand: isLand,
-                typeLine: cached ? cached.typeLine : (isLand ? 'Land' : undefined),
+                isCreature: isCreature,
+                typeLine: tl || (isCreature ? 'Creature' : (isLand ? 'Land' : undefined)),
                 cmc: cached ? cached.cmc : (isLand ? 0 : undefined),
-                manaCost: cached ? cached.manaCost : (isLand ? '' : undefined),
-                power: cached ? cached.power : undefined,
-                toughness: cached ? cached.toughness : undefined,
-                oracleText: cached ? cached.oracleText : undefined
+                manaCost: cached ? cached.manaCost : (isLand ? '' : (fs ? fs.manaCost : undefined)),
+                power: cached ? cached.power : (fs ? fs.power : undefined),
+                toughness: cached ? cached.toughness : (fs ? fs.toughness : undefined),
+                oracleText: cached ? cached.oracleText : (fs ? fs.oracle : undefined)
             });
         }
 
@@ -4223,7 +4264,7 @@
                         <div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <h2 class="arena-title" style="margin: 0;">Commander Battle Arena</h2>
-                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.6</span>
+                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.7</span>
                             </div>
                             <span class="arena-subtitle">Client-Native Forge Rules Engine • Live 4-Player Tabletop</span>
                         </div>
@@ -4694,9 +4735,9 @@
             const cmdrName = cmdr ? cmdr.name : 'Unknown Commander';
             const cmdrArt = getCardArtCropUrl(cmdrName);
 
-            const creatures = opp.battlefield.filter(c => c.isCreature);
-            const lands = opp.battlefield.filter(c => c.isLand);
-            const supports = opp.battlefield.filter(c => !c.isCreature && !c.isLand);
+            const creatures = opp.battlefield.filter(c => isCreatureCard(c));
+            const lands = opp.battlefield.filter(c => !isCreatureCard(c) && (c.isLand || (c.typeLine && c.typeLine.toLowerCase().includes('land'))));
+            const supports = opp.battlefield.filter(c => !isCreatureCard(c) && !c.isLand && !(c.typeLine && c.typeLine.toLowerCase().includes('land')));
 
             let creaturesHtml = '';
             if (creatures.length === 0) {
@@ -4852,7 +4893,7 @@
         const totalFloating = (pool.W || 0) + (pool.U || 0) + (pool.B || 0) + (pool.R || 0) + (pool.G || 0) + (pool.C || 0);
 
         // 1. Creatures on your battlefield
-        const creatures = player.battlefield.filter(c => c.isCreature);
+        const creatures = player.battlefield.filter(c => isCreatureCard(c));
         let creaturesHtml = '';
         if (creatures.length === 0) {
             creaturesHtml = `<div style="font-size: 0.78rem; color: var(--arena-text-muted); margin: auto;">No creatures summoned yet. Cast creatures from hand or command zone!</div>`;
@@ -4909,7 +4950,7 @@
         }
 
         // 2. Lands and Supports on your battlefield
-        const landsAndSupports = player.battlefield.filter(c => !c.isCreature);
+        const landsAndSupports = player.battlefield.filter(c => !isCreatureCard(c));
         let landsHtml = '';
         if (landsAndSupports.length === 0) {
             landsHtml = `<div style="font-size: 0.74rem; color: var(--arena-text-muted);">Play lands from your hand below</div>`;
@@ -5550,6 +5591,11 @@
 
         const card = player.hand.find(c => c.id === cardId || String(c.id) === String(cardId));
         if (!card) return;
+
+        if (isCreatureCard(card)) {
+            card.isCreature = true;
+            if (!card.typeLine || card.typeLine === 'Spell') card.typeLine = 'Creature';
+        }
 
         const isLand = card.isLand || (typeof window !== 'undefined' && typeof window.isLandCard === 'function' && window.isLandCard(card));
         if (isLand) {
@@ -7661,23 +7707,29 @@
                         }
                     }
 
-                    let isLand = false;
-                    if (c.manaCost || (c.cmc && c.cmc > 0)) {
-                        isLand = false;
+                    if (isCreatureCard(c)) {
+                        c.isCreature = true;
                         c.isLand = false;
-                    } else if (typeof window !== 'undefined' && typeof window.isLandCard === 'function') {
-                        isLand = window.isLandCard(c);
+                        if (!c.typeLine || c.typeLine === 'Spell') c.typeLine = 'Creature';
                     } else {
-                        isLand = Boolean(c.isLand) || (c.typeLine || '').toLowerCase().includes('land');
-                    }
+                        let isLand = false;
+                        if (c.manaCost || (c.cmc && c.cmc > 0)) {
+                            isLand = false;
+                            c.isLand = false;
+                        } else if (typeof window !== 'undefined' && typeof window.isLandCard === 'function') {
+                            isLand = window.isLandCard(c);
+                        } else {
+                            isLand = Boolean(c.isLand) || (c.typeLine || '').toLowerCase().includes('land');
+                        }
 
-                    if (isLand) {
-                        c.isLand = true;
-                        if (!c.typeLine || !c.typeLine.toLowerCase().includes('land')) c.typeLine = 'Land';
-                        c.cmc = 0;
-                        c.manaCost = '';
-                    } else {
-                        c.isLand = false;
+                        if (isLand) {
+                            c.isLand = true;
+                            if (!c.typeLine || !c.typeLine.toLowerCase().includes('land')) c.typeLine = 'Land';
+                            c.cmc = 0;
+                            c.manaCost = '';
+                        } else {
+                            c.isLand = false;
+                        }
                     }
                 });
             }

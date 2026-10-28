@@ -3048,7 +3048,14 @@
                         this.applyETBReplacements(placedPerm, activePlayer, options);
                         card.tapped = Boolean(placedPerm.tapped);
                         card._enteredTappedTurn = placedPerm._enteredTappedTurn;
-                        if (placedPerm.isCreature) {
+                        const isCreature = Boolean(
+                            placedPerm.isCreature || card.isCreature ||
+                            (placedPerm.typeLine || '').toLowerCase().includes('creature') ||
+                            (card.typeLine || '').toLowerCase().includes('creature')
+                        );
+                        if (isCreature) {
+                            placedPerm.isCreature = true;
+                            card.isCreature = true;
                             const hasHaste = typeof activePlayer.hasEffectiveKeyword === 'function'
                                 ? activePlayer.hasEffectiveKeyword(placedPerm, 'haste')
                                 : (placedPerm.oracleText || '').toLowerCase().includes('haste');
@@ -3954,11 +3961,21 @@
             c.cmc = c.cmc !== undefined ? c.cmc : calcCmcFromManaCost(c.manaCost);
         }
 
-        c.power = c.power !== undefined ? Number(c.power) || 0 : 0;
-        c.toughness = c.toughness !== undefined ? Number(c.toughness) || 0 : 0;
+        const isCreatureDetected = Boolean(
+            c.isCreature ||
+            tl.includes('creature') ||
+            (c.forgeScript && Array.isArray(c.forgeScript.types) && c.forgeScript.types.some(t => String(t).toLowerCase() === 'creature')) ||
+            (typeof window !== 'undefined' && window.__FORGE_SCRIPTS__ && window.__FORGE_SCRIPTS__[nameLower] && window.__FORGE_SCRIPTS__[nameLower].types && window.__FORGE_SCRIPTS__[nameLower].types.some(t => String(t).toLowerCase() === 'creature')) ||
+            (cardData.power !== undefined && cardData.toughness !== undefined && !c.isLand && !tl.includes('land') && !tl.includes('instant') && !tl.includes('sorcery') && !tl.includes('planeswalker'))
+        );
+        c.isCreature = isCreatureDetected;
+        if (c.isCreature && (!c.typeLine || c.typeLine === 'Spell')) {
+            c.typeLine = 'Creature';
+        }
+        c.power = c.power !== undefined ? (Number(c.power) || 0) : (c.isCreature ? 1 : 0);
+        c.toughness = c.toughness !== undefined ? (Number(c.toughness) || 0) : (c.isCreature ? 1 : 0);
         c.tapped = !!c.tapped;
         c.summoningSick = !!c.summoningSick;
-        c.isCreature = !!c.isCreature || tl.includes('creature');
         c.isArtifact = !!c.isArtifact || tl.includes('artifact');
         c.isEnchantment = !!c.isEnchantment || tl.includes('enchantment');
         c.isPlaneswalker = !!c.isPlaneswalker || tl.includes('planeswalker');
