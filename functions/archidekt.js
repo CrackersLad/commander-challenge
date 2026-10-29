@@ -794,7 +794,7 @@ exports.compareDecks = onRequest({ cors: true, timeoutSeconds: 300, memory: "512
     }
 
     const shouldIncludeBasicLands = Boolean(includeBasicLands === true || includeBasicLands === 'true');
-    const shouldIncludeSideboards = Boolean(includeSideboards !== false && includeSideboards !== 'false');
+    const shouldIncludeSideboards = Boolean(includeSideboards === true || includeSideboards === 'true');
 
     try {
         let collection = {};

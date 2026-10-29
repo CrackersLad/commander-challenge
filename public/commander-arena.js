@@ -657,6 +657,7 @@
         let commander = explicitCommander ? String(explicitCommander).trim() : null;
         const cards = [];
         let inCommanderSection = false;
+        let inExcludedSection = false;
 
         for (let line of lines) {
             line = line.trim();
@@ -664,13 +665,27 @@
 
             if (/^\/\/\s*commander/i.test(line) || /^#\s*commander/i.test(line) || /^commander:?$/i.test(line)) {
                 inCommanderSection = true;
+                inExcludedSection = false;
                 continue;
             }
-            if (/^\/\/\s*(?:mainboard|deck|main|cards|creatures|spells|lands|maybeboard|sideboard)/i.test(line) || /^#\s*(?:mainboard|deck)/i.test(line) || /^(?:mainboard|deck|main):?$/i.test(line)) {
+            if (/^\/\/\s*(?:maybeboard|sideboard|considering|wishboard|cuts|binder)/i.test(line) ||
+                /^#\s*(?:maybeboard|sideboard|considering|wishboard|cuts|binder)/i.test(line) ||
+                /^(?:maybeboard|sideboard|considering|wishboard|cuts|binder):?$/i.test(line)) {
                 inCommanderSection = false;
+                inExcludedSection = true;
+                continue;
+            }
+            if (/^\/\/\s*(?:mainboard|deck|main|cards|creatures|spells|lands|artifacts|enchantments|planeswalkers|instants|sorceries)/i.test(line) ||
+                /^#\s*(?:mainboard|deck)/i.test(line) ||
+                /^(?:mainboard|deck|main):?$/i.test(line)) {
+                inCommanderSection = false;
+                inExcludedSection = false;
                 continue;
             }
             if (line.startsWith('#') || line.startsWith('//')) {
+                continue;
+            }
+            if (inExcludedSection) {
                 continue;
             }
 
@@ -765,13 +780,40 @@
             let commanderName = null;
             const parsedCards = [];
 
+            const categoriesMap = {};
+            if (Array.isArray(data.categories)) {
+                data.categories.forEach(cat => {
+                    if (cat && cat.name) {
+                        categoriesMap[cat.name] = cat;
+                        categoriesMap[cat.name.toLowerCase().trim()] = cat;
+                    }
+                });
+            }
+
+            const strictExcludedCategories = new Set(['sideboard', 'maybeboard', 'side', 'maybe', 'considering', 'wishboard', 'binder', 'cuts']);
+
             rawCards.forEach(item => {
                 const c = item.card;
                 if (!c) return;
                 const name = c.oracleCard?.name || c.name;
                 if (!name) return;
+
+                // Check categories to exclude sideboard, maybeboard, considering, etc.
+                const itemCats = (Array.isArray(item.categories) ? item.categories : (item.categories ? [item.categories] : []))
+                    .map(cat => typeof cat === 'string' ? cat : (cat.name || ''));
+
+                const isExcluded = itemCats.some(catName => {
+                    const lower = catName.toLowerCase().trim();
+                    if (strictExcludedCategories.has(lower)) return true;
+                    const catObj = categoriesMap[catName] || categoriesMap[lower];
+                    if (catObj && catObj.includedInDeck === false) return true;
+                    return false;
+                });
+
+                if (isExcluded) return;
+
                 const qty = parseInt(item.quantity || 1, 10);
-                const isCmdr = Array.isArray(item.categories) && item.categories.some(cat => ['commander', 'commanders'].includes(String(cat).toLowerCase()));
+                const isCmdr = itemCats.some(cat => ['commander', 'commanders'].includes(String(cat).toLowerCase()));
                 if (isCmdr && !commanderName) commanderName = name;
                 parsedCards.push({
                     name: name,
