@@ -4402,7 +4402,7 @@
                         <div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <h2 class="arena-title" style="margin: 0;">Commander Battle Arena</h2>
-                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.10</span>
+                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">⚡ Headless Forge Engine v11.11</span>
                             </div>
                             <span class="arena-subtitle">Client-Native Forge Rules Engine • Live 4-Player Tabletop</span>
                         </div>
@@ -4602,13 +4602,10 @@
                             </div>
                         </div>
 
-                        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.75rem; align-items: center; flex-wrap: wrap;">
+                        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.75rem; align-items: center;">
                             <button class="arena-btn" onclick="window.closeArenaSetup()">Close</button>
-                            <button class="arena-btn" id="btnLaunchCloudForge" onclick="window.launchSelectedDeckInCloudForge()" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; font-weight: 800; font-size: 0.88rem; padding: 0.6rem 1.25rem; border-color: rgba(59,130,246,0.6); box-shadow: 0 4px 14px rgba(37,99,235,0.35);" title="Stream official Card-Forge in Docker with 100% MTG rules & real AI bots">
-                                ☁️ Stream Cloud Forge Table (100% Rules)
-                            </button>
-                            <button class="arena-btn arena-btn-gold" id="btnLaunchPodMatch" onclick="window.applyArenaSetupAndStart()" style="font-weight: 900; font-size: 0.95rem; padding: 0.6rem 1.4rem;">
-                                ⚔️ Web Canvas Arena 🎴
+                            <button class="arena-btn arena-btn-gold" id="btnLaunchPodMatch" onclick="window.applyArenaSetupAndStart()" style="font-weight: 900; font-size: 0.95rem; padding: 0.65rem 1.6rem; box-shadow: 0 4px 18px rgba(234,179,8,0.35);" title="Enter live 4-player Commander table backed by official Card-Forge rules engine">
+                                ⚔️ Enter Commander Arena 🎴
                             </button>
                         </div>
                     </div>

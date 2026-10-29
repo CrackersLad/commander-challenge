@@ -810,6 +810,155 @@
         }
     }
 
+    class HeadlessForgeBridge {
+        constructor(apiBase = 'https://arena.edhchallenge.com/api/headless') {
+            this.apiBase = apiBase;
+        }
+
+        async startCommanderMatchWithDecks(p1Name, p1Cmdr, p1Cards, p2Name, p2Cmdr, p2Cards, p3Name, p3Cmdr, p3Cards, p4Name, p4Cmdr, p4Cards, startingPlayerIndex = 0) {
+            try {
+                const res = await fetch(`${this.apiBase}/match/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        p1Name, p1Commander: p1Cmdr, p1Cards,
+                        p2Name, p2Commander: p2Cmdr, p2Cards,
+                        p3Name, p3Commander: p3Cmdr, p3Cards,
+                        p4Name, p4Commander: p4Cmdr, p4Cards,
+                        startingPlayerIndex
+                    })
+                });
+                return await res.json();
+            } catch (e) {
+                console.warn("Headless startCommanderMatch error:", e);
+                return null;
+            }
+        }
+
+        async playCard(cardIdOrName) {
+            try {
+                const body = typeof cardIdOrName === 'number' ? { action: 'playCard', cardId: cardIdOrName } : { action: 'playCard', cardName: cardIdOrName };
+                const res = await fetch(`${this.apiBase}/match/action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                return await res.json();
+            } catch (e) {
+                console.warn("Headless playCard error:", e);
+                return null;
+            }
+        }
+
+        async castCommander() {
+            try {
+                const res = await fetch(`${this.apiBase}/match/action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'castCommander' })
+                });
+                return await res.json();
+            } catch (e) {
+                console.warn("Headless castCommander error:", e);
+                return null;
+            }
+        }
+
+        async toggleTap(cardId) {
+            try {
+                const res = await fetch(`${this.apiBase}/match/action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'toggleTap', cardId })
+                });
+                return await res.json();
+            } catch (e) {
+                console.warn("Headless toggleTap error:", e);
+                return null;
+            }
+        }
+
+        async stepPhase() {
+            try {
+                const res = await fetch(`${this.apiBase}/match/action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'stepPhase' })
+                });
+                return await res.json();
+            } catch (e) {
+                console.warn("Headless stepPhase error:", e);
+                return null;
+            }
+        }
+
+        async stepTurn() {
+            try {
+                const res = await fetch(`${this.apiBase}/match/action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'stepTurn' })
+                });
+                return await res.json();
+            } catch (e) {
+                console.warn("Headless stepTurn error:", e);
+                return null;
+            }
+        }
+
+        async stepAction() {
+            try {
+                const res = await fetch(`${this.apiBase}/match/action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'stepAction' })
+                });
+                return await res.json();
+            } catch (e) {
+                console.warn("Headless stepAction error:", e);
+                return null;
+            }
+        }
+
+        async declareAttacks(cardId, targetPlayerIndex) {
+            try {
+                const res = await fetch(`${this.apiBase}/match/action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'declareAttacks', cardId, targetPlayerIndex })
+                });
+                return await res.json();
+            } catch (e) {
+                console.warn("Headless declareAttacks error:", e);
+                return null;
+            }
+        }
+
+        async takeMulligan() {
+            try {
+                const res = await fetch(`${this.apiBase}/match/action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'takeMulligan' })
+                });
+                return await res.json();
+            } catch (e) {
+                console.warn("Headless takeMulligan error:", e);
+                return null;
+            }
+        }
+
+        async getGameStateJson() {
+            try {
+                const res = await fetch(`${this.apiBase}/match/state`);
+                return await res.json();
+            } catch (e) {
+                console.warn("Headless getGameStateJson error:", e);
+                return null;
+            }
+        }
+    }
+
     class ForgeArenaGame {
         constructor(bridge, rawJson, selectedDecks = []) {
             this.bridge = bridge;
@@ -1153,7 +1302,12 @@
                         p.libraryCount = p.libraryCards.length;
                         p.library.length = p.libraryCards.length;
                     }
-                    return attachPlayerMethods(p, idx, selfGame);
+                    attachPlayerMethods(p, idx, selfGame);
+                    if (existing && typeof existing === 'object' && Object.keys(existing).length > 0) {
+                        Object.assign(existing, p);
+                        return existing;
+                    }
+                    return p;
                 });
             }
         }
@@ -4408,26 +4562,42 @@
         parseManaCostDetailed: parseManaCostDetailed,
         deductDetailedMana: deductDetailedMana,
         startMatch: async function (selectedDecks = [], startingPlayerIndex = 0) {
-            // Instant Arena Match Initialization:
-            // The native client rules engine handles full MTG rules, ETB replacement, triggers,
-            // combat, commander damage, mana pools, London mulligan, and cleanup in <50ms.
             hideLoadingBanner();
-            const game = new ForgeArenaGame(null, null, selectedDecks);
+            const bridge = new HeadlessForgeBridge();
+            let rawJson = null;
+
+            try {
+                const getDeckCardsText = (d) => {
+                    if (d && d.decklist) return d.decklist;
+                    if (d && Array.isArray(d.cards)) {
+                        return d.cards.map(c => typeof c === 'string' ? c : (c.name || '')).filter(Boolean).join('\n');
+                    }
+                    return '';
+                };
+
+                const d0 = selectedDecks[0] || {};
+                const d1 = selectedDecks[1] || {};
+                const d2 = selectedDecks[2] || {};
+                const d3 = selectedDecks[3] || {};
+
+                rawJson = await bridge.startCommanderMatchWithDecks(
+                    d0.name || 'You', d0.commander || d0.name || 'Wilhelt, the Rotcleaver', getDeckCardsText(d0),
+                    d1.name || 'Opponent 1', d1.commander || d1.name || 'Lathril, Blade of the Elves', getDeckCardsText(d1),
+                    d2.name || 'Opponent 2', d2.commander || d2.name || 'Aesi, Tyrant of Gyre Strait', getDeckCardsText(d2),
+                    d3.name || 'Opponent 3', d3.commander || d3.name || 'Prosper, Tome-Bound', getDeckCardsText(d3),
+                    startingPlayerIndex
+                );
+                if (rawJson && rawJson.status === 'ACTIVE') {
+                    console.log("⚔️ Connected to Cloud Headless Card-Forge Engine! 100% Rules Parity Active.");
+                }
+            } catch (err) {
+                console.warn("Headless Forge start error, continuing with client-side fallback:", err);
+            }
+
+            const game = new ForgeArenaGame(bridge, rawJson, selectedDecks);
             game.startingPlayerIndex = startingPlayerIndex;
             if (typeof startingPlayerIndex === 'number' && startingPlayerIndex >= 0 && startingPlayerIndex < game.players.length) {
                 game.activePlayerIndex = startingPlayerIndex;
-            }
-
-            // Optional non-blocking background initialization of CheerpJ bridge if explicitly enabled
-            if (window.__ENABLE_FORGE_JVM_BRIDGE__ && !forgeBridgeInstance && !isInitializing) {
-                initForgeEngine().then(bridge => {
-                    if (bridge && game) {
-                        game.bridge = bridge;
-                        console.log("Card-Forge JVM WebAssembly bridge attached in background.");
-                    }
-                }).catch(err => {
-                    console.log("Card-Forge background bridge idle, native rules engine active.");
-                });
             }
 
             return game;

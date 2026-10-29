@@ -872,16 +872,23 @@ window.executePlaytesterLaunch = async () => {
 };
 
 window.openPlaytester = (deckName = '', deckContent = '', autoStart = false, opponentArchetype = 'tokens') => {
+    // Launch directly into the modern Web Canvas backed by the Headless Card-Forge Rules Engine
+    if (window.openCommanderArena) {
+        if (deckContent || deckName) {
+            window.openCommanderArena({ name: deckName, content: deckContent });
+        } else {
+            window.openCommanderArena();
+        }
+        return;
+    }
     if (window.isMobileDevice()) {
         showToast("⚔️ The Battle Arena requires a desktop/laptop screen with keyboard & mouse and is not supported on mobile devices.", true, 4500);
         return;
     }
-    // If opened directly without specific deck, open launch modal
     if (!deckContent && !deckName) {
         window.openPlaytesterLaunchModal();
         return;
     }
-    // Direct launch into the embedded Cloud Forge drawer UI
     window.launchPlaytesterSession({
         deckName,
         deckContent,
