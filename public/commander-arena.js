@@ -124,17 +124,38 @@
     window.parseManaCostDetailed = parseManaCostDetailed;
 
     function canPayManaCost(cardOrCost, manaPool, genericReduction = 0, extraGenericTax = 0) {
-        let costStr = typeof cardOrCost === 'string' ? cardOrCost : (cardOrCost && cardOrCost.manaCost ? cardOrCost.manaCost : '');
+        let costStr = typeof cardOrCost === 'string' ? cardOrCost : (cardOrCost && (cardOrCost.manaCost || cardOrCost.mana_cost || cardOrCost.cost) ? (cardOrCost.manaCost || cardOrCost.mana_cost || cardOrCost.cost) : '');
         const isLand = cardOrCost && typeof cardOrCost === 'object' && Boolean(cardOrCost.isLand);
         if (isLand) return { canPay: true, missing: [], reason: '' };
 
-        if (!costStr && cardOrCost && typeof cardOrCost === 'object') {
-            const nameLower = (cardOrCost.name || '').toLowerCase().trim();
+        const nameLower = cardOrCost && typeof cardOrCost === 'object' ? (cardOrCost.name || '').toLowerCase().trim() : '';
+        const cleanName = nameLower.normalize ? nameLower.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : nameLower;
+        if (!costStr && nameLower) {
             if (cardOrCost.forgeScript && cardOrCost.forgeScript.manaCost) costStr = cardOrCost.forgeScript.manaCost;
-            else if (typeof window !== 'undefined' && window.__FORGE_SCRIPTS__ && window.__FORGE_SCRIPTS__[nameLower] && window.__FORGE_SCRIPTS__[nameLower].manaCost) costStr = window.__FORGE_SCRIPTS__[nameLower].manaCost;
-            else if (typeof window !== 'undefined' && window.__MTG_CARD_CACHE__ && window.__MTG_CARD_CACHE__[nameLower] && window.__MTG_CARD_CACHE__[nameLower].manaCost) costStr = window.__MTG_CARD_CACHE__[nameLower].manaCost;
+            else if (typeof window !== 'undefined' && window.__FORGE_SCRIPTS__ && (window.__FORGE_SCRIPTS__[nameLower] || window.__FORGE_SCRIPTS__[cleanName])) {
+                const fs = window.__FORGE_SCRIPTS__[nameLower] || window.__FORGE_SCRIPTS__[cleanName];
+                if (fs.manaCost) costStr = fs.manaCost;
+            } else if (typeof window !== 'undefined' && window.__MTG_CARD_CACHE__ && (window.__MTG_CARD_CACHE__[nameLower] || window.__MTG_CARD_CACHE__[cleanName])) {
+                const cs = window.__MTG_CARD_CACHE__[nameLower] || window.__MTG_CARD_CACHE__[cleanName];
+                if (cs.manaCost || cs.mana_cost) costStr = cs.manaCost || cs.mana_cost;
+            }
         }
-        if (!costStr) return { canPay: true, missing: [], reason: '' };
+
+        const totalPool = ((manaPool && manaPool.W) || 0) + ((manaPool && manaPool.U) || 0) + ((manaPool && manaPool.B) || 0) + ((manaPool && manaPool.R) || 0) + ((manaPool && manaPool.G) || 0) + ((manaPool && manaPool.C) || 0);
+
+        if (!costStr) {
+            const cardCmc = (cardOrCost && typeof cardOrCost === 'object' && typeof cardOrCost.cmc === 'number') ? cardOrCost.cmc : 0;
+            const isCmdr = Boolean(cardOrCost && typeof cardOrCost === 'object' && cardOrCost.isCommander);
+            const isFreeSpell = nameLower.includes('rograkh') || nameLower === 'lotus petal' || nameLower === 'mox diamond' || nameLower === 'mox opal' || nameLower === 'chrome mox' || nameLower === 'everflowing chalice';
+            if (isCmdr && !isFreeSpell && totalPool === 0) {
+                return { canPay: false, missing: ['Commander Mana'], reason: 'Commander requires mana to cast (pool is empty)' };
+            }
+            const minNeeded = Math.max(0, cardCmc + extraGenericTax - genericReduction);
+            if (minNeeded > 0 && totalPool < minNeeded) {
+                return { canPay: false, missing: [`${minNeeded - totalPool} mana`], reason: `Need {${minNeeded}} mana in pool (have {${totalPool}})` };
+            }
+            return { canPay: true, missing: [], reason: '' };
+        }
 
         const parsed = parseManaCostDetailed(costStr);
         const pool = {
@@ -4381,7 +4402,7 @@
                         <div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <h2 class="arena-title" style="margin: 0;">Commander Battle Arena</h2>
-                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.8</span>
+                                <span class="arena-engine-badge" id="arenaEngineVersionBadge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px; box-shadow: 0 0 10px rgba(16,185,129,0.4); letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 4px;">🕹️ Engine v11.9</span>
                             </div>
                             <span class="arena-subtitle">Client-Native Forge Rules Engine • Live 4-Player Tabletop</span>
                         </div>
@@ -5057,6 +5078,7 @@
                         <img class="mtg-card-art" src="${getCardArtCropUrl(c.name)}" loading="lazy" alt="${escapeHtml(c.name)}" onerror="this.onerror=null; this.src='https://cards.scryfall.io/back.png';" />
                         <span class="${ptBubbleClass}">${effP}/${effT}</span>
                         ${counterBadge}
+                        ${c.isRingBearer ? '<span class="mtg-card-ring-bearer-badge" style="position: absolute; top: 18px; right: 4px; font-size: 0.65rem; background: #eab308; color: #000; border-radius: 4px; padding: 1px 4px; font-weight: 900; box-shadow: 0 0 6px rgba(234,179,8,0.7);" title="💍 Your Ring-bearer! (Legendary • Skulk • Attack Looting)">💍</span>' : ''}
                         ${cFlag}
                         ${c.summoningSick ? '<span class="mtg-card-summoning-sick" title="Summoning Sickness">🌀</span>' : ''}
                         ${canAttackThisTurn && !isSelectedAtk ? '<span style="position: absolute; top: 16px; left: 3px; font-size: 0.65rem; background: #ef4444; border-radius: 4px; padding: 1px 3px; font-weight: 900;" title="Click to Declare Attack">⚔️</span>' : ''}
@@ -5225,12 +5247,17 @@
                         <div style="font-size: 0.75rem; font-weight: 700; color: #e2e8f0;">${escapeHtml(cmdrName)}</div>
                         ${isCmdrOnField ? '<span class="cmdr-status-badge on-field">👑 On Battlefield</span>' : '<span class="cmdr-status-badge in-zone">👑 In Command Zone</span>'}
                         <div style="font-size: 0.7rem; color: #c084fc; font-weight: 800;">Tax: {${player.commanderTax}} • Cost: {${cmdrCastCost}}</div>
+                        ${player.ringLevel > 0 ? `
+                            <div style="background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.5); color: #facc15; font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-top: 2px;" title="The Ring Tempts You (Stage ${player.ringLevel}/4)&#10;1: Legendary &amp; Skulk&#10;2: Attacks: Loot (Draw 1, Discard 1)&#10;3: Blockers sacrificed&#10;4: 3 damage to all opponents on combat damage">
+                                💍 Ring: Stage ${player.ringLevel}/4
+                            </div>
+                        ` : ''}
                         ${isCmdrOnField ? `
                             <button class="cmdr-cast-cta" disabled style="opacity: 0.7; cursor: default;">👑 On Field</button>
                         ` : canCastCmdr ? `
                             <button class="cmdr-cast-cta ready" onclick="window.castPlayerCommander()">🚀 Cast Commander {${cmdrCastCost}}</button>
                         ` : isCmdrInZone ? `
-                            <button class="cmdr-cast-cta need-mana" onclick="window.castPlayerCommander()" title="${escapeHtml(cmdrPayCheck.reason || '')}">Need {${cmdrCastCost}}${cmdrPayCheck.missing && cmdrPayCheck.missing.length > 0 ? ` (${cmdrPayCheck.missing[0]})` : ''}</button>
+                            <button class="cmdr-cast-cta need-mana" onclick="window.alert('Cannot cast ${escapeHtml(cmdrName)}: ${escapeHtml(cmdrPayCheck.reason || 'Insufficient mana in pool')}\\n\\n💡 Tap lands or rocks to produce the required mana first.')" title="${escapeHtml(cmdrPayCheck.reason || '')}">Need {${cmdrCastCost}}${cmdrPayCheck.missing && cmdrPayCheck.missing.length > 0 ? ` (${cmdrPayCheck.missing[0]})` : ''}</button>
                         ` : `
                             <button class="cmdr-cast-cta" onclick="window.castPlayerCommander()" ${!isMyTurn ? 'disabled' : ''}>Cast Commander {${cmdrCastCost}}</button>
                         `}
@@ -6088,6 +6115,107 @@
         }]);
 
         updateArenaDOM();
+    };
+
+    // ============================================================================
+    // THE RING TEMPTS YOU & RING-BEARER SELECTION MODAL
+    // ============================================================================
+    window.openRingBearerModal = function (player, creatures = null, onChosen = null) {
+        if (!player && currentGame && currentGame.players) player = currentGame.players[0];
+        if (!player) return;
+        const pool = creatures || (player.battlefield || []).filter(c => c && (c.isCreature || (c.typeLine || '').toLowerCase().includes('creature')));
+        if (pool.length === 0) return;
+
+        let modalEl = document.getElementById('arenaRingBearerModal');
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = 'arenaRingBearerModal';
+            modalEl.className = 'modal-backdrop';
+            modalEl.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 10005; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px);';
+            document.body.appendChild(modalEl);
+        }
+
+        const ringAbilities = [
+            "1. Legendary &amp; Skulk (can't be blocked by creatures with greater power)",
+            "2. Attacks: Loot (draw a card, then discard a card)",
+            "3. Blockers are sacrificed at end of combat",
+            "4. Combat damage to player: Each opponent loses 3 life"
+        ];
+        const currentLvl = player.ringLevel || 1;
+
+        let optionsHtml = pool.map(c => {
+            const effP = typeof player.getEffectivePower === 'function' ? player.getEffectivePower(c) : (c.power || 0);
+            const effT = typeof player.getEffectiveToughness === 'function' ? player.getEffectiveToughness(c) : (c.toughness || 0);
+            const isBearer = Boolean(c.isRingBearer || (player.ringBearerId && String(c.id) === String(player.ringBearerId)));
+            return `
+                <div style="background: ${isBearer ? 'rgba(234, 179, 8, 0.2)' : 'rgba(30, 41, 59, 0.7)'}; border: 1px solid ${isBearer ? '#eab308' : 'rgba(255,255,255,0.1)'}; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <img src="${getCardArtCropUrl(c.name)}" style="width: 44px; height: 44px; border-radius: 6px; object-fit: cover;" alt="${escapeHtml(c.name)}" />
+                        <div>
+                            <div style="font-weight: 800; font-size: 0.9rem; color: #f8fafc;">${c.isCommander ? '👑 ' : ''}${escapeHtml(c.name)} ${isBearer ? '💍 (Current)' : ''}</div>
+                            <div style="font-size: 0.76rem; color: #94a3b8;">${escapeHtml(c.typeLine || 'Creature')} • <strong>${effP}/${effT}</strong></div>
+                        </div>
+                    </div>
+                    <button class="arena-btn" style="background: linear-gradient(135deg, #eab308, #ca8a04); color: #000; font-weight: 800; font-size: 0.8rem; padding: 6px 16px; border-radius: 6px; cursor: pointer;"
+                            onclick="window.selectRingBearer('${c.id}')">
+                        ${isBearer ? 'Keep as Ring-bearer' : 'Choose Ring-bearer'}
+                    </button>
+                </div>
+            `;
+        }).join('');
+
+        modalEl.innerHTML = `
+            <div style="background: #0f172a; border: 1px solid rgba(234, 179, 8, 0.5); border-radius: 12px; width: 90%; max-width: 520px; max-height: 85vh; overflow-y: auto; padding: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
+                    <div style="font-size: 1.15rem; font-weight: 900; color: #facc15; display: flex; align-items: center; gap: 8px;">
+                        <span>💍</span> The Ring Tempts You! (Stage ${currentLvl}/4)
+                    </div>
+                    <button style="background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;" onclick="document.getElementById('arenaRingBearerModal').style.display='none'">✕</button>
+                </div>
+                <div style="font-size: 0.8rem; color: #cbd5e1; margin-bottom: 14px; background: rgba(234,179,8,0.1); border-left: 3px solid #eab308; padding: 8px 12px; border-radius: 4px;">
+                    Choose an active creature you control to become your <strong>Ring-bearer</strong>:
+                    <ul style="margin: 6px 0 0 16px; padding: 0; font-size: 0.75rem; color: #94a3b8;">
+                        ${ringAbilities.map((ab, idx) => `<li style="${idx < currentLvl ? 'color: #fef08a; font-weight: 700;' : ''}">${ab}</li>`).join('')}
+                    </ul>
+                </div>
+                <div id="ringBearerOptionsList">
+                    ${optionsHtml}
+                </div>
+            </div>
+        `;
+        modalEl.style.display = 'flex';
+
+        window.selectRingBearer = function (cardId) {
+            const chosen = pool.find(c => String(c.id) === String(cardId));
+            if (chosen) {
+                pool.forEach(c => { c.isRingBearer = false; });
+                chosen.isRingBearer = true;
+                chosen.isLegendary = true;
+                player.ringBearerId = String(chosen.id);
+
+                appendArenaLogs([{
+                    type: 'TRIGGER',
+                    message: `💍 **${player.name}** chose **${chosen.name}** as their Ring-bearer!`
+                }]);
+
+                // Check Call of the Ring
+                const callOfRing = (player.battlefield || []).find(c => (c.name || '').toLowerCase().includes('call of the ring'));
+                if (callOfRing && player.life > 2 && typeof player.draw === 'function') {
+                    const payLife = window.confirm(`💍 Call of the Ring Trigger:\n\nYou chose ${chosen.name} as your Ring-bearer.\nPay 2 life to draw a card?`);
+                    if (payLife) {
+                        player.life -= 2;
+                        const drawn = player.draw(1);
+                        appendArenaLogs([{
+                            type: 'TRIGGER',
+                            message: `💍 **Call of the Ring**: Paid 2 life (now at ${player.life}) to draw a card (${drawn.length ? drawn[0].name : ''})!`
+                        }]);
+                    }
+                }
+            }
+            modalEl.style.display = 'none';
+            updateArenaDOM();
+            if (typeof onChosen === 'function') onChosen(chosen);
+        };
     };
 
     let currentAbilityCard = null;

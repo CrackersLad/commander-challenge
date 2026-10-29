@@ -628,9 +628,38 @@
     }
 
     function canPayManaCost(cardOrCost, manaPool, genericReduction = 0, extraGenericTax = 0) {
-        const costStr = typeof cardOrCost === 'string' ? cardOrCost : (cardOrCost && cardOrCost.manaCost ? cardOrCost.manaCost : '');
+        let costStr = typeof cardOrCost === 'string' ? cardOrCost : (cardOrCost && (cardOrCost.manaCost || cardOrCost.mana_cost || cardOrCost.cost) ? (cardOrCost.manaCost || cardOrCost.mana_cost || cardOrCost.cost) : '');
         const isLand = cardOrCost && typeof cardOrCost === 'object' && Boolean(cardOrCost.isLand);
-        if (isLand || !costStr) return { canPay: true, missing: [], reason: '' };
+        if (isLand) return { canPay: true, missing: [], reason: '' };
+
+        const nameLower = cardOrCost && typeof cardOrCost === 'object' ? (cardOrCost.name || '').toLowerCase().trim() : '';
+        const cleanName = nameLower.normalize ? nameLower.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : nameLower;
+        if (!costStr && nameLower) {
+            if (typeof window !== 'undefined' && window.__MTG_CARD_CACHE__) {
+                const cached = window.__MTG_CARD_CACHE__[nameLower] || window.__MTG_CARD_CACHE__[cleanName];
+                if (cached && (cached.manaCost || cached.mana_cost)) costStr = cached.manaCost || cached.mana_cost;
+            }
+            if (!costStr && typeof window !== 'undefined' && window.__FORGE_SCRIPTS__) {
+                const fs = window.__FORGE_SCRIPTS__[nameLower] || window.__FORGE_SCRIPTS__[cleanName];
+                if (fs && fs.manaCost) costStr = fs.manaCost;
+            }
+        }
+
+        const totalPool = ((manaPool && manaPool.W) || 0) + ((manaPool && manaPool.U) || 0) + ((manaPool && manaPool.B) || 0) + ((manaPool && manaPool.R) || 0) + ((manaPool && manaPool.G) || 0) + ((manaPool && manaPool.C) || 0);
+
+        if (!costStr) {
+            const cardCmc = (cardOrCost && typeof cardOrCost === 'object' && typeof cardOrCost.cmc === 'number') ? cardOrCost.cmc : 0;
+            const isCmdr = Boolean(cardOrCost && typeof cardOrCost === 'object' && cardOrCost.isCommander);
+            const isFreeSpell = nameLower.includes('rograkh') || nameLower === 'lotus petal' || nameLower === 'mox diamond' || nameLower === 'mox opal' || nameLower === 'chrome mox' || nameLower === 'everflowing chalice';
+            if (isCmdr && !isFreeSpell && totalPool === 0) {
+                return { canPay: false, missing: ['Commander Mana'], reason: 'Commander requires mana to cast (pool is empty)' };
+            }
+            const minNeeded = Math.max(0, cardCmc + extraGenericTax - genericReduction);
+            if (minNeeded > 0 && totalPool < minNeeded) {
+                return { canPay: false, missing: [`${minNeeded - totalPool} mana`], reason: `Need {${minNeeded}} mana in pool (have {${totalPool}})` };
+            }
+            return { canPay: true, missing: [], reason: '' };
+        }
 
         const parsed = parseManaCostDetailed(costStr);
         const pool = {
@@ -690,9 +719,22 @@
 
     function deductDetailedMana(cardOrCost, manaPool, battlefield = [], genericReduction = 0, extraGenericTax = 0) {
         if (!manaPool) return;
-        const costStr = typeof cardOrCost === 'string' ? cardOrCost : (cardOrCost && cardOrCost.manaCost ? cardOrCost.manaCost : '');
+        let costStr = typeof cardOrCost === 'string' ? cardOrCost : (cardOrCost && (cardOrCost.manaCost || cardOrCost.mana_cost || cardOrCost.cost) ? (cardOrCost.manaCost || cardOrCost.mana_cost || cardOrCost.cost) : '');
         const isLand = cardOrCost && typeof cardOrCost === 'object' && Boolean(cardOrCost.isLand);
         if (isLand) return;
+
+        const nameLower = cardOrCost && typeof cardOrCost === 'object' ? (cardOrCost.name || '').toLowerCase().trim() : '';
+        const cleanName = nameLower.normalize ? nameLower.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : nameLower;
+        if (!costStr && nameLower) {
+            if (typeof window !== 'undefined' && window.__MTG_CARD_CACHE__) {
+                const cached = window.__MTG_CARD_CACHE__[nameLower] || window.__MTG_CARD_CACHE__[cleanName];
+                if (cached && (cached.manaCost || cached.mana_cost)) costStr = cached.manaCost || cached.mana_cost;
+            }
+            if (!costStr && typeof window !== 'undefined' && window.__FORGE_SCRIPTS__) {
+                const fs = window.__FORGE_SCRIPTS__[nameLower] || window.__FORGE_SCRIPTS__[cleanName];
+                if (fs && fs.manaCost) costStr = fs.manaCost;
+            }
+        }
 
         // Numeric cost fallback
         if (typeof cardOrCost === 'number' || (/^\d+$/.test(String(costStr).trim()))) {
@@ -823,14 +865,23 @@
 
                 const openingHand = libCards.splice(0, 7);
 
+                const rawCmdrFromDeck = allCards.find(c => {
+                    const cName = typeof c === 'string' ? c : (c && c.name ? c.name : '');
+                    const cleanCName = cName.toLowerCase().normalize ? cName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : cName.toLowerCase();
+                    const cleanCmdr = (cmdrName || '').toLowerCase().normalize ? (cmdrName || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : (cmdrName || '').toLowerCase();
+                    return (cleanCmdr && cleanCName === cleanCmdr) || (c && c.isCommander);
+                });
+                const baseCmdrData = (typeof rawCmdrFromDeck === 'object' && rawCmdrFromDeck !== null) ? rawCmdrFromDeck : {};
+
                 const cmdrCard = enrichCard({
                     name: cmdrName,
                     isCommander: true,
-                    manaCost: deckInfo.manaCost || '',
-                    cmc: deckInfo.cmc !== undefined ? deckInfo.cmc : undefined,
-                    power: deckInfo.power !== undefined ? deckInfo.power : undefined,
-                    toughness: deckInfo.toughness !== undefined ? deckInfo.toughness : undefined,
-                    typeLine: deckInfo.typeLine || undefined
+                    manaCost: baseCmdrData.manaCost || baseCmdrData.mana_cost || deckInfo.manaCost || '',
+                    cmc: baseCmdrData.cmc !== undefined ? baseCmdrData.cmc : (deckInfo.cmc !== undefined ? deckInfo.cmc : undefined),
+                    power: baseCmdrData.power !== undefined ? baseCmdrData.power : (deckInfo.power !== undefined ? deckInfo.power : undefined),
+                    toughness: baseCmdrData.toughness !== undefined ? baseCmdrData.toughness : (deckInfo.toughness !== undefined ? deckInfo.toughness : undefined),
+                    typeLine: baseCmdrData.typeLine || baseCmdrData.type_line || deckInfo.typeLine || undefined,
+                    oracleText: baseCmdrData.oracleText || baseCmdrData.oracle_text || deckInfo.oracleText || undefined
                 }, true);
 
                 const p = {
@@ -1247,6 +1298,103 @@
             }
         }
 
+        ringTempts(player, sourceCard = null) {
+            if (!player) return;
+            player.ringLevel = Math.min(4, (player.ringLevel || 0) + 1);
+            player.ringTemptCount = (player.ringTemptCount || 0) + 1;
+
+            // Choose a Ring-bearer from creatures on battlefield
+            const creatures = (player.battlefield || []).filter(c => c && (c.isCreature || (c.typeLine || '').toLowerCase().includes('creature')));
+            let currentBearer = creatures.find(c => c.isRingBearer || (player.ringBearerId && String(c.id) === String(player.ringBearerId)));
+
+            if (!currentBearer && creatures.length > 0) {
+                if (sourceCard && creatures.some(c => String(c.id) === String(sourceCard.id))) {
+                    currentBearer = sourceCard;
+                } else {
+                    currentBearer = creatures[0];
+                }
+            }
+
+            if (currentBearer) {
+                creatures.forEach(c => { c.isRingBearer = false; });
+                currentBearer.isRingBearer = true;
+                currentBearer.isLegendary = true;
+                player.ringBearerId = String(currentBearer.id);
+            }
+
+            this.logs.push({
+                type: 'TRIGGER',
+                message: `💍 **The Ring tempts you!** (Stage **${player.ringLevel}/4**)${currentBearer ? ` • **${currentBearer.name}** is your Ring-bearer!` : ''}`
+            });
+
+            // 1. Nazgûl / Wraith Trigger:
+            // "Whenever the Ring tempts you, put a +1/+1 counter on each Wraith you control."
+            const wraiths = (player.battlefield || []).filter(c => {
+                if (!c) return false;
+                const cName = (c.name || '').toLowerCase();
+                const tl = (c.typeLine || '').toLowerCase();
+                return tl.includes('wraith') || cName.includes('nazg') || (c.subtypes instanceof Set && c.subtypes.has('Wraith'));
+            });
+
+            if (wraiths.length > 0) {
+                wraiths.forEach(w => {
+                    if (typeof player.addCounter === 'function') {
+                        player.addCounter(w, '+1/+1', 1);
+                    } else {
+                        w.counters = Array.isArray(w.counters) ? w.counters : [];
+                        w.counters.push({ type: '+1/+1', count: 1 });
+                        w.tempPower = (w.tempPower || 0) + 1;
+                        w.tempToughness = (w.tempToughness || 0) + 1;
+                    }
+                });
+                this.logs.push({
+                    type: 'TRIGGER',
+                    message: `⚔️ **Nazgûl Wraith Synergy**: Put a +1/+1 counter on **${wraiths.length}** Wraith(s) (${wraiths.map(w => {
+                        const p = typeof player.getEffectivePower === 'function' ? player.getEffectivePower(w) : (w.power || 0);
+                        const t = typeof player.getEffectiveToughness === 'function' ? player.getEffectiveToughness(w) : (w.toughness || 0);
+                        return `${w.name} is now ${p}/${t}`;
+                    }).join(', ')})!`
+                });
+            }
+
+            // 2. Sauron, the Dark Lord Trigger:
+            // "Whenever the Ring tempts you, you may sacrifice a legendary creature. If you do, discard your hand, then draw four cards."
+            const sauron = (player.battlefield || []).find(c => (c.name || '').toLowerCase().includes('sauron, the dark lord'));
+            if (sauron && typeof player.draw === 'function') {
+                if ((player.hand || []).length <= 2) {
+                    player.hand = [];
+                    player.handCount = 0;
+                    const drawn = player.draw(4);
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `👑 **Sauron, the Dark Lord**: Ring temptation wheel! Discarded hand and drew **4** new cards!`
+                    });
+                }
+            }
+
+            // 3. Call of the Ring Trigger:
+            // "Whenever you choose a creature as your Ring-bearer, you may pay 2 life. If you do, draw a card."
+            const callOfTheRing = (player.battlefield || []).find(c => (c.name || '').toLowerCase().includes('call of the ring'));
+            if (callOfTheRing && currentBearer && player.life > 2 && typeof player.draw === 'function') {
+                let shouldPay = true;
+                if (player.id === 'p_1' && typeof window !== 'undefined' && typeof window.confirm === 'function') {
+                    shouldPay = window.confirm(`💍 Call of the Ring Trigger:\n\nYou chose ${currentBearer.name} as your Ring-bearer.\nPay 2 life to draw a card?`);
+                }
+                if (shouldPay) {
+                    player.life -= 2;
+                    const drawn = player.draw(1);
+                    this.logs.push({
+                        type: 'TRIGGER',
+                        message: `💍 **Call of the Ring**: **${player.name}** paid 2 life (now at ${player.life}) to draw a card (${drawn.length ? drawn[0].name : ''})!`
+                    });
+                }
+            }
+
+            // If player has multiple creatures and is human player, trigger selection modal
+            if (player.id === 'p_1' && creatures.length > 1 && typeof window !== 'undefined' && typeof window.openRingBearerModal === 'function') {
+                window.openRingBearerModal(player, creatures);
+            }
+        }
 
         checkStateBasedActions() {
             for (const p of (this.players || [])) {
@@ -2085,6 +2233,13 @@
 
             // Non-Land Card-specific ETB effects
 
+            // 0. The Ring Tempts You & Nazgûl ETB Trigger
+            const isNazgul = nameLower.includes('nazg');
+            const hasRingTemptsETB = isNazgul || /(?:when|whenever) (?:this|~|it|[a-z0-9', -]+) enters(?: the battlefield)?, the ring tempts you/i.test(oracleLower);
+            if (hasRingTemptsETB) {
+                this.ringTempts(controller, card);
+            }
+
             // 1. Amass triggers (e.g. March from the Black Gate, Dreadhorde Invasion, Gleaming Overseer, Eternal Skylord, Lazotep Plating, etc.)
             const isMarchBlackGate = nameLower.includes('march from the black gate') || nameLower.includes('march on the black gate');
             const mAmass = oracleLower.match(/(?:when|whenever) (?:this|~|it|[a-z0-9', -]+) enters(?: the battlefield)?,[\s\S]*?amass\s+(orcs|zombies)?\s*(\d+)/i);
@@ -2529,6 +2684,8 @@
                             type: 'TRIGGER',
                             message: `📜 **Phyrexian Arena** Upkeep triggered: **${activePlayer.name}** drew ${drawn[0] ? `**${drawn[0].name}**` : 'a card'} and lost 1 life.`
                         });
+                    } else if (pName === 'call of the ring') {
+                        this.ringTempts(activePlayer, perm);
                     }
                 }
             } else if (phaseName === 'END_STEP') {
@@ -3625,8 +3782,17 @@
             try {
                 const pBefore = this.players[0];
                 const cmdr = pBefore ? pBefore.getCommander() : null;
-                const cost = cmdr ? ((cmdr.cmc || 0) + (pBefore.commanderTax || 0)) : 0;
-                if (pBefore && cmdr && typeof pBefore.deductMana === 'function') {
+                if (!cmdr) return { success: false, message: 'No commander assigned to deck!', logs: [] };
+
+                const payCheck = pBefore.canPayCardCost ?
+                    pBefore.canPayCardCost(cmdr, pBefore.commanderTax || 0) :
+                    canPayManaCost(cmdr, pBefore.manaPool, 0, pBefore.commanderTax || 0);
+
+                if (!payCheck.canPay) {
+                    return { success: false, message: `Cannot cast ${cmdr.name}: ${payCheck.reason || 'Insufficient mana in pool'}`, logs: [] };
+                }
+
+                if (pBefore && typeof pBefore.deductMana === 'function') {
                     pBefore.deductMana(cmdr, pBefore.commanderTax || 0);
                 }
                 const logsBefore = this.logs.length;
@@ -3847,6 +4013,26 @@
                                     message: `🪙 **Grim Hireling** triggered: Created 2 Treasure tokens!`
                                 });
                             }
+
+                            // Ring Stage 4: "Whenever your Ring-bearer deals combat damage to a player, each opponent loses 3 life."
+                            if (attacker.isRingBearer && curP0.ringLevel >= 4) {
+                                (this.players || []).forEach(pl => {
+                                    if (pl !== curP0 && pl.isAlive) {
+                                        pl.life -= 3;
+                                    }
+                                });
+                                this.logs.push({
+                                    type: 'TRIGGER',
+                                    message: `💍 **Ring Stage 4**: Ring-bearer **${attacker.name}** dealt combat damage to player! Each opponent lost 3 life!`
+                                });
+                            }
+
+                            // Sauron, the Dark Lord: "Whenever an Army you control deals combat damage to a player, the Ring tempts you."
+                            const isArmy = (attacker.typeLine || '').toLowerCase().includes('army') || (attacker.subtypes instanceof Set && attacker.subtypes.has('Army'));
+                            const hasSauron = (curP0.battlefield || []).some(c => (c.name || '').toLowerCase().includes('sauron, the dark lord'));
+                            if (isArmy && hasSauron) {
+                                this.ringTempts(curP0, attacker);
+                            }
                         }
 
                         if (curP0.hasEffectiveKeyword(attacker, 'decayed')) {
@@ -4023,23 +4209,28 @@
         const c = Object.assign({}, cardData);
         c.id = c.id !== undefined ? String(c.id) : ('c_' + Math.floor(Math.random() * 1000000));
         c.name = c.name || 'Unknown Card';
-        const nameLower = c.name.toLowerCase();
+        if (!c.manaCost && cardData.mana_cost) c.manaCost = cardData.mana_cost;
+        if (!c.typeLine && cardData.type_line) c.typeLine = cardData.type_line;
+        if (!c.oracleText && cardData.oracle_text) c.oracleText = cardData.oracle_text;
+        const nameLower = c.name.toLowerCase().trim();
+        const cleanName = nameLower.normalize ? nameLower.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : nameLower;
 
         if (typeof window !== 'undefined' && window.__MTG_CARD_CACHE__) {
-            const cached = window.__MTG_CARD_CACHE__[nameLower];
+            const cached = window.__MTG_CARD_CACHE__[nameLower] || window.__MTG_CARD_CACHE__[cleanName];
             if (cached) {
-                if (!c.manaCost) c.manaCost = cached.manaCost;
+                if (!c.manaCost) c.manaCost = cached.manaCost || cached.mana_cost;
                 if (c.cmc === undefined) c.cmc = cached.cmc;
-                if (!c.typeLine) c.typeLine = cached.typeLine;
+                if (!c.typeLine) c.typeLine = cached.typeLine || cached.type_line;
                 if (c.power === undefined) c.power = cached.power;
                 if (c.toughness === undefined) c.toughness = cached.toughness;
-                if (!c.oracleText) c.oracleText = cached.oracleText;
+                if (!c.oracleText) c.oracleText = cached.oracleText || cached.oracle_text;
+                if (!c.colors && cached.colors) c.colors = cached.colors;
             }
         }
 
         // Enrich from compiled Card-Forge scripts (window.__FORGE_SCRIPTS__)
         if (typeof window !== 'undefined' && window.__FORGE_SCRIPTS__) {
-            const fScript = window.__FORGE_SCRIPTS__[nameLower];
+            const fScript = window.__FORGE_SCRIPTS__[nameLower] || window.__FORGE_SCRIPTS__[cleanName];
             if (fScript) {
                 c.forgeScript = fScript;
                 c.forgeTriggers = fScript.triggers || [];

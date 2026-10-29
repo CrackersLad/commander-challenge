@@ -3120,5 +3120,111 @@
     "typeLine": "Legendary Land — Gate",
     "oracleText": "As The Black Gate enters, you may pay 3 life. If you don't, it enters tapped.\n{T}: Add {B}.\n{1}{B}, {T}: Choose a player with the most life or tied for most life. Target creature can't be blocked by creatures that player controls this turn.",
     "colors": []
+  },
+  "nazgul": {
+    "name": "Nazgûl",
+    "manaCost": "{2}{B}",
+    "cmc": 3,
+    "typeLine": "Creature — Wraith Knight",
+    "power": "2",
+    "toughness": "3",
+    "oracleText": "Deathtouch\nWhen Nazgûl enters the battlefield, the Ring tempts you.\nWhenever the Ring tempts you, put a +1/+1 counter on each Wraith you control.\nA deck can have up to nine cards named Nazgûl.",
+    "colors": [
+      "B"
+    ]
+  },
+  "nazgûl": {
+    "name": "Nazgûl",
+    "manaCost": "{2}{B}",
+    "cmc": 3,
+    "typeLine": "Creature — Wraith Knight",
+    "power": "2",
+    "toughness": "3",
+    "oracleText": "Deathtouch\nWhen Nazgûl enters the battlefield, the Ring tempts you.\nWhenever the Ring tempts you, put a +1/+1 counter on each Wraith you control.\nA deck can have up to nine cards named Nazgûl.",
+    "colors": [
+      "B"
+    ]
+  },
+  "sauron, the dark lord": {
+    "name": "Sauron, the Dark Lord",
+    "manaCost": "{3}{U}{B}{R}",
+    "cmc": 6,
+    "typeLine": "Legendary Creature — Avatar Horror",
+    "power": "7",
+    "toughness": "6",
+    "oracleText": "Ward—Sacrifice a legendary artifact or legendary creature.\nWhenever an opponent casts a spell, amass Orcs 1.\nWhenever an Army you control deals combat damage to a player, the Ring tempts you.\nWhenever the Ring tempts you, you may sacrifice a legendary creature. If you do, discard your hand, then draw four cards.",
+    "colors": [
+      "B",
+      "R",
+      "U"
+    ]
+  },
+  "call of the ring": {
+    "name": "Call of the Ring",
+    "manaCost": "{1}{B}",
+    "cmc": 2,
+    "typeLine": "Enchantment",
+    "oracleText": "At the beginning of your upkeep, the Ring tempts you.\nWhenever you choose a creature as your Ring-bearer, you may pay 2 life. If you do, draw a card.",
+    "colors": [
+      "B"
+    ]
+  },
+  "the one ring": {
+    "name": "The One Ring",
+    "manaCost": "{4}",
+    "cmc": 4,
+    "typeLine": "Legendary Artifact",
+    "oracleText": "Indestructible\nWhen The One Ring enters the battlefield, if you cast it, you gain protection from everything until your next turn.\nAt the beginning of your upkeep, you lose 1 life for each burden counter on The One Ring.\n{T}: Put a burden counter on The One Ring, then draw a card for each burden counter on The One Ring.",
+    "colors": []
+  },
+  "lord of the nazgul": {
+    "name": "Lord of the Nazgûl",
+    "manaCost": "{3}{U}{B}",
+    "cmc": 5,
+    "typeLine": "Legendary Creature — Wraith Noble",
+    "power": "4",
+    "toughness": "3",
+    "oracleText": "Whenever you cast an instant or sorcery spell, create a 3/3 black Wraith creature token with menace.\nWhenever you cast an instant or sorcery spell, if you control nine or more Wraiths, Wraiths you control get +9/+9 and gain deathtouch until end of turn.",
+    "colors": [
+      "B",
+      "U"
+    ]
+  },
+  "lord of the nazgûl": {
+    "name": "Lord of the Nazgûl",
+    "manaCost": "{3}{U}{B}",
+    "cmc": 5,
+    "typeLine": "Legendary Creature — Wraith Noble",
+    "power": "4",
+    "toughness": "3",
+    "oracleText": "Whenever you cast an instant or sorcery spell, create a 3/3 black Wraith creature token with menace.\nWhenever you cast an instant or sorcery spell, if you control nine or more Wraiths, Wraiths you control get +9/+9 and gain deathtouch until end of turn.",
+    "colors": [
+      "B",
+      "U"
+    ]
+  },
+  "witch-king of angmar": {
+    "name": "Witch-king of Angmar",
+    "manaCost": "{3}{B}{B}",
+    "cmc": 5,
+    "typeLine": "Legendary Creature — Wraith Noble",
+    "power": "5",
+    "toughness": "3",
+    "oracleText": "Flying\nWhenever one or more creatures deal combat damage to you, each opponent sacrifices a creature that dealt damage to you this turn. The Ring tempts you.\nDiscard a card: Witch-king of Angmar gains indestructible until end of turn. Tap it.",
+    "colors": [
+      "B"
+    ]
+  },
+  "orcish bowmasters": {
+    "name": "Orcish Bowmasters",
+    "manaCost": "{1}{B}",
+    "cmc": 2,
+    "typeLine": "Creature — Orc Archer",
+    "power": "1",
+    "toughness": "1",
+    "oracleText": "Flash\nWhen Orcish Bowmasters enters the battlefield and whenever an opponent draws a card except the first one they draw in each of their draw steps, Orcish Bowmasters deals 1 damage to any target and you amass Orcs 1.",
+    "colors": [
+      "B"
+    ]
   }
 }
