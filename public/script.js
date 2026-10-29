@@ -742,7 +742,7 @@ window.handleFeedbackSubmit = async (e) => {
 };
 
 
-window.launchPlaytesterSession = ({ deckName = '', deckContent = '', opponentArchetype = 'tokens', autoStart = true, inDrawer = false } = {}) => {
+window.launchPlaytesterSession = ({ deckName = '', deckContent = '', opponentArchetype = 'tokens', autoStart = true, inDrawer = true } = {}) => {
     if (window.isMobileDevice()) {
         showToast("⚔️ The Battle Arena requires a desktop screen and is not supported on mobile devices.", true, 4500);
         return;
@@ -872,15 +872,6 @@ window.executePlaytesterLaunch = async () => {
 };
 
 window.openPlaytester = (deckName = '', deckContent = '', autoStart = false, opponentArchetype = 'tokens') => {
-    // Route to the new lightweight, web-native Commander Arena simulator
-    if (window.openCommanderArena) {
-        if (deckContent || deckName) {
-            window.openCommanderArena({ name: deckName, content: deckContent });
-        } else {
-            window.openCommanderArena();
-        }
-        return;
-    }
     if (window.isMobileDevice()) {
         showToast("⚔️ The Battle Arena requires a desktop/laptop screen with keyboard & mouse and is not supported on mobile devices.", true, 4500);
         return;
@@ -890,13 +881,13 @@ window.openPlaytester = (deckName = '', deckContent = '', autoStart = false, opp
         window.openPlaytesterLaunchModal();
         return;
     }
-    // Direct launch from Armory / room button
+    // Direct launch into the embedded Cloud Forge drawer UI
     window.launchPlaytesterSession({
         deckName,
         deckContent,
         opponentArchetype: opponentArchetype || 'tokens',
-        autoStart,
-        inDrawer: false
+        autoStart: autoStart !== false,
+        inDrawer: true
     });
 };
 
