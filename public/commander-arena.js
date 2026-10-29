@@ -46,14 +46,20 @@
 
     function isCreatureCard(c) {
         if (!c) return false;
-        if (c.isCreature === true) return true;
         const tl = String(c.typeLine || '').toLowerCase();
         if (tl.includes('creature')) {
             c.isCreature = true;
             return true;
         }
+        if (c.isCreature === false) return false;
+        if (c.isLand || c.isArtifact || c.isEnchantment || c.isPlaneswalker) {
+            if (!tl.includes('creature')) {
+                c.isCreature = false;
+                return false;
+            }
+        }
         if (c.power !== undefined && c.toughness !== undefined && (c.power !== null && c.toughness !== null) && c.power !== '' && c.toughness !== '') {
-            if (!c.isLand && !tl.includes('land') && !tl.includes('instant') && !tl.includes('sorcery') && !tl.includes('planeswalker')) {
+            if (!c.isLand && !c.isArtifact && !c.isEnchantment && !tl.includes('land') && !tl.includes('instant') && !tl.includes('sorcery') && !tl.includes('planeswalker') && !tl.includes('artifact') && !tl.includes('enchantment')) {
                 c.isCreature = true;
                 return true;
             }

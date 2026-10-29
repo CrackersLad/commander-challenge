@@ -4500,30 +4500,49 @@
             c.cmc = c.cmc !== undefined ? c.cmc : calcCmcFromManaCost(c.manaCost);
         }
 
-        const isCreatureDetected = Boolean(
-            c.isCreature ||
-            tl.includes('creature') ||
+        // Detect non-creature card types
+        c.isArtifact = !!c.isArtifact || tl.includes('artifact') || (c.forgeScript && Array.isArray(c.forgeScript.types) && c.forgeScript.types.some(t => String(t).toLowerCase() === 'artifact'));
+        c.isEnchantment = !!c.isEnchantment || tl.includes('enchantment') || (c.forgeScript && Array.isArray(c.forgeScript.types) && c.forgeScript.types.some(t => String(t).toLowerCase() === 'enchantment'));
+        c.isPlaneswalker = !!c.isPlaneswalker || tl.includes('planeswalker') || (c.forgeScript && Array.isArray(c.forgeScript.types) && c.forgeScript.types.some(t => String(t).toLowerCase() === 'planeswalker'));
+        c.isInstant = !!c.isInstant || tl.includes('instant') || (c.forgeScript && Array.isArray(c.forgeScript.types) && c.forgeScript.types.some(t => String(t).toLowerCase() === 'instant'));
+        c.isSorcery = !!c.isSorcery || tl.includes('sorcery') || (c.forgeScript && Array.isArray(c.forgeScript.types) && c.forgeScript.types.some(t => String(t).toLowerCase() === 'sorcery'));
+        c.isEquipment = !!c.isEquipment || tl.includes('equipment') || (c.forgeScript && Array.isArray(c.forgeScript.subtypes) && c.forgeScript.subtypes.some(t => String(t).toLowerCase() === 'equipment'));
+
+        const hasCreatureType = tl.includes('creature') ||
             (c.forgeScript && Array.isArray(c.forgeScript.types) && c.forgeScript.types.some(t => String(t).toLowerCase() === 'creature')) ||
-            (typeof window !== 'undefined' && window.__FORGE_SCRIPTS__ && window.__FORGE_SCRIPTS__[nameLower] && window.__FORGE_SCRIPTS__[nameLower].types && window.__FORGE_SCRIPTS__[nameLower].types.some(t => String(t).toLowerCase() === 'creature')) ||
-            (cardData.power !== undefined && cardData.toughness !== undefined && !c.isLand && !tl.includes('land') && !tl.includes('instant') && !tl.includes('sorcery') && !tl.includes('planeswalker'))
-        );
+            (typeof window !== 'undefined' && window.__FORGE_SCRIPTS__ && window.__FORGE_SCRIPTS__[nameLower] && window.__FORGE_SCRIPTS__[nameLower].types && window.__FORGE_SCRIPTS__[nameLower].types.some(t => String(t).toLowerCase() === 'creature'));
+
+        let isCreatureDetected = false;
+        if (hasCreatureType) {
+            isCreatureDetected = true;
+        } else if (c.isLand || c.isArtifact || c.isEnchantment || c.isPlaneswalker || c.isInstant || c.isSorcery ||
+                   tl.includes('land') || tl.includes('artifact') || tl.includes('enchantment') || tl.includes('planeswalker') || tl.includes('instant') || tl.includes('sorcery')) {
+            isCreatureDetected = false;
+        } else if (c.isCreature) {
+            isCreatureDetected = true;
+        } else if (cardData.power !== undefined && cardData.toughness !== undefined && cardData.power !== '' && cardData.toughness !== '' &&
+                   (Number(cardData.power) > 0 || Number(cardData.toughness) > 0)) {
+            isCreatureDetected = true;
+        }
+
         c.isCreature = isCreatureDetected;
         if (c.isCreature && (!c.typeLine || c.typeLine === 'Spell')) {
             c.typeLine = 'Creature';
         }
-        c.power = c.power !== undefined ? (Number(c.power) || 0) : (c.isCreature ? 1 : 0);
-        c.toughness = c.toughness !== undefined ? (Number(c.toughness) || 0) : (c.isCreature ? 1 : 0);
+
+        if (c.isCreature) {
+            c.power = c.power !== undefined ? (Number(c.power) || 0) : (cardData.power !== undefined ? (Number(cardData.power) || 0) : 1);
+            c.toughness = c.toughness !== undefined ? (Number(c.toughness) || 0) : (cardData.toughness !== undefined ? (Number(cardData.toughness) || 0) : 1);
+        } else {
+            c.power = undefined;
+            c.toughness = undefined;
+        }
+
         c.tapped = !!c.tapped;
         c.summoningSick = !!c.summoningSick;
-        c.isArtifact = !!c.isArtifact || tl.includes('artifact');
-        c.isEnchantment = !!c.isEnchantment || tl.includes('enchantment');
-        c.isPlaneswalker = !!c.isPlaneswalker || tl.includes('planeswalker');
-        c.isInstant = !!c.isInstant || tl.includes('instant');
-        c.isSorcery = !!c.isSorcery || tl.includes('sorcery');
-        c.isEquipment = !!c.isEquipment || tl.includes('equipment');
         c.isCommander = isCommandZone || !!c.isCommander;
         c.counters = Array.isArray(cardData.counters) ? cardData.counters : [];
-        c.typeLine = c.typeLine || (c.isCreature ? 'Creature' : c.isLand ? 'Land' : 'Spell');
+        c.typeLine = c.typeLine || (c.isCreature ? 'Creature' : c.isLand ? 'Land' : c.isArtifact ? 'Artifact' : c.isEnchantment ? 'Enchantment' : c.isPlaneswalker ? 'Planeswalker' : 'Spell');
         c.oracleText = c.oracleText || '';
 
         // Populate subtypes and keywords Set
