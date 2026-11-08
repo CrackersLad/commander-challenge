@@ -1,5 +1,85 @@
 [
   {
+    "name": "Federation Fleet",
+    "code": "TRC",
+    "releaseDate": "2026-11-13",
+    "commander": "Jean-Luc Picard, Luminary",
+    "scryfallId": "901eaed9-dbea-4a31-87b0-e17e9bcabfed",
+    "image": "https://cards.scryfall.io/normal/front/9/0/901eaed9-dbea-4a31-87b0-e17e9bcabfed.jpg",
+    "colors": [
+      "R",
+      "U",
+      "W"
+    ],
+    "manaCost": "{1}{U}{R}{W}",
+    "type": "Legendary Creature — Human Officer",
+    "theme": "Spellslinger & Flashy Instants",
+    "strategy": "Chain spells together to draw cards, burn targets, and generate token armies from your spell casts.",
+    "source": "https://magic.wizards.com/en/news/announcements/star-trek-commander-decklists",
+    "cardCount": 100,
+    "decklist": "// Commander\n1 Jean-Luc Picard, Luminary (TRC) 3 *F*\n\n// Mainboard\n1 Captain Janeway, Endgame (TRC) 84 *F*\n1 Ambassador K'Ehleyr (TRC) 9\n1 Beverly Crusher, Ship's Doctor (TRC) 11\n1 Dr. Pulaski, Cynical Clinician (TRC) 13\n1 Ensign Harry Kim, Operations (TRC) 15\n1 Ezri Dax, Newly Joined (TRC) 16\n1 Guinan, Ancient Advisor (TRC) 17\n1 Julian Bashir, Frontier Doctor (TRC) 21\n1 Spot, Felis catus (TRC) 29\n1 U.S.S. Enterprise-E, Sovereign (TRC) 34\n1 Chief Miles O'Brien (TRC) 37\n1 Data, Exploring Humanity (TRC) 40\n1 Geordi La Forge, Innovator (TRC) 42\n1 Kes, Evolving Telepath (TRC) 45\n1 On the Shoulders of Giants (TRC) 47\n1 Seven of Nine, Tertiary Adjunct (TRC) 50\n1 Temporal Tribulation (TRC) 51\n1 Tuvok, Chief Tactical Officer (TRC) 53\n1 Ro Laren, Double Agent (TRC) 75\n1 Rom and Leeta, Unlikely Pair (TRC) 76\n1 B'Elanna Torres, Scrapper (TRC) 82\n1 Cmdr. Troi, Outgoing Empath (TRC) 89\n1 Commander William Riker (TRC) 91\n1 Reg Barclay, Fidgety Fantasist (TRC) 102\n1 Tom Paris, Risk-Taker (TRC) 105\n1 Unification (TRC) 107\n1 Vic Fontaine, One Night Only (TRC) 108\n1 Worf, Son of Mogh (TRC) 109\n1 U.S.S. Defiant, Tough Little Ship (TRC) 125\n1 U.S.S. Enterprise-C, Time-Tossed (TRC) 126\n1 U.S.S. Prometheus, Prototype (TRC) 128\n1 U.S.S. Stargazer, Here and There (TRC) 129\n1 Grand Crescendo (TRC) 423\n1 Loran of the Third Path (TRC) 424\n1 Promise of Loyalty (TRC) 426\n1 Cryptic Command (TRC) 435\n1 Chain Reaction (TRC) 450\n1 Fevered Visions (TRC) 474\n1 Fractured Identity (TRC) 475\n1 Supreme Verdict (TRC) 480\n1 Alhammarret's Archive (TRC) 484\n1 Howling Mine (TRC) 494\n1 Battlefield Forge (TRC) 514\n1 Clifftop Retreat (TRC) 518\n1 Coastal Peak (TRC) 519\n1 Command Beacon (TRC) 520\n1 Desolate Lighthouse (TRC) 523\n1 Exotic Orchard (TRC) 528\n1 Fabled Passage (TRC) 529\n1 Frostboil Snarl (TRC) 533\n1 Furycalm Snarl (TRC) 534\n1 Glacial Fortress (TRC) 535\n1 Glittering Massif (TRC) 536\n1 Irrigated Farmland (TRC) 538\n1 Port Town (TRC) 547\n1 Prairie Stream (TRC) 548\n1 Radiant Summit (TRC) 549\n1 Scorched Geyser (TRC) 554\n1 Sulfur Falls (TRC) 563\n1 Training Center (TRC) 572\n1 Malfunctioning Holodeck (TRK) 22\n1 Chronomantic Escape (TRC) 419\n1 Swords to Plowshares (TRC) 429\n1 Frantic Search (TRC) 438\n1 Negate (TRC) 439\n1 Pongify (TRC) 441\n1 Abrade (TRC) 449\n1 Thrill of Possibility (TRC) 455\n1 Faithful Mending (TRC) 473\n1 Arcane Signet (TRC) 485\n1 Commander's Sphere (TRC) 487\n1 Hedron Archive (TRC) 492\n1 Mind Stone (TRC) 497\n1 Sol Ring (TRC) 499\n1 Stonespeaker Crystal (TRC) 500\n1 Talisman of Conviction (TRC) 503\n1 Talisman of Creativity (TRC) 504\n1 Talisman of Progress (TRC) 508\n1 Thought Vessel (TRC) 509\n1 Command Tower (TRC) 521\n1 Evolving Wilds (TRC) 527\n1 Mystic Monastery (TRC) 543\n1 Path of Ancestry (TRC) 545\n1 Perilous Landscape (TRC) 546\n1 Reliquary Tower (TRC) 551\n1 Terramorphic Expanse (TRC) 571\n3 Island (TRK) 319\n2 Island (TRK) 320\n2 Plains (TRK) 317\n2 Plains (TRK) 318\n2 Mountain (TRK) 323\n2 Mountain (TRK) 324"
+  },
+  {
+    "name": "Klingon Fury",
+    "code": "TRC",
+    "releaseDate": "2026-11-13",
+    "commander": "Worf, Defiant Commander",
+    "scryfallId": "da030114-a4ee-46d7-a6fd-6c0d8e779bcf",
+    "image": "https://cards.scryfall.io/normal/front/d/a/da030114-a4ee-46d7-a6fd-6c0d8e779bcf.jpg",
+    "colors": [
+      "B",
+      "R",
+      "W"
+    ],
+    "manaCost": "{2}{R}{W}{B}",
+    "type": "Legendary Creature — Klingon Warrior Officer",
+    "theme": "Aristocrats, Sacrifice & Drain",
+    "strategy": "Bleed your opponents for every death, extorting life totals and bringing back key pieces from beyond the grave.",
+    "source": "https://magic.wizards.com/en/news/announcements/star-trek-commander-decklists",
+    "cardCount": 100,
+    "decklist": "// Commander\n1 Worf, Defiant Commander (TRC) 4 *F*\n\n// Mainboard\n1 Kor, Cause of Vengeance (TRC) 96 *F*\n1 Ambassador K'Ehleyr (TRC) 9\n1 Imperial Hullbreachers (TRC) 18\n1 Indelicate Healer (TRC) 19\n1 Korok, Liberated Rage (TRC) 22\n1 Martok, Hero of the Empire (TRC) 23\n1 Merciful Mandate (TRC) 25\n1 Right of Vengeance (TRC) 27\n1 Blood-Sport Champion (TRC) 58\n1 Kurn, Son of Mogh (TRC) 60\n1 The Promise of Kahless (TRC) 61\n1 Voq, Torchbearer (TRC) 63\n1 The Beacon of Kahless (TRC) 64\n1 Ferocious Colonist (TRC) 65\n1 Gagh Slinger (TRC) 66\n1 Galvanizing Tenor (TRC) 67\n1 Glory to the Empire! (TRC) 68\n1 Gnarling Targ (TRC) 69\n1 Grilka, Widowed Warrior (TRC) 70\n1 Kang, Suspicious Captain (TRC) 71\n1 Koloth, Tribble Hunter (TRC) 72\n1 Own the Day (TRC) 73\n1 Qo'noS Quartermaster (TRC) 74\n1 Alexander, Ship's Fool (TRC) 81\n1 Chancellor Gorkon (TRC) 86\n1 Curzon Dax, Bound by Blood (TRC) 92\n1 Rite of Ascension (TRC) 103\n1 Sins of the Father (TRC) 104\n1 I.K.S. Negh'Var, Imperial Flagship (TRC) 113\n1 K't'inga-Class Battle Cruiser (TRC) 115\n1 K'Vort-Class Raider (TRC) 116\n1 The Sword of Kahless (TRC) 123\n1 Concerted Effort (TRC) 420\n1 Duelist's Heritage (TRC) 422\n1 Vanquish the Horde (TRC) 432\n1 Painful Truths (TRC) 447\n1 Combat Celebrant (TRC) 451\n1 Disrupt Decorum (TRC) 452\n1 Professional Face-Breaker (TRC) 453\n1 Shared Animosity (TRC) 454\n1 World at War (TRC) 456\n1 Pest Control (TRC) 477\n1 Ruinous Ultimatum (TRC) 479\n1 Vindicate (TRC) 482\n1 Warleader's Call (TRC) 483\n1 Sword of Light and Shadow (TRC) 502\n1 Battlefield Forge (TRC) 514\n1 Canyon Slough (TRC) 516\n1 Clifftop Retreat (TRC) 518\n1 Dragonskull Summit (TRC) 524\n1 Eclipsed Steppe (TRC) 526\n1 Exotic Orchard (TRC) 528\n1 Foreboding Ruins (TRC) 531\n1 Furycalm Snarl (TRC) 534\n1 Glittering Massif (TRC) 536\n1 Isolated Chapel (TRC) 539\n1 Radiant Summit (TRC) 549\n1 Shineshadow Snarl (TRC) 558\n1 Smoldering Marsh (TRC) 560\n1 Temple of Malice (TRC) 567\n1 Umbral Expanse (TRC) 574\n1 Vault of Champions (TRC) 576\n1 Cha'DIch Investigator (TRK) 97\n1 Path to Exile (TRC) 425\n1 Return to Dust (TRC) 427\n1 Valorous Stance (TRC) 431\n1 Night's Whisper (TRC) 446\n1 Rite of Oblivion (TRC) 478\n1 Terminate (TRC) 481\n1 Arcane Signet (TRC) 485\n1 Herald's Horn (TRC) 493\n1 Lightning Greaves (TRC) 496\n1 Mind Stone (TRC) 497\n1 Sol Ring (TRC) 499\n1 Talisman of Conviction (TRC) 503\n1 Talisman of Hierarchy (TRC) 506\n1 Talisman of Indulgence (TRC) 507\n1 Command Tower (TRC) 521\n1 Evolving Wilds (TRC) 527\n1 Nomad Outpost (TRC) 544\n1 Path of Ancestry (TRC) 545\n1 Rogue's Passage (TRC) 552\n1 Shattered Landscape (TRC) 557\n1 Terramorphic Expanse (TRC) 571\n3 Mountain (TRK) 323\n2 Mountain (TRK) 324\n3 Plains (TRK) 317\n2 Plains (TRK) 318\n3 Swamp (TRK) 321\n2 Swamp (TRK) 322"
+  },
+  {
+    "name": "Landing Party",
+    "code": "TRC",
+    "releaseDate": "2026-11-13",
+    "commander": "Commander Spock",
+    "scryfallId": "cf114392-a38d-4117-aa41-911d6dc1051b",
+    "image": "https://cards.scryfall.io/normal/front/c/f/cf114392-a38d-4117-aa41-911d6dc1051b.jpg",
+    "colors": [
+      "G",
+      "U",
+      "W"
+    ],
+    "manaCost": "{2}{G}{W}{U}",
+    "type": "Legendary Creature — Vulcan Human Scientist",
+    "theme": "Landfall & Explosive Ramp",
+    "strategy": "Drop extra lands every turn to trigger exponential Landfall abilities, ramping into titanic game-finishing threats.",
+    "source": "https://magic.wizards.com/en/news/announcements/star-trek-commander-decklists",
+    "cardCount": 100,
+    "decklist": "// Commander\n1 Commander Spock (TRC) 2 *F*\n\n// Mainboard\n1 Captain Kirk, Boldly Going (TRC) 85 *F*\n1 Balance of Terror (TRC) 10\n1 Merciful Mandate (TRC) 25\n1 M'Ress, Crew Coordinator (TRC) 26\n1 Shuttlecraft Galileo (TRC) 28\n1 Tribble Cluster (TRC) 32\n1 Colossal Clone Master (TRC) 38\n1 Fleet Captain Christopher Pike (TRC) 41\n1 Giant Space Amoeba (TRC) 43\n1 Lieutenant Nyota Uhura (TRC) 46\n1 Sam Kirk, Xenoanthropologist (TRC) 49\n1 Temporal Tribulation (TRC) 51\n1 Amanda Grayson, Logic's Link (TRC) 77\n1 Christine Chapel, Combat Medic (TRC) 78\n1 Janice Rand, Essential Aide (TRC) 79\n1 Lieutenant Hikaru Sulu (TRC) 80\n1 Chief Kyle, Transporter Tech (TRC) 87\n1 Chief Montgomery Scott (TRC) 88\n1 Lt. Arex, Ever-Adapting (TRC) 98\n1 McCoy, Not a Bricklayer (TRC) 99\n1 Pavel Chekov, First Posting (TRC) 101\n1 T'Pring, Never Parted (TRC) 106\n1 Command Chair (TRC) 111\n1 The Guardian of Forever (TRC) 112\n1 Jefferies Tube (TRC) 114\n1 Planet Killer (TRC) 117\n1 S.S. Botany Bay (TRC) 120\n1 Starfleet Communicator (TRC) 121\n1 Starship Enterprise (TRC) 122\n1 U.S.S. Defiant, Mirror Migrant (TRC) 124\n1 U.S.S. Farragut, Bold Explorer (TRC) 127\n1 Shore Leave Planet (TRC) 130\n1 Austere Command (TRC) 418\n1 Sun Titan (TRC) 428\n1 Wrath of God (TRC) 433\n1 Echo of Eons (TRC) 437\n1 Ancient Greenwarden (TRC) 457\n1 Augur of Autumn (TRC) 458\n1 Exploration (TRC) 461\n1 Guardian Project (TRC) 463\n1 Heroic Intervention (TRC) 465\n1 Lotus Cobra (TRC) 466\n1 Scute Swarm (TRC) 470\n1 Tireless Tracker (TRC) 471\n1 Canopy Vista (TRC) 515\n1 Exotic Orchard (TRC) 528\n1 Fabled Passage (TRC) 529\n1 Fortified Village (TRC) 532\n1 Glacial Fortress (TRC) 535\n1 Hinterland Harbor (TRC) 537\n1 Irrigated Farmland (TRC) 538\n1 Mosswort Bridge (TRC) 541\n1 Mutavault (TRC) 542\n1 Port Town (TRC) 547\n1 Prairie Stream (TRC) 548\n1 Rain-Slicked Copse (TRC) 550\n1 Scattered Groves (TRC) 553\n1 Sea of Clouds (TRC) 555\n1 Sodden Verdure (TRC) 561\n1 Sunpetal Grove (TRC) 565\n1 Temple of Enlightenment (TRC) 566\n1 Temple of Mystery (TRC) 568\n1 Temple of Plenty (TRC) 569\n1 Vineglimmer Snarl (TRC) 577\n1 Cold-Blooded Crew (TRK) 189\n1 Syndicate Liquidators (TRK) 218\n1 Earth, Sector 001 (TRK) 281\n1 Risa (TRK) 293\n1 Vulcan (TRK) 305\n1 Path to Exile (TRC) 425\n1 Brainstorm (TRC) 434\n1 Ponder (TRC) 440\n1 Reality Shift (TRC) 442\n1 Beast Within (TRC) 459\n1 Cultivate (TRC) 460\n1 Farseek (TRC) 462\n1 Harmonize (TRC) 464\n1 Nature's Lore (TRC) 467\n1 Rampant Growth (TRC) 468\n1 Satyr Wayfinder (TRC) 469\n1 Growth Spiral (TRC) 476\n1 Arcane Signet (TRC) 485\n1 Sol Ring (TRC) 499\n1 Command Tower (TRC) 521\n1 Evolving Wilds (TRC) 527\n1 Path of Ancestry (TRC) 545\n1 Reliquary Tower (TRC) 551\n1 Seaside Citadel (TRC) 556\n1 Temple of the False God (TRC) 570\n1 Terramorphic Expanse (TRC) 571\n1 Tranquil Landscape (TRC) 573\n2 Forest (TRK) 325\n2 Forest (TRK) 326\n1 Plains (TRK) 317\n1 Plains (TRK) 318\n1 Island (TRK) 319\n1 Island (TRK) 320"
+  },
+  {
+    "name": "We Are the Borg",
+    "code": "TRC",
+    "releaseDate": "2026-11-13",
+    "commander": "The Borg Queen",
+    "scryfallId": "8ed939ba-bf8d-4a68-ae9f-f8ca4eb301ab",
+    "image": "https://cards.scryfall.io/normal/front/8/e/8ed939ba-bf8d-4a68-ae9f-f8ca4eb301ab.jpg",
+    "colors": [
+      "B",
+      "U",
+      "W"
+    ],
+    "manaCost": "{4}{W}{U}{B}",
+    "type": "Legendary Artifact Creature — Borg Noble",
+    "theme": "Aristocrats, Sacrifice & Drain",
+    "strategy": "Bleed your opponents for every death, extorting life totals and bringing back key pieces from beyond the grave.",
+    "source": "https://magic.wizards.com/en/news/announcements/star-trek-commander-decklists",
+    "cardCount": 100,
+    "decklist": "// Commander\n1 The Borg Queen (TRC) 1 *F*\n\n// Mainboard\n1 Locutus of Borg (TRC) 97 *F*\n1 Borg Incursion (TRC) 12\n1 Emergency Regeneration (TRC) 14\n1 Join the Collective (TRC) 20\n1 Korok, Liberated Rage (TRC) 22\n1 Maturation Chamber (TRC) 24\n1 Stratagem Emulator (TRC) 30\n1 Supplementation Node (TRC) 31\n1 Type-03 Borg Vessel (TRC) 33\n1 Ambulatory Reactor (TRC) 35\n1 Borg Scout Sphere (TRC) 36\n1 Co-Option Adjutant (TRC) 39\n1 Gift of Perfection (TRC) 44\n1 Optimization Annex (TRC) 48\n1 Seven of Nine, Tertiary Adjunct (TRC) 50\n1 Transwarp Hub (TRC) 52\n1 Võx, Child of the Collective (TRC) 54\n1 Assimilate the Wounded (TRC) 55\n1 Assimilation Assessor (TRC) 56\n1 Battle of Wolf 359 (TRC) 57\n1 Extraction Integrant (TRC) 59\n1 Reclamation Specialist (TRC) 62\n1 The Best of Both Worlds (TRC) 83\n1 Collective Override (TRC) 90\n1 Deliver from Chaos (TRC) 93\n1 Hugh, First of Many (TRC) 94\n1 Jurati, Cordial Queen (TRC) 95\n1 One, Borg Evolved (TRC) 100\n1 Class-4 Tactical Cube (TRC) 110\n1 Queen's Diamond (TRC) 118\n1 Reconnaissance Partition (TRC) 119\n1 Shore Leave Planet (TRC) 130\n1 Tempered Steel (TRC) 430\n1 Disallow (TRC) 436\n1 Toxic Deluge (TRC) 448\n1 Anguished Unmaking (TRC) 472\n1 Astral Cornucopia (TRC) 486\n1 Darksteel Plate (TRC) 488\n1 Door of Destinies (TRC) 489\n1 Forsaken Monument (TRC) 491\n1 The Immortal Sun (TRC) 495\n1 Skullclamp (TRC) 498\n1 Unwinding Clock (TRC) 510\n1 Academy Ruins (TRC) 512\n1 Choked Estuary (TRC) 517\n1 Drowned Catacomb (TRC) 525\n1 Eclipsed Steppe (TRC) 526\n1 Exotic Orchard (TRC) 528\n1 Fetid Pools (TRC) 530\n1 Glacial Fortress (TRC) 535\n1 Irrigated Farmland (TRC) 538\n1 Isolated Chapel (TRC) 539\n1 Morphic Pool (TRC) 540\n1 Port Town (TRC) 547\n1 Prairie Stream (TRC) 548\n1 Shineshadow Snarl (TRC) 558\n1 Skycloud Expanse (TRC) 559\n1 Spire of Industry (TRC) 562\n1 Sunken Hollow (TRC) 564\n1 Umbral Expanse (TRC) 574\n1 Underground River (TRC) 575\n1 Command Subadjunct (TRK) 9\n1 Conquest Mission (TRK) 10\n1 Hive Mind Coprocessor (TRK) 115\n1 Locutus, the One Who Speaks (TRK) 245\n1 Dispatch (TRC) 421\n1 Return to Dust (TRC) 427\n1 Thirst for Knowledge (TRC) 443\n1 Thoughtcast (TRC) 444\n1 Bitter Triumph (TRC) 445\n1 Arcane Signet (TRC) 485\n1 Commander's Sphere (TRC) 487\n1 Everflowing Chalice (TRC) 490\n1 Sol Ring (TRC) 499\n1 Stonespeaker Crystal (TRC) 500\n1 Swiftfoot Boots (TRC) 501\n1 Talisman of Dominance (TRC) 505\n1 Talisman of Hierarchy (TRC) 506\n1 Talisman of Progress (TRC) 508\n1 Wayfarer's Bauble (TRC) 511\n1 Arcane Sanctum (TRC) 513\n1 Command Tower (TRC) 521\n1 Contaminated Landscape (TRC) 522\n1 Evolving Wilds (TRC) 527\n1 Path of Ancestry (TRC) 545\n1 Rogue's Passage (TRC) 552\n1 Terramorphic Expanse (TRC) 571\n2 Plains (TRK) 317\n2 Plains (TRK) 318\n2 Island (TRK) 319\n2 Island (TRK) 320\n2 Swamp (TRK) 321\n2 Swamp (TRK) 322"
+  },
+  {
     "name": "Calling All Angels",
     "code": "FDC",
     "releaseDate": "2026-10-02",
