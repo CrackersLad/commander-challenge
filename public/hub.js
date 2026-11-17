@@ -33,14 +33,72 @@ export function initHubModule(utils, state, coreUi) {
         }
     }, { passive: true });
 
+    const INTENT_PANEL_MAP = {
+        play: 'section-play',
+        draft: 'section-draft',
+        collection: 'section-collection',
+        inspire: 'section-rolls'
+    };
+
+    const SECTION_INTENT_MAP = {
+        'section-play': 'play',
+        'section-draft': 'draft',
+        'section-collection': 'collection',
+        'section-rolls': 'inspire'
+    };
+
+    window.selectLandingIntent = (intent) => {
+        const panelId = INTENT_PANEL_MAP[intent] || 'section-play';
+        document.querySelectorAll('.intent-card[role="tab"]').forEach(tab => {
+            const isActive = tab.dataset.intent === intent;
+            tab.classList.toggle('active', isActive);
+            tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        document.querySelectorAll('.intent-panel[role="tabpanel"]').forEach(panel => {
+            const isActive = panel.id === panelId;
+            panel.classList.toggle('active', isActive);
+            if (isActive) panel.removeAttribute('hidden');
+            else panel.setAttribute('hidden', '');
+        });
+        try { sessionStorage.setItem('mtg_landing_intent', intent); } catch (e) {}
+    };
+
+    // Keyboard arrow-key navigation across the 4 landing intent tabs
+    const intentTablist = document.querySelector('.intent-selector-grid[role="tablist"]');
+    if (intentTablist) {
+        intentTablist.addEventListener('keydown', (e) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            const tabs = Array.from(intentTablist.querySelectorAll('.intent-card[role="tab"]'));
+            const idx = tabs.indexOf(document.activeElement);
+            if (idx === -1) return;
+            e.preventDefault();
+            const nextIdx = e.key === 'ArrowRight' ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
+            const nextTab = tabs[nextIdx];
+            window.selectLandingIntent(nextTab.dataset.intent);
+            nextTab.focus();
+        });
+    }
+
+    // Restore last selected landing intent on load if valid
+    try {
+        const savedIntent = sessionStorage.getItem('mtg_landing_intent');
+        if (savedIntent && INTENT_PANEL_MAP[savedIntent]) {
+            window.selectLandingIntent(savedIntent);
+        }
+    } catch (e) {}
+
     window.scrollToSection = (sectionId) => {
         const landing = document.getElementById('view-landing');
         if (landing && !landing.classList.contains('active')) {
             if (typeof switchView === 'function') switchView('view-landing');
             else if (typeof window.switchView === 'function') window.switchView('view-landing');
         }
+        const mappedIntent = SECTION_INTENT_MAP[sectionId];
+        if (mappedIntent) {
+            window.selectLandingIntent(mappedIntent);
+        }
         const el = document.getElementById(sectionId);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     };
 
     window.quickRollCommander = async () => {
