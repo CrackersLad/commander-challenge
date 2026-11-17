@@ -29,6 +29,7 @@ let indexHtml = fs.readFileSync(indexPath, 'utf8');
 indexHtml = indexHtml.replace(/(styles\.css\?v=)[^"']+/g, `$1${newVersion}`);
 indexHtml = indexHtml.replace(/(collection-hub\.css\?v=)[^"']+/g, `$1${newVersion}`);
 indexHtml = indexHtml.replace(/(commander-arena\.css\?v=)[^"']+/g, `$1${newVersion}`);
+indexHtml = indexHtml.replace(/(theme-redesign\.css\?v=)[^"']+/g, `$1${newVersion}`);
 indexHtml = indexHtml.replace(/(script\.js\?v=)[^"']+/g, `$1${newVersion}`);
 indexHtml = indexHtml.replace(/(\.js\?v=)[^"']+/g, `$1${newVersion}`);
 indexHtml = indexHtml.replace(/(<span id="appVersion"[^>]*>v?)[^<]+(<\/span>)/g, `$1${newVersion}$2`);
