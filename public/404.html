@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 — Page Not Found | EDH Challenge</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0c0e12;
+            --surface: #14171f;
+            --border: rgba(255, 255, 255, 0.1);
+            --text: #f3f4f6;
+            --muted: #9ca3af;
+            --accent: #d4a843;
+            --accent-hover: #e2bc62;
+            --radius: 10px;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100dvh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        }
+        .card-404 {
+            max-width: 480px;
+            width: 100%;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 40px 32px;
+            text-align: center;
+        }
+        .icon-wrap {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 20px auto;
+            border-radius: var(--radius);
+            background: rgba(212, 168, 67, 0.12);
+            border: 1px solid rgba(212, 168, 67, 0.35);
+            color: var(--accent);
+            display: grid;
+            place-items: center;
+        }
+        .code-pill {
+            display: inline-block;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            font-weight: 500;
+            letter-spacing: 0.08em;
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+        h1 {
+            font-family: 'Fraunces', Georgia, serif;
+            font-size: 2rem;
+            line-height: 1.15;
+            margin: 0 0 12px 0;
+        }
+        p {
+            margin: 0 0 28px 0;
+            color: var(--muted);
+            font-size: 0.96rem;
+            line-height: 1.55;
+        }
+        .actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 22px;
+            border-radius: var(--radius);
+            background: var(--accent);
+            color: #0c0e12;
+            font-weight: 700;
+            font-size: 0.92rem;
+            text-decoration: none;
+            transition: background 0.18s ease, transform 0.15s ease;
+        }
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: var(--radius);
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-weight: 600;
+            font-size: 0.92rem;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .btn-secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+    <main class="card-404">
+        <div class="icon-wrap" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+            </svg>
+        </div>
+        <div class="code-pill">ERROR 404</div>
+        <h1>Zone Not Found</h1>
+        <p>This page doesn't exist or the link has expired. Head back to the Command Center to start a pod, draft packs, or check your collection.</p>
+        <div class="actions">
+            <a href="/" class="btn-primary">Return Home</a>
+            <button type="button" class="btn-secondary" onclick="history.back()">Go Back</button>
+        </div>
+    </main>
+</body>
+</html>

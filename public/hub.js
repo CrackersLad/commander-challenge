@@ -512,7 +512,8 @@ export function initHubModule(utils, state, coreUi) {
         const listEl = document.getElementById('myPlaygroupsList');
         if (!container || !listEl || !state.currentPlayerId) return;
 
-        listEl.innerHTML = '<span style="color:#888; font-size:0.9rem;">Scanning archives for your playgroups...</span>';
+        listEl.setAttribute('aria-busy', 'true');
+        listEl.innerHTML = '<div class="skeleton-stack"><div class="skeleton-card"><div class="skeleton-line w-40"></div><div class="skeleton-line w-65"></div></div></div>';
         container.style.display = 'block';
 
         try {
@@ -552,14 +553,16 @@ export function initHubModule(utils, state, coreUi) {
                 if (matched) activeRooms.push({ code, data });
             });
 
+            listEl.removeAttribute('aria-busy');
             if (activeRooms.length === 0) {
                 listEl.innerHTML = `
-                    <div style="text-align:center; padding: 25px 15px; background: rgba(0,0,0,0.4); border-radius: 12px; border: 1px dashed rgba(212, 175, 55, 0.3);">
-                        <h3 style="color:var(--gold); margin: 0 0 10px 0; font-family:Cinzel;">No Active Challenges</h3>
-                        <p style="color:#ccc; font-size: 0.95rem; margin: 0 0 20px 0; line-height: 1.4;">Gather your playgroup, roll random commanders, brew on a budget, and track your victories!</p>
-                        <div style="display:flex; justify-content:center; gap: 20px; font-size: 2rem;">
-                            <span title="1. Roll">🎲</span> <span style="color:#555;">➔</span> <span title="2. Brew">🛠️</span> <span style="color:#555;">➔</span> <span title="3. Battle">⚔️</span>
+                    <div class="empty-state-box">
+                        <div class="empty-state-icon" aria-hidden="true">
+                            <svg class="ui-icon ui-icon-lg"><use href="#ico-swords"></use></svg>
                         </div>
+                        <h3 class="empty-state-title">No active playgroups</h3>
+                        <p class="empty-state-desc">Host a new Commander Challenge room or enter a 4-letter code below to join your friends.</p>
+                        <button type="button" class="select-btn" onclick="window.startCommanderChallenge ? window.startCommanderChallenge() : document.getElementById('createBtn')?.click()">Host Challenge</button>
                     </div>
                 `;
                 container.style.display = 'block';
@@ -589,7 +592,7 @@ export function initHubModule(utils, state, coreUi) {
                 btn.innerHTML = `
                     <div class="playgroup-card-left">
                         <span class="playgroup-card-code">${room.code}</span>
-                        <span class="playgroup-card-players">👥 ${playerCount}/6 Players</span>
+                        <span class="playgroup-card-players"><svg class="ui-icon" aria-hidden="true"><use href="#ico-users"></use></svg> ${playerCount}/6 Players</span>
                     </div>
                     <div class="playgroup-card-right">
                         <div class="playgroup-card-host">Host: <span>${sanitizeHTML(hostName)}</span></div>
@@ -618,6 +621,19 @@ export function initHubModule(utils, state, coreUi) {
                 };
                 listEl.appendChild(btn);
             });
-        } catch (err) { console.error(err); listEl.innerHTML = '<span style="color:#ff4444; font-size:0.9rem;">Failed to load playgroups.</span>'; }
+        } catch (err) {
+            console.error(err);
+            listEl.removeAttribute('aria-busy');
+            listEl.innerHTML = `
+                <div class="error-state-box">
+                    <div class="error-state-icon" aria-hidden="true">
+                        <svg class="ui-icon ui-icon-lg"><use href="#ico-alert"></use></svg>
+                    </div>
+                    <h3 class="error-state-title">Couldn't load playgroups</h3>
+                    <p class="error-state-desc">We couldn't reach the room server. Check your connection and try again.</p>
+                    <button type="button" class="secondary-btn" onclick="window.loadMyPlaygroups()">Retry</button>
+                </div>
+            `;
+        }
     };
 }

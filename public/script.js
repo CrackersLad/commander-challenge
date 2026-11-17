@@ -476,8 +476,8 @@ if (typeof window.applyAppTheme !== 'function') {
         const navIcon = document.getElementById('navThemeToggleIcon');
         const navText = document.getElementById('navThemeToggleText');
         if (navToggle) navToggle.setAttribute('title', finalTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode');
-        if (navIcon) navIcon.textContent = finalTheme === 'dark' ? '☀️' : '🌙';
-        if (navText) navText.textContent = finalTheme === 'dark' ? ' Light' : ' Dark';
+        if (navIcon) navIcon.innerHTML = '<svg class="ui-icon" aria-hidden="true"><use href="#ico-sun"></use></svg>';
+        if (navText) navText.textContent = finalTheme === 'dark' ? 'Light Mode' : 'Dark Mode';
     };
     window.toggleAppTheme = function () {
         const current = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -1356,7 +1356,7 @@ window.startCommanderChallenge = async () => {
     playSound('sfx-click');
 
     const name = document.getElementById('playerNameInput')?.value.trim();
-    if(!name) return showToast("Enter a name first!", true);
+    if(!name) return showToast("Enter your player name at the top first so your playgroup knows who you are.", true);
     const safeName = sanitizeHTML(name);
     const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
     const pId = currentPlayerId; 
@@ -1385,11 +1385,11 @@ if (joinBtn) {
 
     const name = document.getElementById('playerNameInput').value.trim();
     const code = sanitizeHTML(document.getElementById('roomCodeInput').value.trim().toUpperCase());
-    if(!name || !code) return showToast("Name and Room Code required!", true);
+    if(!name || !code) return showToast("Enter both your player name and a 4-character room code to join.", true);
     const safeName = sanitizeHTML(name);
 
     const roomSnap = await get(ref(db, `rooms/${code}`));
-    if(!roomSnap.exists()) return showToast("Playgroup not found!", true);
+    if(!roomSnap.exists()) return showToast(`Room "${code}" wasn't found. Double-check the 4-character code with your host.`, true);
     
     const roomData = roomSnap.val();
     

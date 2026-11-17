@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Commander Draft Challenge | Interactive EDH Simulator</title>
+    <title>EDH Challenge — Commander Draft, Arena &amp; Deck Tools</title>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=JetBrains+Mono:wght@500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0b0d14">
+    <meta name="theme-color" content="#0c0e12">
     <meta name="color-scheme" content="dark light">
     <script>
         (function() {
@@ -22,11 +22,12 @@
         })();
     </script>
     <link rel="apple-touch-icon" href="icon.png">
-    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="alternate icon" type="image/png" href="icon.png">
     
     <!-- Open Graph / Social Media Meta Tags -->
-    <meta property="og:title" content="Commander Draft Challenge">
-    <meta property="og:description" content="A free, interactive Commander/EDH draft simulator. Roll commanders, enforce budgets & brackets, lock in deck prices, run blind drafts, track player profiles, and get Discord alerts with your playgroup!">
+    <meta property="og:title" content="EDH Challenge — Commander Draft, Arena &amp; Deck Tools">
+    <meta property="og:description" content="Playtest Commander decks against AI bots, host 4-player draft challenges, crack packs, and manage your physical collection.">
     <meta property="og:url" content="https://edhchallenge.com/">
     <meta property="og:type" content="website">
     <meta name="twitter:card" content="summary_large_image">
@@ -42,24 +43,28 @@
 
             // First-party short link resolution for trade binders (e.g. edhchallenge.com/3hg030hds)
             var p = window.location.pathname.replace(/^\/+|\/+$/g, '');
-            var knownRoutes = ['trade', 'deck', 'collection', 'build', 'set', 'privacy', 'rules', 'terms', 'admin', 'booster', 'index.html'];
-            if (p && /^[a-zA-Z0-9_-]{5,15}$/.test(p) && !knownRoutes.includes(p.toLowerCase())) {
-                try {
-                    document.title = "Opening Trade Binder | EDH Challenge...";
-                    fetch('/shortenUrl?code=' + encodeURIComponent(p) + '&json=true')
-                        .then(function(r) { return r.ok ? r.json() : null; })
-                        .then(function(data) {
-                            if (data && (data.targetUrl || data.url)) {
-                                window.location.replace(data.targetUrl || data.url);
-                            } else {
-                                window.location.replace('/');
-                            }
-                        })
-                        .catch(function() {
-                            window.location.replace('/');
-                        });
-                } catch (e) {
-                    window.location.replace('/');
+            var knownRoutes = ['trade', 'deck', 'collection', 'build', 'set', 'privacy', 'rules', 'terms', 'admin', 'booster', 'index.html', '404.html'];
+            if (p && !knownRoutes.includes(p.toLowerCase())) {
+                if (/^[a-zA-Z0-9_-]{5,15}$/.test(p)) {
+                    try {
+                        document.title = "Opening Trade Binder | EDH Challenge...";
+                        fetch('/shortenUrl?code=' + encodeURIComponent(p) + '&json=true')
+                            .then(function(r) { return r.ok ? r.json() : null; })
+                            .then(function(data) {
+                                if (data && (data.targetUrl || data.url)) {
+                                    window.location.replace(data.targetUrl || data.url);
+                                } else {
+                                    window.location.replace('/404.html');
+                                }
+                            })
+                            .catch(function() {
+                                window.location.replace('/404.html');
+                            });
+                    } catch (e) {
+                        window.location.replace('/404.html');
+                    }
+                } else {
+                    window.location.replace('/404.html');
                 }
             }
         })();
@@ -82,14 +87,48 @@
     <link rel="stylesheet" href="styles.css?v=11.1">
     <link rel="stylesheet" href="collection-hub.css?v=11.1">
     <link rel="stylesheet" href="commander-arena.css?v=11.1">
+    <link rel="stylesheet" href="theme-redesign.css?v=12.0">
 </head>
 <body>
+    <!-- Inline SVG Icon Sprite (Zero extra HTTP requests, inherits currentColor) -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none;" aria-hidden="true">
+        <symbol id="ico-swords" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" y1="14" x2="9" y2="18"/><line x1="7" y1="17" x2="4" y2="20"/><line x1="3" y1="19" x2="5" y2="21"/></symbol>
+        <symbol id="ico-cards" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="13" height="16" rx="2"/><path d="M4 7v12a2 2 0 0 0 2 2h10"/></symbol>
+        <symbol id="ico-layers" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+        <symbol id="ico-dice" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1" fill="currentColor"/></symbol>
+        <symbol id="ico-home" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></symbol>
+        <symbol id="ico-search" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+        <symbol id="ico-settings" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+        <symbol id="ico-user" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+        <symbol id="ico-users" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+        <symbol id="ico-crown" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z"/><line x1="5" y1="20" x2="19" y2="20"/></symbol>
+        <symbol id="ico-heart" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></symbol>
+        <symbol id="ico-flask" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 3v5l-4.5 9A2 2 0 0 0 7.3 20h9.4a2 2 0 0 0 1.8-3L14 8V3"/></symbol>
+        <symbol id="ico-refresh" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+        <symbol id="ico-zap" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+        <symbol id="ico-sliders" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
+        <symbol id="ico-hammer" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+        <symbol id="ico-handshake" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 11l-5-5-5 5"/><path d="M12 6v13"/><path d="M5 19h14"/></symbol>
+        <symbol id="ico-bar-chart" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></symbol>
+        <symbol id="ico-trending" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
+        <symbol id="ico-printer" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+        <symbol id="ico-trophy" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></symbol>
+        <symbol id="ico-message" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+        <symbol id="ico-sun" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+        <symbol id="ico-volume" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></symbol>
+        <symbol id="ico-package" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 9.4l-9-5.19"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol>
+        <symbol id="ico-copy" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+        <symbol id="ico-arrow-right" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+        <symbol id="ico-chevron-down" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+        <symbol id="ico-alert" viewBox="0 0 24 24" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></symbol>
+    </svg>
+
     <!-- Top Master Glass Navigation Bar -->
     <header class="master-navbar" id="globalNavbar">
         <div class="nav-left">
-            <div class="nav-brand" onclick="window.goToMainMenu()" title="MTG Command Center">
-                <img src="icon.png" alt="MTG Command Center" class="nav-logo">
-                <span class="nav-brand-text">MTG Command Center</span>
+            <div class="nav-brand" onclick="window.goToMainMenu()" title="EDH Challenge">
+                <img src="favicon.svg" alt="EDH Challenge" class="nav-logo">
+                <span class="nav-brand-text">EDH Challenge</span>
             </div>
         </div>
         
@@ -98,103 +137,103 @@
                 <span class="nav-room-dot"></span>
                 <span class="nav-room-label">Playgroup:</span>
                 <span id="navRoomCode" class="nav-room-code">----</span>
-                <span class="nav-copy-icon">📋</span>
+                <span class="nav-copy-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-copy"></use></svg></span>
             </div>
         </div>
 
         <div class="nav-right">
-            <button class="nav-icon-btn nav-hub-btn" onclick="window.goToMainMenu()" title="Main Portal"><span>🏠</span><span class="nav-btn-text"> Home</span></button>
-            <button class="nav-icon-btn" onclick="window.openCommandPalette()" title="Universal Search & Command Palette (Ctrl+K)" style="background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.35); color: #38bdf8;"><span>🔍</span><span class="nav-btn-text"> Search <kbd style="font-size: 0.65rem; opacity: 0.8; background: rgba(15,23,42,0.7); padding: 1px 4px; border-radius: 3px; border: 1px solid rgba(56,189,248,0.3);">Ctrl+K</kbd></span></button>
+            <button class="nav-icon-btn nav-hub-btn" onclick="window.goToMainMenu()" title="Home"><svg class="ui-icon" aria-hidden="true"><use href="#ico-home"></use></svg><span class="nav-btn-text">Home</span></button>
+            <button class="nav-icon-btn nav-search-btn" onclick="window.openCommandPalette()" title="Search tools &amp; cards (Ctrl+K)"><svg class="ui-icon" aria-hidden="true"><use href="#ico-search"></use></svg><span class="nav-btn-text">Search <kbd class="nav-search-kbd">Ctrl+K</kbd></span></button>
 
             <!-- Play Tools Menu -->
             <div class="nav-dropdown-wrapper">
-                <button class="nav-icon-btn draft-nav-btn" onclick="window.toggleNavMenu('playMenu', event)" title="Start Playing"><span>⚔️</span><span class="nav-btn-text"> Play</span> ▾</button>
+                <button class="nav-icon-btn draft-nav-btn" onclick="window.toggleNavMenu('playMenu', event)" title="Play &amp; Draft"><svg class="ui-icon" aria-hidden="true"><use href="#ico-swords"></use></svg><span class="nav-btn-text">Play</span><svg class="ui-icon" aria-hidden="true"><use href="#ico-chevron-down"></use></svg></button>
                 <div id="playMenu" class="nav-popup-menu" style="display: none;">
-                    <div class="nav-popup-item" onclick="window.openCommanderArena(); window.closeAllNavMenus();" style="background: rgba(168, 85, 247, 0.12); font-weight: 700; color: #c084fc;">
-                        <span>👑</span> Commander Arena (Bot Simulator)
+                    <div class="nav-popup-item" onclick="window.openCommanderArena(); window.closeAllNavMenus();" style="font-weight: 700;">
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-crown"></use></svg> Commander Arena
                     </div>
                     <div class="nav-popup-item" onclick="window.goToMainMenu(); window.scrollToSection('section-play'); window.closeAllNavMenus();">
-                        <span>⚔️</span> Commander Challenge
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-swords"></use></svg> Commander Challenge
                     </div>
                     <div class="nav-popup-item" onclick="window.openBoosterDraftHub(); window.closeAllNavMenus();">
-                        <span>🎴</span> Booster Draft Lobby
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-cards"></use></svg> Booster Draft Lobby
                     </div>
                     <div class="nav-popup-item" onclick="window.openBoosterSimulator(); window.closeAllNavMenus();">
-                        <span>📦</span> Booster Simulator
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-package"></use></svg> Booster Simulator
                     </div>
                     <div class="nav-popup-item desktop-only-playtester" onclick="window.openPlaytester(); window.closeAllNavMenus();">
-                        <span>⚔️</span> Solo Playtester (Practice Bot)
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-flask"></use></svg> Solo Playtester
                     </div>
                     <div class="nav-popup-item" onclick="window.openDeckBuilder(); window.closeAllNavMenus();">
-                        <span>🛠️</span> Native Deck Builder
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-hammer"></use></svg> Deck Builder
                     </div>
                     <div class="nav-popup-item" onclick="window.openHallOfFame(); window.closeAllNavMenus();">
-                        <span>🏛️</span> Hall of Fame
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-trophy"></use></svg> Hall of Fame
                     </div>
-                    <div class="nav-popup-item" onclick="window.openTabletopTracker(); window.closeAllNavMenus();" style="border-top: 1px solid rgba(255,255,255,0.08); color: #fca5a5;">
-                        <span>❤️</span> 4-Player Tabletop Life Tracker
+                    <div class="nav-popup-item" onclick="window.openTabletopTracker(); window.closeAllNavMenus();" style="border-top: 1px solid var(--border-subtle);">
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-heart"></use></svg> 4-Player Life Tracker
                     </div>
-                    <div class="nav-popup-item" onclick="window.openProxyPrinterModal(); window.closeAllNavMenus();" style="color: #fde68a;">
-                        <span>🖨️</span> Printable 3×3 Proxy Sheet Maker
+                    <div class="nav-popup-item" onclick="window.openProxyPrinterModal(); window.closeAllNavMenus();">
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-printer"></use></svg> 3×3 Proxy Sheet Maker
                     </div>
                 </div>
             </div>
 
             <!-- Collection Tools Menu -->
             <div class="nav-dropdown-wrapper">
-                <button class="nav-icon-btn booster-nav-btn" onclick="window.toggleNavMenu('collectionMenu', event)" title="My Collection"><span>📦</span><span class="nav-btn-text"> Collection</span> ▾</button>
+                <button class="nav-icon-btn booster-nav-btn" onclick="window.toggleNavMenu('collectionMenu', event)" title="Decks &amp; Collection"><svg class="ui-icon" aria-hidden="true"><use href="#ico-layers"></use></svg><span class="nav-btn-text">Collection</span><svg class="ui-icon" aria-hidden="true"><use href="#ico-chevron-down"></use></svg></button>
                 <div id="collectionMenu" class="nav-popup-menu" style="display: none;">
                     <div class="nav-popup-item" onclick="window.openCollectionTab('deck'); window.closeAllNavMenus();">
-                        <span>🔄</span> Deck Comparator
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-refresh"></use></svg> Deck Comparator
                     </div>
                     <div class="nav-popup-item" onclick="window.openCollectionTab('trade'); window.closeAllNavMenus();">
-                        <span>🤝</span> Trade Binder
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-handshake"></use></svg> Trade Binder
                     </div>
                     <div class="nav-popup-item" onclick="window.openCollectionTab('set'); window.closeAllNavMenus();">
-                        <span>📊</span> Set Completion
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-bar-chart"></use></svg> Set Completion
                     </div>
                     <div class="nav-popup-item" onclick="window.openCollectionTab('build'); window.closeAllNavMenus();">
-                        <span>⚡</span> What Can I Build?
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-zap"></use></svg> What Can I Build?
                     </div>
                     <div class="nav-popup-item" onclick="window.openCollectionTab('deck', { openUpgrader: true }); window.closeAllNavMenus();">
-                        <span>⚙️</span> Deck Optimizer
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-sliders"></use></svg> Deck Optimizer
                     </div>
                     <div class="nav-popup-item" onclick="window.openCollectionTab('collection'); window.closeAllNavMenus();">
-                        <span>📈</span> Collection Insights
+                        <svg class="ui-icon" aria-hidden="true"><use href="#ico-trending"></use></svg> Collection Insights
                     </div>
                 </div>
             </div>
 
-            <!-- Settings & Preferences Menu (Theme, Mana Palette, Audio) -->
+            <!-- Settings & Preferences Menu -->
             <div class="nav-dropdown-wrapper">
-                <button class="nav-icon-btn" onclick="window.toggleNavMenu('prefsMenu', event)" title="Appearance & Audio Settings" aria-label="Settings"><span>⚙️</span><span class="nav-btn-text"> Settings</span> ▾</button>
+                <button class="nav-icon-btn" onclick="window.toggleNavMenu('prefsMenu', event)" title="Appearance &amp; Audio Settings" aria-label="Settings"><svg class="ui-icon" aria-hidden="true"><use href="#ico-settings"></use></svg><span class="nav-btn-text">Settings</span><svg class="ui-icon" aria-hidden="true"><use href="#ico-chevron-down"></use></svg></button>
                 <div id="prefsMenu" class="nav-popup-menu nav-prefs-menu" style="display: none; min-width: 240px;" onclick="event.stopPropagation()">
                     <div class="nav-prefs-section-label">Appearance</div>
                     <button id="navThemeToggleBtn" type="button" class="nav-popup-item nav-theme-toggle-btn" onclick="window.toggleAppTheme()" title="Toggle Dark / Light Mode" aria-label="Toggle Dark / Light Mode" style="width: 100%; border: none; text-align: left;">
-                        <span id="navThemeToggleIcon">☀️</span>
+                        <span id="navThemeToggleIcon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-sun"></use></svg></span>
                         <span id="navThemeToggleText">Light Mode</span>
                     </button>
 
-                    <div class="nav-prefs-section-label" style="margin-top: 6px;">Mana Theme</div>
+                    <div class="nav-prefs-section-label" style="margin-top: 6px;">Mana Palette</div>
                     <div class="nav-mana-pills">
-                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('default'); window.closeAllNavMenus();" title="Default (Void)">✨ Void</button>
-                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('azorius'); window.closeAllNavMenus();" title="Azorius (WU)">⚖️ WU</button>
-                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('dimir'); window.closeAllNavMenus();" title="Dimir (UB)">👁️ UB</button>
-                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('rakdos'); window.closeAllNavMenus();" title="Rakdos (BR)">🔥 BR</button>
-                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('gruul'); window.closeAllNavMenus();" title="Gruul (RG)">🌲 RG</button>
-                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('selesnya'); window.closeAllNavMenus();" title="Selesnya (GW)">☀️ GW</button>
-                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('phyrexian'); window.closeAllNavMenus();" title="Phyrexian Oil">☣️ Oil</button>
+                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('default'); window.closeAllNavMenus();" title="Default">Obsidian</button>
+                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('azorius'); window.closeAllNavMenus();" title="Azorius (WU)">WU</button>
+                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('dimir'); window.closeAllNavMenus();" title="Dimir (UB)">UB</button>
+                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('rakdos'); window.closeAllNavMenus();" title="Rakdos (BR)">BR</button>
+                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('gruul'); window.closeAllNavMenus();" title="Gruul (RG)">RG</button>
+                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('selesnya'); window.closeAllNavMenus();" title="Selesnya (GW)">GW</button>
+                        <button type="button" class="nav-mana-pill" onclick="window.setManaTheme('phyrexian'); window.closeAllNavMenus();" title="Phyrexian Oil">Phyrexian</button>
                     </div>
 
                     <div class="nav-prefs-section-label" style="margin-top: 8px;">Audio</div>
                     <div id="audioContainer" style="padding: 4px 10px 8px 10px; display: flex; flex-direction: column; gap: 8px;">
-                        <button id="sfxToggle" type="button" class="nav-icon-btn" style="width: 100%; justify-content: center;" title="Toggle Sound Effects"><span>🔊</span><span> Toggle SFX</span></button>
+                        <button id="sfxToggle" type="button" class="nav-icon-btn" style="width: 100%; justify-content: center;" title="Toggle Sound Effects"><svg class="ui-icon" aria-hidden="true"><use href="#ico-volume"></use></svg><span>Toggle SFX</span></button>
                         <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                            <span style="font-size: 0.78rem; color: var(--text-muted);">🔊 SFX</span>
+                            <span style="font-size: 0.78rem; color: var(--text-muted);">SFX</span>
                             <input type="range" id="sfxVolSlider" min="0" max="1" step="0.05" value="0.7" style="width: 120px;">
                         </div>
                         <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                            <span style="font-size: 0.78rem; color: var(--text-muted);">🎵 Music</span>
+                            <span style="font-size: 0.78rem; color: var(--text-muted);">Music</span>
                             <input type="range" id="musicVolSlider" min="0" max="1" step="0.05" value="0.5" style="width: 120px;">
                         </div>
                     </div>
@@ -286,9 +325,9 @@
     <!-- Burn Log Modal -->
     <div id="burnLogModal" class="modal-overlay">
         <div class="modal-content" style="max-width: 440px; width: 95%;">
-            <h2 style="color:var(--danger); margin-top:0;">🔥 Burn Draft Log</h2>
-            <div id="burnLogContent" style="color: #ccc; font-size: 0.95rem; text-align: left; margin-top: 15px; max-height: 60vh; overflow-y: auto;">
-                Loading...
+            <h2 style="color:var(--danger); margin-top:0;">Burn Draft Log</h2>
+            <div id="burnLogContent" aria-busy="true" style="color: var(--text-muted); font-size: 0.95rem; text-align: left; margin-top: 15px; max-height: 60vh; overflow-y: auto;">
+                <div class="skeleton-stack"><div class="skeleton-card"><div class="skeleton-line w-65"></div><div class="skeleton-line w-90"></div></div></div>
             </div>
             <button class="btn-cancel" onclick="document.getElementById('burnLogModal').classList.remove('show'); setTimeout(()=>document.getElementById('burnLogModal').style.display='none', 300);" style="margin-top:20px; width:100%;">Close</button>
         </div>
@@ -297,9 +336,9 @@
     <!-- Challenge Rules Modal -->
     <div id="rulesModal" class="modal-overlay">
         <div class="modal-content" style="max-width: 440px; width: 95%; text-align: left;">
-            <h2 style="text-align:center; color:var(--gold); margin-top:0;">📜 Challenge Rules</h2>
-            <div id="rulesList" style="color: #ccc; font-size: 0.95rem; line-height: 1.6; margin-top: 15px; font-family: var(--font-body);">
-                Loading...
+            <h2 style="text-align:center; color:var(--accent); margin-top:0;">Challenge Rules</h2>
+            <div id="rulesList" aria-busy="true" style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-top: 15px;">
+                <div class="skeleton-stack"><div class="skeleton-card"><div class="skeleton-line w-40"></div><div class="skeleton-line w-90"></div></div></div>
             </div>
             <button class="btn-cancel" onclick="document.getElementById('rulesModal').classList.remove('show'); setTimeout(()=>document.getElementById('rulesModal').style.display='none', 300);" style="margin-top:20px; width:100%;">Close</button>
         </div>
@@ -571,111 +610,119 @@
     <!-- ==================== VIEW 1: LANDING HUB ==================== -->
     <main id="view-landing" class="view-section active">
         <div class="landing-portal">
-            <!-- Compact Hero & Identity Header -->
+            <!-- Hero Header with Real MTG Artwork -->
             <header class="landing-hero">
-                <div class="landing-hero-top">
-                    <div class="hero-badge">✦ MTG Command Center ✦</div>
-                    <h1 class="hero-title">What do you want to do?</h1>
-                    <p class="hero-subtitle">Pick a path below to play a game, draft packs, manage your collection, or roll a random deck.</p>
-                </div>
+                <img class="landing-hero-art" src="https://api.scryfall.com/cards/named?exact=Command+Tower&format=image&version=art_crop" alt="" loading="eager" fetchpriority="high" decoding="async" onerror="this.style.display='none'">
+                <div class="hero-badge">Commander Suite</div>
+                <h1 class="hero-title">What are you playing today?</h1>
+                <p class="hero-subtitle">Test a deck against AI bots, run a 4-player draft challenge with friends, or compare lists against your binder.</p>
 
                 <!-- Compact Player Identity Pill -->
                 <div class="player-identity-bar landing-identity-compact">
-                    <span class="identity-icon">👤</span>
-                    <input type="text" id="playerNameInput" placeholder="Your Player Name" maxlength="15" class="hero-name-input" aria-label="Player Name">
-                    <button type="button" class="identity-pill-btn" onclick="window.openAccountModal()">Identity &amp; Stats</button>
-                    <button type="button" class="identity-search-btn" onclick="window.openCommandPalette()" title="Search any tool (Ctrl+K)">🔍 Quick Search</button>
+                    <span class="identity-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-user"></use></svg></span>
+                    <input type="text" id="playerNameInput" placeholder="Your player name" maxlength="15" class="hero-name-input" aria-label="Player Name">
+                    <button type="button" class="identity-pill-btn" onclick="window.openAccountModal()">Profile &amp; Stats</button>
+                    <button type="button" class="identity-search-btn" onclick="window.openCommandPalette()" title="Search tools &amp; cards (Ctrl+K)"><svg class="ui-icon" aria-hidden="true"><use href="#ico-search"></use></svg> Search</button>
                 </div>
             </header>
 
-            <!-- Active Playgroups List (Surfaced automatically if user is in any rooms) -->
+            <!-- Active Playgroups List -->
             <div id="myPlaygroupsContainer" class="my-playgroups-container" style="display: none;">
                 <div class="section-divider">
-                    <h3 class="section-title">🎮 Your Active Playgroups</h3>
+                    <h3 class="section-title">Your Active Playgroups</h3>
                 </div>
-                <div id="myPlaygroupsList" class="playgroups-grid"></div>
+                <div id="myPlaygroupsList" class="playgroups-grid">
+                    <div class="skeleton-card"><div class="skeleton-line w-40"></div><div class="skeleton-line w-65"></div></div>
+                </div>
             </div>
 
-            <!-- Step 1: 4 Clear Intent Selector Cards -->
+            <!-- Step 1: 4 Clear Goal Tabs -->
             <div class="intent-selector-grid" role="tablist" aria-label="Choose what you want to do">
                 <button type="button" class="intent-card active" role="tab" id="intent-tab-play" aria-selected="true" aria-controls="section-play" data-intent="play" onclick="window.selectLandingIntent('play')">
-                    <span class="intent-card-icon">⚔️</span>
+                    <span class="intent-card-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-swords"></use></svg></span>
                     <span class="intent-card-body">
                         <strong class="intent-card-title">Play Commander</strong>
-                        <span class="intent-card-hint">Battle AI bots or host a room with friends</span>
+                        <span class="intent-card-hint">Solo vs AI pod or live room</span>
                     </span>
                 </button>
 
                 <button type="button" class="intent-card" role="tab" id="intent-tab-draft" aria-selected="false" aria-controls="section-draft" data-intent="draft" onclick="window.selectLandingIntent('draft')">
-                    <span class="intent-card-icon">🎴</span>
+                    <span class="intent-card-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-cards"></use></svg></span>
                     <span class="intent-card-body">
                         <strong class="intent-card-title">Draft &amp; Packs</strong>
-                        <span class="intent-card-hint">8-player drafts &amp; pack cracking EV</span>
+                        <span class="intent-card-hint">8-player drafts &amp; pack EV</span>
                     </span>
                 </button>
 
                 <button type="button" class="intent-card" role="tab" id="intent-tab-collection" aria-selected="false" aria-controls="section-collection" data-intent="collection" onclick="window.selectLandingIntent('collection')">
-                    <span class="intent-card-icon">📦</span>
+                    <span class="intent-card-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-layers"></use></svg></span>
                     <span class="intent-card-body">
-                        <strong class="intent-card-title">Decks &amp; Collection</strong>
-                        <span class="intent-card-hint">Compare, build, optimize &amp; print proxies</span>
+                        <strong class="intent-card-title">Decks &amp; Binder</strong>
+                        <span class="intent-card-hint">Compare, build &amp; proxy</span>
                     </span>
                 </button>
 
                 <button type="button" class="intent-card" role="tab" id="intent-tab-inspire" aria-selected="false" aria-controls="section-rolls" data-intent="inspire" onclick="window.selectLandingIntent('inspire')">
-                    <span class="intent-card-icon">🎲</span>
+                    <span class="intent-card-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-dice"></use></svg></span>
                     <span class="intent-card-body">
-                        <strong class="intent-card-title">Quick Inspire</strong>
-                        <span class="intent-card-hint">Roll a random commander or precon</span>
+                        <strong class="intent-card-title">Quick Roll</strong>
+                        <span class="intent-card-hint">Random commander or precon</span>
                     </span>
                 </button>
             </div>
 
             <!-- Step 2: Focused Action Workspace -->
             <div class="intent-panels-wrapper">
-                <!-- PANEL 1: PLAY COMMANDER (Default Active) -->
+                <!-- PANEL 1: PLAY COMMANDER -->
                 <section class="intent-panel active" id="section-play" role="tabpanel" aria-labelledby="intent-tab-play">
                     <div class="intent-panel-grid intent-panel-grid-2">
-                        <!-- Primary: Commander Arena -->
                         <div class="action-card action-card-arena" onclick="window.openCommanderArena()">
-                            <div class="action-card-header-row">
-                                <span class="action-card-icon">👑</span>
-                                <span class="action-card-badge arena-badge">Solo vs AI Bots</span>
+                            <div class="action-card-media">
+                                <img src="https://api.scryfall.com/cards/named?exact=Sauron%2C+the+Dark+Lord&format=image&version=art_crop" alt="" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
                             </div>
-                            <h2 class="action-card-title">Commander Arena</h2>
-                            <p class="action-card-desc">Test any deck in a full 4-player pod against AI opponents. Powered by the Forge rules engine for combat math, priority, and commander tax.</p>
-                            <button type="button" class="select-btn action-cta-btn" onclick="window.openCommanderArena(); event.stopPropagation();">Launch Arena ⚔️</button>
+                            <div class="action-card-body-inner">
+                                <div class="action-card-header-row">
+                                    <span class="action-card-badge">Solo vs 3 AI</span>
+                                    <svg class="ui-icon" aria-hidden="true"><use href="#ico-crown"></use></svg>
+                                </div>
+                                <h2 class="action-card-title">Commander Arena</h2>
+                                <p class="action-card-desc">Playtest any Archidekt, Moxfield, or precon deck in a full 4-player pod powered by the Card-Forge rules engine.</p>
+                                <button type="button" class="select-btn action-cta-btn" onclick="window.openCommanderArena(); event.stopPropagation();">Open Arena</button>
+                            </div>
                         </div>
 
-                        <!-- Primary: Commander Challenge (Multiplayer) -->
                         <div class="action-card action-card-primary">
-                            <div class="action-card-header-row">
-                                <span class="action-card-icon">⚔️</span>
-                                <span class="action-card-badge">Live Playgroup</span>
+                            <div class="action-card-media">
+                                <img src="https://api.scryfall.com/cards/named?exact=Fierce+Guardianship&format=image&version=art_crop" alt="" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
                             </div>
-                            <h2 class="action-card-title">Commander Challenge</h2>
-                            <p class="action-card-desc">Host or join a live playgroup room. Roll commanders, enforce budgets &amp; brackets, and battle friends in the War Room.</p>
-                            <div class="challenge-cta-stack">
-                                <button type="button" class="select-btn action-cta-btn" id="createBtn">Host New Challenge</button>
-                                <div class="join-input-box">
-                                    <input type="text" id="roomCodeInput" placeholder="ROOM CODE" maxlength="4" class="room-code-input" aria-label="Room Code">
-                                    <button type="button" class="select-btn join-submit-btn" id="joinBtn">Join</button>
+                            <div class="action-card-body-inner">
+                                <div class="action-card-header-row">
+                                    <span class="action-card-badge">Live Playgroup</span>
+                                    <svg class="ui-icon" aria-hidden="true"><use href="#ico-swords"></use></svg>
+                                </div>
+                                <h2 class="action-card-title">Commander Challenge</h2>
+                                <p class="action-card-desc">Start a room with friends to roll commanders, lock budgets and brackets, and track match results.</p>
+                                <div class="challenge-cta-stack">
+                                    <button type="button" class="select-btn action-cta-btn" id="createBtn">Host Challenge</button>
+                                    <div class="join-input-box">
+                                        <input type="text" id="roomCodeInput" placeholder="CODE" maxlength="4" class="room-code-input" aria-label="Room Code">
+                                        <button type="button" class="select-btn join-submit-btn" id="joinBtn">Join</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Secondary Play Tools Strip -->
                     <div class="intent-quick-strip">
                         <button type="button" class="quick-strip-item" onclick="window.openTabletopTracker()">
-                            <span class="quick-strip-icon">❤️</span>
+                            <span class="quick-strip-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-heart"></use></svg></span>
                             <span><strong>Tabletop Life Tracker</strong> — 4-player life, commander damage &amp; poison</span>
-                            <span class="quick-strip-arrow">→</span>
+                            <span class="quick-strip-arrow"><svg class="ui-icon" aria-hidden="true"><use href="#ico-arrow-right"></use></svg></span>
                         </button>
                         <button type="button" class="quick-strip-item desktop-only-playtester" onclick="window.openPlaytester()">
-                            <span class="quick-strip-icon">🧪</span>
-                            <span><strong>Solo Playtester</strong> — Practice &amp; goldfish in the Forge sandbox</span>
-                            <span class="quick-strip-arrow">→</span>
+                            <span class="quick-strip-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-flask"></use></svg></span>
+                            <span><strong>Solo Playtester</strong> — Goldfish a deck in the Forge sandbox</span>
+                            <span class="quick-strip-arrow"><svg class="ui-icon" aria-hidden="true"><use href="#ico-arrow-right"></use></svg></span>
                         </button>
                     </div>
                 </section>
@@ -684,23 +731,33 @@
                 <section class="intent-panel" id="section-draft" role="tabpanel" aria-labelledby="intent-tab-draft" hidden>
                     <div class="intent-panel-grid intent-panel-grid-2">
                         <div class="action-card action-card-draft" onclick="window.openBoosterDraftHub()">
-                            <div class="action-card-header-row">
-                                <span class="action-card-icon">🎴</span>
-                                <span class="action-card-badge draft-badge">8-Player Limited</span>
+                            <div class="action-card-media">
+                                <img src="https://api.scryfall.com/cards/named?exact=Lotus+Field&format=image&version=art_crop" alt="" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
                             </div>
-                            <h2 class="action-card-title">Booster Draft Lobby</h2>
-                            <p class="action-card-desc">Draft live with friends or AI bots. Supports Commander Limited (Pick 2), Cube, Sealed, and Winston drafts.</p>
-                            <button type="button" class="select-btn action-cta-btn" onclick="window.openBoosterDraftHub(); event.stopPropagation();">Start Draft Lobby</button>
+                            <div class="action-card-body-inner">
+                                <div class="action-card-header-row">
+                                    <span class="action-card-badge">8-Player Limited</span>
+                                    <svg class="ui-icon" aria-hidden="true"><use href="#ico-cards"></use></svg>
+                                </div>
+                                <h2 class="action-card-title">Booster Draft Lobby</h2>
+                                <p class="action-card-desc">Draft with friends or bots across Commander Limited, Cube, Sealed, and Winston formats.</p>
+                                <button type="button" class="select-btn action-cta-btn" onclick="window.openBoosterDraftHub(); event.stopPropagation();">Start Draft</button>
+                            </div>
                         </div>
 
                         <div class="action-card action-card-booster" onclick="window.openBoosterSimulator()">
-                            <div class="action-card-header-row">
-                                <span class="action-card-icon">📦</span>
-                                <span class="action-card-badge booster-badge">Pack Cracking &amp; EV</span>
+                            <div class="action-card-media">
+                                <img src="https://api.scryfall.com/cards/named?exact=Booster+Tutor&format=image&version=art_crop" alt="" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
                             </div>
-                            <h2 class="action-card-title">Booster Simulator</h2>
-                            <p class="action-card-desc">Crack single packs or full 36-pack boxes for any MTG set with live market pricing, foils, and profit/loss tracking.</p>
-                            <button type="button" class="select-btn action-cta-btn" onclick="window.openBoosterSimulator(); event.stopPropagation();">Crack Some Packs</button>
+                            <div class="action-card-body-inner">
+                                <div class="action-card-header-row">
+                                    <span class="action-card-badge">Pack EV</span>
+                                    <svg class="ui-icon" aria-hidden="true"><use href="#ico-package"></use></svg>
+                                </div>
+                                <h2 class="action-card-title">Booster Simulator</h2>
+                                <p class="action-card-desc">Crack packs or 36-pack boxes for any Magic set with live prices, foils, and box value tracking.</p>
+                                <button type="button" class="select-btn action-cta-btn" onclick="window.openBoosterSimulator(); event.stopPropagation();">Open Packs</button>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -709,43 +766,57 @@
                 <section class="intent-panel" id="section-collection" role="tabpanel" aria-labelledby="intent-tab-collection" hidden>
                     <div class="intent-panel-grid intent-panel-grid-3">
                         <div class="action-card action-card-comparator" onclick="window.openCollectionTab('deck')">
-                            <div class="action-card-header-row">
-                                <span class="action-card-icon">🔄</span>
-                                <span class="action-card-badge comparator-badge">Deck Overlap</span>
+                            <div class="action-card-media">
+                                <img src="https://api.scryfall.com/cards/named?exact=Tome+of+Legends&format=image&version=art_crop" alt="" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
                             </div>
-                            <h2 class="action-card-title">Deck Comparator</h2>
-                            <p class="action-card-desc">Compare Archidekt, Moxfield, or pasted lists against your physical collection to see owned vs. missing cards.</p>
-                            <button type="button" class="select-btn action-cta-btn" onclick="window.openCollectionTab('deck'); event.stopPropagation();">Compare Decks</button>
+                            <div class="action-card-body-inner">
+                                <div class="action-card-header-row">
+                                    <span class="action-card-badge">Binder Match</span>
+                                    <svg class="ui-icon" aria-hidden="true"><use href="#ico-refresh"></use></svg>
+                                </div>
+                                <h2 class="action-card-title">Deck Comparator</h2>
+                                <p class="action-card-desc">Check which cards you own vs. need for any Archidekt, Moxfield, or pasted list.</p>
+                                <button type="button" class="select-btn action-cta-btn" onclick="window.openCollectionTab('deck'); event.stopPropagation();">Compare Decks</button>
+                            </div>
                         </div>
 
                         <div class="action-card action-card-build" onclick="window.openCollectionTab('build')">
-                            <div class="action-card-header-row">
-                                <span class="action-card-icon">⚡</span>
-                                <span class="action-card-badge build-badge">Smart Match</span>
+                            <div class="action-card-media">
+                                <img src="https://api.scryfall.com/cards/named?exact=Arcane+Signet&format=image&version=art_crop" alt="" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
                             </div>
-                            <h2 class="action-card-title">What Can I Build?</h2>
-                            <p class="action-card-desc">Scan top EDHREC &amp; community commanders to find decks you already own the most cards for.</p>
-                            <button type="button" class="select-btn action-cta-btn" onclick="window.openCollectionTab('build'); event.stopPropagation();">Find Builds</button>
+                            <div class="action-card-body-inner">
+                                <div class="action-card-header-row">
+                                    <span class="action-card-badge">Deck Finder</span>
+                                    <svg class="ui-icon" aria-hidden="true"><use href="#ico-zap"></use></svg>
+                                </div>
+                                <h2 class="action-card-title">What Can I Build?</h2>
+                                <p class="action-card-desc">Match your physical binder against popular commanders to see what you can build now.</p>
+                                <button type="button" class="select-btn action-cta-btn" onclick="window.openCollectionTab('build'); event.stopPropagation();">Find Builds</button>
+                            </div>
                         </div>
 
                         <div class="action-card action-card-ai" onclick="window.openCollectionTab('deck', { openUpgrader: true })">
-                            <div class="action-card-header-row">
-                                <span class="action-card-icon">🧠</span>
-                                <span class="action-card-badge">Synergy Engine</span>
+                            <div class="action-card-media">
+                                <img src="https://api.scryfall.com/cards/named?exact=Rhystic+Study&format=image&version=art_crop" alt="" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
                             </div>
-                            <h2 class="action-card-title">Deck Optimizer</h2>
-                            <p class="action-card-desc">Get targeted upgrade recommendations straight from cards in your collection, matched to curve and synergy.</p>
-                            <button type="button" class="select-btn action-cta-btn" onclick="window.openCollectionTab('deck', { openUpgrader: true }); event.stopPropagation();">Optimize Decks</button>
+                            <div class="action-card-body-inner">
+                                <div class="action-card-header-row">
+                                    <span class="action-card-badge">Upgrades</span>
+                                    <svg class="ui-icon" aria-hidden="true"><use href="#ico-sliders"></use></svg>
+                                </div>
+                                <h2 class="action-card-title">Deck Optimizer</h2>
+                                <p class="action-card-desc">Find swap suggestions from cards already in your collection, tuned to your curve.</p>
+                                <button type="button" class="select-btn action-cta-btn" onclick="window.openCollectionTab('deck', { openUpgrader: true }); event.stopPropagation();">Optimize</button>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Secondary Collection & Deck Utilities -->
                     <div class="intent-utility-pills">
-                        <button type="button" class="utility-pill-btn" onclick="window.openDeckBuilder()">🛠️ Native Deck Builder</button>
-                        <button type="button" class="utility-pill-btn" onclick="window.openCollectionTab('trade')">🤝 Trade Binder</button>
-                        <button type="button" class="utility-pill-btn" onclick="window.openCollectionTab('set')">📊 Set Completion</button>
-                        <button type="button" class="utility-pill-btn" onclick="window.openCollectionTab('collection')">📈 Collection Insights</button>
-                        <button type="button" class="utility-pill-btn" onclick="window.openProxyPrinterModal()">🖨️ 3×3 Proxy Sheet Maker</button>
+                        <button type="button" class="utility-pill-btn" onclick="window.openDeckBuilder()"><svg class="ui-icon" aria-hidden="true"><use href="#ico-hammer"></use></svg> Deck Builder</button>
+                        <button type="button" class="utility-pill-btn" onclick="window.openCollectionTab('trade')"><svg class="ui-icon" aria-hidden="true"><use href="#ico-handshake"></use></svg> Trade Binder</button>
+                        <button type="button" class="utility-pill-btn" onclick="window.openCollectionTab('set')"><svg class="ui-icon" aria-hidden="true"><use href="#ico-bar-chart"></use></svg> Set Progress</button>
+                        <button type="button" class="utility-pill-btn" onclick="window.openCollectionTab('collection')"><svg class="ui-icon" aria-hidden="true"><use href="#ico-trending"></use></svg> Collection Value</button>
+                        <button type="button" class="utility-pill-btn" onclick="window.openProxyPrinterModal()"><svg class="ui-icon" aria-hidden="true"><use href="#ico-printer"></use></svg> Proxy Printer</button>
                     </div>
                 </section>
 
@@ -753,58 +824,68 @@
                 <section class="intent-panel" id="section-rolls" role="tabpanel" aria-labelledby="intent-tab-inspire" hidden>
                     <div class="intent-panel-grid intent-panel-grid-2">
                         <div class="action-card" onclick="window.quickRollCommander()">
-                            <div class="action-card-header-row">
-                                <span class="action-card-icon">🎲</span>
-                                <span class="action-card-badge">EDHREC Archives</span>
+                            <div class="action-card-media">
+                                <img src="https://api.scryfall.com/cards/named?exact=Chaos+Warp&format=image&version=art_crop" alt="" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
                             </div>
-                            <h2 class="action-card-title">Random Commander Roll</h2>
-                            <p class="action-card-desc">Not sure what to build next? Spin the Archives for a randomized commander with EDHREC stats and instant build links.</p>
-                            <button type="button" class="select-btn action-cta-btn" id="quickRollBtn" onclick="window.quickRollCommander(); event.stopPropagation();">Roll Commander</button>
+                            <div class="action-card-body-inner">
+                                <div class="action-card-header-row">
+                                    <span class="action-card-badge">EDHREC</span>
+                                    <svg class="ui-icon" aria-hidden="true"><use href="#ico-dice"></use></svg>
+                                </div>
+                                <h2 class="action-card-title">Random Commander</h2>
+                                <p class="action-card-desc">Spin for a random legendary creature with EDHREC rank and direct deck links.</p>
+                                <button type="button" class="select-btn action-cta-btn" id="quickRollBtn" onclick="window.quickRollCommander(); event.stopPropagation();">Roll Commander</button>
+                            </div>
                         </div>
 
                         <div class="action-card precon-roll-card" onclick="window.quickRollPrecon()">
-                            <div class="action-card-header-row">
-                                <span class="action-card-icon">📦</span>
-                                <span class="action-card-badge">180+ Precons</span>
+                            <div class="action-card-media">
+                                <img src="https://api.scryfall.com/cards/named?exact=Sol+Ring&format=image&version=art_crop" alt="" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
                             </div>
-                            <h2 class="action-card-title">Random Precon Deck</h2>
-                            <p class="action-card-desc">Roll an official MTG preconstructed Commander deck complete with face commander, colors, and full 100-card list.</p>
-                            <button type="button" class="select-btn action-cta-btn" id="quickRollPreconBtn" onclick="window.quickRollPrecon(); event.stopPropagation();">Roll Precon</button>
+                            <div class="action-card-body-inner">
+                                <div class="action-card-header-row">
+                                    <span class="action-card-badge">180+ Decks</span>
+                                    <svg class="ui-icon" aria-hidden="true"><use href="#ico-package"></use></svg>
+                                </div>
+                                <h2 class="action-card-title">Random Precon</h2>
+                                <p class="action-card-desc">Pick an official Wizards preconstructed Commander deck ready to play in the Arena.</p>
+                                <button type="button" class="select-btn action-cta-btn" id="quickRollPreconBtn" onclick="window.quickRollPrecon(); event.stopPropagation();">Roll Precon</button>
+                            </div>
                         </div>
                     </div>
 
                     <div class="intent-quick-strip">
                         <button type="button" class="quick-strip-item" onclick="window.openHallOfFame()">
-                            <span class="quick-strip-icon">🏛️</span>
-                            <span><strong>Hall of Fame</strong> — Browse past playgroup champions &amp; winning decks</span>
-                            <span class="quick-strip-arrow">→</span>
+                            <span class="quick-strip-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-trophy"></use></svg></span>
+                            <span><strong>Hall of Fame</strong> — Past playgroup winners &amp; archived decklists</span>
+                            <span class="quick-strip-arrow"><svg class="ui-icon" aria-hidden="true"><use href="#ico-arrow-right"></use></svg></span>
                         </button>
                     </div>
                 </section>
             </div>
 
-            <!-- Compact Footer Bar: Live Stats + Feedback -->
+            <!-- Compact Footer Bar -->
             <footer class="landing-footer-bar">
                 <div class="global-stats-bar landing-stats-compact">
                     <div class="stat-chip">
-                        <span class="stat-icon">👥</span>
-                        <span class="stat-label">Challengers:</span>
+                        <span class="stat-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-users"></use></svg></span>
+                        <span class="stat-label">Players:</span>
                         <span id="stat-players" class="stat-value">--</span>
                     </div>
                     <div class="stat-chip">
-                        <span class="stat-icon">🏰</span>
-                        <span class="stat-label">Active Rooms:</span>
+                        <span class="stat-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-swords"></use></svg></span>
+                        <span class="stat-label">Rooms:</span>
                         <span id="stat-rooms" class="stat-value">--</span>
                     </div>
                     <div class="stat-chip">
-                        <span class="stat-icon">🎲</span>
+                        <span class="stat-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-dice"></use></svg></span>
                         <span class="stat-label">Rolled:</span>
                         <span id="stat-rolled" class="stat-value highlight">--</span>
                     </div>
                 </div>
 
                 <button type="button" class="landing-feedback-link" onclick="window.openFeedbackModal()">
-                    💬 Feedback &amp; Bug Reports →
+                    <svg class="ui-icon" aria-hidden="true"><use href="#ico-message"></use></svg> Send Feedback
                 </button>
             </footer>
         </div>
@@ -3208,29 +3289,29 @@
     <button id="installPwaBtn" class="pwa-install-btn" style="display: none;">📱 Install App</button>
 
     <!-- Mobile Bottom Navigation Bar -->
-    <nav class="mobile-bottom-nav" id="mobileBottomNav">
+    <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Mobile Navigation">
         <button type="button" class="mobile-nav-item active" onclick="window.goToMainMenu()">
-            <span class="mobile-nav-icon">🏠</span>
+            <span class="mobile-nav-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-home"></use></svg></span>
             <span>Home</span>
         </button>
         <button type="button" class="mobile-nav-item" onclick="window.goToMainMenu(); window.scrollToSection('section-play');">
-            <span class="mobile-nav-icon">⚔️</span>
+            <span class="mobile-nav-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-swords"></use></svg></span>
             <span>Play</span>
         </button>
         <button type="button" class="mobile-nav-item" onclick="window.openCollectionTab('deck')">
-            <span class="mobile-nav-icon">📦</span>
-            <span>Cards</span>
+            <span class="mobile-nav-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-layers"></use></svg></span>
+            <span>Binder</span>
         </button>
         <button type="button" class="mobile-nav-item" onclick="window.openDeckBuilder()">
-            <span class="mobile-nav-icon">🛠️</span>
+            <span class="mobile-nav-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-hammer"></use></svg></span>
             <span>Builder</span>
         </button>
         <button type="button" class="mobile-nav-item" onclick="window.openHallOfFame()">
-            <span class="mobile-nav-icon">🏛️</span>
+            <span class="mobile-nav-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-trophy"></use></svg></span>
             <span>Hall</span>
         </button>
         <button type="button" class="mobile-nav-item" onclick="window.openMyProfile ? window.openMyProfile() : window.openAccountModal()">
-            <span class="mobile-nav-icon">👤</span>
+            <span class="mobile-nav-icon"><svg class="ui-icon" aria-hidden="true"><use href="#ico-user"></use></svg></span>
             <span>Profile</span>
         </button>
     </nav>

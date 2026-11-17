@@ -1,0 +1,745 @@
+/* ==========================================================================
+   EDH CHALLENGE — UNIFIED DESIGN SYSTEM (v12.0)
+   1. Zero purple gradients   5. Fraunces + Plus Jakarta Sans + JetBrains Mono
+   2. Crisp SVG icons         6. Single accent (#d4a843)
+   3. Explicit spacing scale  7. Single corner radius (10px)
+   4. Real MTG artwork        8. Skeletons, Empty States, Error States & Motion
+   ========================================================================== */
+
+:root {
+    /* Spacing Scale */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+    --space-7: 48px;
+    --space-8: 64px;
+
+    /* Single Corner Radius */
+    --radius: 10px;
+    --radius-sm: 10px;
+    --radius-md: 10px;
+    --radius-lg: 10px;
+    --radius-xl: 10px;
+    --radius-full: 10px;
+
+    /* Typography (Not Inter) */
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+    /* Single Primary Accent & Neutral Surfaces */
+    --accent: #d4a843;
+    --accent-hover: #e2bc62;
+    --accent-fg: #0c0e12;
+    --accent-muted: rgba(212, 168, 67, 0.13);
+    --accent-border: rgba(212, 168, 67, 0.4);
+
+    --bg-base: #0c0e12;
+    --bg-surface: #13161e;
+    --bg-elevated: #191d27;
+    --border-subtle: rgba(255, 255, 255, 0.09);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --text-main: #f3f4f6;
+    --text-muted: #9ca3af;
+    --danger-fg: #f87171;
+    --danger-bg: rgba(239, 68, 68, 0.12);
+    --danger-border: rgba(239, 68, 68, 0.35);
+
+    /* Override legacy theme variables so no purple leaks through */
+    --gold: var(--accent);
+    --gold-light: var(--accent-hover);
+    --primary: var(--accent);
+    --obsidian-bg: var(--bg-base);
+    --obsidian-surface: var(--bg-surface);
+    --obsidian-border: var(--border-subtle);
+}
+
+[data-theme="light"] {
+    --accent: #b5851f;
+    --accent-hover: #9e7216;
+    --accent-fg: #ffffff;
+    --accent-muted: rgba(181, 133, 31, 0.1);
+    --accent-border: rgba(181, 133, 31, 0.42);
+
+    --bg-base: #f6f5f1;
+    --bg-surface: #ffffff;
+    --bg-elevated: #efede7;
+    --border-subtle: rgba(15, 23, 42, 0.1);
+    --border-strong: rgba(15, 23, 42, 0.2);
+    --text-main: #111827;
+    --text-muted: #4b5563;
+    --danger-fg: #b91c1c;
+    --danger-bg: rgba(220, 38, 38, 0.08);
+    --danger-border: rgba(220, 38, 38, 0.3);
+}
+
+body {
+    font-family: var(--font-body);
+    background-color: var(--bg-base);
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .hero-title, .action-card-title, .nav-brand-text {
+    font-family: var(--font-display);
+}
+
+code, kbd, .room-code-input, .nav-room-code, .stat-value {
+    font-family: var(--font-mono);
+}
+
+/* Kill ALL purple gradients across views & cards */
+#view-landing.active,
+#view-lobby.active,
+#view-dashboard.active,
+#view-player.active,
+#view-collection-hub.active,
+#view-booster-simulator.active,
+#view-booster-draft.active {
+    background-color: var(--bg-base);
+    background-image: radial-gradient(circle at 50% 0%, rgba(212, 168, 67, 0.07) 0%, transparent 55%) !important;
+}
+
+[data-theme="light"] #view-landing.active,
+[data-theme="light"] #view-lobby.active,
+[data-theme="light"] #view-dashboard.active,
+[data-theme="light"] #view-player.active,
+[data-theme="light"] #view-collection-hub.active,
+[data-theme="light"] #view-booster-simulator.active,
+[data-theme="light"] #view-booster-draft.active {
+    background-color: var(--bg-base) !important;
+    background-image: radial-gradient(circle at 50% 0%, rgba(181, 133, 31, 0.06) 0%, transparent 55%) !important;
+}
+
+/* SVG UI Icons */
+.ui-icon {
+    width: 1.1em;
+    height: 1.1em;
+    display: inline-block;
+    vertical-align: -0.18em;
+    flex-shrink: 0;
+    stroke: currentColor;
+    fill: none;
+}
+
+.ui-icon-lg {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+/* Uniform Single Corner Radius & Single Accent on Controls */
+.action-card,
+.intent-card,
+.quick-strip-item,
+.utility-pill-btn,
+.select-btn,
+.secondary-btn,
+.btn-confirm,
+.btn-cancel,
+.nav-icon-btn,
+.nav-popup-menu,
+.nav-popup-item,
+.nav-account-pill,
+.player-identity-bar,
+.identity-pill-btn,
+.identity-search-btn,
+.room-code-input,
+.modal-content,
+.stat-chip,
+.landing-feedback-link,
+.action-card-badge {
+    border-radius: var(--radius) !important;
+}
+
+/* Primary Buttons — Single Gold Accent */
+.select-btn,
+.action-cta-btn,
+.btn-confirm {
+    background: var(--accent) !important;
+    color: var(--accent-fg) !important;
+    border: 1px solid transparent !important;
+    font-weight: 700 !important;
+    box-shadow: none !important;
+    transition: background-color 0.16s ease, transform 0.15s ease;
+}
+
+.select-btn:hover,
+.action-cta-btn:hover,
+.btn-confirm:hover {
+    background: var(--accent-hover) !important;
+    transform: translateY(-1px);
+}
+
+/* Navbar Cleanup */
+.master-navbar {
+    background: rgba(12, 14, 18, 0.88) !important;
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-subtle) !important;
+    padding-inline: var(--space-5);
+}
+
+[data-theme="light"] .master-navbar {
+    background: rgba(246, 245, 241, 0.92) !important;
+}
+
+.nav-icon-btn {
+    background: transparent !important;
+    border: 1px solid var(--border-subtle) !important;
+    color: var(--text-main) !important;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.86rem;
+    font-weight: 600;
+}
+
+.nav-icon-btn:hover {
+    border-color: var(--accent-border) !important;
+    background: var(--accent-muted) !important;
+    color: var(--accent) !important;
+}
+
+.nav-search-btn {
+    border-color: var(--border-strong) !important;
+}
+
+.nav-search-kbd {
+    font-size: 0.7rem;
+    padding: 1px 5px;
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+}
+
+.nav-popup-menu {
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border-strong) !important;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45) !important;
+    padding: var(--space-2) !important;
+}
+
+.nav-popup-item {
+    display: flex !important;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3) !important;
+    color: var(--text-main) !important;
+    background: transparent !important;
+    font-size: 0.86rem;
+    font-weight: 500;
+}
+
+.nav-popup-item:hover {
+    background: var(--accent-muted) !important;
+    color: var(--accent) !important;
+}
+
+/* ==========================================================================
+   LANDING PORTAL — GENEROUS SPACING, REAL ARTWORK, FEWER CARDS
+   ========================================================================== */
+.landing-portal {
+    max-inline-size: 980px;
+    inline-size: 100%;
+    margin-inline: auto;
+    padding-block: var(--space-6) var(--space-8);
+    padding-inline: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+/* Atmospheric Hero Card with Real MTG Artwork */
+.landing-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: var(--space-7) var(--space-6);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.landing-hero-art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 35%;
+    opacity: 0.24;
+    pointer-events: none;
+    filter: saturate(0.85);
+}
+
+[data-theme="light"] .landing-hero-art {
+    opacity: 0.14;
+}
+
+.landing-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(12, 14, 18, 0.45) 0%, var(--bg-surface) 95%);
+    pointer-events: none;
+}
+
+[data-theme="light"] .landing-hero::after {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, var(--bg-surface) 95%);
+}
+
+.landing-hero > *:not(.landing-hero-art) {
+    position: relative;
+    z-index: 1;
+}
+
+.landing-hero .hero-badge {
+    background: var(--accent-muted) !important;
+    border: 1px solid var(--accent-border) !important;
+    color: var(--accent) !important;
+    font-size: 0.74rem;
+    letter-spacing: 0.08em;
+    padding: var(--space-1) var(--space-3);
+    margin: 0;
+}
+
+.landing-hero .hero-title {
+    font-size: clamp(1.85rem, 4.2vw, 2.75rem);
+    font-weight: 700;
+    line-height: 1.12;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: var(--text-main) !important;
+    background: none !important;
+    -webkit-text-fill-color: currentColor !important;
+}
+
+.landing-hero .hero-subtitle {
+    max-inline-size: 540px;
+    font-size: 1rem;
+    line-height: 1.55;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.landing-identity-compact {
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border-strong) !important;
+    padding: var(--space-2) var(--space-3) !important;
+    gap: var(--space-2) !important;
+    max-inline-size: 560px;
+    width: 100%;
+    box-shadow: none !important;
+}
+
+.landing-identity-compact .hero-name-input {
+    color: var(--text-main) !important;
+    font-size: 0.92rem;
+}
+
+.identity-pill-btn,
+.identity-search-btn {
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border-strong) !important;
+    color: var(--text-main) !important;
+    padding: var(--space-2) var(--space-3) !important;
+    font-size: 0.82rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    cursor: pointer;
+}
+
+.identity-pill-btn:hover,
+.identity-search-btn:hover {
+    border-color: var(--accent) !important;
+    color: var(--accent) !important;
+}
+
+/* 4 Goal Tabs */
+.intent-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.intent-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.16s ease, background-color 0.16s ease, transform 0.16s ease;
+}
+
+.intent-card:hover {
+    border-color: var(--border-strong);
+    background: var(--bg-elevated);
+    color: var(--text-main);
+    transform: translateY(-1px);
+}
+
+.intent-card.active {
+    background: var(--bg-elevated) !important;
+    border-color: var(--accent) !important;
+    color: var(--text-main) !important;
+    box-shadow: inset 0 2px 0 var(--accent) !important;
+}
+
+.intent-card-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius);
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+}
+
+.intent-card.active .intent-card-icon {
+    background: var(--accent-muted);
+    border-color: var(--accent-border);
+    color: var(--accent);
+}
+
+.intent-card-title {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    color: inherit;
+}
+
+.intent-card-hint {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+
+/* Feature Cards with Real MTG Art Headers */
+.intent-panel-grid {
+    display: grid;
+    gap: var(--space-5);
+}
+
+.intent-panel-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.intent-panel-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.intent-panel .action-card {
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border-subtle) !important;
+    padding: 0 !important;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: none !important;
+    transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.intent-panel .action-card:hover {
+    border-color: var(--accent-border) !important;
+    transform: translateY(-2px);
+}
+
+.action-card-media {
+    position: relative;
+    height: 128px;
+    background: var(--bg-elevated);
+    overflow: hidden;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.action-card-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 30%;
+    display: block;
+    transition: transform 0.35s ease;
+}
+
+.intent-panel .action-card:hover .action-card-media img {
+    transform: scale(1.03);
+}
+
+.action-card-media::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(12, 14, 18, 0.08) 0%, rgba(12, 14, 18, 0.72) 100%);
+}
+
+[data-theme="light"] .action-card-media::after {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(15, 23, 42, 0.55) 100%);
+}
+
+.action-card-body-inner {
+    padding: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    flex: 1;
+}
+
+.action-card-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.action-card-badge {
+    position: static !important;
+    background: var(--accent-muted) !important;
+    border: 1px solid var(--accent-border) !important;
+    color: var(--accent) !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    padding: var(--space-1) var(--space-2) !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.intent-panel .action-card-title {
+    font-size: 1.28rem;
+    color: var(--text-main) !important;
+    margin: 0;
+}
+
+.intent-panel .action-card-desc {
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: var(--text-muted) !important;
+    margin: 0 0 var(--space-2) 0;
+    flex: 1;
+}
+
+/* Quick Strip & Secondary Utility Pills */
+.intent-quick-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-1);
+}
+
+.quick-strip-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-main);
+    font-size: 0.88rem;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.quick-strip-item:hover {
+    border-color: var(--accent-border);
+    background: var(--bg-elevated);
+}
+
+.quick-strip-icon {
+    color: var(--accent);
+    display: grid;
+    place-items: center;
+}
+
+.quick-strip-arrow {
+    margin-inline-start: auto;
+    color: var(--accent);
+}
+
+.utility-pill-btn {
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border-subtle) !important;
+    color: var(--text-main) !important;
+    padding: var(--space-2) var(--space-4);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.utility-pill-btn:hover {
+    border-color: var(--accent) !important;
+    color: var(--accent) !important;
+    background: var(--accent-muted) !important;
+}
+
+/* ==========================================================================
+   EMPTY STATES, LOADING SKELETONS & ERROR STATES
+   ========================================================================== */
+.empty-state-box,
+.error-state-box {
+    border-radius: var(--radius);
+    padding: var(--space-6) var(--space-5);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.empty-state-box {
+    background: var(--bg-surface);
+    border: 1px dashed var(--border-strong);
+    color: var(--text-muted);
+}
+
+.error-state-box {
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    color: var(--text-main);
+}
+
+.empty-state-icon,
+.error-state-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius);
+    display: grid;
+    place-items: center;
+}
+
+.empty-state-icon {
+    background: var(--accent-muted);
+    color: var(--accent);
+}
+
+.error-state-icon {
+    background: rgba(239, 68, 68, 0.18);
+    color: var(--danger-fg);
+}
+
+.empty-state-title,
+.error-state-title {
+    font-family: var(--font-display);
+    font-size: 1.08rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin: 0;
+}
+
+.empty-state-desc,
+.error-state-desc {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    max-inline-size: 400px;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Skeleton Loaders */
+.skeleton-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.skeleton-card {
+    border-radius: var(--radius);
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.skeleton-line {
+    height: 14px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--bg-elevated) 25%, rgba(255, 255, 255, 0.08) 50%, var(--bg-elevated) 75%);
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+
+[data-theme="light"] .skeleton-line {
+    background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+    background-size: 200% 100%;
+}
+
+.skeleton-line.w-40 { width: 40%; }
+.skeleton-line.w-65 { width: 65%; }
+.skeleton-line.w-90 { width: 90%; }
+
+@keyframes skeletonShimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Meaningful Transitions */
+.view-section.active {
+    animation: viewReveal 0.22s ease-out;
+}
+
+@keyframes viewReveal {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .view-section.active,
+    .intent-panel,
+    .skeleton-line {
+        animation: none !important;
+    }
+    .intent-card,
+    .intent-panel .action-card,
+    .action-card-media img,
+    .select-btn {
+        transition: none !important;
+        transform: none !important;
+    }
+}
+
+@media (max-width: 900px) {
+    .intent-selector-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .intent-panel-grid-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .landing-portal {
+        padding-inline: var(--space-3);
+        padding-block: var(--space-4) var(--space-7);
+        gap: var(--space-5);
+    }
+    .landing-hero {
+        padding: var(--space-5) var(--space-4);
+    }
+    .intent-selector-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    .intent-panel-grid-2,
+    .intent-panel-grid-3 {
+        grid-template-columns: 1fr;
+    }
+    .action-card-media {
+        height: 104px;
+    }
+}
