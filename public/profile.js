@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=12.0';
+import { db, auth } from './firebase-setup.js?v=12.1';
 import { ref, get, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initProfileModule(utils, state) {
@@ -255,7 +255,7 @@ export function initProfileModule(utils, state) {
                     </div>
 
                     <!-- Split Leaderboards: Champions vs Commanders -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 25px; margin-bottom: 35px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 25px; margin-bottom: 35px;">
                         <!-- Champions Board -->
                         <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 20px;">
                             <h3 style="font-family: Cinzel; color: var(--gold); margin: 0 0 15px 0; display: flex; align-items: center; justify-content: space-between;">

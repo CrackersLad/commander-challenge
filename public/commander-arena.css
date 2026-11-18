@@ -2056,6 +2056,56 @@
 }
 
 @media (max-width: 900px) {
+  .arena-header {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 8px 10px !important;
+    max-width: 100% !important;
+  }
+  .arena-brand {
+    width: 100%;
+    max-width: 100%;
+  }
+  .arena-brand > div {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .arena-brand > div > div:first-child {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .arena-title {
+    white-space: normal !important;
+  }
+  .arena-subtitle {
+    white-space: normal !important;
+  }
+  .arena-controls {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .arena-turn-bar {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    padding: 8px 10px !important;
+    max-width: 100% !important;
+  }
+  .turn-status-cluster {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .arena-phase-bar {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .phase-detail-chip {
+    white-space: normal !important;
+    max-width: 100%;
+  }
   .arena-theater {
     grid-template-columns: 1fr !important;
   }
@@ -2073,6 +2123,24 @@
   .player-cmdr-card-img {
     width: 48px !important;
     height: 48px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .setup-import-box > div:last-child,
+  .setup-precon-bar {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .setup-import-box input,
+  .setup-precon-input {
+    flex: 1 1 100% !important;
+    min-width: 100% !important;
+  }
+  .setup-import-box .arena-btn,
+  .setup-precon-bar .arena-btn {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
 

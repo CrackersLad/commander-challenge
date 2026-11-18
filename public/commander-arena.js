@@ -4650,7 +4650,7 @@
                             </div>
                         </div>
 
-                        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.75rem; align-items: center;">
+                        <div style="display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.75rem; align-items: center;">
                             <button class="arena-btn" onclick="window.closeArenaSetup()">Close</button>
                             <button class="arena-btn arena-btn-gold" id="btnLaunchPodMatch" onclick="window.applyArenaSetupAndStart()" style="font-weight: 900; font-size: 0.95rem; padding: 0.65rem 1.6rem; box-shadow: 0 4px 18px rgba(234,179,8,0.35);" title="Enter live 4-player Commander table backed by official Card-Forge rules engine">
                                 ⚔️ Enter Commander Arena 🎴

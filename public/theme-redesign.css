@@ -867,6 +867,22 @@ code, kbd, .room-code-input, .nav-room-code, .stat-value {
     .landing-hero {
         padding: var(--space-5) var(--space-4);
     }
+    .landing-identity-compact {
+        flex-wrap: wrap !important;
+        padding: 10px 12px !important;
+        gap: 8px !important;
+    }
+    .landing-identity-compact .hero-name-input {
+        flex: 1 1 calc(100% - 36px) !important;
+        min-width: 0 !important;
+        font-size: 0.95rem !important;
+    }
+    .landing-identity-compact .identity-pill-btn,
+    .landing-identity-compact .identity-search-btn {
+        flex: 1 1 0% !important;
+        justify-content: center !important;
+        min-height: 36px;
+    }
     .intent-selector-grid {
         grid-template-columns: 1fr 1fr;
     }
