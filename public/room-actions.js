@@ -1,7 +1,7 @@
-import { db, functions } from './firebase-setup.js?v=11.7';
+import { db, functions } from './firebase-setup.js?v=11.8';
 import { ref, get, remove } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
-import { fetchDeckFromAPI } from './deck-parser.js?v=11.7';
+import { fetchDeckFromAPI } from './deck-parser.js?v=11.8';
 
 export function initRoomActionsModule(utils, state) {
     const { playSound, showToast, showConfirm, sanitizeHTML, switchView, getRoomCreationTime, clearSession } = utils;
@@ -514,59 +514,11 @@ export function initRoomActionsModule(utils, state) {
             progressBar.style.width = '10%';
             percentSpan.textContent = '10%';
 
-            // Stream simulation execution via SSE:
-            // Route directly to the HTTPS Cloud Function in production to avoid the Firebase Hosting 60-second rewrite gateway timeout
+            // Stream simulation 1 match per SSE request so 10-match runs never hit the 300s Cloud Function timeout
             const primaryUrl = window.location.protocol === 'https:'
                 ? 'https://us-central1-commander-challenge.cloudfunctions.net/simulateStream'
                 : 'https://arena.edhchallenge.com/api/simulate/stream';
             const fallbackUrl = window.location.protocol === 'https:' ? '/api/simulate/stream' : null;
-
-            const postBody = JSON.stringify({
-                format: 'Commander',
-                games: numGames,
-                decks: payloadDecks
-            });
-
-            let resp;
-            try {
-                resp = await fetch(primaryUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: postBody
-                });
-                if (!resp.ok && fallbackUrl && resp.status >= 500) {
-                    console.warn(`Primary simulation endpoint returned ${resp.status}, trying fallback ${fallbackUrl}...`);
-                    resp = await fetch(fallbackUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: postBody
-                    });
-                }
-            } catch (networkErr) {
-                if (fallbackUrl) {
-                    console.warn('Primary simulation fetch threw network error, trying fallback:', networkErr);
-                    resp = await fetch(fallbackUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: postBody
-                    });
-                } else {
-                    throw networkErr;
-                }
-            }
-
-            if (!resp || !resp.ok) {
-                let errDetail = `HTTP ${resp ? resp.status : 'offline'}`;
-                try {
-                    const txt = await resp.text();
-                    if (txt && txt.length < 150 && !txt.includes('<!DOCTYPE')) errDetail += ` (${txt})`;
-                } catch (_) {}
-                throw new Error(errDetail);
-            }
-
-            const reader = resp.body.getReader();
-            const decoder = new TextDecoder('utf-8');
-            let buffer = '';
 
             window._currentSimSession = {
                 decks: payloadDecks,
@@ -575,35 +527,84 @@ export function initRoomActionsModule(utils, state) {
                 startTime: Date.now()
             };
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                const parts = buffer.split('\n\n');
-                buffer = parts.pop();
+            const escapeCmdrRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-                for (const part of parts) {
-                    const trimmed = part.trim();
-                    if (trimmed.startsWith('data:')) {
+            const runSingleMatchSSE = async (gameIdx) => {
+                const postBody = JSON.stringify({
+                    format: 'Commander',
+                    games: 1,
+                    decks: payloadDecks
+                });
+
+                let resp;
+                try {
+                    resp = await fetch(primaryUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: postBody
+                    });
+                    if (!resp.ok && fallbackUrl && resp.status >= 500) {
+                        resp = await fetch(fallbackUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: postBody
+                        });
+                    }
+                } catch (networkErr) {
+                    if (fallbackUrl) {
+                        resp = await fetch(fallbackUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: postBody
+                        });
+                    } else {
+                        throw networkErr;
+                    }
+                }
+
+                if (!resp || !resp.ok) {
+                    let errDetail = `HTTP ${resp ? resp.status : 'offline'}`;
+                    try {
+                        const txt = await resp.text();
+                        if (txt && txt.length < 150 && !txt.includes('<!DOCTYPE')) errDetail += ` (${txt})`;
+                    } catch (_) {}
+                    throw new Error(errDetail);
+                }
+
+                const reader = resp.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+                let matchCompleted = false;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const parts = buffer.split('\n\n');
+                    buffer = parts.pop();
+
+                    for (const part of parts) {
+                        const trimmed = part.trim();
+                        if (!trimmed.startsWith('data:')) continue;
                         try {
                             const eventData = JSON.parse(trimmed.replace(/^data:\s*/, ''));
-                            
                             if (eventData.type === 'init') {
-                                statusHeader.textContent = `⚔️ Simulating match 1 of ${eventData.games}...`;
+                                statusHeader.textContent = `⚔️ Simulating match ${gameIdx} of ${numGames}...`;
                             } else if (eventData.type === 'turn_update') {
-                                const cardStatusEl = document.getElementById(`sim-card-status-${eventData.game}`);
+                                const cardStatusEl = document.getElementById(`sim-card-status-${gameIdx}`);
                                 if (cardStatusEl) {
                                     cardStatusEl.innerHTML = `<span class="mana-spinner"></span> Simulating Turn ${eventData.turn}...`;
                                 }
-                                statusHeader.textContent = `⚔️ Simulating match ${eventData.game} of ${eventData.total} (Turn ${eventData.turn})...`;
+                                statusHeader.textContent = `⚔️ Simulating match ${gameIdx} of ${numGames} (Turn ${eventData.turn})...`;
                             } else if (eventData.type === 'game_result') {
+                                matchCompleted = true;
                                 const cleanWinner = cleanSimPlayerName(eventData.winner, payloadDecks);
                                 const winnerCmdr = (payloadDecks.find(d => d.name === cleanWinner || (eventData.winner && eventData.winner.includes(d.name)))?.commander) || '';
 
                                 let rawLog = eventData.log || '';
                                 payloadDecks.forEach(d => {
                                     if (d.commander) {
-                                        const fullPossessive = new RegExp(`${d.name}'s\\s+${d.commander.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'gi');
+                                        const fullPossessive = new RegExp(`${escapeCmdrRegex(d.name)}'s\\s+${escapeCmdrRegex(d.commander)}`, 'gi');
                                         rawLog = rawLog.replace(fullPossessive, d.name);
                                     }
                                 });
@@ -616,26 +617,17 @@ export function initRoomActionsModule(utils, state) {
                                         let text = ev.text || '';
                                         payloadDecks.forEach(d => {
                                             if (d.commander) {
-                                                const fullPossessive = new RegExp(`${d.name}'s\\s+${d.commander.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'gi');
+                                                const fullPossessive = new RegExp(`${escapeCmdrRegex(d.name)}'s\\s+${escapeCmdrRegex(d.commander)}`, 'gi');
                                                 text = text.replace(fullPossessive, d.name);
                                             }
                                         });
-                                        return {
-                                            ...ev,
-                                            player: p,
-                                            target: tgt,
-                                            text
-                                        };
+                                        return { ...ev, player: p, target: tgt, text };
                                     });
-                                    return {
-                                        ...t,
-                                        player: tPlayer,
-                                        events
-                                    };
+                                    return { ...t, player: tPlayer, events };
                                 });
 
                                 const matchRecord = {
-                                    game: eventData.game,
+                                    game: gameIdx,
                                     winner: cleanWinner,
                                     winnerCommander: winnerCmdr,
                                     turns: eventData.turns,
@@ -646,14 +638,14 @@ export function initRoomActionsModule(utils, state) {
                                 };
                                 window._currentSimSession.games.push(matchRecord);
 
-                                const cardEl = document.getElementById(`sim-card-${eventData.game}`);
+                                const cardEl = document.getElementById(`sim-card-${gameIdx}`);
                                 if (cardEl) {
                                     cardEl.className = 'sim-game-card finished';
                                     cardEl.innerHTML = `
                                         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                                             <div>
                                                 <div style="display:flex; align-items:center; gap:8px;">
-                                                    <span style="color:#10b981; font-weight:700;">✅ Match #${eventData.game}</span>
+                                                    <span style="color:#10b981; font-weight:700;">✅ Match #${gameIdx}</span>
                                                     <strong style="color:#fff;">${sanitizeHTML(cleanWinner)}</strong>
                                                 </div>
                                                 <div style="color:#34d399; font-weight:700; font-size:0.82rem; margin-top:2px;">
@@ -661,141 +653,170 @@ export function initRoomActionsModule(utils, state) {
                                                 </div>
                                             </div>
                                             <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                                                <button type="button" class="secondary-btn" onclick="window.viewTurnLog(${eventData.game})" style="font-size:0.75rem; padding:3px 8px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(52,211,153,0.4); color:#34d399;" title="View cards played, targets, and combat">
+                                                <button type="button" class="secondary-btn" onclick="window.viewTurnLog(${gameIdx})" style="font-size:0.75rem; padding:3px 8px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(52,211,153,0.4); color:#34d399;" title="View cards played, targets, and combat">
                                                     <span>📜</span> View Log
                                                 </button>
-                                                <button type="button" class="secondary-btn" onclick="window.downloadMatchLog(${eventData.game})" style="font-size:0.75rem; padding:3px 8px; display:inline-flex; align-items:center; gap:4px;">
+                                                <button type="button" class="secondary-btn" onclick="window.downloadMatchLog(${gameIdx})" style="font-size:0.75rem; padding:3px 8px; display:inline-flex; align-items:center; gap:4px;">
                                                     <span>📥</span> Log (.txt)
                                                 </button>
-                                                <button type="button" id="sim-ai-btn-${eventData.game}" class="secondary-btn" onclick="window.requestAiMatchSummary(${eventData.game})" style="font-size:0.75rem; padding:3px 8px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
+                                                <button type="button" id="sim-ai-btn-${gameIdx}" class="secondary-btn" onclick="window.requestAiMatchSummary(${gameIdx})" style="font-size:0.75rem; padding:3px 8px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
                                                     <span>📊</span> Match Breakdown
                                                 </button>
                                             </div>
                                         </div>
-                                        <div id="sim-log-box-${eventData.game}" style="display:none; width:100%;"></div>
-                                        <div id="sim-ai-box-${eventData.game}" style="display:none; width:100%;"></div>
+                                        <div id="sim-log-box-${gameIdx}" style="display:none; width:100%;"></div>
+                                        <div id="sim-ai-box-${gameIdx}" style="display:none; width:100%;"></div>
                                     `;
                                 }
-
-                                const pct = Math.round((eventData.game / eventData.total) * 100);
-                                progressBar.style.width = `${pct}%`;
-                                percentSpan.textContent = `${pct}%`;
-                                statusHeader.textContent = `Completed match ${eventData.game} of ${eventData.total}...`;
-                            } else if (eventData.type === 'finished') {
-                                // Final Summary Screen
-                                playSound('sfx-choose');
-                                progSec.style.display = 'none';
-                                sumSec.style.display = 'block';
-
-                                const summary = eventData.summary || {};
-                                if (summary.bestDeck) {
-                                    summary.bestDeck = cleanSimPlayerName(summary.bestDeck, payloadDecks);
-                                }
-                                if (Array.isArray(summary.results)) {
-                                    summary.results.forEach(r => {
-                                        r.name = cleanSimPlayerName(r.name, payloadDecks);
-                                    });
-                                }
-                                window._currentSimSession.summary = summary;
-                                const games = window._currentSimSession.games;
-
-                                document.getElementById('simSummaryWinnerTitle').textContent = `🏆 ${summary.bestDeck}`;
-                                document.getElementById('simSummaryWinnerSubtitle').textContent = `Highest Win Probability: ${summary.bestWinRate}% across ${summary.totalGames} simulated matches`;
-
-                                // Calculate and populate key aggregate stats metrics
-                                if (games && games.length > 0) {
-                                    const totalTurns = games.reduce((acc, g) => acc + (g.turns || 0), 0);
-                                    const avgTurn = (totalTurns / games.length).toFixed(1);
-                                    const fastest = [...games].sort((a, b) => a.turns - b.turns)[0];
-                                    const longest = [...games].sort((a, b) => b.turns - a.turns)[0];
-                                    const totalDuration = games.reduce((acc, g) => acc + (g.durationMs || 0), 0);
-                                    const avgDur = (totalDuration / games.length / 1000).toFixed(1);
-
-                                    const statAvgTurnEl = document.getElementById('simStatAvgTurn');
-                                    if (statAvgTurnEl) statAvgTurnEl.textContent = `Turn ${avgTurn}`;
-
-                                    const statFastestEl = document.getElementById('simStatFastestWin');
-                                    if (statFastestEl && fastest) statFastestEl.textContent = `Turn ${fastest.turns}`;
-
-                                    const statLongestEl = document.getElementById('simStatLongestGame');
-                                    if (statLongestEl && longest) statLongestEl.textContent = `Turn ${longest.turns}`;
-
-                                    const statAvgDurEl = document.getElementById('simStatAvgDuration');
-                                    if (statAvgDurEl) statAvgDurEl.textContent = `${avgDur}s`;
-                                }
-
-                                const tbody = document.getElementById('simSummaryTableBody');
-                                let tableRows = '';
-                                (summary.results || []).forEach(r => {
-                                    const isBest = r.name === summary.bestDeck;
-                                    const rowStyle = isBest ? 'background:rgba(212,175,55,0.15); font-weight:700;' : '';
-                                    const cmdr = payloadDecks.find(d => d.name === r.name)?.commander || '';
-                                    tableRows += `
-                                        <tr style="border-bottom:1px solid rgba(255,255,255,0.06); ${rowStyle}">
-                                            <td style="padding:8px; color:#fff;">
-                                                ${isBest ? '👑 ' : ''}${sanitizeHTML(r.name)}
-                                                ${cmdr ? `<div style="font-size:0.75rem; color:#aaa; font-weight:normal;">Cmdr: ${sanitizeHTML(cmdr)}</div>` : ''}
-                                            </td>
-                                            <td style="padding:8px; text-align:center; color:#10b981; font-weight:700;">${r.wins}</td>
-                                            <td style="padding:8px; text-align:right;">
-                                                <div style="color:var(--gold); font-weight:800; font-size:0.95rem;">${r.winRate}%</div>
-                                                <div style="background:rgba(255,255,255,0.1); border-radius:4px; height:4px; width:70px; margin-left:auto; margin-top:3px; overflow:hidden;">
-                                                    <div style="background:${isBest ? 'var(--gold)' : '#10b981'}; width:${r.winRate}%; height:100%;"></div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    `;
-                                });
-                                tbody.innerHTML = tableRows;
-
-                                // Populate Match-by-Match Logs & AI Breakdowns list in summary
-                                const matchLogsContainer = document.getElementById('simMatchLogsList');
-                                if (matchLogsContainer && games && games.length > 0) {
-                                    let logsHtml = '';
-                                    games.forEach(g => {
-                                        logsHtml += `
-                                            <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px;">
-                                                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-                                                    <div>
-                                                        <div style="font-weight:700; color:#fff; font-size:0.88rem; display:flex; align-items:center; gap:6px;">
-                                                            <span style="color:#10b981;">Match #${g.game}:</span>
-                                                            <span>${sanitizeHTML(g.winner)}</span>
-                                                        </div>
-                                                        <div style="color:#999; font-size:0.78rem; margin-top:2px;">
-                                                            Victory on Turn ${g.turns} (${(g.durationMs / 1000).toFixed(1)}s)${g.winnerCommander ? ` • Commander: <strong style="color:#ccc;">${sanitizeHTML(g.winnerCommander)}</strong>` : ''}
-                                                        </div>
-                                                    </div>
-                                                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                                                        <button type="button" class="secondary-btn" onclick="window.viewTurnLog(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(52,211,153,0.4); color:#34d399;" title="View cards played, targets, and combat">
-                                                            <span>📜</span> View Log
-                                                        </button>
-                                                        <button type="button" class="secondary-btn" onclick="window.downloadMatchLog(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px;">
-                                                            <span>📥</span> Log (.txt)
-                                                        </button>
-                                                        <button type="button" id="sim-summary-ai-btn-${g.game}" class="secondary-btn" onclick="window.requestAiMatchSummary(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
-                                                            <span>📊</span> Match Breakdown
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                <div id="sim-summary-log-box-${g.game}" style="display:none; width:100%;"></div>
-                                                <div id="sim-summary-ai-box-${g.game}" style="display:none; width:100%;"></div>
-                                            </div>
-                                        `;
-                                    });
-                                    matchLogsContainer.innerHTML = logsHtml;
-                                }
-
-                                showToast(`🏆 Simulation complete! ${summary.bestDeck} has the highest projected win chance (${summary.bestWinRate}%).`, false, 4000, true);
                             } else if (eventData.type === 'error') {
-                                showToast(`Simulation issue: ${eventData.message}`, true, 5000);
-                                window.resetLobbySimUI();
+                                throw new Error(eventData.message || 'Simulation engine error');
                             }
                         } catch (parseErr) {
-                            console.error('SSE JSON parse error:', parseErr);
+                            if (parseErr instanceof SyntaxError) {
+                                console.error('SSE JSON parse error:', parseErr);
+                            } else {
+                                throw parseErr;
+                            }
                         }
                     }
                 }
+
+                if (!matchCompleted) {
+                    throw new Error(`Match #${gameIdx} stream ended before reporting a winner.`);
+                }
+            };
+
+            let failedMatches = 0;
+            for (let gameIdx = 1; gameIdx <= numGames; gameIdx++) {
+                statusHeader.textContent = `⚔️ Simulating match ${gameIdx} of ${numGames}...`;
+                try {
+                    await runSingleMatchSSE(gameIdx);
+                } catch (matchErr) {
+                    failedMatches++;
+                    console.warn(`Match #${gameIdx} failed:`, matchErr);
+                    const cardEl = document.getElementById(`sim-card-${gameIdx}`);
+                    if (cardEl) {
+                        cardEl.className = 'sim-game-card';
+                        cardEl.innerHTML = `<div style="color:#f87171; font-weight:600;">⚠️ Match #${gameIdx} did not finish: ${sanitizeHTML(matchErr.message)}</div>`;
+                    }
+                }
+                const pct = Math.max(10, Math.round((gameIdx / numGames) * 100));
+                progressBar.style.width = `${pct}%`;
+                percentSpan.textContent = `${pct}%`;
             }
+
+            const games = window._currentSimSession.games;
+            if (!games || games.length === 0) {
+                throw new Error('All simulated matches failed to complete. The simulation server may be busy—try again in a moment.');
+            }
+
+            // Compute aggregate summary across all completed matches
+            const winCounts = {};
+            payloadDecks.forEach(d => { winCounts[d.name] = 0; });
+            games.forEach(g => {
+                winCounts[g.winner] = (winCounts[g.winner] || 0) + 1;
+            });
+
+            const results = Object.entries(winCounts)
+                .map(([name, wins]) => ({
+                    name,
+                    wins,
+                    winRate: Math.round((wins / games.length) * 100)
+                }))
+                .sort((a, b) => b.wins - a.wins);
+
+            const summary = {
+                bestDeck: results[0]?.name || payloadDecks[0].name,
+                bestWinRate: results[0]?.winRate ?? 0,
+                totalGames: games.length,
+                results
+            };
+            window._currentSimSession.summary = summary;
+
+            playSound('sfx-choose');
+            progSec.style.display = 'none';
+            sumSec.style.display = 'block';
+
+            document.getElementById('simSummaryWinnerTitle').textContent = `🏆 ${summary.bestDeck}`;
+            document.getElementById('simSummaryWinnerSubtitle').textContent = `Highest Win Probability: ${summary.bestWinRate}% across ${summary.totalGames} simulated matches${failedMatches > 0 ? ` (${failedMatches} timed out)` : ''}`;
+
+            const totalTurns = games.reduce((acc, g) => acc + (g.turns || 0), 0);
+            const avgTurn = (totalTurns / games.length).toFixed(1);
+            const fastest = [...games].sort((a, b) => a.turns - b.turns)[0];
+            const longest = [...games].sort((a, b) => b.turns - a.turns)[0];
+            const totalDuration = games.reduce((acc, g) => acc + (g.durationMs || 0), 0);
+            const avgDur = (totalDuration / games.length / 1000).toFixed(1);
+
+            const statAvgTurnEl = document.getElementById('simStatAvgTurn');
+            if (statAvgTurnEl) statAvgTurnEl.textContent = `Turn ${avgTurn}`;
+            const statFastestEl = document.getElementById('simStatFastestWin');
+            if (statFastestEl && fastest) statFastestEl.textContent = `Turn ${fastest.turns}`;
+            const statLongestEl = document.getElementById('simStatLongestGame');
+            if (statLongestEl && longest) statLongestEl.textContent = `Turn ${longest.turns}`;
+            const statAvgDurEl = document.getElementById('simStatAvgDuration');
+            if (statAvgDurEl) statAvgDurEl.textContent = `${avgDur}s`;
+
+            const tbody = document.getElementById('simSummaryTableBody');
+            let tableRows = '';
+            summary.results.forEach(r => {
+                const isBest = r.name === summary.bestDeck;
+                const rowStyle = isBest ? 'background:rgba(212,175,55,0.15); font-weight:700;' : '';
+                const cmdr = payloadDecks.find(d => d.name === r.name)?.commander || '';
+                tableRows += `
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.06); ${rowStyle}">
+                        <td style="padding:8px; color:#fff;">
+                            ${isBest ? '👑 ' : ''}${sanitizeHTML(r.name)}
+                            ${cmdr ? `<div style="font-size:0.75rem; color:#aaa; font-weight:normal;">Cmdr: ${sanitizeHTML(cmdr)}</div>` : ''}
+                        </td>
+                        <td style="padding:8px; text-align:center; color:#10b981; font-weight:700;">${r.wins}</td>
+                        <td style="padding:8px; text-align:right;">
+                            <div style="color:var(--gold); font-weight:800; font-size:0.95rem;">${r.winRate}%</div>
+                            <div style="background:rgba(255,255,255,0.1); border-radius:4px; height:4px; width:70px; margin-left:auto; margin-top:3px; overflow:hidden;">
+                                <div style="background:${isBest ? 'var(--gold)' : '#10b981'}; width:${r.winRate}%; height:100%;"></div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = tableRows;
+
+            const matchLogsContainer = document.getElementById('simMatchLogsList');
+            if (matchLogsContainer) {
+                let logsHtml = '';
+                games.forEach(g => {
+                    logsHtml += `
+                        <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                                <div>
+                                    <div style="font-weight:700; color:#fff; font-size:0.88rem; display:flex; align-items:center; gap:6px;">
+                                        <span style="color:#10b981;">Match #${g.game}:</span>
+                                        <span>${sanitizeHTML(g.winner)}</span>
+                                    </div>
+                                    <div style="color:#999; font-size:0.78rem; margin-top:2px;">
+                                        Victory on Turn ${g.turns} (${(g.durationMs / 1000).toFixed(1)}s)${g.winnerCommander ? ` • Commander: <strong style="color:#ccc;">${sanitizeHTML(g.winnerCommander)}</strong>` : ''}
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                    <button type="button" class="secondary-btn" onclick="window.viewTurnLog(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(52,211,153,0.4); color:#34d399;" title="View cards played, targets, and combat">
+                                        <span>📜</span> View Log
+                                    </button>
+                                    <button type="button" class="secondary-btn" onclick="window.downloadMatchLog(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px;">
+                                        <span>📥</span> Log (.txt)
+                                    </button>
+                                    <button type="button" id="sim-summary-ai-btn-${g.game}" class="secondary-btn" onclick="window.requestAiMatchSummary(${g.game})" style="font-size:0.75rem; padding:4px 9px; display:inline-flex; align-items:center; gap:4px; border-color:rgba(168,85,247,0.4); color:#c084fc;">
+                                        <span>📊</span> Match Breakdown
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="sim-summary-log-box-${g.game}" style="display:none; width:100%;"></div>
+                            <div id="sim-summary-ai-box-${g.game}" style="display:none; width:100%;"></div>
+                        </div>
+                    `;
+                });
+                matchLogsContainer.innerHTML = logsHtml;
+            }
+
+            showToast(`🏆 Simulation complete! ${summary.bestDeck} has the highest projected win chance (${summary.bestWinRate}%).`, false, 4000, true);
 
         } catch (simErr) {
             console.error('Simulation error:', simErr);
