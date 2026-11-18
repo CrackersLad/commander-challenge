@@ -1,4 +1,4 @@
-import { db, auth } from './firebase-setup.js?v=11.5';
+import { db, auth } from './firebase-setup.js?v=11.6';
 import { ref, get } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
 export function initHubModule(utils, state, coreUi) {
@@ -240,7 +240,7 @@ export function initHubModule(utils, state, coreUi) {
     async function loadPreconData() {
         if (localPrecons && localPrecons.length > 0) return localPrecons;
         try {
-            const res = await fetch('./commander-precons.json?v=11.5');
+            const res = await fetch('./commander-precons.json?v=11.6');
             if (res.ok) {
                 localPrecons = await res.json();
                 return localPrecons;
@@ -615,8 +615,18 @@ export function initHubModule(utils, state, coreUi) {
                     }
                     // Fast transition using existing ID
                     state.currentRoom = room.code; localStorage.setItem('roomCode', room.code);
-                    const me = room.data.players[state.currentPlayerId] || Object.values(room.data.players).find(p => p.uid === auth.currentUser?.uid);
-                    if (me) { state.currentPlayerName = me.name; state.isHost = me.isHost === true; localStorage.setItem('playerName', me.name); localStorage.setItem('isHost', state.isHost ? 'true' : 'false'); }
+                    const meEntry = room.data.players[state.currentPlayerId]
+                        ? [state.currentPlayerId, room.data.players[state.currentPlayerId]]
+                        : Object.entries(room.data.players).find(([, p]) => p && p.uid && p.uid === auth.currentUser?.uid);
+                    if (meEntry) {
+                        const [matchedId, me] = meEntry;
+                        state.currentPlayerId = matchedId;
+                        localStorage.setItem('playerId', matchedId);
+                        state.currentPlayerName = me.name;
+                        state.isHost = me.isHost === true;
+                        localStorage.setItem('playerName', me.name);
+                        localStorage.setItem('isHost', state.isHost ? 'true' : 'false');
+                    }
                     room.data.settings?.status === 'rolling' ? initDashboard() : initLobby();
                 };
                 listEl.appendChild(btn);

@@ -1,19 +1,19 @@
-import { db, auth, functions } from './firebase-setup.js?v=11.5';
-import { fetchDeckPriceLocal } from './deck-parser.js?v=11.5';
-import { getArchives } from './data-service.js?v=11.5';
-import { initDeckActionsModule } from './deck-actions.js?v=11.5';
-import { initRoomActionsModule } from './room-actions.js?v=11.5';
-import { initPlayerViewModule } from './player-view.js?v=11.5';
-import { initAdminModule } from './admin.js?v=11.5';
-import { initCalendarModule } from './calendar.js?v=11.5';
-import { initAuthModule } from './auth.js?v=11.5';
-import { initHubModule } from './hub.js?v=11.5';
-import { initProfileModule } from './profile.js?v=11.5';
-import { initCardInspector, openCardInspector } from './card-inspector.js?v=11.5';
-import { initWarRoom, openWarRoom } from './war-room.js?v=11.5';
-import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=11.5';
-import { initBoosterDraftModule } from './booster-draft.js?v=11.5';
-import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=11.5';
+import { db, auth, functions } from './firebase-setup.js?v=11.6';
+import { fetchDeckPriceLocal } from './deck-parser.js?v=11.6';
+import { getArchives } from './data-service.js?v=11.6';
+import { initDeckActionsModule } from './deck-actions.js?v=11.6';
+import { initRoomActionsModule } from './room-actions.js?v=11.6';
+import { initPlayerViewModule } from './player-view.js?v=11.6';
+import { initAdminModule } from './admin.js?v=11.6';
+import { initCalendarModule } from './calendar.js?v=11.6';
+import { initAuthModule } from './auth.js?v=11.6';
+import { initHubModule } from './hub.js?v=11.6';
+import { initProfileModule } from './profile.js?v=11.6';
+import { initCardInspector, openCardInspector } from './card-inspector.js?v=11.6';
+import { initWarRoom, openWarRoom } from './war-room.js?v=11.6';
+import { initBoosterSimulatorModule, crackBoosterProduct, updateMarketAndCostDisplay, setSortMode, setFilterMode } from './booster-simulator.js?v=11.6';
+import { initBoosterDraftModule } from './booster-draft.js?v=11.6';
+import { buildGoogleCalendarUrl, downloadIcsFile, testDiscordWebhook } from './calendar-webhook-utils.js?v=11.6';
 import { ref, set, get, onValue, update, remove, increment, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-functions.js";
 
@@ -2022,17 +2022,17 @@ function initDashboard() {
         window.latestRoomData = data;
 
         // Manage Host "Schedule" Button
-        const actionsDiv = document.querySelector('.dashboard-actions');
+        const actionsDiv = document.querySelector('.dashboard-action-ribbon') || document.querySelector('.dashboard-actions');
         let battleBtn = document.getElementById('scheduleBattleBtn');
         
-        if (isHost && allReady) {
+        if (isHost && allReady && actionsDiv) {
             if (!battleBtn) {
                 battleBtn = document.createElement('button');
                 battleBtn.id = 'scheduleBattleBtn';
-                battleBtn.className = 'select-btn';
-                battleBtn.style.padding = '8px 15px';
-                battleBtn.style.fontSize = '0.9rem';
-                battleBtn.style.borderRadius = '4px';
+                battleBtn.className = 'action-chip';
+                battleBtn.style.background = 'rgba(212, 168, 67, 0.16)';
+                battleBtn.style.borderColor = 'var(--gold)';
+                battleBtn.style.color = 'var(--gold)';
                 battleBtn.innerHTML = meetup ? 'Update Battle' : '📅 Schedule Battle';
                 battleBtn.onclick = () => window.openBattleSetup(meetup);
                 actionsDiv.insertBefore(battleBtn, actionsDiv.firstChild); // Put it first
@@ -2378,6 +2378,7 @@ const state = {
     get currentRoom() { return currentRoom; },
     set currentRoom(v) { currentRoom = v; },
     get currentPlayerId() { return currentPlayerId; },
+    set currentPlayerId(v) { currentPlayerId = v; },
     get currentPlayerName() { return currentPlayerName; },
     set currentPlayerName(v) { currentPlayerName = v; },
     get currentPlayerAvatar() { return currentPlayerAvatar; },
@@ -2396,8 +2397,8 @@ window.isExplicitSignOut = false;
 initAdminModule(utils);
 initHubModule(utils, state, { initDashboard, initLobby });
 initCalendarModule(utils, state);
-import('./deck-builder-view.js?v=11.5').then(module => module.initDeckBuilderModule(utils, state));
-import('./command-center-extras.js?v=11.5').then(module => module.initCommandCenterExtras(utils, state));
+import('./deck-builder-view.js?v=11.6').then(module => module.initDeckBuilderModule(utils, state));
+import('./command-center-extras.js?v=11.6').then(module => module.initCommandCenterExtras(utils, state));
 initAuthModule(utils, state);
 initProfileModule(utils, state);
 initDeckActionsModule(utils, state);

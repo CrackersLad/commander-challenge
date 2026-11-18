@@ -1,7 +1,7 @@
 // Native Standalone Deck Builder, "My Armory" Multi-Deck Manager,
 // Official WotC Bracket 1-5 Analyzer, Auto-Role Tagging, and Hypergeometric Draw Calculator
 
-import { isOfficialGameChanger } from './card-inspector.js?v=11.5';
+import { isOfficialGameChanger } from './card-inspector.js?v=11.6';
 
 const ARMORY_STORAGE_KEY = 'mtg_armory_decks_v1';
 
