@@ -2833,7 +2833,7 @@
                 let popularDecks = [];
 
                 try {
-                    const res = await fetch('./commander-precons.json?v=11.6');
+                    const res = await fetch('./commander-precons.json?v=11.7');
                     if (res.ok) {
                         const preconsData = await res.json();
                         if (Array.isArray(preconsData) && preconsData.length > 0) {
@@ -2869,7 +2869,7 @@
                 }
 
                 try {
-                    const popRes = await fetch('./archidekt-popular-decks.json?v=11.6');
+                    const popRes = await fetch('./archidekt-popular-decks.json?v=11.7');
                     if (popRes.ok) {
                         const popData = await popRes.json();
                         if (Array.isArray(popData) && popData.length > 0) {
@@ -10382,7 +10382,7 @@
         window.loadSampleDemoCollection = async function() {
             try {
                 showToast("✨ Loading Instant Demo Collection (250+ EDH Staples & Commanders)...");
-                const res = await fetch('./commander-cards-cache.json?v=11.6');
+                const res = await fetch('./commander-cards-cache.json?v=11.7');
                 const cacheObj = res.ok ? await res.json() : {};
                 const entries = Object.entries(cacheObj);
 
