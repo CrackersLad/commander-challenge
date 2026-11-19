@@ -154,6 +154,8 @@ code, kbd, .room-code-input, .nav-room-code, .stat-value {
 .secondary-btn,
 .btn-confirm,
 .btn-cancel,
+.breadcrumb-btn,
+.add-btn,
 .nav-icon-btn,
 .nav-popup-menu,
 .nav-popup-item,
@@ -169,11 +171,33 @@ code, kbd, .room-code-input, .nav-room-code, .stat-value {
     border-radius: var(--radius) !important;
 }
 
-/* Primary Buttons — Tactile Burnished Gold */
+/* Shared Interactive State Foundation (Accessible Focus, Disabled & Tactile Press) */
+:where(button, [role="button"], .select-btn, .secondary-btn, .btn-confirm, .btn-cancel, .breadcrumb-btn, .utility-pill-btn, .nav-icon-btn, .action-cta-btn):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+:where(.select-btn, .action-cta-btn, .btn-confirm, .secondary-btn, .breadcrumb-btn, .utility-pill-btn, .btn-cancel, .add-btn):disabled,
+:where(.select-btn, .action-cta-btn, .btn-confirm, .secondary-btn, .breadcrumb-btn, .utility-pill-btn, .btn-cancel, .add-btn)[aria-disabled="true"] {
+    opacity: 0.48 !important;
+    cursor: not-allowed !important;
+    pointer-events: none;
+    transform: none !important;
+    scale: none !important;
+    filter: saturate(0.7);
+}
+
+/* Tier 1 — Primary Gold CTA */
 .select-btn,
 .action-cta-btn,
-.btn-confirm {
-    background: linear-gradient(180deg var(--in-oklab), #e3ba5a 0%, #c8972e 100%) !important;
+.btn-confirm,
+.add-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 38px;
+    background: linear-gradient(180deg, #e3ba5a 0%, #c8972e 100%) !important;
     color: var(--accent-fg) !important;
     border: 1px solid rgba(255, 240, 200, 0.28) !important;
     font-weight: 700 !important;
@@ -181,24 +205,112 @@ code, kbd, .room-code-input, .nav-room-code, .stat-value {
         inset 0 1px 0 rgba(255, 255, 255, 0.35),
         0 4px 14px rgba(212, 168, 67, 0.25),
         0 1px 3px rgba(0, 0, 0, 0.35) !important;
-    transition: filter 0.16s ease, transform 0.15s ease, box-shadow 0.16s ease;
+    transition: filter 150ms ease-out, transform 150ms ease-out, scale 120ms ease-out, box-shadow 150ms ease-out;
 }
 
-.select-btn:hover,
-.action-cta-btn:hover,
-.btn-confirm:hover {
-    filter: brightness(1.07);
-    transform: translateY(-1px);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.45),
-        0 8px 22px rgba(212, 168, 67, 0.34),
-        0 2px 6px rgba(0, 0, 0, 0.4) !important;
+[data-theme="light"] .select-btn,
+[data-theme="light"] .action-cta-btn,
+[data-theme="light"] .btn-confirm,
+[data-theme="light"] .add-btn {
+    background: linear-gradient(180deg, #c69122 0%, #9e7216 100%) !important;
+    border-color: rgba(158, 114, 22, 0.45) !important;
 }
 
-.select-btn:active,
-.action-cta-btn:active,
-.btn-confirm:active {
+.select-btn:active:not(:disabled),
+.action-cta-btn:active:not(:disabled),
+.btn-confirm:active:not(:disabled),
+.add-btn:active:not(:disabled) {
     transform: translateY(0);
+    scale: 0.98;
+}
+
+/* Tier 2 — Secondary Outlined Controls (Unified across Home, Lobby, Collection & Tools) */
+.secondary-btn,
+.breadcrumb-btn,
+.utility-pill-btn,
+[data-theme="light"] .secondary-btn,
+[data-theme="light"] .breadcrumb-btn,
+[data-theme="light"] .utility-pill-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    background: var(--bg-elevated);
+    color: var(--text-main);
+    border: 1px solid var(--border-strong);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+    transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out, transform 150ms ease-out, scale 120ms ease-out, box-shadow 150ms ease-out;
+}
+
+.secondary-btn.active,
+.utility-pill-btn.active {
+    background: var(--accent-muted);
+    border-color: var(--accent-border);
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.secondary-btn:active:not(:disabled),
+.breadcrumb-btn:active:not(:disabled),
+.utility-pill-btn:active:not(:disabled),
+.nav-icon-btn:active:not(:disabled) {
+    scale: 0.98;
+}
+
+/* Tier 4 — Destructive / Cancel Controls */
+.btn-cancel {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    color: var(--danger-fg);
+    font-weight: 600;
+    transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out, transform 150ms ease-out, scale 120ms ease-out, box-shadow 150ms ease-out;
+}
+
+.btn-cancel:active:not(:disabled) {
+    scale: 0.98;
+}
+
+.btn-cancel:focus-visible {
+    outline-color: var(--danger-fg);
+}
+
+@media (hover: hover) {
+    .select-btn:hover:not(:disabled),
+    .action-cta-btn:hover:not(:disabled),
+    .btn-confirm:hover:not(:disabled),
+    .add-btn:hover:not(:disabled) {
+        filter: brightness(1.07);
+        transform: translateY(-1px);
+        box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.45),
+            0 8px 22px rgba(212, 168, 67, 0.34),
+            0 2px 6px rgba(0, 0, 0, 0.4) !important;
+    }
+
+    .secondary-btn:hover:not(:disabled),
+    .breadcrumb-btn:hover:not(:disabled),
+    .utility-pill-btn:hover:not(:disabled) {
+        background: var(--bg-surface);
+        border-color: var(--accent);
+        color: var(--accent);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+
+    .btn-cancel:hover:not(:disabled) {
+        background: #dc2626;
+        border-color: #ef4444;
+        color: #ffffff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.32);
+    }
 }
 
 /* Navbar Cleanup */
@@ -843,9 +955,18 @@ code, kbd, .room-code-input, .nav-room-code, .stat-value {
     .intent-panel .action-card::before,
     .action-card-media img,
     .quick-strip-arrow,
-    .select-btn {
+    .select-btn,
+    .action-cta-btn,
+    .btn-confirm,
+    .secondary-btn,
+    .breadcrumb-btn,
+    .utility-pill-btn,
+    .btn-cancel,
+    .add-btn,
+    .nav-icon-btn {
         transition: none !important;
         transform: none !important;
+        scale: none !important;
     }
 }
 
